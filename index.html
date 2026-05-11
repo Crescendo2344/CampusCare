@@ -1,0 +1,2970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CampusCare - Campus Health Management System</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#1d6fa5;--primary-dark:#155a87;--primary-light:#e6f1fb;--primary-mid:#378add;
+  --success:#3b6d11;--success-bg:#eaf3de;--success-border:#c0dd97;
+  --danger:#a32d2d;--danger-bg:#fcebeb;--danger-border:#f7c1c1;
+  --warning:#854f0b;--warning-bg:#faeeda;--warning-border:#FAC775;
+  --info:#185fa5;--info-bg:#e6f1fb;--info-border:#b5d4f4;
+  --gray:#5f5e5a;--gray-light:#f1efe8;--gray-border:#d3d1c7;--gray-mid:#888780;
+  --purple:#534AB7;--purple-bg:#EEEDFE;--purple-border:#AFA9EC;
+  --teal:#0F6E56;--teal-bg:#E1F5EE;--teal-border:#5DCAA5;
+  --coral:#993C1D;--coral-bg:#FAECE7;--coral-border:#F0997B;
+  --sidebar-w:235px;--header-h:52px;
+}
+body{font-family:system-ui,-apple-system,sans-serif;font-size:14px;background:#f0ede8;color:#2c2c2a;min-height:100vh;display:flex}
+
+/* ===SCROLLBAR=== */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#d3d1c7;border-radius:3px}
+
+/* ===AUTH=== */
+#auth-wrap{position:fixed;inset:0;background:linear-gradient(135deg,#1d6fa5 0%,#0c447c 100%);display:flex;align-items:center;justify-content:center;z-index:9999;padding:1rem}
+.auth-box{background:#fff;border-radius:16px;width:100%;max-width:460px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.18)}
+.auth-header{background:linear-gradient(135deg,#1d6fa5,#0c447c);padding:2rem;text-align:center;color:#fff}
+.auth-header h1{font-size:1.6rem;font-weight:700;letter-spacing:-.5px}
+.auth-header p{font-size:.82rem;opacity:.8;margin-top:4px}
+.auth-body{padding:1.75rem}
+.auth-tabs{display:flex;border-radius:8px;overflow:hidden;border:1px solid #d3d1c7;margin-bottom:1.25rem}
+.auth-tab{flex:1;padding:.5rem;background:#f5f5f3;border:none;cursor:pointer;font-size:.85rem;transition:.15s}
+.auth-tab.active{background:var(--primary);color:#fff;font-weight:500}
+.demo-accounts{background:#f5f5f3;border-radius:8px;padding:.7rem .9rem;margin-bottom:1rem;font-size:.78rem;line-height:1.7;border:1px solid #e0ddd7}
+.demo-accounts strong{color:var(--primary);display:block;margin-bottom:2px}
+
+/* ===APP SHELL=== */
+#app{display:none;width:100%;min-height:100vh}
+#app.visible{display:flex}
+
+/* ===SIDEBAR=== */
+#sidebar{width:var(--sidebar-w);background:#fff;border-right:1px solid #d3d1c7;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto;overflow-x:hidden}
+.sb-brand{padding:1rem 1.1rem;border-bottom:1px solid #d3d1c7;display:flex;align-items:center;gap:.6rem}
+.sb-brand-icon{width:32px;height:32px;background:var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;flex-shrink:0}
+.sb-brand h2{font-size:.95rem;font-weight:700;color:var(--primary)}
+.sb-brand p{font-size:.68rem;color:#888}
+.sb-profile{padding:.85rem 1.1rem;border-bottom:1px solid #ebe8e0;display:flex;align-items:center;gap:.6rem}
+.sb-avatar{width:34px;height:34px;border-radius:50%;background:var(--primary-light);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;flex-shrink:0}
+.sb-profile-info{min-width:0}
+.sb-profile-info strong{display:block;font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-profile-info span{font-size:.72rem;color:#888}
+.sb-role-badge{font-size:.65rem;padding:1px 6px;border-radius:10px;margin-top:2px;display:inline-block}
+.sb-section{padding:.4rem .7rem .15rem;font-size:.65rem;text-transform:uppercase;letter-spacing:.8px;color:#aaa;margin-top:.5rem}
+nav a,nav button{display:flex;align-items:center;gap:.55rem;padding:.48rem 1rem;cursor:pointer;font-size:.83rem;color:#444;text-decoration:none;background:none;border:none;width:100%;text-align:left;border-radius:0;transition:all .12s;position:relative}
+nav a:hover,nav button:hover{background:#f5f5f3;color:#222}
+nav a.active,nav button.active{background:var(--primary-light);color:var(--primary);font-weight:500}
+nav a.active::before,nav button.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--primary);border-radius:0 2px 2px 0}
+nav svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
+.nav-badge{margin-left:auto;background:var(--danger);color:#fff;border-radius:10px;padding:0 5px;font-size:.65rem;min-width:16px;text-align:center}
+.sb-bottom{margin-top:auto;border-top:1px solid #d3d1c7;padding:.6rem}
+.sb-logout{display:flex;align-items:center;gap:.5rem;width:50%;padding:.45rem .8rem;border:1px solid #d3d1c7;border-radius:8px;background:#fff;cursor:pointer;font-size:.8rem;color:#666;transition:.12s}
+.sb-logout:hover{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-border)}
+
+/* ===MAIN=== */
+#main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-width:0;min-height:100vh}
+.top-bar{height:var(--header-h);background:#fff;border-bottom:1px solid #d3d1c7;display:flex;align-items:center;padding:0 1.25rem;gap:.75rem;position:sticky;top:0;z-index:50}
+.top-bar h2{font-size:.95rem;font-weight:600;flex:1}
+.top-bar-actions{display:flex;align-items:center;gap:.5rem}
+.notif-btn{position:relative;background:none;border:none;cursor:pointer;padding:.3rem;border-radius:6px;color:#666}
+.notif-btn:hover{background:#f5f5f3}
+.notif-dot{position:absolute;top:2px;right:2px;width:7px;height:7px;background:var(--danger);border-radius:50%;border:1.5px solid #fff}
+.content{padding:1.25rem;flex:1}
+
+/* ===PAGES=== */
+.page{display:none}.page.active{display:block}
+
+/* ===CARDS=== */
+.card{background:#fff;border-radius:12px;border:1px solid #d3d1c7;padding:1.1rem 1.2rem;margin-bottom:1rem}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem;padding-bottom:.7rem;border-bottom:1px solid #ebe8e0}
+.card-header h3{font-size:.9rem;font-weight:600}
+.card-title{font-size:.9rem;font-weight:600;margin-bottom:.9rem}
+
+/* ===STATS=== */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.7rem;margin-bottom:1rem}
+.stat-card{background:#fff;border-radius:10px;border:1px solid #d3d1c7;padding:.9rem 1rem}
+.stat-card.colored{border:none}
+.stat-val{font-size:1.5rem;font-weight:700;line-height:1.1}
+.stat-lbl{font-size:.72rem;color:#888;margin-top:3px}
+.stat-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:.5rem}
+.stat-icon svg{width:18px;height:18px}
+
+/* ===GRID=== */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem}
+.full{grid-column:1/-1}
+
+/* ===FORMS=== */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+.form-group{display:flex;flex-direction:column;gap:.28rem;margin-bottom:.6rem}
+.form-group label{font-size:.78rem;font-weight:500;color:#555}
+.form-group input,.form-group select,.form-group textarea{padding:.42rem .7rem;border:1px solid #d3d1c7;border-radius:7px;font-size:.87rem;font-family:inherit;transition:border .15s;background:#fff}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(29,111,165,.08)}
+.form-group input:disabled,.form-group select:disabled{background:#f5f5f3;color:#888}
+.form-group.full{grid-column:1/-1}
+.form-note{font-size:.75rem;color:#888;margin-top:2px}
+.required{color:var(--danger)}
+input[type="file"]{padding:.35rem .5rem;font-size:.82rem;cursor:pointer}
+
+/* ===BTNS=== */
+.btn{padding:.4rem .85rem;border-radius:7px;border:1px solid #d3d1c7;background:#fff;cursor:pointer;font-size:.82rem;font-family:inherit;transition:all .12s;display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap}
+.btn:hover{background:#f5f5f3}.btn:active{transform:scale(.98)}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}.btn-primary:hover{background:var(--primary-dark)}
+.btn-success{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}.btn-success:hover{background:#d5edb4}
+.btn-danger{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-border)}.btn-danger:hover{background:#f7c1c1}
+.btn-warning{background:var(--warning-bg);color:var(--warning);border-color:var(--warning-border)}
+.btn-info{background:var(--info-bg);color:var(--info);border-color:var(--info-border)}
+.btn-purple{background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)}
+.btn-sm{padding:.27rem .6rem;font-size:.76rem}
+.btn-xs{padding:.2rem .45rem;font-size:.7rem}
+.btn-icon{padding:.35rem;border-radius:6px}
+.btn svg{width:13px;height:13px;stroke-width:2}
+
+/* ===BADGES=== */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:.71rem;font-weight:500;white-space:nowrap}
+.badge-success{background:var(--success-bg);color:var(--success)}
+.badge-danger{background:var(--danger-bg);color:var(--danger)}
+.badge-warning{background:var(--warning-bg);color:var(--warning)}
+.badge-info{background:var(--info-bg);color:var(--info)}
+.badge-gray{background:#f1efe8;color:#5f5e5a}
+.badge-purple{background:var(--purple-bg);color:var(--purple)}
+.badge-teal{background:var(--teal-bg);color:var(--teal)}
+.badge-coral{background:var(--coral-bg);color:var(--coral)}
+
+/* ===TABLES=== */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:#f8f7f4;padding:.5rem .8rem;text-align:left;font-weight:500;font-size:.74rem;color:#666;border-bottom:1px solid #d3d1c7;white-space:nowrap}
+td{padding:.5rem .8rem;border-bottom:1px solid #ebe8e0;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:#fafaf8}
+.td-actions{display:flex;gap:.3rem;flex-wrap:wrap}
+
+/* ===ALERTS=== */
+.alert{padding:.65rem 1rem;border-radius:8px;font-size:.83rem;margin-bottom:.75rem;display:none;align-items:flex-start;gap:.5rem}
+.alert.show{display:flex}
+.alert-danger{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-border)}
+.alert-success{background:var(--success-bg);color:var(--success);border:1px solid var(--success-border)}
+.alert-warning{background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning-border)}
+.alert-info{background:var(--info-bg);color:var(--info);border:1px solid var(--info-border)}
+
+/* ===MODALS=== */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:flex-start;justify-content:center;z-index:8000;padding:2rem 1rem;overflow-y:auto}
+.overlay.show{display:flex}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:560px;box-shadow:0 8px 40px rgba(0,0,0,.15);margin:auto}
+.modal-lg{max-width:720px}
+.modal-xl{max-width:900px}
+.modal-sm{max-width:380px}
+.modal-header{padding:1.1rem 1.25rem;border-bottom:1px solid #ebe8e0;display:flex;align-items:center;justify-content:space-between}
+.modal-header h3{font-size:.95rem;font-weight:600}
+.modal-body{padding:1.25rem}
+.modal-footer{padding:.9rem 1.25rem;border-top:1px solid #ebe8e0;display:flex;justify-content:flex-end;gap:.5rem}
+.close-btn{background:none;border:none;cursor:pointer;color:#888;padding:.2rem;border-radius:4px;line-height:0}
+.close-btn:hover{color:#333;background:#f5f5f3}
+
+/* ===SEARCH=== */
+.toolbar{display:flex;gap:.6rem;align-items:center;margin-bottom:.9rem;flex-wrap:wrap}
+.toolbar input[type=text],.toolbar input[type=search]{padding:.4rem .7rem;border:1px solid #d3d1c7;border-radius:7px;font-size:.83rem;flex:1;min-width:180px}
+.toolbar select{padding:.4rem .6rem;border:1px solid #d3d1c7;border-radius:7px;font-size:.82rem}
+
+/* ===TABS=== */
+.tabs{display:flex;border-bottom:2px solid #ebe8e0;margin-bottom:1rem;gap:0;overflow-x:auto}
+.tab{padding:.45rem .9rem;cursor:pointer;font-size:.82rem;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;transition:.15s;white-space:nowrap;background:none;border-left:none;border-right:none;border-top:none}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:500}
+.tab:hover{color:#444}
+
+/* ===MISC=== */
+.empty-state{text-align:center;padding:2.5rem 1rem;color:#888}
+.empty-state svg{width:42px;height:42px;margin:0 auto .75rem;display:block;opacity:.35;stroke:currentColor}
+.empty-state p{font-size:.85rem}
+.divider{border:none;border-top:1px solid #ebe8e0;margin:.75rem 0}
+.text-muted{color:#888;font-size:.8rem}
+.text-danger{color:var(--danger)}
+.text-success{color:var(--success)}
+.text-warning{color:var(--warning)}
+.text-primary{color:var(--primary)}
+.fw-500{font-weight:500}
+.section-label{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#888;margin-bottom:.5rem}
+.info-row{display:flex;font-size:.83rem;padding:.3rem 0;border-bottom:1px solid #f0ede8}
+.info-row:last-child{border-bottom:none}
+.info-label{color:#888;width:140px;flex-shrink:0}
+.info-val{font-weight:500;flex:1}
+
+/* ===NOTIFICATION PANEL=== */
+.notif-panel{position:fixed;top:var(--header-h);right:0;width:320px;background:#fff;border-left:1px solid #d3d1c7;border-bottom:1px solid #d3d1c7;border-radius:0 0 0 12px;box-shadow:-4px 4px 20px rgba(0,0,0,.1);z-index:200;display:none;max-height:420px;overflow-y:auto}
+.notif-panel.show{display:block}
+.notif-panel-header{padding:.7rem 1rem;border-bottom:1px solid #ebe8e0;font-size:.85rem;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.notif-item{padding:.65rem 1rem;border-bottom:1px solid #f0ede8;font-size:.8rem;cursor:pointer;transition:.12s}
+.notif-item:hover{background:#fafaf8}
+.notif-item.unread{background:#fefaee}
+.notif-item-title{font-weight:500;margin-bottom:2px}
+.notif-item-time{font-size:.72rem;color:#aaa}
+.notif-type-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+
+/* ===CALENDAR=== */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:.5rem}
+.cal-day-header{text-align:center;font-size:.7rem;font-weight:600;color:#888;padding:.3rem 0}
+.cal-day{aspect-ratio:1;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:.78rem;cursor:pointer;position:relative;border:1px solid transparent;transition:.12s;min-height:36px}
+.cal-day:hover:not(.empty){background:#f0ede8}
+.cal-day.today{background:var(--primary-light);color:var(--primary);font-weight:700;border-color:var(--primary-mid)}
+.cal-day.has-appt::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:4px;height:4px;background:var(--primary);border-radius:50%}
+.cal-day.blocked{background:#f5f5f3;color:#ccc;cursor:default}
+.cal-day.selected{background:var(--primary);color:#fff}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem}
+.cal-nav button{background:none;border:1px solid #d3d1c7;border-radius:6px;padding:.25rem .5rem;cursor:pointer}
+
+/* ===PROGRESS BARS=== */
+.progress-bar{height:5px;background:#ebe8e0;border-radius:3px;overflow:hidden;margin-top:4px}
+.progress-fill{height:100%;border-radius:3px;transition:width .4s}
+
+/* ===UPLOAD=== */
+.upload-area{border:2px dashed #d3d1c7;border-radius:10px;padding:1.25rem;text-align:center;cursor:pointer;transition:.15s;background:#fafaf8}
+.upload-area:hover{border-color:var(--primary);background:var(--primary-light)}
+.upload-area input{display:none}
+.upload-area p{font-size:.82rem;color:#888;margin-top:.3rem}
+
+/* ===COLLEGE COLORS=== */
+.college-CCICT{background:#e6f1fb;color:#185fa5;border-color:#b5d4f4}
+.college-COE{background:#eaf3de;color:#3b6d11;border-color:#c0dd97}
+.college-COED{background:#faeeda;color:#854f0b;border-color:#FAC775}
+.college-CME{background:#fcebeb;color:#a32d2d;border-color:#f7c1c1}
+.college-CAS{background:#EEEDFE;color:#534AB7;border-color:#AFA9EC}
+.college-COT{background:#E1F5EE;color:#0F6E56;border-color:#5DCAA5}
+
+/* ===TIMELINE=== */
+.timeline{display:flex;flex-direction:column;gap:.5rem}
+.tl-item{display:flex;gap:.75rem;align-items:flex-start}
+.tl-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.tl-content{flex:1;font-size:.82rem}
+.tl-time{font-size:.72rem;color:#aaa}
+
+/* ===TOAST=== */
+#toast-wrap{position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;pointer-events:none}
+.toast{background:#2c2c2a;color:#fff;padding:.6rem 1rem;border-radius:8px;font-size:.82rem;pointer-events:auto;animation:slideIn .25s ease;max-width:280px;display:flex;align-items:center;gap:.5rem}
+.toast.success{background:var(--success)}
+.toast.error{background:var(--danger)}
+.toast.warning{background:#854f0b}
+@keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ===SCHEDULE SLOTS=== */
+.slot-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-top:.5rem}
+.slot{padding:.4rem;border-radius:6px;text-align:center;font-size:.75rem;border:1px solid #d3d1c7;cursor:pointer;transition:.12s}
+.slot:hover:not(.booked):not(.blocked){border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+.slot.selected{background:var(--primary);color:#fff;border-color:var(--primary)}
+.slot.booked{background:#f5f5f3;color:#ccc;cursor:not-allowed}
+.slot.blocked{background:#faeeda;color:#854f0b;cursor:not-allowed;font-size:.7rem}
+
+/* ===RESPONSIVE=== */
+@media(max-width:768px){
+  #sidebar{transform:translateX(-100%);transition:.25s}
+  #sidebar.open{transform:translateX(0)}
+  #main{margin-left:0}
+  .grid-2,.form-row{grid-template-columns:1fr}
+  .grid-3{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- TOAST -->
+<div id="toast-wrap"></div>
+
+<!-- AUTH -->
+<div id="auth-wrap">
+<div class="auth-box">
+  <div class="auth-header">
+    <h1>🏥 CampusCare</h1>
+    <p>Campus Health Management System</p>
+  </div>
+  <div class="auth-body">
+    <div class="auth-tabs" id="auth-tabs">
+      <button class="auth-tab active" onclick="authTab('login')">Login</button>
+      <button class="auth-tab" onclick="authTab('reg')">Register</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="login-section">
+      <div class="alert alert-danger" id="login-err"></div>
+      <div class="form-group"><label>Username</label><input id="li-user" type="text" placeholder="Enter username" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="form-group"><label>Password</label><input id="li-pass" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="btn btn-primary" style="width:100%;margin-top:.3rem" onclick="doLogin()">Login to CampusCare</button>
+     
+    </div>
+
+    <!-- REGISTER -->
+    <div id="reg-section" style="display:none">
+      <div class="alert alert-info show" style="margin-bottom:.8rem;font-size:.78rem">
+        📋 Registration requires admin approval. Upload your Valid Government ID, School ID or COR.
+      </div>
+      <div class="alert alert-danger" id="reg-err"></div>
+      <div class="alert alert-success" id="reg-ok"></div>
+      <div class="form-row">
+        <div class="form-group"><label>First Name <span class="required">*</span></label><input id="r-fname" type="text"></div>
+        <div class="form-group"><label>Last Name <span class="required">*</span></label><input id="r-lname" type="text"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Username <span class="required">*</span></label><input id="r-user" type="text"></div>
+        <div class="form-group"><label>Email <span class="required">*</span></label><input id="r-email" type="email"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Password <span class="required">*</span></label><input id="r-pass" type="password"></div>
+        <div class="form-group"><label>Contact No.</label><input id="r-contact" type="text"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Person Type <span class="required">*</span></label>
+          <select id="r-ptype" onchange="updateCollegeField()">
+            <option value="Student">Student</option>
+            <option value="Teaching Personnel">Teaching Personnel</option>
+            <option value="Non-Teaching Personnel">Non-Teaching Personnel</option>
+          </select>
+        </div>
+        <div class="form-group" id="r-college-group">
+          <label>College <span class="required">*</span></label>
+          <select id="r-college">
+            <option value="CCICT">CCICT</option>
+            <option value="COE">COE</option>
+            <option value="COED">COED</option>
+            <option value="CME">CME</option>
+            <option value="CAS">CAS</option>
+            <option value="COT">COT</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label>Student/Employee ID No.</label><input id="r-idno" type="text" placeholder="e.g. 2021-00001"></div>
+      <div class="form-group">
+        <label>Upload Valid Government ID, School ID or COR <span class="required">*</span></label>
+        <div class="upload-area" onclick="document.getElementById('r-id-file').click()">
+          <input type="file" id="r-id-file" accept="image/*,.pdf" onchange="previewFile(this,'r-file-preview')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:24px;height:24px;margin:0 auto .4rem;display:block;color:#aaa"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <p>Click to upload Valid Government ID, School ID or COR</p>
+          <div id="r-file-preview" style="margin-top:.4rem;font-size:.78rem;color:var(--primary);font-weight:500"></div>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="doRegister()">Submit Registration</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- NOTIFICATION PANEL -->
+<div class="notif-panel" id="notif-panel">
+  <div class="notif-panel-header">
+    Notifications
+    <button class="btn btn-xs" onclick="markAllRead()">Mark all read</button>
+  </div>
+  <div id="notif-list"></div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="sb-brand">
+      <div class="sb-brand-icon">🏥</div>
+      <div><h2>CampusCare</h2><p>Health Management</p></div>
+    </div>
+    <div class="sb-profile">
+      <div class="sb-avatar" id="sb-avatar">--</div>
+      <div class="sb-profile-info">
+        <strong id="sb-name">User</strong>
+        <span id="sb-email">email</span>
+        <div><span class="badge sb-role-badge badge-info" id="sb-role-badge">Role</span></div>
+      </div>
+    </div>
+    <nav id="sidebar-nav"></nav>
+    <div class="sb-bottom">
+      <button class="sb-logout" onclick="logout()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        Logout
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div class="top-bar">
+      <h2 id="top-title">Dashboard</h2>
+      <div class="top-bar-actions">
+        <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          <span class="notif-dot" id="notif-dot" style="display:none"></span>
+        </button>
+        <div style="font-size:.78rem;color:#888" id="top-date"></div>
+      </div>
+    </div>
+    <div class="content" id="app-content">
+      <!-- pages injected here -->
+    </div>
+  </div>
+</div>
+
+<!-- MODALS CONTAINER -->
+<div id="modals"></div>
+
+<script>
+// ================================================================
+// DATABASE
+// ================================================================
+const DB = {
+  users: [
+    {id:1,fname:'Jophet',lname:'Sanchez',username:'admin',password:'admin123',role:'Administrator',email:'jophet.sanchez@ctu.edu.ph',contact:'09171110001',status:'Active',college:'',personType:'Staff',idNo:'EMP-0001',idFile:'',createdAt:'2026-01-01',lastLogin:''},
+    {id:2,fname:'Maria',lname:'Santos',username:'doctor1',password:'doc123',role:'Doctor',email:'m.santos@ctu.edu.ph',contact:'09171110002',status:'Active',college:'',personType:'Staff',idNo:'EMP-0002',idFile:'',specialty:'General Medicine',workDays:['Mon','Tue','Wed','Thu','Fri'],startTime:'08:00',endTime:'17:00',slotDuration:60,maxPatients:20,createdAt:'2026-01-01',lastLogin:''},
+    {id:3,fname:'Jose',lname:'Reyes',username:'doctor2',password:'doc456',role:'Doctor',email:'j.reyes@ctu.edu.ph',contact:'09171110003',status:'Active',college:'',personType:'Staff',idNo:'EMP-0003',idFile:'',specialty:'General Medicine',workDays:['Mon','Tue','Wed','Thu','Fri'],startTime:'08:00',endTime:'17:00',slotDuration:60,maxPatients:20,createdAt:'2026-01-01',lastLogin:''},
+    {id:4,fname:'Rosa',lname:'Mendez',username:'dentist1',password:'dent123',role:'Doctor',email:'r.mendez@ctu.edu.ph',contact:'09171110004',status:'Active',college:'',personType:'Staff',idNo:'EMP-0004',idFile:'',specialty:'Dental',workDays:['Mon','Tue','Wed','Thu'],startTime:'08:00',endTime:'16:00',slotDuration:60,maxPatients:15,createdAt:'2026-01-01',lastLogin:''},
+    {id:5,fname:'Anna',lname:'Cruz',username:'staff1',password:'staff123',role:'Staff',email:'a.cruz@ctu.edu.ph',contact:'09171110005',status:'Active',college:'',personType:'Staff',idNo:'EMP-0005',idFile:'',department:'Medical Clinic',createdAt:'2026-01-01',lastLogin:''},
+    {id:6,fname:'Juan',lname:'dela Cruz',username:'patient1',password:'pat123',role:'Patient',email:'juan@ctu.edu.ph',contact:'09271110006',status:'Active',college:'CCICT',personType:'Student',idNo:'2022-00006',idFile:'',verified:true,createdAt:'2026-01-01',lastLogin:''},
+    {id:9,fname:'Ana',lname:'Lim',username:'patient4',password:'pat000',role:'Patient',email:'ana@ctu.edu.ph',contact:'09271110004',status:'Active',college:'COED',personType:'Teaching Personnel',idNo:'EMP-T-0001',idFile:'sample_id.jpg',verified:true,createdAt:'2026-02-01',lastLogin:''},
+  ],
+  nextUserId:10,
+
+  patients: [
+    {id:1,userId:6,fname:'Juan',lname:'dela Cruz',age:21,gender:'Male',blood:'O+',address:'Brgy 1, Culasi',college:'CCICT',personType:'Student',idNo:'2022-00001',height:'170cm',weight:'65kg',emergencyContact:'09171234567',emergencyName:'Pedro dela Cruz',medHistory:'No known allergies',allergies:'None',createdAt:'2026-01-15'},
+    {id:2,userId:7,fname:'Maria',lname:'Reyes',age:20,gender:'Female',blood:'A+',address:'Brgy 2, Culasi',college:'COE',personType:'Student',idNo:'2022-00002',height:'158cm',weight:'52kg',emergencyContact:'09181234567',emergencyName:'Nena Reyes',medHistory:'Asthmatic',allergies:'Penicillin',createdAt:'2026-01-20'},
+    {id:3,userId:9,fname:'Ana',lname:'Lim',age:34,gender:'Female',blood:'B+',address:'Brgy 3, Culasi',college:'COED',personType:'Teaching Personnel',idNo:'EMP-T-0001',height:'160cm',weight:'55kg',emergencyContact:'09191234567',emergencyName:'Bert Lim',medHistory:'Hypertensive',allergies:'None',createdAt:'2026-02-01'},
+  ],
+  nextPatientId:4,
+
+  appointments: [
+    {id:1,patientId:1,doctorId:2,clinic:'Medical Clinic',service:'General Checkup',date:'2026-05-01',time:'09:00',status:'Completed',priority:'Student',college:'CCICT',createdBy:5,reason:'Regular checkup',notes:'BP normal',createdAt:'2026-04-28'},
+    {id:2,patientId:2,doctorId:4,clinic:'Dental Clinic',service:'Dental Checkup',date:'2026-03-10',time:'10:00',status:'Completed',priority:'Student',college:'COE',createdBy:5,reason:'Toothache',notes:'Tooth extracted',createdAt:'2026-03-08'},
+    {id:3,patientId:1,doctorId:2,clinic:'Medical Clinic',service:'Follow-up',date:'2026-05-20',time:'14:00',status:'Scheduled',priority:'Student',college:'CCICT',createdBy:6,reason:'Follow-up on URTI',notes:'',createdAt:'2026-05-10'},
+    {id:4,patientId:3,doctorId:3,clinic:'Medical Clinic',service:'General Checkup',date:'2026-05-15',time:'09:00',status:'Scheduled',priority:'Teaching',college:'COED',createdBy:9,reason:'Annual checkup',notes:'',createdAt:'2026-05-10'},
+  ],
+  nextApptId:5,
+
+  treatments: [
+    {id:1,patientId:1,doctorId:2,appointmentId:1,diagnosis:'URTI',prescription:'Amoxicillin 500mg 3x7days, Paracetamol 500mg PRN',findings:'Pharyngeal erythema, no tonsillar enlargement',notes:'Rest, hydration. Return if fever persists >3 days.',vitals:{bp:'120/80',temp:'37.2',pulse:'78',spo2:'98%',weight:'65kg'},date:'2026-05-01',followupDate:'2026-05-08',createdAt:'2026-05-01 09:30'},
+    {id:2,patientId:2,doctorId:4,appointmentId:2,diagnosis:'Dental Caries - Lower Right Molar',prescription:'Amoxicillin 500mg + Mefenamic 500mg',findings:'Carious lesion on tooth 46, percussion positive',notes:'Tooth 46 extracted. Soft diet 3 days. Return for socket check.',vitals:{bp:'-',temp:'36.8',pulse:'80',spo2:'99%',weight:'52kg'},date:'2026-03-10',followupDate:'2026-03-17',createdAt:'2026-03-10 10:30'},
+  ],
+  nextTreatId:3,
+
+  inventory: [
+    {id:1,name:'Amoxicillin 500mg',category:'Medicine',qty:150,threshold:30,unit:'capsules',expiryDate:'2027-06-30',disbursementDate:'2026-06-01',supplier:'PharmaCo',unitCost:5.50},
+    {id:2,name:'Mefenamic Acid 500mg',category:'Medicine',qty:80,threshold:25,unit:'tablets',expiryDate:'2027-03-31',disbursementDate:'2026-06-01',supplier:'PharmaCo',unitCost:4.00},
+    {id:3,name:'Paracetamol 500mg',category:'Medicine',qty:200,threshold:50,unit:'tablets',expiryDate:'2027-12-31',disbursementDate:'2026-06-01',supplier:'MedSupply',unitCost:2.50},
+    {id:4,name:'Dental Anesthesia (Lidocaine)',category:'Dental',qty:8,threshold:10,unit:'vials',expiryDate:'2026-12-31',disbursementDate:'2026-06-01',supplier:'DentaCorp',unitCost:85.00},
+    {id:5,name:'Surgical Gloves - Medium',category:'Supplies',qty:5,threshold:20,unit:'boxes',expiryDate:'2028-01-01',disbursementDate:'2026-06-01',supplier:'MedSupply',unitCost:120.00},
+    {id:6,name:'Ibuprofen 400mg',category:'Medicine',qty:60,threshold:20,unit:'tablets',expiryDate:'2027-09-30',disbursementDate:'2026-06-01',supplier:'PharmaCo',unitCost:6.00},
+    {id:7,name:'Bandage Rolls',category:'Supplies',qty:40,threshold:15,unit:'rolls',expiryDate:'2029-01-01',disbursementDate:'2026-06-01',supplier:'MedSupply',unitCost:35.00},
+    {id:8,name:'BP Monitor',category:'Equipment',qty:3,threshold:2,unit:'pcs',expiryDate:'',disbursementDate:'',supplier:'EquipCo',unitCost:1800.00},
+    {id:9,name:'Thermometer',category:'Equipment',qty:12,threshold:5,unit:'pcs',expiryDate:'',disbursementDate:'',supplier:'EquipCo',unitCost:250.00},
+    {id:10,name:'Dental Extraction Kit',category:'Dental',qty:2,threshold:3,unit:'sets',expiryDate:'',disbursementDate:'',supplier:'DentaCorp',unitCost:4500.00},
+  ],
+  nextInvId:11,
+
+  healthResources: [
+  { id: 1, title: "Managing Stress During Exams", category: "Mental Health", content: "Lorem ipsum...", authorId: 1, createdAt: "2026-04-01", published: true },
+  { id: 2, title: "Proper Hydration Tips", category: "Nutrition", content: "Drink at least 8 glasses...", authorId: 1, createdAt: "2026-04-05", published: true },
+  { id: 3, title: "How to Treat Minor Cuts", category: "First Aid", content: "Clean with soap...", authorId: 2, createdAt: "2026-04-10", published: true },
+  ],
+  nextResourceId: 4,
+
+  messages: [
+  { id: 1, fromUserId: 6, toUserId: 2, subject: "Headache persists", message: "I still have a headache after taking Paracetamol.", createdAt: "2026-05-10 10:30", isRead: false, replyToId: null },
+  { id: 2, fromUserId: 2, toUserId: 6, subject: "RE: Headache persists", message: "Please come for a follow-up if symptoms continue.", createdAt: "2026-05-11 09:15", isRead: true, replyToId: 1 },
+  ],
+  nextMessageId: 3,
+
+  medReminders: [
+  { id: 1, patientId: 1, medicationName: "Amoxicillin 500mg", dosage: "3 times a day", startDate: "2026-05-01", endDate: "2026-05-08", timeOfDay: ["08:00","14:00","20:00"], lastSent: null, status: "active" },
+  ],
+  nextReminderId: 2,
+
+  notifications: [],
+  nextNotifId:1,
+
+  disbursements: [],
+  nextDisbId:1,
+
+  doctorLeaves: [],
+
+  settings: {
+    semesterStart:'2026-01-01',
+    semesterEnd:'2026-06-30',
+    semester2Start:'2026-07-01',
+    semester2End:'2026-12-31',
+    dentalLimitPerSemester:1,
+    appointmentReminderDays:2,
+    clinicName:'CampusCare',
+    address:'Corner M.J. Cuenco Ave. & R. Palma St., Cebu City, Philippines, 6000.',
+    contactEmail:'campus.care@ctu.edu.ph',
+  }
+};
+
+// ================================================================
+// UTILITIES
+// ================================================================
+const TODAY = new Date().toISOString().split('T')[0];
+let currentUser = null;
+let currentPatient = null;
+let activeModal = null;
+
+function toast(msg, type='info', dur=3000){
+  const w=document.getElementById('toast-wrap');
+  const t=document.createElement('div');
+  t.className=`toast ${type}`;
+  t.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="${type==='success'?'M5 13l4 4L19 7':type==='error'?'M6 18L18 6M6 6l12 12':'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'}"/></svg>${msg}`;
+  w.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300)},dur);
+}
+
+function showAlert(el,msg,type='danger'){
+  if(!el)return;
+  el.className=`alert alert-${type} show`;
+  el.innerHTML=msg;
+}
+function hideAlert(el){if(el){el.classList.remove('show');el.innerHTML='';}}
+
+function getSemester(dateStr){
+  if(!dateStr)return null;
+  const d=new Date(dateStr);const yr=d.getFullYear();const mo=d.getMonth()+1;
+  return mo<=6?`${yr}-S1`:`${yr}-S2`;
+}
+function currentSemester(){return getSemester(TODAY);}
+
+function fmtDate(d){if(!d)return'-';const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'});}
+function fmtDateTime(d){if(!d)return'-';return new Date(d).toLocaleString('en-PH',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});}
+function fmtTime(t){if(!t)return'-';const [h,m]=t.split(':');const hr=parseInt(h);return `${hr===0?12:hr>12?hr-12:hr}:${m} ${hr<12?'AM':'PM'}`;}
+function dayOfWeek(dateStr){return new Date(dateStr+'T12:00:00').toLocaleDateString('en',{weekday:'short'});}
+
+function statusBadge(s){
+  const map={Scheduled:'info',Completed:'success',Cancelled:'danger','Pending':'warning','Active':'success','Suspended':'danger','No-show':'gray'};
+  return `<span class="badge badge-${map[s]||'gray'}">${s}</span>`;
+}
+function collegeBadge(c){
+  if(!c)return '';
+  return `<span class="badge college-${c}">${c}</span>`;
+}
+function priorityBadge(p){
+  const map={Student:'info',Teaching:'teal','Non-Teaching':'gray'};
+  return `<span class="badge badge-${map[p]||'gray'}">${p||'-'}</span>`;
+}
+
+function genId(prefix,n){return`${prefix}-${String(n).padStart(4,'0')}`;}
+
+function svgIcon(d,sz=14){return`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:${sz}px;height:${sz}px;vertical-align:middle"><path stroke-linecap="round" stroke-linejoin="round" d="${d}"/></svg>`;}
+
+function previewFile(input,previewId){
+  const el=document.getElementById(previewId);
+  if(el&&input.files[0])el.textContent='✓ '+input.files[0].name;
+}
+
+function updateCollegeField(){
+  const pt=document.getElementById('r-ptype').value;
+  const cg=document.getElementById('r-college-group');
+  cg.style.display=pt!=='Student'?'none':'';
+}
+
+function checkDentalQuota(patientId,excludeId=null){
+  const sem=currentSemester();
+  return DB.appointments.filter(a=>
+    a.patientId===patientId&&
+    a.clinic==='Dental Clinic'&&
+    a.status!=='Cancelled'&&
+    getSemester(a.date)===sem&&
+    a.id!==excludeId
+  ).length>=DB.settings.dentalLimitPerSemester;
+}
+
+function getLowStock(){return DB.inventory.filter(i=>i.qty<=i.threshold);}
+
+function getPatientByUserId(uid){return DB.patients.find(p=>p.userId===uid)||null;}
+function getUserById(id){return DB.users.find(u=>u.id===id);}
+function getPatientById(id){return DB.patients.find(p=>p.id===id);}
+
+function getDoctors(){return DB.users.filter(u=>u.role==='Doctor'&&u.status==='Active');}
+function getDentalDoctors(){return getDoctors().filter(d=>d.specialty==='Dental');}
+function getMedDoctors(){return getDoctors().filter(d=>d.specialty!=='Dental');}
+
+// ================================================================
+// NOTIFICATIONS
+// ================================================================
+function addNotif(userId,title,body,type='info'){
+  DB.notifications.push({id:DB.nextNotifId++,userId,title,body,type,read:false,createdAt:new Date().toLocaleString()});
+  if(currentUser&&currentUser.id===userId)updateNotifUI();
+}
+
+function updateNotifUI(){
+  const unread=DB.notifications.filter(n=>n.userId===currentUser.id&&!n.read);
+  const dot=document.getElementById('notif-dot');
+  if(dot)dot.style.display=unread.length?'':'none';
+  renderNotifList();
+}
+
+function renderNotifList(){
+  const list=document.getElementById('notif-list');
+  if(!list)return;
+  const notifs=DB.notifications.filter(n=>n.userId===currentUser.id).slice().reverse();
+  if(!notifs.length){list.innerHTML='<div class="empty-state" style="padding:1rem"><p>No notifications</p></div>';return;}
+  list.innerHTML=notifs.map(n=>`
+    <div class="notif-item ${n.read?'':'unread'}" onclick="readNotif(${n.id})">
+      <div style="display:flex;gap:.5rem;align-items:flex-start">
+        <div class="notif-type-dot" style="background:${n.type==='danger'?'var(--danger)':n.type==='success'?'#639922':n.type==='warning'?'#EF9F27':'var(--primary)'}"></div>
+        <div style="flex:1">
+          <div class="notif-item-title">${n.title}</div>
+          <div style="color:#666;margin-bottom:2px">${n.body}</div>
+          <div class="notif-item-time">${n.createdAt}</div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function readNotif(id){
+  const n=DB.notifications.find(x=>x.id===id);
+  if(n){n.read=true;}
+  updateNotifUI();
+}
+function markAllRead(){
+  DB.notifications.filter(n=>n.userId===currentUser.id).forEach(n=>n.read=true);
+  updateNotifUI();
+}
+function toggleNotifPanel(){
+  const p=document.getElementById('notif-panel');
+  p.classList.toggle('show');
+  if(p.classList.contains('show'))renderNotifList();
+}
+document.addEventListener('click',e=>{
+  const p=document.getElementById('notif-panel');
+  const btn=document.getElementById('notif-btn');
+  if(p&&btn&&!p.contains(e.target)&&!btn.contains(e.target))p.classList.remove('show');
+});
+
+// Check appointment reminders on login
+function checkReminders(){
+  if(!currentUser||currentUser.role!=='Patient')return;
+  const pt=getPatientByUserId(currentUser.id);
+  if(!pt)return;
+  const reminderDays=DB.settings.appointmentReminderDays;
+  DB.appointments.forEach(a=>{
+    if(a.patientId!==pt.id||a.status!=='Scheduled')return;
+    const diff=(new Date(a.date)-new Date(TODAY))/(1000*60*60*24);
+    if(diff>=0&&diff<=reminderDays){
+      const existing=DB.notifications.find(n=>n.userId===currentUser.id&&n.title.includes(a.date)&&!n.read);
+      if(!existing){
+        addNotif(currentUser.id,'Upcoming Appointment Reminder',
+          `You have a ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}.`,'warning');
+      }
+    }
+  });
+}
+
+// ================================================================
+// AUTH
+// ================================================================
+function authTab(t){
+  document.querySelectorAll('.auth-tab').forEach((b,i)=>b.classList.toggle('active',i===(t==='login'?0:1)));
+  document.getElementById('login-section').style.display=t==='login'?'':'none';
+  document.getElementById('reg-section').style.display=t==='reg'?'':'none';
+}
+
+function doLogin(){
+  const u=document.getElementById('li-user').value.trim();
+  const p=document.getElementById('li-pass').value;
+  const err=document.getElementById('login-err');
+  hideAlert(err);
+  if(!u||!p){showAlert(err,'Please enter username and password.');return;}
+  const user=DB.users.find(x=>x.username===u&&x.password===p);
+  if(!user){showAlert(err,'Invalid username or password.');return;}
+  if(user.status==='Pending'){showAlert(err,'Your account is pending admin approval. Please wait.');return;}
+  if(user.status==='Suspended'){showAlert(err,'Your account has been suspended. Contact admin.');return;}
+  user.lastLogin=new Date().toLocaleString();
+  currentUser=user;
+  if(user.role==='Patient')currentPatient=getPatientByUserId(user.id);
+  checkReminders();
+  initApp();
+}
+
+function doRegister() {
+  const fname = document.getElementById('r-fname').value.trim();
+  const lname = document.getElementById('r-lname').value.trim();
+  const uname = document.getElementById('r-user').value.trim();
+  const email = document.getElementById('r-email').value.trim();
+  const pass = document.getElementById('r-pass').value;
+  const contact = document.getElementById('r-contact').value.trim();
+  const ptype = document.getElementById('r-ptype').value;
+  const college = ptype === 'Student' ? document.getElementById('r-college').value : '';
+  const idNo = document.getElementById('r-idno').value.trim();
+  const fileInput = document.getElementById('r-id-file');
+  const err = document.getElementById('reg-err');
+  const ok = document.getElementById('reg-ok');
+  hideAlert(err); hideAlert(ok);
+
+  if (!fname || !lname || !uname || !email || !pass) {
+    showAlert(err, 'Name, username, email and password are required.');
+    return;
+  }
+  if (!fileInput.files.length) {
+    showAlert(err, 'Please upload your School ID or COR.');
+    return;
+  }
+  if (DB.users.find(x => x.username === uname)) {
+    showAlert(err, 'Username already taken.');
+    return;
+  }
+  if (DB.users.find(x => x.email === email)) {
+    showAlert(err, 'Email already registered.');
+    return;
+  }
+
+  const file = fileInput.files[0];
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const fileDataUrl = ev.target.result; 
+    const uid = DB.nextUserId++;
+    const newUser = {
+      id: uid, fname, lname, username: uname, password: pass, role: 'Patient',
+      email, contact, status: 'Pending', college, personType: ptype, idNo,
+      idFile: file.name,          
+      idFileData: fileDataUrl,    
+      verified: false, createdAt: TODAY, lastLogin: ''
+    };
+    DB.users.push(newUser);
+    addNotif(1, 'New Registration Request', `${fname} ${lname} (${ptype}) has submitted a registration request.`, 'info');
+    showAlert(ok, 'Registration submitted! An admin will review and approve your account.', 'success');
+    setTimeout(() => authTab('login'), 2500);
+  };
+  reader.readAsDataURL(file); 
+}
+
+function logout(){
+  if(!confirm('Are you sure you want to logout?'))return;
+  currentUser=null;currentPatient=null;
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('auth-wrap').style.display='flex';
+  document.getElementById('li-user').value='';
+  document.getElementById('li-pass').value='';
+  hideAlert(document.getElementById('login-err'));
+  toast('Logged out successfully.','success');
+}
+
+// ================================================================
+// APP INIT
+// ================================================================
+function initApp(){
+  document.getElementById('auth-wrap').style.display='none';
+  document.getElementById('app').classList.add('visible');
+  document.getElementById('sb-name').textContent=`${currentUser.fname} ${currentUser.lname}`;
+  document.getElementById('sb-email').textContent=currentUser.email;
+  const initials=(currentUser.fname[0]||'')+(currentUser.lname[0]||'');
+  document.getElementById('sb-avatar').textContent=initials.toUpperCase();
+  const roleBadge=document.getElementById('sb-role-badge');
+  roleBadge.textContent=currentUser.role;
+  const rColors={Administrator:'badge-purple',Doctor:'badge-teal',Staff:'badge-warning',Patient:'badge-info'};
+  roleBadge.className=`badge sb-role-badge ${rColors[currentUser.role]||'badge-gray'}`;
+  document.getElementById('top-date').textContent=new Date().toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  buildNav();
+  updateNotifUI();
+  const firstNav = NAV_CONFIG[currentUser.role]?.find(item => item.id);
+  if(firstNav) navTo(firstNav.id);
+}
+
+const NAV_ICONS={
+  dashboard:'M3 12L12 3l9 9v9H15v-5h-6v5H3z',
+  'my-appointments':'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  'my-records':'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+  'messages': 'M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4v4l4-4h8c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z',
+  'my-account':'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+  patients:'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
+  appointments:'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  treatments:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+  inventory:'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
+  reports:'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+  health_education:'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  users:'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
+  schedule:'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+  'my-patients':'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
+  settings:'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+  approvals:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+};
+
+const NAV_CONFIG={
+  Patient:[
+    {section:'Patient Portal'},
+    {id:'dashboard',label:'Dashboard'},
+    {id:'my-appointments',label:'My Appointments'},
+    {id:'my-records',label:'My Health Records'},
+    {id: 'health_education', label: 'Health Education' },
+    { id: 'messages', label: 'Ask a Doctor' },
+    {section:'Account'},
+    {id:'my-account',label:'Account Settings'},
+  ],
+  Doctor:[
+    {section:'Doctor Panel'},
+    {id:'dashboard',label:'Dashboard'},
+    {id:'schedule',label:'My Schedule'},
+    {id:'my-patients',label:'My Patients'},
+    {id:'appointments',label:'Appointments'},
+    {id:'treatments',label:'Treatments'},
+    { id: 'messages', label: 'Patient Messages' },
+    {section:'Reports'},
+    {id:'reports',label:'Reports'},
+    {section:'Account'},
+    {id:'my-account',label:'Account Settings'},
+  ],
+  Staff:[
+    {section:'Staff Panel'},
+    {id:'dashboard',label:'Dashboard'},
+    {id:'patients',label:'Patient Records'},
+    {id:'appointments',label:'Appointments'},
+    {id:'approvals',label:'Approval Queue'},
+    {id:'inventory',label:'Inventory'},
+    {section:'Communication'},
+    {id:'reports',label:'Reports'},
+    {section:'Account'},
+    {id:'my-account',label:'Account Settings'},
+  ],
+  Administrator:[
+    {section:'Administration'},
+    {id:'dashboard',label:'Dashboard'},
+    {id:'patients',label:'Patient Records'},
+    {id:'appointments',label:'Appointments'},
+    {id:'approvals',label:'Approval Queue'},
+    {id:'treatments',label:'Treatments'},
+    {id:'inventory',label:'Inventory'},
+    {section:'Management'},
+    {id:'users',label:'User Management'},
+    {id:'reports',label:'Reports & Analytics'},
+    {id:'settings',label:'System Settings'},
+    {section:'Account'},
+    {id:'my-account',label:'Account Settings'},
+  ],
+};
+
+function buildNav(){
+  const nav=document.getElementById('sidebar-nav');
+  const items=NAV_CONFIG[currentUser.role]||[];
+  nav.innerHTML=items.map(item=>{
+    if(item.section)return`<div class="sb-section">${item.section}</div>`;
+    const icon=NAV_ICONS[item.id]||NAV_ICONS.dashboard;
+    const badge=item.badge?`<span class="nav-badge">${item.badge}</span>`:'';
+    return`<button class="nav-item-btn" id="nav-${item.id}" onclick="navTo('${item.id}')" style="display:flex;align-items:center;gap:.55rem;padding:.48rem 1rem;cursor:pointer;font-size:.83rem;color:#444;background:none;border:none;width:100%;text-align:left;border-radius:0;transition:all .12s;position:relative">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:15px;height:15px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="${icon}"/></svg>
+      ${item.label}${badge}
+    </button>`;
+  }).join('');
+}
+
+function navTo(id){
+  document.querySelectorAll('[id^="nav-"]').forEach(el=>{
+    el.style.background='';el.style.color='#444';el.style.fontWeight='';
+  });
+  const btn=document.getElementById('nav-'+id);
+  if(btn){btn.style.background='var(--primary-light)';btn.style.color='var(--primary)';btn.style.fontWeight='500';}
+  document.getElementById('top-title').textContent={
+    dashboard:'Dashboard','my-appointments':'My Appointments','my-records':'My Health Records',
+    'my-account':'Account Settings',patients:'Patient Records',appointments:'Appointments',
+    approvals:'Approval Queue',treatments:'Treatments',inventory:'Inventory Management',
+    reports:'Reports & Analytics',users:'User Management',settings:'System Settings',
+    schedule:'My Schedule','my-patients':'My Patients'
+  }[id]||id;
+  renderPage(id);
+}
+
+function renderHealthEducation() {
+  const c = document.getElementById('app-content');
+  const role = currentUser.role;
+  const isEditor = role === 'Administrator' || role === 'Doctor';
+  const resources = DB.healthResources.filter(r => r.published).sort((a,b) => b.id - a.id);
+  
+  c.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <h3>📚 Health Education Library</h3>
+        ${isEditor ? `<button class="btn btn-primary btn-sm" onclick="openArticleModal()">+ Add Article</button>` : ''}
+      </div>
+      <div class="toolbar" style="margin-bottom:1rem">
+        <input type="text" id="article-search" placeholder="Search articles..." oninput="renderArticlesList()">
+        <select id="article-category" onchange="renderArticlesList()">
+          <option value="">All Categories</option>
+          <option>Mental Health</option><option>Nutrition</option><option>First Aid</option>
+          <option>Sexual Health</option><option>Stress Management</option><option>Vaccination</option>
+        </select>
+      </div>
+      <div id="articles-list"></div>
+    </div>
+  `;
+  renderArticlesList();
+}
+
+function renderArticlesList() {
+  const search = (document.getElementById('article-search')?.value || '').toLowerCase();
+  const category = document.getElementById('article-category')?.value || '';
+  let articles = DB.healthResources.filter(r => r.published && r.title.toLowerCase().includes(search));
+  if (category) articles = articles.filter(r => r.category === category);
+  
+  const container = document.getElementById('articles-list');
+  if (!container) return;
+  if (!articles.length) {
+    container.innerHTML = '<div class="empty-state"><p>No articles found.</p></div>';
+    return;
+  }
+  container.innerHTML = articles.map(art => `
+    <div class="card" style="margin-bottom:0.75rem; cursor:pointer" onclick="viewArticle(${art.id})">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <h4 style="font-size:0.9rem; margin:0">${escapeHtml(art.title)}</h4>
+        <span class="badge badge-info">${art.category}</span>
+      </div>
+      <p style="font-size:0.8rem; color:#666; margin-top:6px">${art.content.substring(0, 120)}...</p>
+      <div style="font-size:0.7rem; color:#aaa; margin-top:8px">Posted on ${fmtDate(art.createdAt)} by ${getUserName(art.authorId)}</div>
+    </div>
+  `).join('');
+}
+
+function viewArticle(id) {
+  const art = DB.healthResources.find(r => r.id === id);
+  if (!art) return;
+  const isEditor = currentUser.role === 'Administrator' || currentUser.role === 'Doctor';
+  openModal(`
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>${escapeHtml(art.title)}</h3>
+        <button class="close-btn" onclick="closeAllModals()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div><span class="badge badge-info">${art.category}</span> <span class="text-muted"> · ${fmtDate(art.createdAt)}</span></div>
+        <div style="margin-top:1rem; white-space:pre-wrap; line-height:1.5">${escapeHtml(art.content)}</div>
+        ${isEditor ? `<div class="divider"></div><div class="td-actions"><button class="btn btn-xs btn-info" onclick="openArticleModal(${art.id})">Edit Article</button></div>` : ''}
+      </div>
+      <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Close</button></div>
+    </div>
+  `);
+}
+
+function openArticleModal(id = null) {
+  const art = id ? DB.healthResources.find(r => r.id === id) : null;
+  openModal(`
+    <div class="modal modal-lg">
+      <div class="modal-header"><h3>${art ? 'Edit' : 'Add'} Health Article</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+      <div class="modal-body">
+        <div id="art-msg"></div>
+        <div class="form-group"><label>Title</label><input id="art-title" value="${art ? escapeHtml(art.title) : ''}"></div>
+        <div class="form-group"><label>Category</label>
+          <select id="art-category">
+            <option ${art && art.category === 'Mental Health' ? 'selected' : ''}>Mental Health</option>
+            <option ${art && art.category === 'Nutrition' ? 'selected' : ''}>Nutrition</option>
+            <option ${art && art.category === 'First Aid' ? 'selected' : ''}>First Aid</option>
+            <option ${art && art.category === 'Sexual Health' ? 'selected' : ''}>Sexual Health</option>
+            <option ${art && art.category === 'Stress Management' ? 'selected' : ''}>Stress Management</option>
+            <option ${art && art.category === 'Vaccination' ? 'selected' : ''}>Vaccination</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Content (HTML / text)</label><textarea id="art-content" rows="8">${art ? escapeHtml(art.content) : ''}</textarea></div>
+        <div class="form-group"><label><input type="checkbox" id="art-published" ${art && art.published ? 'checked' : 'checked'}> Publish immediately</label></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeAllModals()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveArticle(${id || 'null'})">Save Article</button>
+      </div>
+    </div>
+  `);
+}
+
+function saveArticle(id) {
+  const title = document.getElementById('art-title').value.trim();
+  const category = document.getElementById('art-category').value;
+  const content = document.getElementById('art-content').value.trim();
+  const published = document.getElementById('art-published').checked;
+  if (!title || !content) { toast('Title and content are required.', 'error'); return; }
+  if (id) {
+    const idx = DB.healthResources.findIndex(r => r.id === id);
+    if (idx !== -1) {
+      DB.healthResources[idx] = { ...DB.healthResources[idx], title, category, content, published };
+      toast('Article updated.', 'success');
+    }
+  } else {
+    DB.healthResources.push({
+      id: DB.nextResourceId++,
+      title, category, content,
+      authorId: currentUser.id,
+      createdAt: TODAY,
+      published
+    });
+    toast('Article added.', 'success');
+  }
+  closeAllModals();
+  renderHealthEducation();
+}
+
+// Helper to escape HTML (prevent XSS)
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/[&<>]/g, function(m) {
+    if (m === '&') return '&amp;';
+    if (m === '<') return '&lt;';
+    if (m === '>') return '&gt;';
+    return m;
+  }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
+    return c;
+  });
+}
+function getUserName(id) {
+  const u = DB.users.find(u => u.id === id);
+  return u ? `${u.fname} ${u.lname}` : 'System';
+}
+
+function renderPage(id){
+  const c=document.getElementById('app-content');
+  const renders={
+    dashboard:renderDashboard,
+    'my-appointments':renderMyAppointments,
+    'my-records':renderMyRecords,
+    'my-account':renderMyAccount,
+    patients:renderPatients,
+    appointments:renderAppointments,
+    approvals:renderApprovals,
+    treatments:renderTreatments,
+    inventory:renderInventory,
+    messages:renderMessages,
+    reports:renderReports,
+    users:renderUsers,
+    settings:renderSettings,
+    schedule:renderDoctorSchedule,
+    'my-patients':renderMyPatients,
+    'health_education':renderHealthEducation,
+  };
+  c.innerHTML='';
+  if(renders[id])renders[id]();
+  else c.innerHTML=`<div class="empty-state"><p>Page "${id}" coming soon.</p></div>`;
+}
+
+// ================================================================
+// DASHBOARD
+// ================================================================
+function renderDashboard(){
+  const c=document.getElementById('app-content');
+  const role=currentUser.role;
+  const lowStock=getLowStock();
+  const today=TODAY;
+  const todayAppts=DB.appointments.filter(a=>a.date===today&&a.status==='Scheduled');
+  const pendingUsers=DB.users.filter(u=>u.status==='Pending');
+
+  if (role === 'Patient') {
+  const pt = currentPatient;
+  if (!pt) {
+    c.innerHTML = `<div class="alert alert-warning show">No patient record linked. Please contact admin.</div>`;
+    return;
+  }
+  const myAppts = DB.appointments.filter(a => a.patientId === pt.id);
+  const upcoming = myAppts.filter(a => a.status === 'Scheduled' && a.date >= TODAY);
+  const completed = myAppts.filter(a => a.status === 'Completed');
+  const dentalThisSem = DB.appointments.filter(a =>
+    a.patientId === pt.id &&
+    a.clinic === 'Dental Clinic' &&
+    a.status !== 'Cancelled' &&
+    getSemester(a.date) === currentSemester()
+  );
+  const myReminders = DB.medReminders.filter(r => r.patientId === pt.id && r.status === 'active' && r.endDate >= TODAY);
+
+  let html = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--info-bg)">${svgIcon('M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', 18)}</div>
+        <div class="stat-val text-primary">${upcoming.length}</div>
+        <div class="stat-lbl">Upcoming Appointments</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--success-bg)">${svgIcon('M5 13l4 4L19 7', 18)}</div>
+        <div class="stat-val text-success">${completed.length}</div>
+        <div class="stat-lbl">Completed Visits</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--warning-bg)">${svgIcon('M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', 18)}</div>
+        <div class="stat-val" style="color:var(--warning)">${dentalThisSem.length}/${DB.settings.dentalLimitPerSemester}</div>
+        <div class="stat-lbl">Dental Visits This Semester</div>
+      </div>
+    </div>
+  `;
+
+  if (upcoming.length) {
+    html += `
+      <div class="card">
+        <div class="card-header"><h3>Upcoming Appointments</h3></div>
+        ${upcoming.map(a => {
+          const doc = getUserById(a.doctorId);
+          return `
+            <div style="display:flex; align-items:center; gap:.75rem; padding:.6rem 0; border-bottom:1px solid #f0ede8">
+              <div style="width:42px; height:42px; border-radius:10px; background:var(--primary-light); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:.8rem; font-weight:700; color:var(--primary)">
+                ${new Date(a.date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' })}
+              </div>
+              <div style="flex:1">
+                <div class="fw-500">${a.clinic} – ${a.service}</div>
+                <div class="text-muted">${fmtTime(a.time)} · Dr. ${doc ? doc.lname : 'Unknown'}</div>
+              </div>
+              ${statusBadge(a.status)}
+            </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  if (myReminders.length) {
+    html += `
+      <div class="card">
+        <div class="card-header"><h3>💊 Medication Reminders</h3></div>
+        ${myReminders.map(rem => `
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f0ede8; padding:.5rem 0">
+            <div>
+              <strong>${escapeHtml(rem.medicationName)}</strong><br>
+              <span class="text-muted">${escapeHtml(rem.dosage)} · Until ${fmtDate(rem.endDate)}</span>
+            </div>
+            <button class="btn btn-xs btn-success" onclick="markReminderTaken(${rem.id})">Mark Taken</button>
+          </div>
+        `).join('')}
+      </div>`;
+  }
+
+  html += `
+    <div class="card">
+      <div class="card-header"><h3>Quick Actions</h3></div>
+      <div style="display:flex; gap:.5rem; flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="navTo('my-appointments')">Book Appointment</button>
+        <button class="btn" onclick="navTo('my-records')">View Health Records</button>
+        <button class="btn" onclick="navTo('my-account')">Account Settings</button>
+      </div>
+    </div>
+  `;
+
+  c.innerHTML = html;
+  return;
+}
+
+  if(role==='Doctor'){
+    const myAppts=DB.appointments.filter(a=>a.doctorId===currentUser.id);
+    const todayMine=myAppts.filter(a=>a.date===today&&a.status==='Scheduled');
+    const myPts=new Set(myAppts.map(a=>a.patientId)).size;
+    c.innerHTML=`
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-val text-primary">${todayMine.length}</div><div class="stat-lbl">Today's Appointments</div></div>
+        <div class="stat-card"><div class="stat-val" style="color:var(--teal)">${myPts}</div><div class="stat-lbl">Total Patients</div></div>
+        <div class="stat-card"><div class="stat-val text-success">${myAppts.filter(a=>a.status==='Completed').length}</div><div class="stat-lbl">Completed</div></div>
+        <div class="stat-card"><div class="stat-val" style="color:var(--warning)">${myAppts.filter(a=>a.status==='Scheduled').length}</div><div class="stat-lbl">Pending</div></div>
+      </div>
+      <div class="card"><div class="card-header"><h3>Today's Schedule  ${fmtDate(today)}</h3><button class="btn btn-sm" onclick="navTo('schedule')">Full Schedule</button></div>
+        ${todayMine.length?`<table><thead><tr><th>Time</th><th>Patient</th><th>College</th><th>Service</th><th>Status</th></tr></thead><tbody>${todayMine.map(a=>{const pt=getPatientById(a.patientId);return`<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${collegeBadge(a.college)}</td><td>${a.service}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table>`:
+        '<div class="empty-state"><p>No appointments scheduled for today.</p></div>'}
+      </div>`;
+    return;
+  }
+
+  // Staff & Admin dashboard
+  c.innerHTML=`
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-val text-primary">${DB.patients.length}</div><div class="stat-lbl">Total Patients</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--teal)">${todayAppts.length}</div><div class="stat-lbl">Today's Appointments</div></div>
+      <div class="stat-card"><div class="stat-val text-success">${DB.appointments.filter(a=>a.status==='Scheduled').length}</div><div class="stat-lbl">Scheduled</div></div>
+      ${role==='Administrator'?`<div class="stat-card"><div class="stat-val" style="color:var(--warning)">${pendingUsers.length}</div><div class="stat-lbl">Pending Approvals</div></div>`:''}
+      <div class="stat-card"><div class="stat-val text-danger">${lowStock.length}</div><div class="stat-lbl">Low Stock Alerts</div></div>
+    </div>
+    ${lowStock.length?`<div class="card" style="border-left:3px solid var(--danger)"><div class="card-header"><h3>⚠️ Low Stock Alerts</h3><button class="btn btn-sm" onclick="navTo('inventory')">Manage Inventory</button></div>${lowStock.map(i=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0ede8;font-size:.83rem"><span><strong>${i.name}</strong> – ${i.qty} ${i.unit} remaining</span><span class="badge badge-danger">Below Threshold (${i.threshold})</span></div>`).join('')}</div>`:''}
+    ${role==='Administrator'&&pendingUsers.length?`<div class="card" style="border-left:3px solid var(--warning)"><div class="card-header"><h3>🕐 Pending Approvals</h3><button class="btn btn-sm" onclick="navTo('approvals')">Review All</button></div>${pendingUsers.slice(0,3).map(u=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0ede8;font-size:.83rem"><span><strong>${u.fname} ${u.lname}</strong> – ${u.personType} · ${u.college||'N/A'}</span><span>${statusBadge('Pending')}</span></div>`).join('')}</div>`:''}
+    <div class="card"><div class="card-header"><h3>Today's Appointments</h3><button class="btn btn-sm" onclick="navTo('appointments')">View All</button></div>
+      ${todayAppts.length?`<table><thead><tr><th>Time</th><th>Patient</th><th>College</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${todayAppts.map(a=>{const pt=getPatientById(a.patientId);const doc=getUserById(a.doctorId);return`<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${collegeBadge(a.college)}</td><td>${a.clinic}</td><td>${doc?'Dr. '+doc.lname:'Unknown'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table>`:
+      '<div class="empty-state"><p>No appointments today.</p></div>'}
+    </div>`;
+}
+
+function markReminderTaken(id) {
+  const rem = DB.medReminders.find(r => r.id === id);
+  if (rem) {
+    // For simplicity, just toast and optionally log. Could also create a taken log.
+    toast(`Marked ${rem.medicationName} as taken.`, 'success');
+    // Optionally disable for today and retrigger tomorrow? For demo, do nothing else.
+  }
+}
+
+// ================================================================
+// PATIENT – MY APPOINTMENTS
+// ================================================================
+function renderMyAppointments(){
+  const c=document.getElementById('app-content');
+  const pt=currentPatient;
+  if(!pt){c.innerHTML='<div class="alert alert-warning show">No patient record linked. Contact admin.</div>';return;}
+  const appts=DB.appointments.filter(a=>a.patientId===pt.id);
+  const sem=currentSemester();
+  const dentalUsed=checkDentalQuota(pt.id);
+
+  c.innerHTML=`
+    <div class="card" style="${dentalUsed?'border-left:3px solid var(--warning)':''}">
+      <div class="card-header"><h3>Dental Clinic Quota</h3></div>
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+        <div><span class="badge ${dentalUsed?'badge-danger':'badge-success'}">${dentalUsed?'Limit Reached':'Available'}</span></div>
+        <div class="text-muted">You may avail the Dental Clinic <strong>${DB.settings.dentalLimitPerSemester}x</strong> per semester. Medical services are unlimited.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h3>My Appointments</h3>
+        <button class="btn btn-primary btn-sm" onclick="openBookApptModal()">+ Book Appointment</button>
+      </div>
+      <div class="tabs">
+        <button class="tab active" onclick="filterMyAppts('all',this)">All</button>
+        <button class="tab" onclick="filterMyAppts('Scheduled',this)">Scheduled</button>
+        <button class="tab" onclick="filterMyAppts('Completed',this)">Completed</button>
+        <button class="tab" onclick="filterMyAppts('Cancelled',this)">Cancelled</button>
+      </div>
+      <div id="my-appts-list"></div>
+    </div>`;
+  renderMyApptsList(appts,'all');
+}
+
+function filterMyAppts(f,el){
+  document.querySelectorAll('#app-content .tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  const pt=currentPatient;
+  const appts=DB.appointments.filter(a=>a.patientId===pt.id);
+  renderMyApptsList(appts,f);
+}
+
+function renderMyApptsList(appts,filter){
+  const el=document.getElementById('my-appts-list');
+  if(!el)return;
+  let list=appts;
+  if(filter!=='all')list=appts.filter(a=>a.status===filter);
+  list=list.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  if(!list.length){el.innerHTML='<div class="empty-state"><p>No appointments found.</p></div>';return;}
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Clinic</th><th>Service</th><th>Date</th><th>Time</th><th>Doctor</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
+    list.map(a=>{
+      const doc=getUserById(a.doctorId);
+      const canCancel=a.status==='Scheduled'&&a.date>=TODAY;
+      const canReschedule=a.status==='Scheduled'&&a.date>TODAY;
+      return`<tr>
+        <td>#${a.id}</td><td>${a.clinic}</td><td>${a.service}</td>
+        <td>${fmtDate(a.date)}</td><td>${fmtTime(a.time)}</td>
+        <td>Dr. ${doc?doc.lname:'Unknown'}</td>
+        <td>${statusBadge(a.status)}</td>
+        <td><div class="td-actions">
+          ${canReschedule?`<button class="btn btn-xs btn-info" onclick="openRescheduleModal(${a.id})">Reschedule</button>`:''}
+          ${canCancel?`<button class="btn btn-xs btn-danger" onclick="cancelAppt(${a.id},true)">Cancel</button>`:''}
+          ${a.status==='Completed'?`<button class="btn btn-xs" onclick="viewTreatmentForAppt(${a.id})">View Notes</button>`:''}
+        </div></td>
+      </tr>`;
+    }).join('')
+  }</tbody></table></div>`;
+}
+
+// ================================================================
+// PATIENT – MY RECORDS
+// ================================================================
+function renderMyRecords(){
+  const c=document.getElementById('app-content');
+  const pt=currentPatient;
+  if(!pt){c.innerHTML='<div class="alert alert-warning show">No patient record found.</div>';return;}
+  const treats=DB.treatments.filter(t=>t.patientId===pt.id);
+  c.innerHTML=`
+    <div class="card">
+      <div class="card-header"><h3>Personal Information</h3></div>
+      <div class="grid-2" style="font-size:.83rem">
+        <div class="info-row"><span class="info-label">Full Name</span><span class="info-val">${pt.fname} ${pt.lname}</span></div>
+        <div class="info-row"><span class="info-label">Age</span><span class="info-val">${pt.age}</span></div>
+        <div class="info-row"><span class="info-label">Gender</span><span class="info-val">${pt.gender}</span></div>
+        <div class="info-row"><span class="info-label">Blood Type</span><span class="info-val">${pt.blood}</span></div>
+        <div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
+        <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${pt.idNo}</span></div>
+        <div class="info-row full"><span class="info-label">Allergies</span><span class="info-val text-danger">${pt.allergies||'None'}</span></div>
+        <div class="info-row full"><span class="info-label">Medical History</span><span class="info-val">${pt.medHistory||'None'}</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Treatment History</h3></div>
+      ${treats.length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Diagnosis</th><th>Prescription</th><th>Doctor</th><th>Follow-up</th></tr></thead><tbody>${
+        treats.map(t=>{const doc=getUserById(t.doctorId);return`<tr><td>${fmtDate(t.date)}</td><td>${t.diagnosis}</td><td style="max-width:180px">${t.prescription||'-'}</td><td>Dr. ${doc?doc.lname:'?'}</td><td>${fmtDate(t.followupDate)}</td></tr>`;}).join('')
+      }</tbody></table></div>`:'<div class="empty-state"><p>No treatment records yet.</p></div>'}
+    </div>`;
+}
+
+// ================================================================
+// MY ACCOUNT
+// ================================================================
+function renderMyAccount(){
+  const c=document.getElementById('app-content');
+  const u=currentUser;
+  const pt=currentPatient;
+  c.innerHTML=`
+    <div class="grid-2">
+      <div>
+        <div class="card">
+          <div class="card-header"><h3>Profile Information</h3></div>
+          <div id="acc-msg"></div>
+          <div class="form-row">
+            <div class="form-group"><label>First Name</label><input id="acc-fname" value="${u.fname}"></div>
+            <div class="form-group"><label>Last Name</label><input id="acc-lname" value="${u.lname}"></div>
+          </div>
+          <div class="form-group"><label>Email</label><input id="acc-email" value="${u.email}" type="email"></div>
+          <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${u.contact||''}"></div>
+          <button class="btn btn-primary btn-sm" onclick="saveAccount()">Save Changes</button>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Change Password</h3></div>
+          <div id="pw-msg"></div>
+          <div class="form-group"><label>Current Password</label><input id="pw-cur" type="password"></div>
+          <div class="form-group"><label>New Password</label><input id="pw-new" type="password"></div>
+          <div class="form-group"><label>Confirm New Password</label><input id="pw-conf" type="password"></div>
+          <button class="btn btn-primary btn-sm" onclick="changePassword()">Update Password</button>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="card-header"><h3>Account Information</h3></div>
+          <div class="info-row"><span class="info-label">Username</span><span class="info-val">${u.username}</span></div>
+          <div class="info-row"><span class="info-label">Role</span><span class="info-val">${u.role}</span></div>
+          <div class="info-row"><span class="info-label">Status</span><span class="info-val">${statusBadge(u.status)}</span></div>
+          <div class="info-row"><span class="info-label">Last Login</span><span class="info-val">${u.lastLogin||'—'}</span></div>
+          ${pt?`<div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
+          <div class="info-row"><span class="info-label">Person Type</span><span class="info-val">${priorityBadge(pt.personType)}</span></div>
+          <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${pt.idNo}</span></div>`:''}
+        </div>
+        ${u.role==='Patient'?`<div class="card">
+          <div class="card-header"><h3>Available Doctors</h3></div>
+          ${getDoctors().map(d=>`<div style="display:flex;align-items:center;gap:.6rem;padding:.5rem 0;border-bottom:1px solid #f0ede8">
+            <div class="sb-avatar" style="width:30px;height:30px;font-size:.72rem">${d.fname[0]}${d.lname[0]}</div>
+            <div style="flex:1"><div class="fw-500" style="font-size:.83rem">Dr. ${d.fname} ${d.lname}</div>
+            <div class="text-muted">${d.specialty} · ${(d.workDays||[]).join(', ')}</div></div>
+          </div>`).join('')}
+        </div>`:''}
+      </div>
+    </div>`;
+    if(u.role==='Doctor'){
+      document.getElementById('app-content').insertAdjacentHTML('beforeend',`
+        <div class="card">
+          <div class="card-header"><h3>Work Schedule Settings</h3></div>
+          <div id="sched-msg"></div>
+          <div class="form-row">
+            <div class="form-group"><label>Start Time</label><input type="time" id="sch-start" value="${u.startTime||'08:00'}"></div>
+            <div class="form-group"><label>End Time</label><input type="time" id="sch-end" value="${u.endTime||'17:00'}"></div>
+            <div class="form-group"><label>Slot Duration (min)</label><input type="number" id="sch-slot" value="${u.slotDuration||60}" min="15" max="120"></div>
+            <div class="form-group"><label>Max Patients/Day</label><input type="number" id="sch-max" value="${u.maxPatients||20}" min="1"></div>
+          </div>
+          <div class="form-group"><label>Work Days</label>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+              ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer"><input type="checkbox" value="${d}" ${(u.workDays||[]).includes(d)?'checked':''}> ${d}</label>`).join('')}
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveScheduleSettings()">Save Schedule</button>
+        </div>`);
+    }
+}
+
+function saveAccount(){
+  const u=currentUser;
+  u.fname=document.getElementById('acc-fname').value.trim()||u.fname;
+  u.lname=document.getElementById('acc-lname').value.trim()||u.lname;
+  u.email=document.getElementById('acc-email').value.trim()||u.email;
+  u.contact=document.getElementById('acc-contact').value.trim();
+  document.getElementById('sb-name').textContent=`${u.fname} ${u.lname}`;
+  document.getElementById('sb-avatar').textContent=(u.fname[0]+u.lname[0]).toUpperCase();
+  const msg=document.getElementById('acc-msg');
+  showAlert(msg,'Profile updated successfully.','success');
+  setTimeout(()=>hideAlert(msg),3000);
+  toast('Profile updated.','success');
+}
+
+function changePassword(){
+  const u=currentUser;
+  const cur=document.getElementById('pw-cur').value;
+  const nw=document.getElementById('pw-new').value;
+  const conf=document.getElementById('pw-conf').value;
+  const msg=document.getElementById('pw-msg');
+  hideAlert(msg);
+  if(cur!==u.password){showAlert(msg,'Current password is incorrect.');return;}
+  if(!nw||nw.length<6){showAlert(msg,'New password must be at least 6 characters.');return;}
+  if(nw!==conf){showAlert(msg,'Passwords do not match.');return;}
+  u.password=nw;
+  showAlert(msg,'Password changed successfully.','success');
+  ['pw-cur','pw-new','pw-conf'].forEach(id=>document.getElementById(id).value='');
+  toast('Password updated.','success');
+}
+
+function saveScheduleSettings(){
+  const u=currentUser;
+  u.startTime=document.getElementById('sch-start').value;
+  u.endTime=document.getElementById('sch-end').value;
+  u.slotDuration=parseInt(document.getElementById('sch-slot').value)||60;
+  u.maxPatients=parseInt(document.getElementById('sch-max').value)||20;
+  u.workDays=Array.from(document.querySelectorAll('[value="Mon"],[value="Tue"],[value="Wed"],[value="Thu"],[value="Fri"],[value="Sat"],[value="Sun"]')).filter(cb=>cb.type==='checkbox'&&cb.checked).map(cb=>cb.value);
+  const msg=document.getElementById('sched-msg');
+  showAlert(msg,'Schedule settings saved.','success');
+  setTimeout(()=>hideAlert(msg),3000);
+  toast('Schedule updated.','success');
+}
+
+// ================================================================
+// DOCTOR – SCHEDULE
+// ================================================================
+function renderDoctorSchedule(){
+  const c=document.getElementById('app-content');
+  const myAppts=DB.appointments.filter(a=>a.doctorId===currentUser.id&&a.status!=='Cancelled');
+  const upcoming=myAppts.filter(a=>a.date>=TODAY).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+  const today=myAppts.filter(a=>a.date===TODAY);
+  c.innerHTML=`
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><h3>Today – ${fmtDate(TODAY)}</h3></div>
+        ${today.length?`<div class="timeline">${today.sort((a,b)=>a.time.localeCompare(b.time)).map(a=>{const pt=getPatientById(a.patientId);return`<div class="tl-item"><div class="tl-dot" style="background:${a.status==='Completed'?'#639922':'var(--primary)'}"></div><div class="tl-content"><div class="fw-500">${fmtTime(a.time)} – ${pt?pt.fname+' '+pt.lname:'Unknown'}</div><div class="text-muted">${a.service} ${collegeBadge(a.college)}</div></div></div>`;}).join('')}</div>`:
+        '<div class="empty-state"><p>No patients today.</p></div>'}
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>My Work Schedule</h3></div>
+        <div class="info-row"><span class="info-label">Days</span><span class="info-val">${(currentUser.workDays||[]).join(', ')}</span></div>
+        <div class="info-row"><span class="info-label">Hours</span><span class="info-val">${fmtTime(currentUser.startTime||'08:00')} – ${fmtTime(currentUser.endTime||'17:00')}</span></div>
+        <div class="info-row"><span class="info-label">Slot Duration</span><span class="info-val">${currentUser.slotDuration||60} minutes</span></div>
+        <div class="info-row"><span class="info-label">Specialty</span><span class="info-val">${currentUser.specialty||'General'}</span></div>
+        <div style="margin-top:.75rem"><button class="btn btn-sm btn-info" onclick="navTo('my-account')">Edit Schedule</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Upcoming Appointments</h3></div>
+      ${upcoming.length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Patient</th><th>College</th><th>Type</th><th>Service</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
+        upcoming.map(a=>{const pt=getPatientById(a.patientId);return`<tr>
+          <td>${fmtDate(a.date)}</td><td>${fmtTime(a.time)}</td>
+          <td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td>
+          <td>${collegeBadge(a.college)}</td><td>${priorityBadge(a.priority)}</td>
+          <td>${a.service}</td><td>${statusBadge(a.status)}</td>
+          <td><div class="td-actions">
+            ${a.status==='Scheduled'?`<button class="btn btn-xs btn-success" onclick="completeAppt(${a.id})">Done</button><button class="btn btn-xs btn-primary" onclick="openAddTreatmentModal(${a.id})">Add Notes</button>`:''}
+          </div></td>
+        </tr>`;}).join('')
+      }</tbody></table></div>`:'<div class="empty-state"><p>No upcoming appointments.</p></div>'}
+    </div>`;
+}
+
+// ================================================================
+// DOCTOR – MY PATIENTS
+// ================================================================
+function renderMyPatients(){
+  const c=document.getElementById('app-content');
+  const myApptPatients=DB.appointments.filter(a=>a.doctorId===currentUser.id).map(a=>a.patientId);
+  const uniqueIds=[...new Set(myApptPatients)];
+  const myPts=uniqueIds.map(id=>getPatientById(id)).filter(Boolean);
+  c.innerHTML=`
+    <div class="toolbar">
+      <input type="text" placeholder="Search patients..." id="mypt-search" oninput="renderMyPatientsTable()">
+      <select id="mypt-college" onchange="renderMyPatientsTable()">
+        <option value="">All Colleges</option>
+        ${['CCICT','COE','COED','CME','CAS','COT'].map(c=>`<option value="${c}">${c}</option>`).join('')}
+      </select>
+    </div>
+    <div class="card"><div id="mypt-table"></div></div>`;
+  window._myPts=myPts;
+  renderMyPatientsTable();
+}
+
+function renderMyPatientsTable(){
+  const q=(document.getElementById('mypt-search')||{}).value||'';
+  const col=(document.getElementById('mypt-college')||{}).value||'';
+  let pts=(window._myPts||[]).filter(p=>{
+    const name=`${p.fname} ${p.lname}`.toLowerCase();
+    return (!q||name.includes(q.toLowerCase()))&&(!col||p.college===col);
+  });
+  const el=document.getElementById('mypt-table');
+  if(!el)return;
+  if(!pts.length){el.innerHTML='<div class="empty-state"><p>No patients found.</p></div>';return;}
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Patient</th><th>College</th><th>Type</th><th>Blood</th><th>Allergies</th><th>Actions</th></tr></thead><tbody>${
+    pts.map(p=>`<tr>
+      <td><strong>${p.fname} ${p.lname}</strong><br><span class="text-muted">${p.idNo}</span></td>
+      <td>${collegeBadge(p.college)}</td><td>${priorityBadge(p.personType)}</td>
+      <td>${p.blood||'-'}</td>
+      <td class="${p.allergies&&p.allergies!=='None'?'text-danger':''}">${p.allergies||'None'}</td>
+      <td><div class="td-actions">
+        <button class="btn btn-xs" onclick="viewPatient(${p.id})">View</button>
+        <button class="btn btn-xs btn-primary" onclick="openAddTreatmentModalPt(${p.id})">Add Treatment</button>
+      </div></td>
+    </tr>`).join('')
+  }</tbody></table></div>`;
+}
+
+// ================================================================
+// PATIENTS PAGE (Staff/Admin)
+// ================================================================
+function renderPatients(){
+  const c=document.getElementById('app-content');
+  const canEdit=currentUser.role==='Administrator'||currentUser.role==='Staff';
+  c.innerHTML=`
+    <div class="toolbar">
+      <input type="text" placeholder="Search by name, ID..." id="pt-search" oninput="renderPatientTable()">
+      <select id="pt-college" onchange="renderPatientTable()">
+        <option value="">All Colleges</option>
+        ${['CCICT','COE','COED','CME','CAS','COT'].map(col=>`<option value="${col}">${col}</option>`).join('')}
+      </select>
+      <select id="pt-ptype" onchange="renderPatientTable()">
+        <option value="">All Types</option>
+        <option>Student</option><option>Teaching Personnel</option><option>Non-Teaching Personnel</option>
+      </select>
+      ${canEdit?`<button class="btn btn-primary btn-sm" onclick="openPatientModal()">+ Add Patient</button>`:''}
+    </div>
+    <div class="card"><div id="pt-table"></div></div>`;
+  renderPatientTable();
+}
+
+function renderPatientTable(){
+  const q=(document.getElementById('pt-search')||{}).value||'';
+  const col=(document.getElementById('pt-college')||{}).value||'';
+  const ptype=(document.getElementById('pt-ptype')||{}).value||'';
+  let pts=DB.patients.filter(p=>{
+    const name=`${p.fname} ${p.lname} ${p.idNo}`.toLowerCase();
+    return (!q||name.includes(q.toLowerCase()))&&(!col||p.college===col)&&(!ptype||p.personType===ptype);
+  });
+  const el=document.getElementById('pt-table');
+  if(!el)return;
+  const canEdit=currentUser.role==='Administrator'||currentUser.role==='Staff';
+  if(!pts.length){el.innerHTML='<div class="empty-state"><p>No patients found.</p></div>';return;}
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>ID</th><th>Name</th><th>Age</th><th>College</th><th>Type</th><th>Blood</th><th>Contact</th><th>Actions</th></tr></thead><tbody>${
+    pts.map(p=>`<tr>
+      <td><strong>P-${p.id}</strong><br><span class="text-muted">${p.idNo}</span></td>
+      <td><strong>${p.fname} ${p.lname}</strong></td>
+      <td>${p.age}</td><td>${collegeBadge(p.college)}</td>
+      <td>${priorityBadge(p.personType)}</td><td>${p.blood||'-'}</td><td>${p.contact||'-'}</td>
+      <td><div class="td-actions">
+        <button class="btn btn-xs" onclick="viewPatient(${p.id})">View</button>
+        ${canEdit?`<button class="btn btn-xs btn-info" onclick="openPatientModal(${p.id})">Edit</button>`:''}
+        ${currentUser.role==='Administrator'?`<button class="btn btn-xs btn-danger" onclick="deletePatient(${p.id})">Delete</button>`:''}
+      </div></td>
+    </tr>`).join('')
+  }</tbody></table></div>`;
+}
+
+// ================================================================
+// APPOINTMENTS PAGE (Staff/Admin/Doctor)
+// ================================================================
+function renderAppointments(){
+  const c=document.getElementById('app-content');
+  const role=currentUser.role;
+  c.innerHTML=`
+    <div class="toolbar">
+      <input type="text" placeholder="Search patient, clinic..." id="appt-search" oninput="renderApptTable()">
+      <select id="appt-status" onchange="renderApptTable()">
+        <option value="">All Status</option>
+        <option>Scheduled</option><option>Completed</option><option>Cancelled</option><option>No-show</option>
+      </select>
+      <select id="appt-college" onchange="renderApptTable()">
+        <option value="">All Colleges</option>
+        ${['CCICT','COE','COED','CME','CAS','COT'].map(col=>`<option value="${col}">${col}</option>`).join('')}
+      </select>
+      <select id="appt-clinic" onchange="renderApptTable()">
+        <option value="">All Clinics</option>
+        <option>Medical Clinic</option><option>Dental Clinic</option>
+      </select>
+      <input type="date" id="appt-date" onchange="renderApptTable()" style="padding:.4rem .6rem;border:1px solid #d3d1c7;border-radius:7px;font-size:.82rem">
+      ${role!=='Doctor'?`<button class="btn btn-primary btn-sm" onclick="openBookApptModal()">+ Book Appointment</button>`:''}
+    </div>
+    <div class="card"><div id="appt-table"></div></div>`;
+  renderApptTable();
+}
+
+function renderApptTable(){
+  const q=(document.getElementById('appt-search')||{}).value||'';
+  const stat=(document.getElementById('appt-status')||{}).value||'';
+  const col=(document.getElementById('appt-college')||{}).value||'';
+  const clinic=(document.getElementById('appt-clinic')||{}).value||'';
+  const date=(document.getElementById('appt-date')||{}).value||'';
+  const role=currentUser.role;
+  let appts=DB.appointments.filter(a=>{
+    const pt=getPatientById(a.patientId);
+    const name=pt?`${pt.fname} ${pt.lname}`.toLowerCase():'';
+    const matchQ=!q||name.includes(q.toLowerCase())||a.clinic.toLowerCase().includes(q.toLowerCase());
+    const matchS=!stat||a.status===stat;
+    const matchC=!col||a.college===col;
+    const matchCl=!clinic||a.clinic===clinic;
+    const matchD=!date||a.date===date;
+    const matchDoc=role!=='Doctor'||a.doctorId===currentUser.id;
+    return matchQ&&matchS&&matchC&&matchCl&&matchD&&matchDoc;
+  });
+  appts=appts.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+  const el=document.getElementById('appt-table');
+  if(!el)return;
+  const canManage=role==='Staff'||role==='Administrator';
+  const isDoc=role==='Doctor';
+  if(!appts.length){el.innerHTML='<div class="empty-state"><p>No appointments found.</p></div>';return;}
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>College</th><th>Priority</th><th>Clinic</th><th>Date & Time</th><th>Doctor</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
+    appts.map(a=>{
+      const pt=getPatientById(a.patientId);
+      const doc=getUserById(a.doctorId);
+      const canCancel=a.status==='Scheduled';
+      return`<tr>
+        <td>#${a.id}</td>
+        <td><strong>${pt?pt.fname+' '+pt.lname:'Unknown'}</strong></td>
+        <td>${collegeBadge(a.college)}</td><td>${priorityBadge(a.priority)}</td>
+        <td>${a.clinic}</td>
+        <td>${fmtDate(a.date)}<br><span class="text-muted">${fmtTime(a.time)}</span></td>
+        <td>Dr. ${doc?doc.lname:'?'}</td>
+        <td>${statusBadge(a.status)}</td>
+        <td><div class="td-actions">
+          <button class="btn btn-xs" onclick="viewAppt(${a.id})">View</button>
+          ${canManage&&canCancel?`<button class="btn btn-xs btn-warning" onclick="openRescheduleModal(${a.id})">Reschedule</button>`:''}
+          ${(canManage||isDoc)&&a.status==='Scheduled'?`<button class="btn btn-xs btn-success" onclick="completeAppt(${a.id})">Complete</button>`:''}
+          ${isDoc&&a.status==='Scheduled'?`<button class="btn btn-xs btn-primary" onclick="openAddTreatmentModal(${a.id})">Notes</button>`:''}
+          ${canManage&&canCancel?`<button class="btn btn-xs btn-danger" onclick="cancelAppt(${a.id})">Cancel</button>`:''}
+          ${currentUser.role==='Administrator'&&a.status==='Scheduled'?`<button class="btn btn-xs" onclick="noShowAppt(${a.id})">No-show</button>`:''}
+          ${canManage?`<button class="btn btn-xs btn-info" onclick="sendApptNotif(${a.id})">Notify</button>`:''}
+        </div></td>
+      </tr>`;
+    }).join('')
+  }</tbody></table></div>`;
+}
+
+function completeAppt(id){
+  const a=DB.appointments.find(x=>x.id===id);
+  if(!a)return;
+  a.status='Completed';
+  const pt=getPatientById(a.patientId);
+  if(pt){
+    const u=DB.users.find(x=>x.id===pt.userId);
+    if(u)addNotif(u.id,'Appointment Completed',`Your ${a.clinic} appointment on ${fmtDate(a.date)} has been marked complete.`,'success');
+  }
+  toast('Appointment marked as completed.','success');
+  renderApptTable();
+  if(document.getElementById('my-appts-list'))filterMyAppts('all',document.querySelector('#app-content .tab'));
+}
+
+function noShowAppt(id){
+  const a=DB.appointments.find(x=>x.id===id);
+  if(a){a.status='No-show';toast('Marked as no-show.','warning');renderApptTable();}
+}
+
+function cancelAppt(id,patient=false){
+  if(!confirm('Cancel this appointment?'))return;
+  const a=DB.appointments.find(x=>x.id===id);
+  if(!a)return;
+  a.status='Cancelled';
+  const pt=getPatientById(a.patientId);
+  if(pt){
+    const u=DB.users.find(x=>x.id===pt.userId);
+    if(u)addNotif(u.id,'Appointment Cancelled',`Your ${a.clinic} appointment on ${fmtDate(a.date)} has been cancelled.`,'danger');
+  }
+  toast('Appointment cancelled.','warning');
+  if(patient)renderMyAppointments();
+  else renderApptTable();
+}
+
+function sendApptNotif(id){
+  const a=DB.appointments.find(x=>x.id===id);
+  const pt=getPatientById(a.patientId);
+  if(!pt)return;
+  const u=DB.users.find(x=>x.id===pt.userId);
+  if(u){addNotif(u.id,'Appointment Reminder',`Reminder: You have a ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}.`,'warning');}
+  toast(`Notification sent to ${pt.fname} ${pt.lname}.`,'success');
+}
+
+// ================================================================
+// APPROVALS
+// ================================================================
+function renderApprovals() {
+  const c = document.getElementById('app-content');
+  const pending = DB.users.filter(u => u.status === 'Pending');
+  c.innerHTML = `
+    <div class="card">
+      <div class="card-header"><h3>Pending Registration Approvals</h3><span class="badge badge-warning">${pending.length} pending</span></div>
+      ${pending.length ? `<div class="table-wrap"><table><thead><tr>
+        <th>Name</th><th>Username</th><th>Email</th><th>Type</th><th>College</th><th>ID No.</th><th>ID/COR File</th><th>Submitted</th><th>Actions</th>
+      </tr></thead><tbody>${
+        pending.map(u => `
+          <tr>
+            <td><strong>${u.fname} ${u.lname}</strong></td>
+            <td>${u.username}</td>
+            <td>${u.email}</td>
+            <td>${priorityBadge(u.personType)}</td>
+            <td>${collegeBadge(u.college)}</td>
+            <td>${u.idNo || '-'}</td>
+            <td>
+              <button class="btn btn-xs btn-info" onclick="showFilePreview('${u.idFile}', '${u.idFileData}')">
+                📄 View ${u.idFile}
+              </button>
+            </td>
+            <td>${fmtDate(u.createdAt)}</td>
+            <td><div class="td-actions">
+              <button class="btn btn-xs btn-success" onclick="approveUser(${u.id})">Approve</button>
+              <button class="btn btn-xs btn-danger" onclick="rejectUser(${u.id})">Reject</button>
+            </div></td>
+          </tr>
+        `).join('')
+      }</tbody></table></div>` : '<div class="empty-state"><p>No pending approvals.</p></div>'}
+    </div>`;
+}
+
+function approveUser(id){
+  const u=DB.users.find(x=>x.id===id);
+  if(!u)return;
+  u.status='Active';u.verified=true;
+  if(u.role==='Patient'){
+    const exists=DB.patients.find(p=>p.userId===id);
+    if(!exists){
+      DB.patients.push({id:DB.nextPatientId++,userId:id,fname:u.fname,lname:u.lname,age:0,gender:'Unknown',blood:'Unknown',address:'',college:u.college,personType:u.personType,idNo:u.idNo,height:'',weight:'',emergencyContact:'',emergencyName:'',medHistory:'',allergies:'',createdAt:TODAY});
+    }
+  }
+  addNotif(id,'Account Approved!','Your CampusCare account has been approved. You can now login.','success');
+  toast(`${u.fname} ${u.lname} approved.`,'success');
+  renderApprovals();
+}
+
+function rejectUser(id){
+  const reason=prompt('Reason for rejection (optional):');
+  const u=DB.users.find(x=>x.id===id);
+  if(!u)return;
+  u.status='Suspended';
+  addNotif(id,'Registration Rejected',`Your registration was not approved. ${reason?'Reason: '+reason:'Please contact the clinic for details.'}` ,'danger');
+  toast(`${u.fname} ${u.lname} rejected.`,'warning');
+  renderApprovals();
+}
+
+// ================================================================
+// TREATMENTS
+// ================================================================
+function renderTreatments(){
+  const c=document.getElementById('app-content');
+  const role=currentUser.role;
+  c.innerHTML=`
+    <div class="toolbar">
+      <input type="text" placeholder="Search patient, diagnosis..." id="tr-search" oninput="renderTreatTable()">
+      <select id="tr-college" onchange="renderTreatTable()">
+        <option value="">All Colleges</option>
+        ${['CCICT','COE','COED','CME','CAS','COT'].map(col=>`<option value="${col}">${col}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openAddTreatmentModalPt(null)">+ Add Treatment</button>
+    </div>
+    <div class="card"><div id="treat-table"></div></div>`;
+  renderTreatTable();
+}
+
+function renderTreatTable(){
+  const q=(document.getElementById('tr-search')||{}).value||'';
+  const col=(document.getElementById('tr-college')||{}).value||'';
+  const role=currentUser.role;
+  let treats=DB.treatments.filter(t=>{
+    const pt=getPatientById(t.patientId);
+    const name=pt?`${pt.fname} ${pt.lname}`.toLowerCase():'';
+    const matchQ=!q||name.includes(q.toLowerCase())||t.diagnosis.toLowerCase().includes(q.toLowerCase());
+    const matchC=!col||(pt&&pt.college===col);
+    const matchDoc=role!=='Doctor'||t.doctorId===currentUser.id;
+    return matchQ&&matchC&&matchDoc;
+  }).slice().sort((a,b)=>b.id-a.id);
+  const el=document.getElementById('treat-table');
+  if(!el)return;
+  if(!treats.length){el.innerHTML='<div class="empty-state"><p>No treatment records.</p></div>';return;}
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>College</th><th>Diagnosis</th><th>Doctor</th><th>Date</th><th>Follow-up</th><th>Actions</th></tr></thead><tbody>${
+    treats.map(t=>{
+      const pt=getPatientById(t.patientId);
+      const doc=getUserById(t.doctorId);
+      return`<tr>
+        <td>#${t.id}</td>
+        <td>${pt?pt.fname+' '+pt.lname:'?'}</td>
+        <td>${collegeBadge(pt?pt.college:'')}</td>
+        <td>${t.diagnosis}</td>
+        <td>Dr. ${doc?doc.lname:'?'}</td>
+        <td>${fmtDate(t.date)}</td>
+        <td>${fmtDate(t.followupDate)}</td>
+        <td><div class="td-actions">
+          <button class="btn btn-xs" onclick="viewTreatment(${t.id})">View</button>
+          ${currentUser.role==='Administrator'?`<button class="btn btn-xs btn-danger" onclick="deleteTreat(${t.id})">Delete</button>`:''}
+        </div></td>
+      </tr>`;
+    }).join('')
+  }</tbody></table></div>`;
+}
+
+function renderMessages() {
+  const role = currentUser.role;
+  let conversations = [];
+  if (role === 'Patient') {
+    // Show messages from/to doctors (anyone with role Doctor)
+    conversations = DB.messages.filter(m => m.fromUserId === currentUser.id || m.toUserId === currentUser.id)
+      .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+  } else if (role === 'Doctor') {
+    conversations = DB.messages.filter(m => m.toUserId === currentUser.id || m.fromUserId === currentUser.id)
+      .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+  
+  const c = document.getElementById('app-content');
+  c.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <h3>📩 Messages</h3>
+        ${role === 'Patient' ? `<button class="btn btn-primary btn-sm" onclick="openNewMessageModal()">+ New Message</button>` : ''}
+      </div>
+      <div id="msg-list">
+        ${conversations.length ? conversations.map(m => `
+          <div class="msg-item" style="border-bottom:1px solid #ebe8e0; padding:.6rem; cursor:pointer" onclick="viewMessageThread(${m.id})">
+            <div><strong>${m.fromUserId === currentUser.id ? 'You → ' + getUserName(m.toUserId) : getUserName(m.fromUserId) + ' → You'}</strong> · <span class="text-muted">${fmtDateTime(m.createdAt)}</span></div>
+            <div>${m.subject} <span class="badge ${m.isRead ? 'badge-gray' : 'badge-info'}">${m.isRead ? 'Read' : 'New'}</span></div>
+            <div class="text-muted" style="font-size:.75rem">${m.message.substring(0,80)}${m.message.length>80?'…':''}</div>
+          </div>
+        `).join('') : '<div class="empty-state"><p>No messages yet.</p></div>'}
+      </div>
+    </div>
+  `;
+}
+
+function openNewMessageModal(recipientId = null) {
+  const doctors = getDoctors();
+  const patientList = DB.patients.map(p => ({ id: p.userId, name: p.fname + ' ' + p.lname }));
+  const recipients = currentUser.role === 'Patient' ? doctors : patientList;
+  openModal(`
+    <div class="modal">
+      <div class="modal-header"><h3>New Message</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+      <div class="modal-body">
+        <div id="msg-err"></div>
+        <div class="form-group"><label>To</label>
+          <select id="msg-to">${recipients.map(r => `<option value="${r.id}">${r.name || r.fname + ' ' + r.lname}</option>`).join('')}</select>
+        </div>
+        <div class="form-group"><label>Subject</label><input id="msg-subj" placeholder="Brief topic"></div>
+        <div class="form-group"><label>Message</label><textarea id="msg-body" rows="4" placeholder="Type your question/comment..."></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeAllModals()">Cancel</button>
+        <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  `);
+}
+
+function sendMessage() {
+  const toId = parseInt(document.getElementById('msg-to').value);
+  const subject = document.getElementById('msg-subj').value.trim();
+  const body = document.getElementById('msg-body').value.trim();
+  if (!subject || !body) { toast('Subject and message cannot be empty.', 'error'); return; }
+  DB.messages.push({
+    id: DB.nextMessageId++,
+    fromUserId: currentUser.id,
+    toUserId: toId,
+    subject,
+    message: body,
+    createdAt: new Date().toLocaleString(),
+    isRead: false,
+    replyToId: null
+  });
+  addNotif(toId, 'New Message', `You have a new message from ${currentUser.fname} ${currentUser.lname}: ${subject}`, 'info');
+  closeAllModals();
+  toast('Message sent.', 'success');
+  renderMessages();
+}
+
+function viewMessageThread(initialMsgId) {
+  const msg = DB.messages.find(m => m.id === initialMsgId);
+  if (!msg) return;
+  // Mark as read if recipient is current user
+  if (msg.toUserId === currentUser.id && !msg.isRead) {
+    msg.isRead = true;
+    updateNotifUI();
+  }
+  // Gather all messages between these two users (simple conversation)
+  const allMsgs = DB.messages.filter(m => 
+    (m.fromUserId === msg.fromUserId && m.toUserId === msg.toUserId) ||
+    (m.fromUserId === msg.toUserId && m.toUserId === msg.fromUserId)
+  ).sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
+  
+  openModal(`
+    <div class="modal modal-lg">
+      <div class="modal-header"><h3>Conversation with ${getUserName(msg.fromUserId === currentUser.id ? msg.toUserId : msg.fromUserId)}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+      <div class="modal-body" style="max-height:60vh; overflow-y:auto">
+        ${allMsgs.map(m => `
+          <div style="margin-bottom:1rem; padding:.5rem; background:${m.fromUserId === currentUser.id ? '#f0f7ff' : '#fff'}; border-radius:8px">
+            <div><strong>${getUserName(m.fromUserId)}</strong> · <span class="text-muted">${fmtDateTime(m.createdAt)}</span></div>
+            <div><strong>${escapeHtml(m.subject)}</strong></div>
+            <div style="white-space:pre-wrap">${escapeHtml(m.message)}</div>
+          </div>
+        `).join('')}
+        <div class="divider"></div>
+        <div class="form-group"><label>Reply</label><textarea id="reply-body" rows="2" placeholder="Write your reply..."></textarea></div>
+        <button class="btn btn-primary btn-sm" onclick="sendReply(${msg.fromUserId}, ${msg.toUserId}, 'RE: ${escapeHtml(msg.subject)}')">Send Reply</button>
+      </div>
+    </div>
+  `);
+}
+
+function sendReply(otherUserId, myId, subjectPrefix) {
+  const replyBody = document.getElementById('reply-body')?.value.trim();
+  if (!replyBody) { toast('Reply cannot be empty.', 'error'); return; }
+  DB.messages.push({
+    id: DB.nextMessageId++,
+    fromUserId: currentUser.id,
+    toUserId: otherUserId === currentUser.id ? myId : otherUserId,
+    subject: subjectPrefix,
+    message: replyBody,
+    createdAt: new Date().toLocaleString(),
+    isRead: false,
+    replyToId: null
+  });
+  addNotif(otherUserId, 'New Message Reply', `${currentUser.fname} replied to your message.`, 'info');
+  closeAllModals();
+  toast('Reply sent.', 'success');
+  renderMessages();
+}
+
+// ================================================================
+// INVENTORY
+// ================================================================
+function renderInventory(){
+  const c=document.getElementById('app-content');
+  const lowStock=getLowStock();
+  const canEdit=currentUser.role==='Staff'||currentUser.role==='Administrator';
+  c.innerHTML=`
+    ${lowStock.length?`<div class="alert alert-danger show">⚠️ <strong>${lowStock.length} item(s)</strong> are below threshold and need restocking.</div>`:''}
+    <div class="card">
+      <div class="card-header">
+        <h3>Inventory Management</h3>
+        <div style="display:flex;gap:.5rem">
+          ${canEdit?`<button class="btn btn-success btn-sm" onclick="openDisbursementModal()">📦 Disburse Items</button>
+          <button class="btn btn-primary btn-sm" onclick="openInvModal()">+ Add Item</button>`:''}
+        </div>
+      </div>
+      <div class="toolbar" style="margin-bottom:.75rem">
+        <input type="text" placeholder="Search inventory..." id="inv-search" oninput="renderInvTable()">
+        <select id="inv-cat" onchange="renderInvTable()">
+          <option value="">All Categories</option>
+          <option>Medicine</option><option>Dental</option><option>Supplies</option><option>Equipment</option><option>Laboratory</option>
+        </select>
+        <select id="inv-stock" onchange="renderInvTable()">
+          <option value="">All Stock Levels</option>
+          <option value="low">Low Stock</option>
+          <option value="ok">Sufficient</option>
+        </select>
+      </div>
+      <div id="inv-table"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Disbursement History</h3></div>
+      <div id="disb-table"></div>
+    </div>`;
+  renderInvTable();
+  renderDisbTable();
+}
+
+function renderInvTable(){
+  const q=(document.getElementById('inv-search')||{}).value||'';
+  const cat=(document.getElementById('inv-cat')||{}).value||'';
+  const stock=(document.getElementById('inv-stock')||{}).value||'';
+  let items=DB.inventory.filter(i=>{
+    const mQ=!q||i.name.toLowerCase().includes(q.toLowerCase());
+    const mC=!cat||i.category===cat;
+    const mS=!stock||(stock==='low'?i.qty<=i.threshold:i.qty>i.threshold);
+    return mQ&&mC&&mS;
+  });
+  const el=document.getElementById('inv-table');
+  if(!el)return;
+  const canEdit=currentUser.role==='Staff'||currentUser.role==='Administrator';
+  if(!items.length){el.innerHTML='<div class="empty-state"><p>No items found.</p></div>';return;}
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Item</th><th>Category</th><th>Qty</th><th>Threshold</th><th>Unit Cost</th><th>Expiry</th><th>Disburse Date</th><th>Stock</th><th>Actions</th></tr></thead><tbody>${
+    items.map(i=>{
+      const pct=Math.min(100,Math.round(i.qty/Math.max(i.threshold*2,1)*100));
+      const lvl=i.qty<=i.threshold?'Low':i.qty<=i.threshold*1.5?'Medium':'Good';
+      const bdg=i.qty<=i.threshold?'badge-danger':i.qty<=i.threshold*1.5?'badge-warning':'badge-success';
+      const daysToDisb=i.disbursementDate?(Math.ceil((new Date(i.disbursementDate)-new Date(TODAY))/(1000*60*60*24))):'';
+      const disbWarn=daysToDisb!==''&&daysToDisb<=7&&daysToDisb>=0;
+      return`<tr ${i.qty<=i.threshold?'style="background:#fffbf5"':''}>
+        <td>#${i.id}</td>
+        <td><strong>${i.name}</strong><br><span class="text-muted">${i.supplier||''}</span></td>
+        <td><span class="badge badge-gray">${i.category}</span></td>
+        <td><strong>${i.qty}</strong> ${i.unit}</td>
+        <td>${i.threshold} ${i.unit}</td>
+        <td>₱${(i.unitCost||0).toFixed(2)}</td>
+        <td class="${i.expiryDate&&i.expiryDate<=TODAY?'text-danger':''}">${fmtDate(i.expiryDate)}</td>
+        <td class="${disbWarn?'text-warning':''}"><strong>${fmtDate(i.disbursementDate)}</strong>${disbWarn?` <span class="badge badge-warning">In ${daysToDisb}d</span>`:''}</td>
+        <td><span class="badge ${bdg}">${lvl}</span><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${i.qty<=i.threshold?'#E24B4A':i.qty<=i.threshold*1.5?'#EF9F27':'#639922'}"></div></div></td>
+        <td><div class="td-actions">
+          ${canEdit?`<button class="btn btn-xs btn-info" onclick="openUpdateQtyModal(${i.id})">Update Qty</button>
+          <button class="btn btn-xs" onclick="openInvModal(${i.id})">Edit</button>
+          ${currentUser.role==='Administrator'?`<button class="btn btn-xs btn-danger" onclick="deleteInv(${i.id})">Delete</button>`:''}
+          `:''}
+        </div></td>
+      </tr>`;
+    }).join('')
+  }</tbody></table></div>`;
+}
+
+function renderDisbTable(){
+  const el=document.getElementById('disb-table');
+  if(!el)return;
+  if(!DB.disbursements.length){el.innerHTML='<div class="empty-state"><p>No disbursements recorded.</p></div>';return;}
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Item</th><th>Qty Disbursed</th><th>Disbursed By</th><th>Notes</th></tr></thead><tbody>${
+    DB.disbursements.slice().reverse().map(d=>{const it=DB.inventory.find(i=>i.id===d.itemId);const u=getUserById(d.userId);return`<tr><td>${fmtDate(d.date)}</td><td>${it?it.name:'?'}</td><td>${d.qty} ${it?it.unit:''}</td><td>${u?u.fname+' '+u.lname:'?'}</td><td>${d.notes||'-'}</td></tr>`;}).join('')
+  }</tbody></table></div>`;
+}
+
+// ================================================================
+// REPORTS
+// ================================================================
+function renderReports(){
+  const c=document.getElementById('app-content');
+  c.innerHTML=`
+    <div class="card">
+      <div class="card-header"><h3>Generate Report</h3></div>
+      <div class="form-row">
+        <div class="form-group"><label>Report Type</label>
+          <select id="rpt-type">
+            <option value="appointments">Appointments</option>
+            <option value="treatments">Treatments</option>
+            <option value="inventory">Inventory</option>
+            <option value="patients">Patients</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Date From</label><input type="date" id="rpt-from" value="${TODAY.substring(0,7)+'-01'}"></div>
+        <div class="form-group"><label>Date To</label><input type="date" id="rpt-to" value="${TODAY}"></div>
+        <div class="form-group"><label>College</label>
+          <select id="rpt-college"><option value="">All Colleges</option>${['CCICT','COE','COED','CME','CAS','COT'].map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="generateReport()">Generate Report</button>
+    </div>
+    <div id="rpt-result"></div>`;
+}
+
+function generateReport(){
+  const type=document.getElementById('rpt-type').value;
+  const from=document.getElementById('rpt-from').value;
+  const to=document.getElementById('rpt-to').value;
+  const college=document.getElementById('rpt-college').value;
+  if(!from||!to){toast('Select a date range.','error');return;}
+  if(from>to){toast('From date must be before To date.','error');return;}
+  const el=document.getElementById('rpt-result');
+
+  if(type==='appointments'){
+    let data=DB.appointments.filter(a=>a.date>=from&&a.date<=to&&(!college||a.college===college));
+    el.innerHTML=`<div class="card"><div class="card-header"><h3>Appointment Report – ${fmtDate(from)} to ${fmtDate(to)}</h3></div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-val">${data.length}</div><div class="stat-lbl">Total</div></div>
+        <div class="stat-card"><div class="stat-val text-primary">${data.filter(a=>a.status==='Scheduled').length}</div><div class="stat-lbl">Scheduled</div></div>
+        <div class="stat-card"><div class="stat-val text-success">${data.filter(a=>a.status==='Completed').length}</div><div class="stat-lbl">Completed</div></div>
+        <div class="stat-card"><div class="stat-val text-danger">${data.filter(a=>a.status==='Cancelled').length}</div><div class="stat-lbl">Cancelled</div></div>
+        <div class="stat-card"><div class="stat-val">${data.filter(a=>a.clinic==='Dental Clinic').length}</div><div class="stat-lbl">Dental</div></div>
+        <div class="stat-card"><div class="stat-val">${data.filter(a=>a.clinic==='Medical Clinic').length}</div><div class="stat-lbl">Medical</div></div>
+      </div>
+      ${data.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>College</th><th>Clinic</th><th>Date</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${data.map(a=>{const pt=getPatientById(a.patientId);const doc=getUserById(a.doctorId);return`<tr><td>#${a.id}</td><td>${pt?pt.fname+' '+pt.lname:'?'}</td><td>${collegeBadge(a.college)}</td><td>${a.clinic}</td><td>${fmtDate(a.date)}</td><td>Dr.${doc?doc.lname:'?'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No records found.</p></div>'}
+    </div>`;
+  }else if(type==='treatments'){
+    let data=DB.treatments.filter(t=>t.date>=from&&t.date<=to);
+    if(college)data=data.filter(t=>{const pt=getPatientById(t.patientId);return pt&&pt.college===college;});
+    el.innerHTML=`<div class="card"><div class="card-header"><h3>Treatment Report</h3></div>
+      <div class="stats-grid"><div class="stat-card"><div class="stat-val">${data.length}</div><div class="stat-lbl">Total Treatments</div></div></div>
+      ${data.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>Diagnosis</th><th>Doctor</th><th>Date</th><th>Follow-up</th></tr></thead><tbody>${data.map(t=>{const pt=getPatientById(t.patientId);const doc=getUserById(t.doctorId);return`<tr><td>#${t.id}</td><td>${pt?pt.fname+' '+pt.lname:'?'}</td><td>${t.diagnosis}</td><td>Dr.${doc?doc.lname:'?'}</td><td>${fmtDate(t.date)}</td><td>${fmtDate(t.followupDate)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No records found.</p></div>'}
+    </div>`;
+  }else if(type==='inventory'){
+    const low=getLowStock();
+    const total=DB.inventory.reduce((s,i)=>s+i.qty,0);
+    const val=DB.inventory.reduce((s,i)=>s+i.qty*(i.unitCost||0),0);
+    el.innerHTML=`<div class="card"><div class="card-header"><h3>Inventory Report</h3></div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-val">${DB.inventory.length}</div><div class="stat-lbl">Total Items</div></div>
+        <div class="stat-card"><div class="stat-val text-danger">${low.length}</div><div class="stat-lbl">Low Stock</div></div>
+        <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-lbl">Total Units</div></div>
+        <div class="stat-card"><div class="stat-val text-primary">₱${val.toFixed(2)}</div><div class="stat-lbl">Inventory Value</div></div>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Item</th><th>Category</th><th>Qty</th><th>Threshold</th><th>Value</th><th>Status</th></tr></thead><tbody>${DB.inventory.map(i=>{const bdg=i.qty<=i.threshold?'badge-danger':'badge-success';const lvl=i.qty<=i.threshold?'Low':'OK';return`<tr><td>${i.name}</td><td>${i.category}</td><td>${i.qty}</td><td>${i.threshold}</td><td>₱${(i.qty*(i.unitCost||0)).toFixed(2)}</td><td><span class="badge ${bdg}">${lvl}</span></td></tr>`;}).join('')}</tbody></table></div>
+    </div>`;
+  }else{
+    let pts=DB.patients;
+    if(college)pts=pts.filter(p=>p.college===college);
+    const byCollege={};
+    pts.forEach(p=>{byCollege[p.college||'Unknown']=(byCollege[p.college||'Unknown']||0)+1;});
+    el.innerHTML=`<div class="card"><div class="card-header"><h3>Patient Report</h3></div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-val">${pts.length}</div><div class="stat-lbl">Total Patients</div></div>
+        <div class="stat-card"><div class="stat-val">${pts.filter(p=>p.personType==='Student').length}</div><div class="stat-lbl">Students</div></div>
+        <div class="stat-card"><div class="stat-val">${pts.filter(p=>p.personType==='Teaching Personnel').length}</div><div class="stat-lbl">Teaching</div></div>
+        <div class="stat-card"><div class="stat-val">${pts.filter(p=>p.personType==='Non-Teaching Personnel').length}</div><div class="stat-lbl">Non-Teaching</div></div>
+      </div>
+      <div style="margin-bottom:.75rem"><strong style="font-size:.83rem">By College:</strong> ${Object.entries(byCollege).map(([k,v])=>`${collegeBadge(k)} ${v}`).join(' &nbsp; ')}</div>
+      ${pts.length?`<div class="table-wrap"><table><thead><tr><th>Name</th><th>College</th><th>Type</th><th>Age</th><th>Blood</th></tr></thead><tbody>${pts.map(p=>`<tr><td>${p.fname} ${p.lname}</td><td>${collegeBadge(p.college)}</td><td>${priorityBadge(p.personType)}</td><td>${p.age}</td><td>${p.blood}</td></tr>`).join('')}</tbody></table></div>`:''}
+    </div>`;
+  }
+}
+
+// ================================================================
+// USERS
+// ================================================================
+function renderUsers(){
+  const c=document.getElementById('app-content');
+  c.innerHTML=`
+    <div class="toolbar">
+      <input type="text" placeholder="Search users..." id="usr-search" oninput="renderUserTable()">
+      <select id="usr-role" onchange="renderUserTable()">
+        <option value="">All Roles</option>
+        <option>Administrator</option><option>Doctor</option><option>Staff</option><option>Patient</option>
+      </select>
+      <select id="usr-status" onchange="renderUserTable()">
+        <option value="">All Status</option>
+        <option>Active</option><option>Pending</option><option>Suspended</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openAddUserModal()">+ Add User</button>
+    </div>
+    <div class="card"><div id="user-table"></div></div>`;
+  renderUserTable();
+}
+
+function renderUserTable(){
+  const q=(document.getElementById('usr-search')||{}).value||'';
+  const role=(document.getElementById('usr-role')||{}).value||'';
+  const stat=(document.getElementById('usr-status')||{}).value||'';
+  let users=DB.users.filter(u=>{
+    const name=`${u.fname} ${u.lname} ${u.username} ${u.email}`.toLowerCase();
+    return (!q||name.includes(q.toLowerCase()))&&(!role||u.role===role)&&(!stat||u.status===stat);
+  });
+  const el=document.getElementById('user-table');
+  if(!el)return;
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Type/Dept</th><th>Last Login</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
+    users.map(u=>`<tr>
+      <td>${u.id}</td>
+      <td><strong>${u.fname} ${u.lname}</strong><br><span class="text-muted">${u.idNo||''}</span></td>
+      <td>${u.username}</td><td style="font-size:.78rem">${u.email}</td>
+      <td><span class="badge badge-info">${u.role}</span></td>
+      <td>${u.personType||u.specialty||u.department||'-'}<br>${collegeBadge(u.college)}</td>
+      <td class="text-muted">${u.lastLogin||'Never'}</td>
+      <td>${statusBadge(u.status)}</td>
+      <td><div class="td-actions">
+        <button class="btn btn-xs" onclick="openEditUserModal(${u.id})">Edit</button>
+        ${u.status==='Active'?`<button class="btn btn-xs btn-warning" onclick="suspendUser(${u.id})">Suspend</button>`:''}
+        ${u.status==='Pending'?`<button class="btn btn-xs btn-success" onclick="approveUser(${u.id})">Approve</button><button class="btn btn-xs btn-danger" onclick="rejectUser(${u.id})">Reject</button>`:''}
+        ${u.status==='Suspended'?`<button class="btn btn-xs btn-success" onclick="reactivateUser(${u.id})">Reactivate</button>`:''}
+        ${u.id!==currentUser.id?`<button class="btn btn-xs btn-danger" onclick="deleteUser(${u.id})">Delete</button>`:''}
+      </div></td>
+    </tr>`).join('')
+  }</tbody></table></div>`;
+}
+
+function suspendUser(id){
+  if(!confirm('Suspend this user?'))return;
+  const u=DB.users.find(x=>x.id===id);
+  if(u){u.status='Suspended';toast('User suspended.','warning');renderUserTable();}
+}
+function reactivateUser(id){
+  const u=DB.users.find(x=>x.id===id);
+  if(u){u.status='Active';toast('User reactivated.','success');renderUserTable();}
+}
+function deleteUser(id){
+  if(!confirm('Permanently delete this user?'))return;
+  DB.users=DB.users.filter(u=>u.id!==id);
+  toast('User deleted.','warning');renderUserTable();
+}
+
+// ================================================================
+// SETTINGS
+// ================================================================
+function renderSettings(){
+  const s=DB.settings;
+  const c=document.getElementById('app-content');
+  c.innerHTML=`
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><h3>Clinic Settings</h3></div>
+        <div id="set-msg"></div>
+        <div class="form-group"><label>Clinic Name</label><input id="set-name" value="${s.clinicName}"></div>
+        <div class="form-group"><label>Address</label><input id="set-addr" value="${s.address}"></div>
+        <div class="form-group"><label>Contact Email</label><input id="set-email" type="email" value="${s.contactEmail}"></div>
+        <div class="form-group"><label>Dental Visits Allowed Per Semester</label><input id="set-dental" type="number" min="1" max="5" value="${s.dentalLimitPerSemester}"></div>
+        <div class="form-group"><label>Appointment Reminder Days Before</label><input id="set-remind" type="number" min="1" max="14" value="${s.appointmentReminderDays}"></div>
+        <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>Semester Configuration</h3></div>
+        <div class="form-group"><label>Semester 1 Start</label><input type="date" id="set-s1s" value="${s.semesterStart}"></div>
+        <div class="form-group"><label>Semester 1 End</label><input type="date" id="set-s1e" value="${s.semesterEnd}"></div>
+        <div class="form-group"><label>Semester 2 Start</label><input type="date" id="set-s2s" value="${s.semester2Start}"></div>
+        <div class="form-group"><label>Semester 2 End</label><input type="date" id="set-s2e" value="${s.semester2End}"></div>
+        <button class="btn btn-primary btn-sm" onclick="saveSemSettings()">Save Semester</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Doctor Work Schedules</h3></div>
+      <div class="table-wrap"><table><thead><tr><th>Doctor</th><th>Specialty</th><th>Work Days</th><th>Hours</th><th>Max Patients</th><th>Actions</th></tr></thead><tbody>${
+        getDoctors().map(d=>`<tr>
+          <td>Dr. ${d.fname} ${d.lname}</td>
+          <td>${d.specialty||'General'}</td>
+          <td>${(d.workDays||[]).join(', ')}</td>
+          <td>${d.startTime||'08:00'} – ${d.endTime||'17:00'}</td>
+          <td>${d.maxPatients||20}</td>
+          <td><button class="btn btn-xs btn-info" onclick="openDoctorScheduleEdit(${d.id})">Edit</button></td>
+        </tr>`).join('')
+      }</tbody></table></div>
+    </div>`;
+}
+
+function saveSettings(){
+  const s=DB.settings;
+  s.clinicName=document.getElementById('set-name').value;
+  s.address=document.getElementById('set-addr').value;
+  s.contactEmail=document.getElementById('set-email').value;
+  s.dentalLimitPerSemester=parseInt(document.getElementById('set-dental').value)||1;
+  s.appointmentReminderDays=parseInt(document.getElementById('set-remind').value)||2;
+  const msg=document.getElementById('set-msg');
+  showAlert(msg,'Settings saved.','success');setTimeout(()=>hideAlert(msg),3000);
+  toast('Settings saved.','success');
+}
+function saveSemSettings(){
+  const s=DB.settings;
+  s.semesterStart=document.getElementById('set-s1s').value;
+  s.semesterEnd=document.getElementById('set-s1e').value;
+  s.semester2Start=document.getElementById('set-s2s').value;
+  s.semester2End=document.getElementById('set-s2e').value;
+  toast('Semester settings saved.','success');
+}
+
+// ================================================================
+// MODALS
+// ================================================================
+function openModal(html){
+  closeAllModals();
+  const wrap=document.createElement('div');
+  wrap.className='overlay show';
+  wrap.id='active-modal';
+  wrap.innerHTML=html;
+  wrap.addEventListener('click',e=>{if(e.target===wrap)closeAllModals();});
+  document.getElementById('modals').appendChild(wrap);
+  activeModal=wrap;
+}
+function closeAllModals(){
+  document.getElementById('modals').innerHTML='';
+  activeModal=null;
+}
+
+function showFilePreview(fileName, fileDataUrl) {
+  const isImage = fileDataUrl && fileDataUrl.startsWith('data:image');
+  const modalContent = `
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>Document: ${fileName}</h3>
+        <button class="close-btn" onclick="closeAllModals()">✕</button>
+      </div>
+      <div class="modal-body" style="text-align:center">
+        ${isImage
+          ? `<img src="${fileDataUrl}" style="max-width:100%; max-height:70vh; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1);" alt="ID/COR">`
+          : `<div class="alert alert-info">This file is not an image. <a href="${fileDataUrl}" download="${fileName}" target="_blank" class="btn btn-primary btn-sm" style="margin-top:1rem">Download file</a></div>`
+        }
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeAllModals()">Close</button>
+      </div>
+    </div>
+  `;
+  openModal(modalContent);
+}
+
+// ── Book Appointment ──
+function openBookApptModal(apptId=null){
+  const editing=apptId?DB.appointments.find(a=>a.id===apptId):null;
+  const isPt=currentUser.role==='Patient';
+  const pt=isPt?currentPatient:null;
+  const patientOptions=isPt?`<option value="${pt?pt.id:''}">${pt?pt.fname+' '+pt.lname:'No record'}</option>`:
+    DB.patients.map(p=>`<option value="${p.id}" ${editing&&editing.patientId===p.id?'selected':''}>${p.fname} ${p.lname} (${p.college})</option>`).join('');
+  const doctorOptions=getDoctors().map(d=>`<option value="${d.id}" data-specialty="${d.specialty||'General'}" ${editing&&editing.doctorId===d.id?'selected':''}>${d.fname} ${d.lname} – ${d.specialty||'General'}</option>`).join('');
+  openModal(`<div class="modal">
+    <div class="modal-header"><h3>${editing?'Reschedule':'Book'} Appointment</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div id="book-msg"></div>
+      <div id="dental-warn" class="alert alert-warning"></div>
+      <div class="form-row">
+        <div class="form-group ${isPt?'full':''}"><label>Patient <span class="required">*</span></label>
+          <select id="b-pt" ${isPt?'disabled':''}>${patientOptions}</select>
+        </div>
+        ${!isPt?`<div class="form-group"><label>Priority</label>
+          <select id="b-priority"><option>Student</option><option>Teaching</option><option>Non-Teaching</option></select>
+        </div>`:''}
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Clinic <span class="required">*</span></label>
+          <select id="b-clinic" onchange="onClinicChange()"${isPt?' ':''}>
+            <option value="Medical Clinic" ${editing&&editing.clinic==='Medical Clinic'?'selected':''}>Medical Clinic</option>
+            <option value="Dental Clinic" ${editing&&editing.clinic==='Dental Clinic'?'selected':''}>Dental Clinic</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Service <span class="required">*</span></label>
+          <select id="b-service">
+            <option>General Checkup</option><option>Follow-up</option><option>Consultation</option><option>Physical Exam</option>
+            <option>Dental Checkup</option><option>Tooth Extraction</option><option>Dental Cleaning</option><option>Dental X-ray</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Doctor <span class="required">*</span></label>
+          <select id="b-doc" onchange="loadTimeSlots()">${doctorOptions}</select>
+        </div>
+        <div class="form-group"><label>Date <span class="required">*</span></label>
+          <input type="date" id="b-date" min="${TODAY}" value="${editing?editing.date:''}" onchange="loadTimeSlots()">
+        </div>
+      </div>
+      <div class="form-group"><label>Available Time Slots</label>
+        <div id="slot-grid" class="slot-grid" style="min-height:40px"><span class="text-muted" style="font-size:.78rem">Select a doctor and date to see available slots.</span></div>
+        <input type="hidden" id="b-time" value="${editing?editing.time:''}">
+      </div>
+      <div class="form-group full"><label>Reason / Chief Complaint</label>
+        <textarea id="b-reason" rows="2">${editing?editing.reason:''}</textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAppt(${apptId||'null'})">Confirm Booking</button>
+    </div>
+  </div>`);
+  if(editing)loadTimeSlots();
+  onClinicChange();
+  checkDentalWarn();
+}
+
+function onClinicChange(){
+  const clinic=document.getElementById('b-clinic');
+  const svc=document.getElementById('b-service');
+  const doc=document.getElementById('b-doc');
+  if(!clinic||!svc||!doc)return;
+  const isDental=clinic.value==='Dental Clinic';
+  const medSvcs=['General Checkup','Follow-up','Consultation','Physical Exam'];
+  const dentSvcs=['Dental Checkup','Tooth Extraction','Dental Cleaning','Dental X-ray'];
+  const svcs=isDental?dentSvcs:medSvcs;
+  svc.innerHTML=svcs.map(s=>`<option>${s}</option>`).join('');
+  const docs=isDental?getDentalDoctors():getMedDoctors();
+  doc.innerHTML=docs.map(d=>`<option value="${d.id}">${d.fname} ${d.lname} – ${d.specialty}</option>`).join('');
+  checkDentalWarn();
+  loadTimeSlots();
+}
+
+function checkDentalWarn(){
+  const clinicEl=document.getElementById('b-clinic');
+  const ptEl=document.getElementById('b-pt');
+  const warnEl=document.getElementById('dental-warn');
+  if(!clinicEl||!ptEl||!warnEl)return;
+  warnEl.classList.remove('show');
+  if(clinicEl.value==='Dental Clinic'){
+    const ptId=parseInt(ptEl.value);
+    if(ptId&&checkDentalQuota(ptId)){
+      warnEl.innerHTML='⚠️ This patient has already used their Dental Clinic quota for this semester. Booking will be blocked.';
+      warnEl.classList.add('show');
+    }
+  }
+}
+
+function loadTimeSlots(){
+  const docId=parseInt((document.getElementById('b-doc')||{}).value);
+  const date=(document.getElementById('b-date')||{}).value;
+  const grid=document.getElementById('slot-grid');
+  if(!grid)return;
+  if(!docId||!date){grid.innerHTML='<span class="text-muted" style="font-size:.78rem">Select doctor and date.</span>';return;}
+  const doc=getUserById(docId);
+  if(!doc){return;}
+  const dayName=dayOfWeek(date);
+  const workDays=doc.workDays||['Mon','Tue','Wed','Thu','Fri'];
+  if(!workDays.includes(dayName)){grid.innerHTML=`<span class="text-muted" style="font-size:.78rem">Dr. ${doc.lname} does not work on ${dayName}s.</span>`;return;}
+  const start=parseInt((doc.startTime||'08:00').split(':')[0]);
+  const end=parseInt((doc.endTime||'17:00').split(':')[0]);
+  const dur=doc.slotDuration||60;
+  const slots=[];
+  for(let h=start;h<end;h+=(dur/60)){
+    const hh=Math.floor(h);const mm=Math.round((h-hh)*60);
+    slots.push(`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`);
+  }
+  const takenSlots=DB.appointments.filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time);
+  const selectedTime=(document.getElementById('b-time')||{}).value;
+  grid.innerHTML=slots.map(s=>{
+    const taken=takenSlots.includes(s);
+    return`<div class="slot ${taken?'booked':selectedTime===s?'selected':''}" onclick="${taken?'':'selectSlot(\''+s+'\')'}">${fmtTime(s)}${taken?'<br><span style="font-size:.68rem">Taken</span>':''}</div>`;
+  }).join('');
+}
+
+function selectSlot(t){
+  const input=document.getElementById('b-time');
+  if(input){input.value=t;}
+  document.querySelectorAll('.slot:not(.booked)').forEach(s=>s.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
+function saveAppt(editId){
+  const ptId=parseInt(document.getElementById('b-pt').value);
+  const clinic=document.getElementById('b-clinic').value;
+  const svc=document.getElementById('b-service').value;
+  const docId=parseInt(document.getElementById('b-doc').value);
+  const date=document.getElementById('b-date').value;
+  const time=document.getElementById('b-time').value;
+  const reason=document.getElementById('b-reason').value.trim();
+  const msg=document.getElementById('book-msg');
+  hideAlert(msg);
+  if(!ptId||!clinic||!svc||!docId||!date){showAlert(msg,'All required fields must be filled.');return;}
+  if(!time){showAlert(msg,'Please select a time slot.');return;}
+  if(date<TODAY){showAlert(msg,'Cannot book in the past.');return;}
+  if(clinic==='Dental Clinic'&&checkDentalQuota(ptId,editId)){
+    showAlert(msg,'Dental Clinic booking denied: Semester limit reached. Only 1 dental appointment per semester is allowed.');return;
+  }
+  const conflict=DB.appointments.find(a=>a.doctorId===docId&&a.date===date&&a.time===time&&a.status!=='Cancelled'&&a.id!==editId);
+  if(conflict){showAlert(msg,'This time slot is already taken. Please select another.');return;}
+  const pt=getPatientById(ptId);
+  const priority=pt?pt.personType==='Student'?'Student':pt.personType==='Teaching Personnel'?'Teaching':'Non-Teaching':'Student';
+  if(editId){
+    const idx=DB.appointments.findIndex(a=>a.id===editId);
+    if(idx>=0){DB.appointments[idx]={...DB.appointments[idx],clinic,service:svc,doctorId:docId,date,time,reason};}
+    toast('Appointment rescheduled.','success');
+  }else{
+    const newId=DB.nextApptId++;
+    DB.appointments.push({id:newId,patientId:ptId,doctorId:docId,clinic,service:svc,date,time,reason,status:'Scheduled',priority,college:pt?pt.college:'',createdBy:currentUser.id,notes:'',createdAt:TODAY});
+    if(pt){const u=DB.users.find(x=>x.id===pt.userId);if(u)addNotif(u.id,'Appointment Confirmed',`Your ${clinic} appointment is confirmed for ${fmtDate(date)} at ${fmtTime(time)}.`,'success');}
+    toast('Appointment booked!','success');
+  }
+  closeAllModals();
+  // refresh
+  if(currentUser.role==='Patient')renderMyAppointments();
+  else renderApptTable&&renderApptTable();
+  if(document.getElementById('appt-table'))renderApptTable();
+}
+
+function openRescheduleModal(id){
+  openBookApptModal(id);
+}
+
+// ── View Appointment ──
+function viewAppt(id){
+  const a=DB.appointments.find(x=>x.id===id);if(!a)return;
+  const pt=getPatientById(a.patientId);
+  const doc=getUserById(a.doctorId);
+  openModal(`<div class="modal">
+    <div class="modal-header"><h3>Appointment #${a.id}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div class="info-row"><span class="info-label">Patient</span><span class="info-val">${pt?pt.fname+' '+pt.lname:'?'}</span></div>
+      <div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(a.college)}</span></div>
+      <div class="info-row"><span class="info-label">Priority</span><span class="info-val">${priorityBadge(a.priority)}</span></div>
+      <div class="info-row"><span class="info-label">Clinic</span><span class="info-val">${a.clinic}</span></div>
+      <div class="info-row"><span class="info-label">Service</span><span class="info-val">${a.service}</span></div>
+      <div class="info-row"><span class="info-label">Doctor</span><span class="info-val">Dr. ${doc?doc.fname+' '+doc.lname:'?'} (${doc?doc.specialty:''})</span></div>
+      <div class="info-row"><span class="info-label">Date & Time</span><span class="info-val">${fmtDate(a.date)} at ${fmtTime(a.time)}</span></div>
+      <div class="info-row"><span class="info-label">Reason</span><span class="info-val">${a.reason||'—'}</span></div>
+      <div class="info-row"><span class="info-label">Status</span><span class="info-val">${statusBadge(a.status)}</span></div>
+      ${a.notes?`<div class="info-row"><span class="info-label">Notes</span><span class="info-val">${a.notes}</span></div>`:''}
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Close</button></div>
+  </div>`);
+}
+
+// ── Patient Modal ──
+function openPatientModal(id=null){
+  const pt=id?DB.patients.find(p=>p.id===id):null;
+  openModal(`<div class="modal modal-lg">
+    <div class="modal-header"><h3>${pt?'Edit':'Add'} Patient Record</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div id="ptm-msg"></div>
+      <div class="form-row">
+        <div class="form-group"><label>First Name <span class="required">*</span></label><input id="pm-fname" value="${pt?pt.fname:''}"></div>
+        <div class="form-group"><label>Last Name <span class="required">*</span></label><input id="pm-lname" value="${pt?pt.lname:''}"></div>
+        <div class="form-group"><label>Age <span class="required">*</span></label><input id="pm-age" type="number" value="${pt?pt.age:''}" min="1" max="120"></div>
+        <div class="form-group"><label>Gender</label>
+          <select id="pm-gender"><option ${pt&&pt.gender==='Male'?'selected':''}>Male</option><option ${pt&&pt.gender==='Female'?'selected':''}>Female</option><option ${pt&&pt.gender==='Other'?'selected':''}>Other</option></select>
+        </div>
+        <div class="form-group"><label>Blood Type</label>
+          <select id="pm-blood">${['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'].map(b=>`<option ${pt&&pt.blood===b?'selected':''}>${b}</option>`).join('')}</select>
+        </div>
+        <div class="form-group"><label>Contact</label><input id="pm-contact" value="${pt?pt.contact||'':''}"></div>
+        <div class="form-group"><label>College</label>
+          <select id="pm-college">${['CCICT','COE','COED','CME','CAS','COT'].map(c=>`<option value="${c}" ${pt&&pt.college===c?'selected':''}>${c}</option>`).join('')}</select>
+        </div>
+        <div class="form-group"><label>Person Type</label>
+          <select id="pm-ptype"><option ${pt&&pt.personType==='Student'?'selected':''}>Student</option><option ${pt&&pt.personType==='Teaching Personnel'?'selected':''}>Teaching Personnel</option><option ${pt&&pt.personType==='Non-Teaching Personnel'?'selected':''}>Non-Teaching Personnel</option></select>
+        </div>
+        <div class="form-group"><label>Height</label><input id="pm-height" value="${pt?pt.height||'':''}"></div>
+        <div class="form-group"><label>Weight</label><input id="pm-weight" value="${pt?pt.weight||'':''}"></div>
+        <div class="form-group full"><label>Address</label><input id="pm-addr" value="${pt?pt.address||'':''}"></div>
+        <div class="form-group full"><label>Allergies</label><input id="pm-allergy" value="${pt?pt.allergies||'':''}" placeholder="None"></div>
+        <div class="form-group full"><label>Medical History</label><textarea id="pm-history" rows="2">${pt?pt.medHistory||'':''}</textarea></div>
+        <div class="form-group"><label>Emergency Contact Name</label><input id="pm-ename" value="${pt?pt.emergencyName||'':''}"></div>
+        <div class="form-group"><label>Emergency Contact No.</label><input id="pm-econtact" value="${pt?pt.emergencyContact||'':''}"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="savePatient(${id||'null'})">Save Patient</button>
+    </div>
+  </div>`);
+}
+
+function savePatient(id){
+  const fname=document.getElementById('pm-fname').value.trim();
+  const lname=document.getElementById('pm-lname').value.trim();
+  const age=parseInt(document.getElementById('pm-age').value);
+  const contact=document.getElementById('pm-contact').value.trim();
+  const msg=document.getElementById('ptm-msg');
+  if(!fname||!lname||!age){showAlert(msg,'Name and age are required.');return;}
+  if(age<1||age>120){showAlert(msg,'Invalid age.');return;}
+  const data={fname,lname,age,gender:document.getElementById('pm-gender').value,blood:document.getElementById('pm-blood').value,contact,college:document.getElementById('pm-college').value,personType:document.getElementById('pm-ptype').value,height:document.getElementById('pm-height').value,weight:document.getElementById('pm-weight').value,address:document.getElementById('pm-addr').value,allergies:document.getElementById('pm-allergy').value,medHistory:document.getElementById('pm-history').value,emergencyName:document.getElementById('pm-ename').value,emergencyContact:document.getElementById('pm-econtact').value};
+  if(id){
+    const idx=DB.patients.findIndex(p=>p.id===id);
+    if(idx>=0)DB.patients[idx]={...DB.patients[idx],...data};
+    toast('Patient updated.','success');
+  }else{
+    DB.patients.push({id:DB.nextPatientId++,...data,userId:null,idNo:'',createdAt:TODAY});
+    toast('Patient added.','success');
+  }
+  closeAllModals();
+  renderPatientTable&&renderPatientTable();
+}
+
+function viewPatient(id){
+  const pt=DB.patients.find(p=>p.id===id);if(!pt)return;
+  const treats=DB.treatments.filter(t=>t.patientId===id);
+  const appts=DB.appointments.filter(a=>a.patientId===id).slice(-5);
+  openModal(`<div class="modal modal-lg">
+    <div class="modal-header"><h3>Patient: ${pt.fname} ${pt.lname}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div class="grid-2" style="margin-bottom:.75rem">
+        <div>
+          <div class="section-label">Personal Info</div>
+          <div class="info-row"><span class="info-label">Name</span><span class="info-val">${pt.fname} ${pt.lname}</span></div>
+          <div class="info-row"><span class="info-label">Age / Gender</span><span class="info-val">${pt.age} / ${pt.gender}</span></div>
+          <div class="info-row"><span class="info-label">Blood Type</span><span class="info-val">${pt.blood}</span></div>
+          <div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
+          <div class="info-row"><span class="info-label">Person Type</span><span class="info-val">${priorityBadge(pt.personType)}</span></div>
+          <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${pt.idNo||'—'}</span></div>
+        </div>
+        <div>
+          <div class="section-label">Medical Info</div>
+          <div class="info-row"><span class="info-label">Height / Weight</span><span class="info-val">${pt.height||'—'} / ${pt.weight||'—'}</span></div>
+          <div class="info-row"><span class="info-label">Allergies</span><span class="info-val ${pt.allergies&&pt.allergies!=='None'?'text-danger':''}">${pt.allergies||'None'}</span></div>
+          <div class="info-row"><span class="info-label">Medical History</span><span class="info-val">${pt.medHistory||'None'}</span></div>
+          <div class="info-row"><span class="info-label">Emergency Contact</span><span class="info-val">${pt.emergencyName||'—'} (${pt.emergencyContact||'—'})</span></div>
+        </div>
+      </div>
+      <div class="section-label">Recent Treatments</div>
+      ${treats.length?`<table style="margin-bottom:.75rem"><thead><tr><th>Date</th><th>Diagnosis</th><th>Prescription</th><th>Doctor</th></tr></thead><tbody>${treats.map(t=>{const doc=getUserById(t.doctorId);return`<tr><td>${fmtDate(t.date)}</td><td>${t.diagnosis}</td><td>${t.prescription||'-'}</td><td>Dr.${doc?doc.lname:'?'}</td></tr>`;}).join('')}</tbody></table>`:'<p class="text-muted" style="margin-bottom:.75rem">No treatments on record.</p>'}
+      <div class="section-label">Recent Appointments</div>
+      ${appts.length?`<table><thead><tr><th>Date</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${appts.map(a=>{const doc=getUserById(a.doctorId);return`<tr><td>${fmtDate(a.date)}</td><td>${a.clinic}</td><td>Dr.${doc?doc.lname:'?'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table>`:'<p class="text-muted">No appointments.</p>'}
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Close</button>
+      <button class="btn btn-info btn-sm" onclick="closeAllModals();openPatientModal(${id})">Edit Record</button>
+    </div>
+  </div>`);
+}
+
+function deletePatient(id){
+  if(!confirm('Delete this patient record?'))return;
+  DB.patients=DB.patients.filter(p=>p.id!==id);
+  toast('Patient record deleted.','warning');
+  renderPatientTable&&renderPatientTable();
+}
+
+// ── Treatment Modal ──
+function openAddTreatmentModal(apptId){
+  const a=DB.appointments.find(x=>x.id===apptId);
+  const ptId=a?a.patientId:null;
+  openAddTreatmentModalPt(ptId,apptId);
+}
+
+function openAddTreatmentModalPt(ptId,apptId=null){
+  const pt=ptId?getPatientById(ptId):null;
+  const patientOpts=!ptId?DB.patients.map(p=>`<option value="${p.id}">${p.fname} ${p.lname} (${p.college})</option>`).join(''):
+    `<option value="${pt.id}">${pt.fname} ${pt.lname}</option>`;
+  openModal(`<div class="modal modal-lg">
+    <div class="modal-header"><h3>Record Treatment / Clinical Notes</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div id="trm-msg"></div>
+      ${pt?`<div class="alert alert-info show" style="margin-bottom:.7rem;font-size:.8rem">
+        Patient: <strong>${pt.fname} ${pt.lname}</strong> · ${pt.college} · Allergies: <strong class="text-danger">${pt.allergies||'None'}</strong>
+      </div>`:''}
+      <div class="form-group ${ptId?'':''}"><label>Patient <span class="required">*</span></label>
+        <select id="tm-pt" ${ptId?'disabled':''}>${patientOpts}</select>
+      </div>
+      <div class="section-label">Vital Signs</div>
+      <div class="form-row">
+        <div class="form-group"><label>Blood Pressure</label><input id="tm-bp" placeholder="e.g. 120/80"></div>
+        <div class="form-group"><label>Temperature (°C)</label><input id="tm-temp" placeholder="e.g. 36.8"></div>
+        <div class="form-group"><label>Pulse Rate</label><input id="tm-pulse" placeholder="bpm"></div>
+        <div class="form-group"><label>SpO2</label><input id="tm-spo2" placeholder="e.g. 98%"></div>
+        <div class="form-group"><label>Weight (kg)</label><input id="tm-weight"></div>
+        <div class="form-group"><label>Height (cm)</label><input id="tm-height"></div>
+      </div>
+      <div class="section-label">Findings & Diagnosis</div>
+      <div class="form-group"><label>Clinical Findings / Chief Complaint <span class="required">*</span></label>
+        <textarea id="tm-findings" rows="2" placeholder="Describe findings and observations..."></textarea>
+      </div>
+      <div class="form-group"><label>Diagnosis <span class="required">*</span></label>
+        <textarea id="tm-diag" rows="2"></textarea>
+      </div>
+      <div class="form-group"><label>Prescription / Treatment Given</label>
+        <textarea id="tm-presc" rows="2" maxlength="600" placeholder="Medications, dosage, frequency..."></textarea>
+      </div>
+      <div class="form-group"><label>Additional Notes</label>
+        <textarea id="tm-notes" rows="2" placeholder="Advice, special instructions..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Date <span class="required">*</span></label><input type="date" id="tm-date" value="${TODAY}"></div>
+        <div class="form-group"><label>Follow-up Date</label><input type="date" id="tm-followup"></div>
+        <div class="form-group full"><label>Has X-ray / Imaging?</label>
+          <select id="tm-xray"><option value="">No</option><option value="X-ray taken">X-ray taken</option><option value="Dental X-ray taken">Dental X-ray taken</option><option value="Referred for imaging">Referred for imaging</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group"><label>Medication Name</label><input id="tm-medname" placeholder="e.g. Amoxicillin"></div>
+        <div class="form-group"><label>Dosage</label><input id="tm-dosage" placeholder="e.g. 3x/day"></div>
+        <div class="form-group"><label>End Date</label><input type="date" id="tm-enddate" value="${new Date(Date.now()+7*86400000).toISOString().slice(0,10)}"></div>
+      </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTreatment(${ptId||'null'},${apptId||'null'})">Save Treatment Record</button>
+    </div>
+  </div>`);
+}
+
+function saveTreatment(ptId,apptId){
+  const ptIdVal=ptId||parseInt(document.getElementById('tm-pt').value);
+  const findings=document.getElementById('tm-findings').value.trim();
+  const diag=document.getElementById('tm-diag').value.trim();
+  const presc=document.getElementById('tm-presc').value.trim();
+  const notes=document.getElementById('tm-notes').value.trim();
+  const date=document.getElementById('tm-date').value;
+  const followup=document.getElementById('tm-followup').value;
+  const xray=document.getElementById('tm-xray').value;
+  const msg=document.getElementById('trm-msg');
+  const medName = document.getElementById('tm-medname')?.value.trim();
+  const dosage = document.getElementById('tm-dosage')?.value.trim();
+  const endDate = document.getElementById('tm-enddate')?.value;
+  if(!ptIdVal||!diag||!date){showAlert(msg,'Patient, diagnosis and date are required.');return;}
+  if(presc.length>600){showAlert(msg,'Prescription exceeds 600 characters.');return;}
+  const vitals={bp:document.getElementById('tm-bp').value,temp:document.getElementById('tm-temp').value,pulse:document.getElementById('tm-pulse').value,spo2:document.getElementById('tm-spo2').value,weight:document.getElementById('tm-weight').value,height:document.getElementById('tm-height').value};
+  const docId=currentUser.role==='Doctor'?currentUser.id:(getDoctors()[0]||{id:2}).id;
+  DB.treatments.push({id:DB.nextTreatId++,patientId:ptIdVal,doctorId:docId,appointmentId:apptId,diagnosis:diag,prescription:presc,findings,notes,xray,vitals,date,followupDate:followup,createdAt:new Date().toLocaleString()});
+  if(apptId){const a=DB.appointments.find(x=>x.id===apptId);if(a)a.status='Completed';}
+  const pt=getPatientById(ptIdVal);
+  if(pt){const u=DB.users.find(x=>x.id===pt.userId);if(u)addNotif(u.id,'Treatment Record Added',`Dr. ${currentUser.lname} has added treatment notes for your visit on ${fmtDate(date)}.`,'info');}
+  toast('Treatment record saved.','success');
+  if (medName && dosage && endDate) {
+  DB.medReminders.push({
+    id: DB.nextReminderId++,
+    patientId: ptIdVal,
+    medicationName: medName,
+    dosage: dosage,
+    startDate: TODAY,
+    endDate: endDate,
+    timeOfDay: ['08:00','14:00','20:00'], // default
+    lastSent: null,
+    status: 'active'
+  });
+  addNotif(pt.userId, 'Medication Reminder Added', `Dr. ${currentUser.lname} prescribed ${medName}. Take as directed.`, 'info');
+}
+  closeAllModals();
+  if(document.getElementById('treat-table'))renderTreatTable();
+  if(document.getElementById('my-appts-list'))renderMyAppointments();
+}
+
+function viewTreatment(id){
+  const t=DB.treatments.find(x=>x.id===id);if(!t)return;
+  const pt=getPatientById(t.patientId);const doc=getUserById(t.doctorId);
+  openModal(`<div class="modal modal-lg">
+    <div class="modal-header"><h3>Treatment Record #${t.id}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div class="grid-2" style="margin-bottom:.75rem">
+        <div class="info-row"><span class="info-label">Patient</span><span class="info-val">${pt?pt.fname+' '+pt.lname:'?'}</span></div>
+        <div class="info-row"><span class="info-label">Doctor</span><span class="info-val">Dr. ${doc?doc.fname+' '+doc.lname:'?'}</span></div>
+        <div class="info-row"><span class="info-label">Date</span><span class="info-val">${fmtDate(t.date)}</span></div>
+        <div class="info-row"><span class="info-label">Follow-up</span><span class="info-val">${fmtDate(t.followupDate)}</span></div>
+      </div>
+      <div class="section-label">Vital Signs</div>
+      <div class="grid-2" style="margin-bottom:.75rem;font-size:.82rem">
+        <div>BP: <strong>${t.vitals?t.vitals.bp||'—':'—'}</strong> · Temp: <strong>${t.vitals?t.vitals.temp||'—':'—'}°C</strong></div>
+        <div>Pulse: <strong>${t.vitals?t.vitals.pulse||'—':'—'} bpm</strong> · SpO2: <strong>${t.vitals?t.vitals.spo2||'—':'—'}</strong></div>
+        <div>Weight: <strong>${t.vitals?t.vitals.weight||'—':'—'}</strong></div>
+        <div>Height: <strong>${t.vitals?t.vitals.height||'—':'—'}</strong></div>
+      </div>
+      <div class="section-label">Findings</div>
+      <p style="font-size:.83rem;margin-bottom:.6rem">${t.findings||'—'}</p>
+      <div class="section-label">Diagnosis</div>
+      <p style="font-size:.83rem;margin-bottom:.6rem"><strong>${t.diagnosis}</strong></p>
+      <div class="section-label">Prescription</div>
+      <p style="font-size:.83rem;margin-bottom:.6rem">${t.prescription||'—'}</p>
+      ${t.xray?`<div class="alert alert-info show" style="margin-bottom:.6rem;font-size:.8rem">📷 Imaging: ${t.xray}</div>`:''}
+      <div class="section-label">Notes</div>
+      <p style="font-size:.83rem">${t.notes||'—'}</p>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Close</button></div>
+  </div>`);
+}
+
+function viewTreatmentForAppt(apptId){
+  const t=DB.treatments.find(x=>x.appointmentId===apptId);
+  if(t)viewTreatment(t.id);
+  else toast('No treatment record for this appointment.','warning');
+}
+
+function deleteTreat(id){
+  if(!confirm('Delete this treatment record?'))return;
+  DB.treatments=DB.treatments.filter(t=>t.id!==id);
+  toast('Treatment deleted.','warning');
+  renderTreatTable&&renderTreatTable();
+}
+
+// ── Inventory Modals ──
+function openInvModal(id=null){
+  const it=id?DB.inventory.find(i=>i.id===id):null;
+  openModal(`<div class="modal">
+    <div class="modal-header"><h3>${it?'Edit':'Add'} Inventory Item</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div id="invm-msg"></div>
+      <div class="form-row">
+        <div class="form-group full"><label>Item Name <span class="required">*</span></label><input id="im-name" value="${it?it.name:''}"></div>
+        <div class="form-group"><label>Category</label>
+          <select id="im-cat">${['Medicine','Dental','Supplies','Equipment','Laboratory'].map(c=>`<option ${it&&it.category===c?'selected':''}>${c}</option>`).join('')}</select>
+        </div>
+        <div class="form-group"><label>Supplier</label><input id="im-supplier" value="${it?it.supplier||'':''}"></div>
+        <div class="form-group"><label>Quantity <span class="required">*</span></label><input id="im-qty" type="number" value="${it?it.qty:''}" min="0"></div>
+        <div class="form-group"><label>Threshold <span class="required">*</span></label><input id="im-thresh" type="number" value="${it?it.threshold:''}" min="0"></div>
+        <div class="form-group"><label>Unit</label><input id="im-unit" value="${it?it.unit||'pcs':'pcs'}"></div>
+        <div class="form-group"><label>Unit Cost (₱)</label><input id="im-cost" type="number" value="${it?it.unitCost||'':''}" min="0" step="0.01"></div>
+        <div class="form-group"><label>Expiry Date</label><input type="date" id="im-expiry" value="${it?it.expiryDate||'':''}"></div>
+        <div class="form-group full"><label>Disbursement Date</label>
+          <input type="date" id="im-disb" value="${it?it.disbursementDate||'':''}">
+          <div class="form-note">Date when this batch should be fully disbursed/issued to patients.</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveInv(${id||'null'})">Save Item</button>
+    </div>
+  </div>`);
+}
+
+function saveInv(id){
+  const name=document.getElementById('im-name').value.trim();
+  const qty=parseInt(document.getElementById('im-qty').value);
+  const thresh=parseInt(document.getElementById('im-thresh').value);
+  const msg=document.getElementById('invm-msg');
+  if(!name||isNaN(qty)||isNaN(thresh)){showAlert(msg,'Name, quantity and threshold are required.');return;}
+  if(qty<0){showAlert(msg,'Quantity cannot be negative.');return;}
+  const data={name,category:document.getElementById('im-cat').value,supplier:document.getElementById('im-supplier').value,qty,threshold:thresh,unit:document.getElementById('im-unit').value||'pcs',unitCost:parseFloat(document.getElementById('im-cost').value)||0,expiryDate:document.getElementById('im-expiry').value,disbursementDate:document.getElementById('im-disb').value};
+  if(id){
+    const idx=DB.inventory.findIndex(i=>i.id===id);
+    if(idx>=0)DB.inventory[idx]={...DB.inventory[idx],...data};
+    toast('Item updated.','success');
+  }else{
+    DB.inventory.push({id:DB.nextInvId++,...data});
+    toast('Item added.','success');
+  }
+  if(data.qty<=data.threshold){
+    DB.users.filter(u=>u.role==='Staff'||u.role==='Administrator').forEach(u=>addNotif(u.id,'Low Stock Alert',`${data.name} is below threshold (${data.qty} ${data.unit} remaining).`,'danger'));
+  }
+  closeAllModals();
+  renderInvTable&&renderInvTable();
+}
+
+function openUpdateQtyModal(id){
+  const it=DB.inventory.find(i=>i.id===id);if(!it)return;
+  openModal(`<div class="modal modal-sm">
+    <div class="modal-header"><h3>Update Quantity – ${it.name}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div class="alert alert-info show" style="font-size:.8rem">Current: <strong>${it.qty} ${it.unit}</strong> · Threshold: ${it.threshold}</div>
+      <div class="form-group"><label>New Quantity <span class="required">*</span></label><input type="number" id="uq-qty" value="${it.qty}" min="0"></div>
+      <div class="form-group"><label>Reason for Update</label><input id="uq-reason" placeholder="Restocked, consumed, etc."></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="updateQty(${id})">Update</button>
+    </div>
+  </div>`);
+}
+
+function updateQty(id){
+  const newQty=parseInt(document.getElementById('uq-qty').value);
+  if(isNaN(newQty)||newQty<0){toast('Invalid quantity.','error');return;}
+  const it=DB.inventory.find(i=>i.id===id);
+  if(!it)return;
+  it.qty=newQty;
+  if(newQty<=it.threshold){
+    DB.users.filter(u=>u.role==='Staff'||u.role==='Administrator').forEach(u=>addNotif(u.id,'Low Stock Alert',`${it.name} is now below threshold (${newQty} ${it.unit} remaining).`,'danger'));
+  }
+  toast(`${it.name} updated to ${newQty} ${it.unit}.`,'success');
+  closeAllModals();
+  renderInvTable&&renderInvTable();
+}
+
+function deleteInv(id){
+  if(!confirm('Delete this inventory item?'))return;
+  DB.inventory=DB.inventory.filter(i=>i.id!==id);
+  toast('Item deleted.','warning');
+  renderInvTable&&renderInvTable();
+}
+
+function openDisbursementModal(){
+  openModal(`<div class="modal">
+    <div class="modal-header"><h3>Record Item Disbursement</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div id="disb-msg"></div>
+      <div class="form-group"><label>Item <span class="required">*</span></label>
+        <select id="disb-item">${DB.inventory.map(i=>`<option value="${i.id}">${i.name} (${i.qty} ${i.unit})</option>`).join('')}</select>
+      </div>
+      <div class="form-group"><label>Quantity to Disburse <span class="required">*</span></label><input type="number" id="disb-qty" min="1"></div>
+      <div class="form-group"><label>Date</label><input type="date" id="disb-date" value="${TODAY}"></div>
+      <div class="form-group"><label>Notes</label><input id="disb-notes" placeholder="e.g. Regular monthly disbursement"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-success" onclick="saveDisbursement()">Record Disbursement</button>
+    </div>
+  </div>`);
+}
+
+function saveDisbursement(){
+  const itemId=parseInt(document.getElementById('disb-item').value);
+  const qty=parseInt(document.getElementById('disb-qty').value);
+  const date=document.getElementById('disb-date').value;
+  const notes=document.getElementById('disb-notes').value;
+  const msg=document.getElementById('disb-msg');
+  const it=DB.inventory.find(i=>i.id===itemId);
+  if(!it){showAlert(msg,'Item not found.');return;}
+  if(!qty||qty<1){showAlert(msg,'Quantity must be at least 1.');return;}
+  if(qty>it.qty){showAlert(msg,`Only ${it.qty} ${it.unit} available.`);return;}
+  it.qty-=qty;
+  DB.disbursements.push({id:DB.nextDisbId++,itemId,qty,date,notes,userId:currentUser.id});
+  if(it.qty<=it.threshold){
+    DB.users.filter(u=>u.role==='Staff'||u.role==='Administrator').forEach(u=>addNotif(u.id,'Low Stock After Disbursement',`${it.name} is now below threshold after disbursement.`,'danger'));
+  }
+  toast(`Disbursed ${qty} ${it.unit} of ${it.name}.`,'success');
+  closeAllModals();
+  renderInvTable&&renderInvTable();
+  renderDisbTable&&renderDisbTable();
+}
+
+// ── Add User Modal ──
+function openAddUserModal(){
+  openModal(`<div class="modal">
+    <div class="modal-header"><h3>Add New User</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div id="adduser-msg"></div>
+      <div class="form-row">
+        <div class="form-group"><label>First Name <span class="required">*</span></label><input id="au-fname"></div>
+        <div class="form-group"><label>Last Name <span class="required">*</span></label><input id="au-lname"></div>
+        <div class="form-group"><label>Username <span class="required">*</span></label><input id="au-user"></div>
+        <div class="form-group"><label>Email <span class="required">*</span></label><input id="au-email" type="email"></div>
+        <div class="form-group"><label>Password <span class="required">*</span></label><input id="au-pass" type="password"></div>
+        <div class="form-group"><label>Contact</label><input id="au-contact"></div>
+        <div class="form-group"><label>Role <span class="required">*</span></label>
+          <select id="au-role" onchange="toggleUserFields()">
+            <option>Doctor</option><option>Staff</option><option>Administrator</option><option>Patient</option>
+          </select>
+        </div>
+        <div class="form-group" id="au-spec-group"><label>Specialty (Doctor)</label>
+          <select id="au-spec"><option>General Medicine</option><option>Dental</option><option>Eye</option><option>Mental Health</option></select>
+        </div>
+        <div class="form-group" id="au-college-group" style="display:none"><label>College</label>
+          <select id="au-college">${['CCICT','COE','COED','CME','CAS','COT'].map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNewUser()">Create User</button>
+    </div>
+  </div>`);
+}
+
+function toggleUserFields(){
+  const role=document.getElementById('au-role').value;
+  document.getElementById('au-spec-group').style.display=role==='Doctor'?'':'none';
+  document.getElementById('au-college-group').style.display=role==='Patient'?'':'none';
+}
+
+function saveNewUser(){
+  const fname=document.getElementById('au-fname').value.trim();
+  const lname=document.getElementById('au-lname').value.trim();
+  const uname=document.getElementById('au-user').value.trim();
+  const email=document.getElementById('au-email').value.trim();
+  const pass=document.getElementById('au-pass').value;
+  const role=document.getElementById('au-role').value;
+  const msg=document.getElementById('adduser-msg');
+  if(!fname||!lname||!uname||!email||!pass){showAlert(msg,'All required fields must be filled.');return;}
+  if(DB.users.find(u=>u.username===uname)){showAlert(msg,'Username already taken.');return;}
+  const uid=DB.nextUserId++;
+  const newUser={id:uid,fname,lname,username:uname,password:pass,role,email,contact:document.getElementById('au-contact').value,status:'Active',college:'',personType:'Staff',idNo:'',idFile:'',verified:true,createdAt:TODAY,lastLogin:'',
+    ...(role==='Doctor'?{specialty:document.getElementById('au-spec').value,workDays:['Mon','Tue','Wed','Thu','Fri'],startTime:'08:00',endTime:'17:00',slotDuration:60,maxPatients:20}:{})
+  };
+  DB.users.push(newUser);
+  toast(`${role} account created.`,'success');
+  closeAllModals();
+  renderUserTable&&renderUserTable();
+}
+
+function openEditUserModal(id){
+  const u=DB.users.find(x=>x.id===id);if(!u)return;
+  openModal(`<div class="modal">
+    <div class="modal-header"><h3>Edit User – ${u.fname} ${u.lname}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div id="edituser-msg"></div>
+      <div class="form-row">
+        <div class="form-group"><label>First Name</label><input id="eu-fname" value="${u.fname}"></div>
+        <div class="form-group"><label>Last Name</label><input id="eu-lname" value="${u.lname}"></div>
+        <div class="form-group"><label>Email</label><input id="eu-email" type="email" value="${u.email}"></div>
+        <div class="form-group"><label>Contact</label><input id="eu-contact" value="${u.contact||''}"></div>
+        <div class="form-group"><label>Status</label>
+          <select id="eu-status"><option ${u.status==='Active'?'selected':''}>Active</option><option ${u.status==='Pending'?'selected':''}>Pending</option><option ${u.status==='Suspended'?'selected':''}>Suspended</option></select>
+        </div>
+        ${u.role==='Doctor'?`<div class="form-group"><label>Specialty</label>
+          <select id="eu-spec"><option ${u.specialty==='General Medicine'?'selected':''}>General Medicine</option><option ${u.specialty==='Dental'?'selected':''}>Dental</option></select>
+        </div>`:''}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditUser(${id})">Save</button>
+    </div>
+  </div>`);
+}
+
+function saveEditUser(id){
+  const u=DB.users.find(x=>x.id===id);if(!u)return;
+  u.fname=document.getElementById('eu-fname').value.trim()||u.fname;
+  u.lname=document.getElementById('eu-lname').value.trim()||u.lname;
+  u.email=document.getElementById('eu-email').value.trim()||u.email;
+  u.contact=document.getElementById('eu-contact').value;
+  u.status=document.getElementById('eu-status').value;
+  if(u.role==='Doctor')u.specialty=document.getElementById('eu-spec').value;
+  toast('User updated.','success');
+  closeAllModals();
+  renderUserTable&&renderUserTable();
+}
+
+function openDoctorScheduleEdit(docId){
+  const doc=DB.users.find(u=>u.id===docId);if(!doc)return;
+  openModal(`<div class="modal">
+    <div class="modal-header"><h3>Edit Schedule – Dr. ${doc.fname} ${doc.lname}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>Start Time</label><input type="time" id="ds-start" value="${doc.startTime||'08:00'}"></div>
+        <div class="form-group"><label>End Time</label><input type="time" id="ds-end" value="${doc.endTime||'17:00'}"></div>
+        <div class="form-group"><label>Slot Duration (min)</label><input type="number" id="ds-slot" value="${doc.slotDuration||60}" min="15" max="120"></div>
+        <div class="form-group"><label>Max Patients/Day</label><input type="number" id="ds-max" value="${doc.maxPatients||20}" min="1"></div>
+      </div>
+      <div class="form-group"><label>Work Days</label>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer"><input type="checkbox" class="ds-day" value="${d}" ${(doc.workDays||[]).includes(d)?'checked':''}> ${d}</label>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDoctorSched(${docId})">Save</button>
+    </div>
+  </div>`);
+}
+
+function saveDoctorSched(docId){
+  const doc=DB.users.find(u=>u.id===docId);if(!doc)return;
+  doc.startTime=document.getElementById('ds-start').value;
+  doc.endTime=document.getElementById('ds-end').value;
+  doc.slotDuration=parseInt(document.getElementById('ds-slot').value)||60;
+  doc.maxPatients=parseInt(document.getElementById('ds-max').value)||20;
+  doc.workDays=Array.from(document.querySelectorAll('.ds-day:checked')).map(cb=>cb.value);
+  toast('Schedule updated.','success');
+  closeAllModals();
+  renderSettings&&renderSettings();
+}
+
+// ── Keyboard ──
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAllModals();});
+
+// Auto-check low stock on load (for demo)
+setTimeout(()=>{
+  const lowStock=getLowStock();
+  if(lowStock.length&&currentUser&&(currentUser.role==='Staff'||currentUser.role==='Administrator')){
+    lowStock.forEach(i=>{
+      if(!DB.notifications.find(n=>n.title.includes(i.name)&&n.userId===currentUser.id)){
+        addNotif(currentUser.id,'Low Stock Alert',`${i.name} is below threshold: ${i.qty} ${i.unit} remaining.`,'danger');
+      }
+    });
+  }
+},500);
+
+console.log('CampusCare v2 loaded.');
+</script>
+</body>
+</html>
