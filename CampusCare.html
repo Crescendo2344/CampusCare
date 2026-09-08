@@ -139,7 +139,7 @@ body::after{
 /* ===AUTH=== */
 #auth-wrap{position:relative;min-height:100vh;width:100%;flex:1;z-index:1;box-sizing:border-box;display:block}
 .auth-section{display:flex;align-items:center;justify-content:center;padding:2.5rem 1rem;min-height:70vh}
-.auth-box{position:relative;z-index:1;scroll-margin-top:2rem;background:var(--glass-surface-strong);backdrop-filter:blur(var(--glass-blur-lg)) saturate(180%);-webkit-backdrop-filter:blur(var(--glass-blur-lg)) saturate(180%);border:1px solid var(--glass-border);border-radius:26px;width:100%;max-width:460px;max-height:92vh;overflow:hidden;box-shadow:var(--glass-shadow-lg);display:flex;flex-direction:column;margin:0 auto}
+.auth-box{position:relative;z-index:1;scroll-margin-top:2rem;background:var(--glass-surface-strong);backdrop-filter:blur(var(--glass-blur-lg)) saturate(180%);-webkit-backdrop-filter:blur(var(--glass-blur-lg)) saturate(180%);border:1px solid var(--glass-border);border-radius:26px;width:100%;max-width:460px;max-height:92vh;overflow:hidden;box-shadow:var(--glass-shadow-lg);display:flex;flex-direction:column;margin:26px auto}
 .auth-body{overflow-y:auto;flex:1;min-height:0}
 .auth-header{background:linear-gradient(135deg,rgba(9,94,128,.85),rgba(10,55,96,.9));padding:2.1rem 2rem;text-align:center;color:#fff;position:relative;flex-shrink:0}
 .auth-header h1{font-size:1.7rem;font-weight:700;letter-spacing:-.5px;text-shadow:0 1px 12px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;gap:.5rem}
@@ -156,16 +156,16 @@ body::after{
 .landing-logo{display:flex;align-items:center;gap:.55rem;color:#fff;font-weight:800;font-size:1.05rem;letter-spacing:-.3px}
 .landing-logo-icon{width:34px;height:34px;border-radius:10px;background:linear-gradient(145deg,var(--primary-mid),var(--purple));display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
 .landing-nav-links{display:flex;align-items:center;gap:1.8rem}
-.landing-nav-links a{color:rgba(255,255,255,.8);text-decoration:none;font-size:.85rem;font-weight:500;transition:color .15s ease;cursor:pointer}
+.landing-nav-links a{color:rgba(255, 255, 255, 0.8);text-decoration:none;font-size:.85rem;font-weight:500;transition:color .15s ease;cursor:pointer}
 .landing-nav-links a:hover{color:#fff}
-.landing-nav-actions{display:flex;align-items:center;gap:.7rem}
+.landing-nav-actions{display:flex;align-items:center;gap:.7rem;margin-left:1rem}
 .landing-login-btn{background:linear-gradient(150deg,var(--primary-mid),var(--primary-dark));color:#fff;border:none;padding:.5rem 1.3rem;border-radius:20px;font-size:.83rem;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(10,126,168,.4);transition:transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .18s ease}
 .landing-login-btn:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(10,126,168,.5)}
 .landing-signup-btn{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.25);padding:.5rem 1.1rem;border-radius:20px;font-size:.83rem;font-weight:600;cursor:pointer;transition:background .15s ease}
 .landing-signup-btn:hover{background:rgba(255,255,255,.2)}
 .landing-nav-toggle{display:none;background:none;border:none;color:#fff;cursor:pointer;padding:.3rem}
 
-#landing-hero{position:relative;z-index:1;padding:7.5rem 2rem 5rem;background:linear-gradient(160deg,#0a1f30 0%,#0a3760 55%,#0d5478 100%);overflow:hidden;scroll-margin-top:70px}
+#landing-hero{position:relative;z-index:1;padding:7.5rem 2rem 5rem;background:linear-gradient(165deg,rgba(6,20,33,.93) 0%,rgba(8,38,62,.85) 50%,rgba(9,58,86,.82) 100%),url('ctu-campus.png') center 30%/cover no-repeat,linear-gradient(160deg,#0a1f30 0%,#0a3760 55%,#0d5478 100%);overflow:hidden;scroll-margin-top:70px}
 #landing-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(50% 60% at 85% 20%,rgba(140,130,235,.25),transparent 60%),radial-gradient(45% 50% at 10% 85%,rgba(60,190,175,.2),transparent 65%);pointer-events:none}
 .landing-hero-grid{position:relative;z-index:1;max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1.05fr .95fr;gap:2.5rem;align-items:center}
 .landing-hero-text{color:#fff}
@@ -180,6 +180,17 @@ body::after{
 .landing-stats div span{font-size:.72rem;color:rgba(255,255,255,.65)}
 
 .landing-hero-visual{position:relative;display:flex;align-items:center;justify-content:center;min-height:380px}
+.hero-info-card{position:relative;background:rgba(255,255,255,.96);border-radius:18px;padding:1.3rem 1.4rem;box-shadow:0 18px 50px rgba(5,20,40,.45);width:100%;max-width:370px}
+.hero-info-card h4{font-size:.95rem;font-weight:800;color:#12314a;margin-bottom:.6rem}
+.hic-row{display:flex;gap:.65rem;align-items:flex-start;padding:.55rem 0;font-size:.78rem;color:#3d5568;line-height:1.45}
+.hic-row+.hic-row{border-top:1px solid rgba(20,50,70,.08)}
+.hic-row>span{font-size:1rem;flex-shrink:0;margin-top:1px}
+.hic-row strong{display:block;color:#12314a;font-size:.78rem;margin-bottom:1px}
+.landing-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.1rem}
+.step-item{background:var(--glass-surface-strong);border:1px solid var(--glass-border-soft);border-radius:16px;padding:1.2rem 1.1rem;box-shadow:var(--glass-shadow-sm)}
+.step-num{width:30px;height:30px;border-radius:50%;background:linear-gradient(145deg,var(--primary-mid),var(--primary-dark));color:#fff;font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center;margin-bottom:.7rem}
+.step-item h5{font-size:.88rem;font-weight:700;color:var(--ink);margin-bottom:.3rem}
+.step-item p{font-size:.78rem;color:var(--ink-muted);line-height:1.5}
 .hero-blob{width:340px;height:340px;background:linear-gradient(135deg,var(--primary-mid),var(--purple));border-radius:62% 38% 34% 66% / 60% 32% 68% 40%;display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 25px 70px rgba(5,20,40,.5);animation:blobMorph 9s ease-in-out infinite;font-size:90px}
 @keyframes blobMorph{
   0%,100%{border-radius:62% 38% 34% 66% / 60% 32% 68% 40%}
@@ -222,6 +233,12 @@ body::after{
 [data-theme="dark"] .auth-section{background:linear-gradient(180deg,#12161c,#0d1117)}
 
 #landing-footer{position:relative;background:#0a1826;color:rgba(255,255,255,.7);font-size:.78rem;padding:2.2rem 1.5rem;text-align:center;line-height:1.8;scroll-margin-top:70px}
+#landing-footer .landing-contact{display:flex;justify-content:center;align-items:stretch;gap:1rem;max-width:760px;margin:0 auto 1.5rem;flex-wrap:wrap}
+#landing-footer .contact-item{min-width:190px;padding:.8rem 1rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px}
+#landing-footer .contact-icon{display:block;font-size:1.15rem;margin-bottom:.35rem}
+#landing-footer .contact-label{display:block;font-size:.72rem;font-weight:700;color:#fff;margin-bottom:.15rem}
+#landing-footer .contact-value{display:block;font-size:.75rem;color:rgba(255,255,255,.7)}
+#landing-footer .contact-value{text-decoration:none}
 #landing-footer .demo-tag{display:inline-block;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:2px 10px;margin-top:.5rem;font-size:.72rem}
 
 @media(max-width:900px){
@@ -257,7 +274,7 @@ body::after{
 .sb-role-badge{font-size:.65rem;padding:1px 6px;border-radius:10px;margin-top:2px;display:inline-block}
 .sb-section{padding:.4rem .7rem .15rem;font-size:.65rem;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-muted);margin-top:.5rem;opacity:.8}
 nav a,nav button{display:flex;align-items:center;gap:.55rem;padding:.5rem 1rem;cursor:pointer;font-size:.83rem;color:var(--ink-muted);text-decoration:none;background:none;border:none;width:100%;text-align:left;border-radius:0;transition:background .15s ease,color .15s ease,padding-left .15s ease;position:relative;margin:1px 0}
-nav a:hover,nav button:hover{background:var(--overlay);color:var(--ink);padding-left:1.3rem}
+nav a:hover,nav button:hover{background:var(--overlay);color:var(--ink)}
 nav svg{transition:transform .18s ease}
 nav a:hover svg,nav button:hover svg{transform:scale(1.15)}
 nav a.active,nav button.active{background:linear-gradient(120deg,rgba(10,126,168,.2),rgba(58,168,216,.1));color:var(--primary-dark);font-weight:600;box-shadow:0 1px 0 rgba(255,255,255,.4) inset}
@@ -596,6 +613,11 @@ tbody tr:hover td{background:var(--overlay)}
 .msgr-send-btn:active{transform:scale(.92)}
 .msgr-pending-attach{padding:.4rem .8rem;display:flex;align-items:center;gap:.5rem;font-size:.78rem;color:var(--ink-muted);border-top:1px solid var(--line)}
 @media(max-width:768px){
+  #auth-page .auth-section{padding:5.6rem .8rem 2.5rem}
+  #auth-page-back{top:4.2rem;left:.8rem;padding:.4rem .9rem}
+  .auth-box{border-radius:20px;max-height:none}
+  #landing-navbar{padding:.7rem 1rem}
+  .landing-logo span{display:none}
   .msgr-shell{flex-direction:column;height:auto}
   .msgr-sidebar{width:100%;max-height:220px}
 }
@@ -605,6 +627,39 @@ tbody tr:hover td{background:var(--overlay)}
 #back-to-top.show{display:flex}
 #back-to-top:hover{transform:translateY(-3px) scale(1.06)}
 #back-to-top:active{transform:scale(.92)}
+
+/* ===LANDING UI POLISH=== */
+.landing-nav-links a{padding:2px 0;transition:color .15s ease}
+.landing-signup-btn{transition:background .15s ease,box-shadow .18s ease}
+.landing-signup-btn:hover{background:rgba(255,255,255,.22);box-shadow:0 4px 12px rgba(0,0,0,.2)}
+.landing-login-btn{transition:background .15s ease,box-shadow .18s ease}
+.landing-login-btn:hover{transform:none;box-shadow:0 6px 18px rgba(10,126,168,.5)}
+.landing-login-btn:active,.landing-signup-btn:active,.landing-hero-ctas .btn:active{opacity:.85}
+.landing-hero-ctas .btn{transition:box-shadow .18s ease}
+.landing-hero-ctas .btn:hover{box-shadow:0 8px 20px rgba(10,126,168,.45)}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:no-preference){
+  .landing-hero-text .eyebrow,.landing-hero-text h1,.landing-hero-text p,.landing-hero-ctas,.landing-stats{animation:fadeUp .6s ease both}
+  .landing-hero-text h1{animation-delay:.08s}.landing-hero-text p{animation-delay:.16s}
+  .landing-hero-ctas{animation-delay:.24s}.landing-stats{animation-delay:.32s}
+  .hero-info-card{animation:fadeUp .7s ease .3s both}
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .55s ease,transform .55s ease}
+  .reveal.in{opacity:1;transform:none}
+}
+.feature-card .fc-icon{transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
+.feature-card:hover .fc-icon{transform:scale(1.12) rotate(-4deg)}
+.step-item{transition:transform .22s ease,box-shadow .22s ease}
+.step-item:hover{transform:translateY(-3px);box-shadow:var(--glass-shadow)}
+.hero-info-card{transition:transform .25s ease,box-shadow .25s ease}
+.hero-info-card:hover{transform:translateY(-4px)}
+#auth-page{position:relative;min-height:100vh}
+#auth-page .auth-section{min-height:100vh;padding:6.8rem 1rem 3rem;background:radial-gradient(45% 50% at 85% 15%,rgba(110,175,235,.35),transparent 65%),radial-gradient(50% 55% at 12% 85%,rgba(105,205,190,.28),transparent 65%),linear-gradient(180deg,#f4f7fb,#dceefb)}
+[data-theme="dark"] #auth-page .auth-section{background:radial-gradient(45% 50% at 85% 15%,rgba(30,70,110,.5),transparent 65%),radial-gradient(50% 55% at 12% 85%,rgba(15,75,70,.45),transparent 65%),linear-gradient(180deg,#12161c,#0d1117)}
+#auth-page-back{position:absolute;top:5rem;left:1.5rem;z-index:10;background:var(--glass-surface-strong);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);border:1px solid var(--glass-border);color:var(--ink);padding:.45rem 1.1rem;border-radius:20px;font-size:.8rem;font-weight:600;cursor:pointer;box-shadow:var(--glass-shadow-sm);transition:background .18s ease,box-shadow .18s ease}
+#auth-page-back:hover{background:var(--overlay-strong);box-shadow:var(--glass-shadow)}
+
+
 /* ===RESPONSIVE=== */
 @media(max-width:768px){
   #sidebar{transform:translateX(-100%);transition:.25s;box-shadow:var(--glass-shadow-lg)}
@@ -634,6 +689,7 @@ tbody tr:hover td{background:var(--overlay)}
   .print-header{display:block!important}
 }
 </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
 <body>
 
@@ -643,16 +699,14 @@ tbody tr:hover td{background:var(--overlay)}
 <!-- AUTH -->
 <div id="auth-wrap">
 
-<div id="landing-page">
-
-  <nav id="landing-navbar">
-    <div class="landing-logo"><div class="landing-logo-icon">🏥</div>CampusCare</div>
+<nav id="landing-navbar">
+    <div class="landing-logo"><div class="landing-logo-icon">🏥</div>CampusCare<span style="font-weight:500;font-size:.7rem;opacity:.7;margin-left:.4rem;letter-spacing:.2px">CTU MAIN CAMPUS</span></div>
     <div class="landing-nav-links">
-      <a onclick="document.getElementById('landing-hero').scrollIntoView({behavior:'smooth'})">Home</a>
-      <a onclick="document.getElementById('landing-services').scrollIntoView({behavior:'smooth'})">Services</a>
-      <a onclick="document.getElementById('landing-about').scrollIntoView({behavior:'smooth'})">About</a>
-      <a onclick="document.getElementById('landing-testimonial').scrollIntoView({behavior:'smooth'})">Testimonials</a>
-      <a onclick="document.getElementById('landing-footer').scrollIntoView({behavior:'smooth'})">Contact</a>
+      <a onclick="landingNavTo('landing-hero')">Home</a>
+      <a onclick="landingNavTo('landing-services')">Clinic Services</a>
+      <a onclick="landingNavTo('landing-about')">About the Clinic</a>
+      <a onclick="landingNavTo('landing-testimonial')">Advisory</a>
+      <a onclick="landingNavTo('landing-footer')">Contact</a>
     </div>
     <div class="landing-nav-actions">
       <button class="landing-signup-btn" onclick="showAuthPage('reg')">Register</button>
@@ -663,27 +717,31 @@ tbody tr:hover td{background:var(--overlay)}
     </div>
   </nav>
 
+<div id="landing-page">
+
   <section id="landing-hero">
     <div class="landing-hero-grid">
       <div class="landing-hero-text">
-        <span class="eyebrow">🎓 Built for Campus Health Services</span>
-        <h1>Your Campus <span>Health, Simplified.</span></h1>
-        <p>Book appointments, message your doctor, track your health records, and get trustworthy care tips — all in one place, built for student life.</p>
+        <span class="eyebrow">🏥 CTU Main Medical Clinic</span>
+        <h1>Your campus clinic, <span>here for you.</span></h1>
+        <p>Free medical and dental care for every Technologist. Book a consultation, request medical certificates, view your health records, and message the clinic — anytime, from any device.</p>
         <div class="landing-hero-ctas">
-          <button class="btn btn-primary" onclick="showAuthPage('reg')">Get Started Free</button>
-          <button class="landing-signup-btn" style="border-radius:10px" onclick="document.getElementById('landing-services').scrollIntoView({behavior:'smooth'})">See Features ↓</button>
+          <button class="btn btn-primary" onclick="showAuthPage('login')">📅 Book an Appointment</button>
+          <button class="landing-signup-btn" style="border-radius:10px" onclick="document.getElementById('landing-services').scrollIntoView({behavior:'smooth'})">See Clinic Services ↓</button>
         </div>
         <div class="landing-stats">
-          <div><strong>24/48h</strong><span>Account approval</span></div>
-          <div><strong>6</strong><span>Colleges served</span></div>
-          <div><strong>100%</strong><span>Digital records</span></div>
+          <div><strong>Mon–Fri</strong><span>8:00 AM – 5:00 PM</span></div>
+          <div><strong>FREE</strong><span>For students, faculty &amp; staff</span></div>
+          <div><strong>Medical + Dental</strong><span>Walk-ins &amp; appointments</span></div>
         </div>
       </div>
       <div class="landing-hero-visual">
-        <div class="hero-blob">🏥
-          <div class="hero-float-card card-1"><span class="hfc-dot" style="background:var(--success-bg);color:var(--success)">✓</span>Appointment Confirmed</div>
-          <div class="hero-float-card card-2"><span class="hfc-dot" style="background:var(--info-bg);color:var(--info)">💬</span>New message from Dr. Reyes</div>
-          <div class="hero-float-card card-3"><span class="hfc-dot" style="background:var(--purple-bg);color:var(--purple)">📚</span>New health article</div>
+        <div class="hero-info-card">
+          <h4>Visit the Clinic</h4>
+          <div class="hic-row"><span>📍</span><div><strong>Location</strong>Ground Floor, Administration Building, CTU Main Campus, Cebu City</div></div>
+          <div class="hic-row"><span>🕗</span><div><strong>Clinic Hours</strong>Monday – Friday, 8:00 AM – 5:00 PM</div></div>
+          <div class="hic-row"><span>⛑️</span><div><strong>Emergencies</strong>Walk in any time during clinic hours — no appointment needed</div></div>
+          <div class="hic-row"><span>🦷</span><div><strong>Dental</strong>Limited slots per day — reserve early through CampusCare</div></div>
         </div>
       </div>
     </div>
@@ -691,57 +749,95 @@ tbody tr:hover td{background:var(--overlay)}
 
   <div class="landing-light">
     <div class="landing-section-wrap" id="landing-services">
-      <div class="landing-section-title">Everything your campus clinic needs</div>
-      <div class="landing-section-sub">One platform for students, doctors, staff, and administrators</div>
+      <div class="landing-section-title">Clinic Services</div>
+      <div class="landing-section-sub">What the CTU Main Medical Clinic offers you — and how CampusCare makes each one easier</div>
       <div class="landing-features-grid">
         <div class="feature-card">
-          <div class="fc-icon">📅</div>
-          <h4>Appointments</h4>
-          <p>Book, reschedule, or cancel visits in a few taps, with live doctor availability.</p>
+          <div class="fc-icon">🩺</div>
+          <h4>Medical Consultation &amp; Check-ups</h4>
+          <p>Free consultations, vital signs monitoring, and health assessments with the campus physicians. Book your slot online and skip the front-desk line.</p>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">🦷</div>
+          <h4>Dental Services</h4>
+          <p>Dental check-ups, tooth extraction, and oral health advice. Daily slots are limited — reserve yours in advance right from your phone.</p>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">⛑️</div>
+          <h4>First Aid &amp; Emergency Care</h4>
+          <p>Immediate response to injuries, minor wounds, and sudden illness during school hours. Walk in any time — no appointment needed.</p>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">📄</div>
+          <h4>Medical Certificates &amp; Clearances</h4>
+          <p>Certificates for OJT, sports, enrollment, and excused absences. Request them online and get notified the moment they're ready for pickup.</p>
         </div>
         <div class="feature-card">
           <div class="fc-icon">📋</div>
-          <h4>Health Records</h4>
-          <p>Your treatment history, prescriptions, and vitals — always accessible, always private.</p>
+          <h4>Your Health Records</h4>
+          <p>Your consultations, treatments, prescriptions, and vitals in one private record you can open anytime — no more lost paper slips.</p>
         </div>
         <div class="feature-card">
-          <div class="fc-icon">💬</div>
-          <h4>Messaging</h4>
-          <p>Chat directly with your doctor or the clinic staff, with photos and voice notes.</p>
+          <div class="fc-icon">🧠</div>
+          <h4>Mental Health &amp; Wellness</h4>
+          <p>Stress and anxiety support, referrals to counseling, and trustworthy health tips and articles for student life.</p>
         </div>
-        <div class="feature-card">
-          <div class="fc-icon">📊</div>
-          <h4>Reports</h4>
-          <p>Administrators get real-time analytics and exportable reports on clinic activity.</p>
-        </div>
-        <div class="feature-card">
-          <div class="fc-icon">💊</div>
-          <h4>Inventory</h4>
-          <p>Live stock tracking for medicine and supplies, with automatic low-stock alerts.</p>
-        </div>
-        <div class="feature-card">
-          <div class="fc-icon">📚</div>
-          <h4>Health Education</h4>
-          <p>Curated, trustworthy articles and tips on staying healthy during the school year.</p>
+      </div>
+
+      <div style="margin-top:3.5rem">
+        <div class="landing-section-title" style="font-size:1.25rem">Getting started takes minutes</div>
+        <div class="landing-section-sub">How to use CampusCare as a CTU student or employee</div>
+        <div class="landing-steps">
+          <div class="step-item"><div class="step-num">1</div><h5>Create your account</h5><p>Register with your School ID or COR plus a selfie for identity verification.</p></div>
+          <div class="step-item"><div class="step-num">2</div><h5>Get verified</h5><p>Clinic staff reviews and approves your account, usually within 24–48 hours.</p></div>
+          <div class="step-item"><div class="step-num">3</div><h5>Book your visit</h5><p>Pick a doctor, date, and time slot that fits around your class schedule.</p></div>
+          <div class="step-item"><div class="step-num">4</div><h5>Skip the queue</h5><p>Get reminded before your visit, then find results and prescriptions in your records.</p></div>
         </div>
       </div>
     </div>
 
     <div id="landing-about">
-      <div class="landing-section-title">About CampusCare</div>
-      <p>CampusCare was built to take the friction out of campus healthcare — replacing paper forms and long front-desk queues with a single digital home for appointments, records, and communication. Whether you're a student booking a check-up, a doctor managing a full day of patients, or an administrator keeping the clinic running smoothly, CampusCare keeps everyone on the same page.</p>
+      <div class="landing-section-title">About the University Clinic</div>
+      <p>The CTU Main Medical Clinic at CTU – Main Campus looks after the health and wellbeing of students, faculty, and personnel — from routine check-ups and dental care to first aid, health counseling, and campus-wide wellness programs. CampusCare is the clinic's online companion: it brings appointment booking, health records, certificate requests, and clinic announcements to your phone, so you spend less time waiting in line and more time in class.</p>
     </div>
 
     <section id="landing-testimonial">
+      <div class="landing-section-title" style="font-size:1.25rem;margin-bottom:1.2rem">Referral &amp; Emergency Advisory</div>
       <blockquote>
-        "CampusCare cut our front-desk queue time in half. Students can book and message us directly, and our staff finally has one place to manage everything."
-        <cite>— Campus Health Services Office</cite>
+        For persistent symptoms or conditions that need further evaluation, the clinic will refer you to the nearest partner medical facility and notify your emergency contact. In case of an emergency on campus, proceed directly to the clinic or alert any university personnel immediately.
+        <cite>— CTU Main Medical Clinic, CTU Main Campus</cite>
       </blockquote>
     </section>
   </div>
 
   <footer id="landing-footer">
-    <p>&copy; 2026 CampusCare. All rights reserved.</p>
+    <div class="landing-contact">
+      <!-- Facebook contact placeholder -->
+      <div class="contact-item">
+        <span class="contact-icon"><i class="fa-brands fa-facebook-f" aria-hidden="true"></i></span>
+        <span class="contact-label">Facebook</span>
+        <a class="contact-value" href="#" onclick="return false;">Facebook Page Placeholder</a>
+      </div>
+
+      <!-- Phone contact placeholder -->
+      <div class="contact-item">
+        <span class="contact-icon"><i class="fa-solid fa-phone" aria-hidden="true"></i></span>
+        <span class="contact-label">Phone</span>
+        <a class="contact-value" href="tel:09XXXXXXXXX">09XX XXX XXXX</a>
+      </div>
+
+      <!-- Existing clinic email -->
+      <div class="contact-item">
+        <span class="contact-icon"><i class="fa-solid fa-envelope" aria-hidden="true"></i></span>
+        <span class="contact-label">Email</span>
+        <a class="contact-value" href="mailto:clinic@ctu.edu.ph">clinic@ctu.edu.ph</a>
+      </div>
+    </div>
+
+    <p><strong>CTU Main Medical Clinic — Cebu Technological University · Main Campus</strong><br>
+    Ground Floor, Administration Building, M.J. Cuenco Ave. cor. R. Palma St., Cebu City<br>
+    Clinic Hours: Monday – Friday, 8:00 AM – 5:00 PM</p>
+    <p>&copy; 2026 CampusCare · CTU Main Campus Health Services</p>
     <span class="demo-tag">🧪 Demo Version — for demonstration purposes only</span>
   </footer>
 
@@ -1909,6 +2005,35 @@ function checkReminders(){
 // ================================================================
 // AUTH
 // ================================================================
+
+function showAuthPage(tab){
+  document.getElementById('landing-page').style.display='none';
+  document.getElementById('auth-page').style.display='block';
+  window.scrollTo(0,0);
+  authTab(tab==='reg'?'reg':'login');
+}
+function showLandingPage(){
+  document.getElementById('auth-page').style.display='none';
+  document.getElementById('landing-page').style.display='';
+  window.scrollTo(0,0);
+}
+function landingNavTo(id){
+  const auth=document.getElementById('auth-page');
+  if(auth&&auth.style.display!=='none')showLandingPage();
+  const nl=document.querySelector('.landing-nav-links');
+  if(nl)nl.classList.remove('mobile-show');
+  setTimeout(()=>{const el=document.getElementById(id);if(el)el.scrollIntoView({behavior:'smooth'});},80);
+}
+// Scroll-reveal for landing sections
+(function(){
+  if(!('IntersectionObserver' in window))return;
+  const io=new IntersectionObserver(es=>es.forEach(e=>{
+    if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}
+  }),{threshold:.12});
+  document.querySelectorAll('.feature-card,.step-item,#landing-about p,#landing-testimonial blockquote')
+    .forEach(t=>{t.classList.add('reveal');io.observe(t);});
+})();
+
 function authTab(t){
   document.querySelectorAll('.auth-tab').forEach((b,i)=>b.classList.toggle('active',i===(t==='login'?0:1)));
   document.getElementById('login-section').style.display=t==='login'?'':'none';
@@ -5540,6 +5665,197 @@ function saveSemSettings(){
   s.semester2Start=document.getElementById('set-s2s').value;
   s.semester2End=document.getElementById('set-s2e').value;
   toast('Semester settings saved.','success');
+}
+
+// ================================================================
+// MEDICAL CERTIFICATES — patients request, staff issue, PDF via
+// jsPDF (loaded on demand) + email copy (simulated in-app)
+// ================================================================
+function loadJsPDF(){
+  return new Promise((resolve,reject)=>{
+    if(window.jspdf&&window.jspdf.jsPDF){resolve(window.jspdf.jsPDF);return;}
+    const s=document.createElement('script');
+    s.src='[cdn.jsdelivr.net](https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js)';
+    s.onload=()=>window.jspdf&&window.jspdf.jsPDF?resolve(window.jspdf.jsPDF):reject(new Error('PDF library failed'));
+    s.onerror=()=>reject(new Error('Could not load PDF library'));
+    document.head.appendChild(s);
+  });
+}
+const CERT_PURPOSES=['OJT / Internship Requirement','Excused Absence','Sports / Athletics Participation','Enrollment Requirement','Employment Requirement','Scholarship Requirement','Other'];
+function certStatusBadge(s){
+  const m={Pending:'badge-warning',Issued:'badge-success',Declined:'badge-danger'};
+  return `<span class="badge ${m[s]||'badge-gray'}">${s}</span>`;
+}
+
+// ---- PATIENT SIDE ----
+function renderMyCertificates(){
+  const c=document.getElementById('app-content');
+  const pt=currentPatient;
+  if(!pt){c.innerHTML='<div class="alert alert-warning show">No patient record linked. Contact admin.</div>';return;}
+  const reqs=DB.certRequests.filter(r=>r.patientId===pt.id).slice().sort((a,b)=>b.id-a.id);
+  c.innerHTML=`<div class="card">
+    <div class="card-header"><h3>Medical Certificates</h3>
+      <button class="btn btn-primary btn-sm" onclick="openCertRequestModal()">+ Request Certificate</button></div>
+    <p class="text-muted" style="font-size:.82rem;margin-bottom:.8rem">Once the clinic issues your certificate you can download the PDF here — a copy is also sent to ${escapeHtml(currentUser.email)}.</p>
+    ${reqs.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Purpose</th><th>Requested</th><th>Status</th><th>Certificate No.</th><th>Actions</th></tr></thead><tbody>${
+      reqs.map(r=>`<tr><td>#${r.id}</td><td>${escapeHtml(r.purpose)}</td><td>${fmtDate(r.requestedAt)}</td>
+        <td>${certStatusBadge(r.status)}</td><td>${r.certNo||'—'}</td>
+        <td><div class="td-actions">
+          ${r.status==='Issued'?`<button class="btn btn-xs btn-primary" onclick="downloadCertPdf(${r.id})">⬇ Download PDF</button>`:''}
+          ${r.status==='Pending'?`<button class="btn btn-xs btn-danger" onclick="cancelCertRequest(${r.id})">Cancel</button>`:''}
+          ${r.status==='Declined'&&r.declineReason?`<button class="btn btn-xs" onclick="viewCertDecline(${r.id})">Reason</button>`:''}
+        </div></td></tr>`).join('')
+    }</tbody></table></div>`:'<div class="empty-state"><p>No certificate requests yet.</p></div>'}
+  </div>`;
+}
+function openCertRequestModal(){
+  openModal(`<div class="modal">
+    <div class="modal-header"><h3>Request Medical Certificate</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Purpose</label><select id="cert-purpose">${CERT_PURPOSES.map(p=>`<option>${p}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Details (optional)</label><textarea id="cert-details" rows="3" placeholder="e.g. dates of absence, requesting office"></textarea></div>
+      <div class="alert alert-info show" style="font-size:.78rem">The clinic may ask you to visit for a quick check-up before issuing. You'll be notified once it's ready.</div>
+      <button class="btn btn-primary" style="width:100%" onclick="submitCertRequest()">Submit Request</button>
+    </div></div>`);
+}
+function submitCertRequest(){
+  const purpose=document.getElementById('cert-purpose').value;
+  const details=document.getElementById('cert-details').value.trim().slice(0,300);
+  DB.certRequests.push({id:DB.nextCertId++,patientId:currentPatient.id,purpose,details,status:'Pending',requestedAt:TODAY,certNo:'',issuedAt:'',issuedById:null,doctorId:null,findings:'',recommendations:'',declineReason:''});
+  DB.users.filter(u=>(u.role==='Staff'||u.role==='Administrator')&&u.status==='Active')
+    .forEach(u=>addNotif(u.id,'New Certificate Request',`${currentUser.fname} ${currentUser.lname} requested a medical certificate (${purpose}).`,'info'));
+  closeAllModals();
+  toast('Certificate request submitted.','success');
+  renderMyCertificates();
+}
+function cancelCertRequest(id){
+  const r=DB.certRequests.find(x=>x.id===id);
+  if(!r||r.status!=='Pending')return;
+  DB.certRequests=DB.certRequests.filter(x=>x.id!==id);
+  toast('Request cancelled.','info');
+  renderMyCertificates();
+}
+function viewCertDecline(id){
+  const r=DB.certRequests.find(x=>x.id===id); if(!r)return;
+  openModal(`<div class="modal"><div class="modal-header"><h3>Request Declined</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body"><p style="font-size:.85rem">${escapeHtml(r.declineReason||'No reason provided.')}</p></div></div>`);
+}
+
+// ---- STAFF / ADMIN SIDE ----
+function renderCertRequests(filter='Pending'){
+  const c=document.getElementById('app-content');
+  const all=DB.certRequests.slice().sort((a,b)=>b.id-a.id);
+  const list=filter==='all'?all:all.filter(r=>r.status===filter);
+  c.innerHTML=`<div class="card">
+    <div class="card-header"><h3>Medical Certificate Requests</h3></div>
+    <div class="tabs">${['Pending','Issued','Declined','all'].map(t=>`<button class="tab ${t===filter?'active':''}" onclick="renderCertRequests('${t}')">${t==='all'?'All':t}</button>`).join('')}</div>
+    ${list.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>Purpose</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
+      list.map(r=>{
+        const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null;
+        return `<tr><td>#${r.id}</td><td>${u?escapeHtml(u.fname+' '+u.lname):'Unknown'}</td>
+          <td>${escapeHtml(r.purpose)}${r.details?`<div class="text-muted" style="font-size:.72rem">${escapeHtml(r.details)}</div>`:''}</td>
+          <td>${fmtDate(r.requestedAt)}</td><td>${certStatusBadge(r.status)}</td>
+          <td><div class="td-actions">
+            ${r.status==='Pending'?`<button class="btn btn-xs btn-success" onclick="openIssueCertModal(${r.id})">Issue</button><button class="btn btn-xs btn-danger" onclick="openDeclineCertModal(${r.id})">Decline</button>`:''}
+            ${r.status==='Issued'?`<button class="btn btn-xs btn-primary" onclick="downloadCertPdf(${r.id})">⬇ PDF</button>`:''}
+          </div></td></tr>`;
+      }).join('')
+    }</tbody></table></div>`:'<div class="empty-state"><p>No requests found.</p></div>'}
+  </div>`;
+}
+function openIssueCertModal(id){
+  const r=DB.certRequests.find(x=>x.id===id); if(!r)return;
+  const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null;
+  openModal(`<div class="modal">
+    <div class="modal-header"><h3>Issue Medical Certificate</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:.83rem;margin-bottom:.7rem"><strong>${u?escapeHtml(u.fname+' '+u.lname):'Unknown'}</strong> · ${escapeHtml(r.purpose)}</p>
+      <div class="form-group"><label>Attending Physician</label>
+        <select id="ic-doctor">${getDoctors().map(d=>`<option value="${d.id}">Dr. ${escapeHtml(d.fname+' '+d.lname)} — ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Examination Findings / Diagnosis</label>
+        <textarea id="ic-findings" rows="3" placeholder="e.g. Patient was examined and found to be physically fit."></textarea></div>
+      <div class="form-group"><label>Remarks / Recommendations</label>
+        <textarea id="ic-reco" rows="2" placeholder="e.g. Cleared to participate in sports activities."></textarea></div>
+      <button class="btn btn-success" style="width:100%" onclick="issueCert(${id})">Issue Certificate &amp; Notify Patient</button>
+    </div></div>`);
+}
+function issueCert(id){
+  const r=DB.certRequests.find(x=>x.id===id); if(!r)return;
+  const findings=document.getElementById('ic-findings').value.trim();
+  if(!findings){toast('Please enter the examination findings.','error');return;}
+  r.findings=findings;
+  r.recommendations=document.getElementById('ic-reco').value.trim();
+  r.doctorId=parseInt(document.getElementById('ic-doctor').value);
+  r.status='Issued'; r.certNo=genId('CTU-MC',r.id); r.issuedAt=TODAY; r.issuedById=currentUser.id;
+  const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null;
+  if(u)addNotif(u.id,'Medical Certificate Ready',`Your certificate (${r.certNo}) has been issued. Download it from Medical Certificates. A copy was also sent to ${u.email}.`,'success');
+  closeAllModals();
+  toast(`Certificate ${r.certNo} issued${u?' and emailed to '+u.email:''}.`,'success');
+  renderCertRequests('Pending');
+}
+function openDeclineCertModal(id){
+  openModal(`<div class="modal">
+    <div class="modal-header"><h3>Decline Request</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Reason (shown to the patient)</label><textarea id="dc-reason" rows="3" placeholder="e.g. No clinic consultation on record for the stated dates."></textarea></div>
+      <button class="btn btn-danger" style="width:100%" onclick="declineCert(${id})">Decline Request</button>
+    </div></div>`);
+}
+function declineCert(id){
+  const r=DB.certRequests.find(x=>x.id===id); if(!r)return;
+  const reason=document.getElementById('dc-reason').value.trim();
+  if(!reason){toast('Please provide a reason.','error');return;}
+  r.status='Declined'; r.declineReason=reason;
+  const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null;
+  if(u)addNotif(u.id,'Certificate Request Declined',reason,'error');
+  closeAllModals();
+  toast('Request declined.','info');
+  renderCertRequests('Pending');
+}
+
+// ---- PDF (standard PH school-clinic format) ----
+async function downloadCertPdf(id){
+  const r=DB.certRequests.find(x=>x.id===id);
+  if(!r||r.status!=='Issued'){toast('Certificate not available.','error');return;}
+  let jsPDF;
+  try{jsPDF=await loadJsPDF();}catch(e){toast('Could not load the PDF generator. Check your connection.','error');return;}
+  const pt=getPatientById(r.patientId)||{}, u=getUserById(pt.userId)||{}, doctor=getUserById(r.doctorId)||{};
+  const name=`${u.fname||''} ${u.lname||''}`.trim()||'Unknown Patient';
+  let age='';
+  if(pt.dob){const a=Math.floor((new Date(TODAY)-new Date(pt.dob))/(365.25*864e5));if(a>0&&a<120)age=a+' years old';}
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210,M=25;let y=22;
+  const center=(t,s,st)=>{doc.setFont('times',st||'normal');doc.setFontSize(s);doc.text(t,W/2,y,{align:'center'});};
+  const para=t=>{doc.setFont('times','normal');doc.setFontSize(11.5);const ls=doc.splitTextToSize(t,W-2*M);doc.text(ls,M,y);y+=ls.length*6+4;};
+  center('Republic of the Philippines',11);y+=6;
+  center('CEBU TECHNOLOGICAL UNIVERSITY',14,'bold');y+=6;
+  center('Main Campus',11);y+=5.5;
+  center('M.J. Cuenco Ave. cor. R. Palma St., Cebu City',9.5);y+=5.5;
+  center('UNIVERSITY MEDICAL CLINIC',11,'bold');y+=4;
+  doc.setLineWidth(.6);doc.line(M,y,W-M,y);y+=13;
+  center('MEDICAL CERTIFICATE',16,'bold');y+=11;
+  doc.setFont('times','normal');doc.setFontSize(10.5);
+  doc.text(`Certificate No.: ${r.certNo}`,M,y);
+  doc.text(`Date: ${fmtDate(r.issuedAt)}`,W-M,y,{align:'right'});y+=12;
+  doc.setFontSize(11.5);doc.text('TO WHOM IT MAY CONCERN:',M,y);y+=10;
+  para(`     This is to certify that ${name}${age?', '+age:''}${pt.sex?', '+pt.sex:''}${u.college?', of the '+u.college:''}${u.idNo?' (ID No. '+u.idNo+')':''}, was seen and examined at the University Medical Clinic, Cebu Technological University – Main Campus.`);
+  para(`     FINDINGS / DIAGNOSIS: ${r.findings}`);
+  if(r.recommendations)para(`     REMARKS / RECOMMENDATIONS: ${r.recommendations}`);
+  para(`     This certification is issued upon the request of the above-named patient for ${r.purpose.toLowerCase()} purposes.`);
+  y+=16;
+  const sx=W-M-60;
+  doc.line(sx,y,W-M,y);y+=5;
+  doc.setFont('times','bold');doc.setFontSize(11);
+  doc.text(`DR. ${(doctor.fname||'')+' '+(doctor.lname||'')}`.toUpperCase().trim(),sx+30,y,{align:'center'});y+=5;
+  doc.setFont('times','normal');doc.setFontSize(9.5);
+  doc.text('Attending Physician',sx+30,y,{align:'center'});y+=5;
+  doc.text('License No. _______________',sx+30,y,{align:'center'});y+=16;
+  doc.setFont('times','italic');doc.setFontSize(9);
+  doc.text('Not valid without the official clinic seal.',M,y);y+=5;
+  doc.setFontSize(8);doc.setTextColor(120);
+  doc.text(`Generated by CampusCare · ${new Date().toLocaleString('en-PH')}`,M,y);
+  doc.save(`Medical_Certificate_${r.certNo}.pdf`);
+  toast('Certificate downloaded.','success');
 }
 
 // ================================================================
