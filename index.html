@@ -754,6 +754,13 @@ tbody tr:hover td{background:var(--overlay)}
 .dashboard-a-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 .dashboard-a-head h3{font-size:1.08rem;margin:0;color:var(--ink)}
 .dashboard-a-head p{margin:.2rem 0 0;color:var(--ink-muted);font-size:.8rem}
+.dashboard-controls{display:flex;align-items:end;gap:.55rem;flex-wrap:wrap;margin-left:auto}
+.dashboard-control{display:flex;flex-direction:column;gap:.25rem}
+.dashboard-control label{font-size:.66rem;font-weight:650;text-transform:uppercase;letter-spacing:.35px;color:var(--ink-muted)}
+.dashboard-control input,.dashboard-control select{height:34px;padding:.35rem .65rem;border:1px solid var(--line);border-radius:9px;background:var(--overlay);color:var(--ink);font:inherit;font-size:.76rem;color-scheme:light dark}
+.dashboard-control input:focus,.dashboard-control select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(10,126,168,.14)}
+.dashboard-date-note{font-size:.7rem;color:var(--ink-muted);padding-bottom:.5rem}
+@media(max-width:640px){.dashboard-controls{width:100%;margin-left:0}.dashboard-control{flex:1;min-width:130px}.dashboard-control input,.dashboard-control select{width:100%}.dashboard-date-note{width:100%;padding-bottom:0}}
 .dashboard-a-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.8rem}
 .dashboard-a-stat{position:relative;overflow:hidden;background:var(--glass-surface);backdrop-filter:blur(var(--glass-blur)) saturate(160%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(160%);border:1px solid var(--glass-border-soft);border-radius:17px;padding:1rem;min-height:132px;box-shadow:var(--glass-shadow-sm);transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s ease,border-color .28s ease,filter .28s ease;will-change:transform}
 .dashboard-a-stat.attention{border-color:var(--warning-border);background:linear-gradient(145deg,var(--warning-bg),var(--glass-surface))}
@@ -3216,11 +3223,37 @@ function dashboardSparkline(values){
   return `<div class="das-spark"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/></svg></div>`;
 }
 
-// Returns counts for the most recent seven days, including zero-value days.
-function dashboardSevenDayCounts(filterFn){
+// Dashboard filter state. The chosen date is also the end date of the 7-day chart window.
+let dashboardSelectedDate=TODAY;
+let dashboardChartType='line';
+
+function setDashboardDate(value){
+  dashboardSelectedDate=value||TODAY;
+  renderDashboard();
+}
+function setDashboardChartType(value){
+  dashboardChartType=value||'line';
+  renderDashboard();
+}
+function dashboardControlsHtml(){
+  const dateLabel=dashboardSelectedDate===TODAY?'Today':fmtDate(dashboardSelectedDate);
+  return `<div class="dashboard-controls">
+    <div class="dashboard-control"><label for="dashboard-date">Data date</label><input id="dashboard-date" type="date" value="${dashboardSelectedDate}" onchange="setDashboardDate(this.value)"></div>
+    <div class="dashboard-control"><label for="dashboard-chart-type">Graph</label><select id="dashboard-chart-type" onchange="setDashboardChartType(this.value)">
+      <option value="line" ${dashboardChartType==='line'?'selected':''}>Line</option>
+      <option value="bar" ${dashboardChartType==='bar'?'selected':''}>Bar</option>
+      <option value="pie" ${dashboardChartType==='pie'?'selected':''}>Pie</option>
+      <option value="doughnut" ${dashboardChartType==='doughnut'?'selected':''}>Doughnut</option>
+    </select></div>
+    <div class="dashboard-date-note">Showing ${dateLabel}</div>
+  </div>`;
+}
+
+// Returns seven daily counts ending on the selected dashboard date, including zero-value days.
+function dashboardSevenDayCounts(filterFn,endDate=dashboardSelectedDate){
   const days=[];
   for(let i=6;i>=0;i--){
-    const d=new Date(TODAY+'T12:00:00');
+    const d=new Date((endDate||TODAY)+'T12:00:00');
     d.setDate(d.getDate()-i);
     const key=d.toISOString().slice(0,10);
     days.push({key,label:d.toLocaleDateString('en-PH',{weekday:'short'}),value:DB.appointments.filter(a=>a.date===key&&filterFn(a)).length});
@@ -3228,19 +3261,38 @@ function dashboardSevenDayCounts(filterFn){
   return days;
 }
 
-// Builds the larger seven-day trend chart without depending on Chart.js.
-function dashboardTrendSvg(points,label='Visits'){
+// Builds the larger seven-day dashboard chart without depending on Chart.js.
+function dashboardTrendSvg(points,label='Visits',chartType=dashboardChartType){
   if(!points||!points.length)return '<div class="dashboard-trend-empty">No trend data available.</div>';
+  const values=points.map(p=>Number(p.value)||0);
+  const total=values.reduce((a,b)=>a+b,0);
+  const esc=t=>escapeHtml(String(t));
+  const palette=['#0a7ea8','#3aa8d8','#5b4fd6','#0b7d63','#c62828','#a15c00','#b0431e'];
+
+  // Pie and doughnut views summarize how the seven-day total is distributed by day.
+  if(chartType==='pie'||chartType==='doughnut'){
+    if(total===0)return '<div class="dashboard-trend-empty">No activity in this 7-day window.</div>';
+    let acc=0;
+    const stops=values.map((v,i)=>{const a=acc/total*360;acc+=v;const b=acc/total*360;return `${palette[i%palette.length]} ${a}deg ${b}deg`;}).join(',');
+    const hole=chartType==='doughnut'?`<div style="position:absolute;inset:27%;border-radius:50%;background:var(--glass-surface-strong);display:flex;align-items:center;justify-content:center;flex-direction:column"><strong style="font-size:1.15rem">${total}</strong><span class="text-muted">Total</span></div>`:'';
+    return `<div style="height:100%;display:flex;align-items:center;justify-content:center;gap:1.4rem;flex-wrap:wrap"><div style="width:min(180px,48vw);aspect-ratio:1;border-radius:50%;background:conic-gradient(${stops});position:relative;box-shadow:var(--glass-shadow-sm)">${hole}</div><div style="display:grid;grid-template-columns:repeat(2,minmax(80px,1fr));gap:.4rem .8rem">${points.map((p,i)=>`<span style="font-size:.7rem;color:var(--ink-muted);display:flex;align-items:center;gap:.35rem"><i style="width:8px;height:8px;border-radius:50%;background:${palette[i%palette.length]};display:inline-block"></i>${esc(p.label)} <strong style="color:var(--ink)">${p.value}</strong></span>`).join('')}</div></div>`;
+  }
+
   const w=720,h=220,pl=42,pr=18,pt=18,pb=34;
-  const max=Math.max(1,...points.map(p=>p.value));
-  const x=i=>pl+i*(w-pl-pr)/Math.max(1,points.length-1);
+  const max=Math.max(1,...values);
   const y=v=>pt+(max-v)*(h-pt-pb)/max;
-  const poly=points.map((p,i)=>`${x(i)},${y(p.value)}`).join(' ');
-  const area=`${pl},${h-pb} ${poly} ${x(points.length-1)},${h-pb}`;
   const grid=[0,.25,.5,.75,1].map(r=>{const yy=pt+r*(h-pt-pb);const val=Math.round(max*(1-r));return `<line x1="${pl}" y1="${yy}" x2="${w-pr}" y2="${yy}" stroke="currentColor" opacity=".08"/><text x="${pl-8}" y="${yy+3}" text-anchor="end" font-size="10" fill="currentColor" opacity=".55">${val}</text>`;}).join('');
-  const labels=points.map((p,i)=>`<text x="${x(i)}" y="${h-10}" text-anchor="middle" font-size="10" fill="currentColor" opacity=".6">${p.label}</text>`).join('');
-  const dots=points.map((p,i)=>`<circle cx="${x(i)}" cy="${y(p.value)}" r="3.5" fill="var(--primary-mid)"><title>${p.label}: ${p.value} ${label.toLowerCase()}</title></circle>`).join('');
-  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${label} over the last seven days">${grid}<polygon points="${area}" fill="var(--primary)" opacity=".08"/><polyline points="${poly}" fill="none" stroke="var(--primary-mid)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${dots}${labels}</svg>`;
+  let marks='';
+  if(chartType==='bar'){
+    const avail=w-pl-pr,gap=18,bw=(avail-gap*(points.length+1))/points.length;
+    marks=points.map((p,i)=>{const x=pl+gap+i*(bw+gap),yy=y(p.value),bh=h-pb-yy;return `<rect x="${x}" y="${yy}" width="${bw}" height="${Math.max(1,bh)}" rx="6" fill="var(--primary-mid)" opacity=".82"><title>${esc(p.label)}: ${p.value} ${esc(label.toLowerCase())}</title></rect><text x="${x+bw/2}" y="${h-10}" text-anchor="middle" font-size="10" fill="currentColor" opacity=".6">${esc(p.label)}</text>`;}).join('');
+  }else{
+    const x=i=>pl+i*(w-pl-pr)/Math.max(1,points.length-1);
+    const poly=points.map((p,i)=>`${x(i)},${y(p.value)}`).join(' ');
+    const area=`${pl},${h-pb} ${poly} ${x(points.length-1)},${h-pb}`;
+    marks=`<polygon points="${area}" fill="var(--primary)" opacity=".08"/><polyline points="${poly}" fill="none" stroke="var(--primary-mid)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${points.map((p,i)=>`<circle cx="${x(i)}" cy="${y(p.value)}" r="3.5" fill="var(--primary-mid)"><title>${esc(p.label)}: ${p.value} ${esc(label.toLowerCase())}</title></circle>`).join('')}${points.map((p,i)=>`<text x="${x(i)}" y="${h-10}" text-anchor="middle" font-size="10" fill="currentColor" opacity=".6">${esc(p.label)}</text>`).join('')}`;
+  }
+  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)} for the seven days ending ${esc(fmtDate(dashboardSelectedDate))}">${grid}${marks}</svg>`;
 }
 
 function dashboardStatCard(label,value,meta,values,icon='•',tone=''){
@@ -3297,7 +3349,7 @@ function dashboardMobileQuickLinks(role){
 function renderDashboard(){
   const c=document.getElementById('app-content');
   const role=currentUser.role;
-  const today=TODAY;
+  const today=dashboardSelectedDate||TODAY;
   const allToday=DB.appointments.filter(a=>a.date===today&&a.status!=='Cancelled');
   const globalTrend=dashboardSevenDayCounts(()=>true);
   const globalVals=globalTrend.map(p=>p.value);
@@ -3313,9 +3365,9 @@ function renderDashboard(){
     const pt=currentPatient;
     if(!pt){c.innerHTML='<div class="alert alert-warning show">No patient record linked. Please contact admin.</div>';return;}
     const mine=DB.appointments.filter(a=>a.patientId===pt.id);
-    const upcoming=mine.filter(a=>a.status==='Scheduled'&&a.date>=TODAY).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+    const upcoming=mine.filter(a=>a.status==='Scheduled'&&a.date>=today).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
     const completed=mine.filter(a=>a.status==='Completed');
-    const reminders=DB.medReminders.filter(r=>r.patientId===pt.id&&r.status==='active'&&r.endDate>=TODAY);
+    const reminders=DB.medReminders.filter(r=>r.patientId===pt.id&&r.status==='active'&&r.endDate>=today);
     const dental=mine.filter(a=>a.clinic==='Dental Clinic'&&a.status!=='Cancelled'&&getSemester(a.date)===currentSemester());
     const myTrend=dashboardSevenDayCounts(a=>a.patientId===pt.id);
     const myVals=myTrend.map(p=>p.value);
@@ -3328,7 +3380,7 @@ function renderDashboard(){
     if(unreadMessages)attention+=dashboardAttentionItem(`${unreadMessages} unread message${unreadMessages>1?'s':''}`,'You have new messages waiting in Chats.','warn');
     if(!attention)attention=dashboardAttentionItem('You are all caught up','No urgent items need your attention right now.','success');
     c.innerHTML=`<div class="dashboard-a">
-      <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(currentUser.fname)}.</h3><p>Here is your personal CampusCare health overview.</p></div><button class="btn btn-primary btn-sm" onclick="navTo('my-appointments')">+ Book Appointment</button></div>
+      <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(currentUser.fname)}.</h3><p>Here is your personal CampusCare health overview.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="navTo('my-appointments')">+ Book Appointment</button>${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
         ${dashboardStatCard('Upcoming appointments',upcoming.length,upcoming[0]?`Next: <strong>${fmtDate(upcoming[0].date)}</strong>`:'Nothing scheduled',myVals,'📅')}
         ${dashboardStatCard('Completed visits',completed.length,'Your recorded clinic visits',myVals,'✓')}
@@ -3337,7 +3389,7 @@ function renderDashboard(){
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
-        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>My Clinic Activity</h3><div class="text-muted">Appointments recorded during the last 7 days</div></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(myTrend,'Appointments')}</div></div>
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>My Clinic Activity</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(myTrend,'Appointments')}</div></div>
         <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
       ${upcoming.length?`<div class="card"><div class="card-header"><h3>Upcoming Appointments</h3><button class="btn btn-xs" onclick="navTo('my-appointments')">View All</button></div>${upcoming.slice(0,4).map(a=>{const d=getUserById(a.doctorId);return `<div style="display:flex;align-items:center;gap:.7rem;padding:.55rem 0;border-bottom:1px solid var(--line-soft)"><div style="flex:1"><strong style="font-size:.8rem">${a.clinic} · ${a.service}</strong><div class="text-muted">${fmtDate(a.date)} at ${fmtTime(a.time)} · ${d?docName(d):'Doctor TBA'}</div></div>${statusBadge(a.status)}</div>`;}).join('')}</div>`:''}
@@ -3350,7 +3402,7 @@ function renderDashboard(){
     const mine=DB.appointments.filter(a=>a.doctorId===currentUser.id);
     const todayMine=mine.filter(a=>a.date===today&&a.status!=='Cancelled').sort((a,b)=>a.time.localeCompare(b.time));
     const completed=mine.filter(a=>a.status==='Completed');
-    const scheduled=mine.filter(a=>a.status==='Scheduled'&&a.date>=TODAY);
+    const scheduled=mine.filter(a=>a.status==='Scheduled'&&a.date>=today);
     const uniquePatients=new Set(mine.map(a=>a.patientId)).size;
     const trend=dashboardSevenDayCounts(a=>a.doctorId===currentUser.id);
     const vals=trend.map(p=>p.value);
@@ -3362,19 +3414,19 @@ function renderDashboard(){
     if(!attention)attention=dashboardAttentionItem('Schedule is clear','No urgent items need your attention.','success');
     const todayCompleted=todayMine.filter(a=>a.status==='Completed').length;
     c.innerHTML=`<div class="dashboard-a">
-      <div class="dashboard-a-head"><div><h3>${greeting}, Dr. ${escapeHtml(currentUser.lname)}.</h3><p>Your patient load and clinic activity at a glance.</p></div><button class="btn btn-sm" onclick="navTo('schedule')">Full Schedule</button></div>
+      <div class="dashboard-a-head"><div><h3>${greeting}, Dr. ${escapeHtml(currentUser.lname)}.</h3><p>Your patient load and clinic activity at a glance.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-sm" onclick="navTo('schedule')">Full Schedule</button>${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
-        ${dashboardStatCard("Today's appointments",todayMine.length,`${todayCompleted} completed today`,vals,'🩺')}
+        ${dashboardStatCard(`Appointments · ${fmtDate(today)}`,todayMine.length,`${todayCompleted} completed on this date`,vals,'🩺')}
         ${dashboardStatCard('Upcoming',scheduled.length,'Scheduled from today onward',vals,'📅',scheduled.length>8?'attention':'')}
         ${dashboardStatCard('Total patients',uniquePatients,'Unique patients assigned to you',vals,'👥')}
         ${dashboardStatCard('Completed visits',completed.length,unreadMessages?`<strong>${unreadMessages}</strong> unread messages`:'All recorded consultations',vals,'✓')}
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
-        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">Your appointments over the last 7 days</div></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(trend,'Appointments')}</div></div>
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(trend,'Appointments')}</div></div>
         <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
-      <div class="card"><div class="card-header"><h3>Today's Schedule · ${fmtDate(today)}</h3><button class="btn btn-xs" onclick="navTo('my-patients')">My Patients</button></div>${todayMine.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>College</th><th>Service</th><th>Status</th></tr></thead><tbody>${todayMine.map(a=>{const pt=getPatientById(a.patientId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${collegeBadge(a.college)}</td><td>${a.service}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments scheduled for today.</p></div>'}</div>
+      <div class="card"><div class="card-header"><h3>Schedule · ${fmtDate(today)}</h3><button class="btn btn-xs" onclick="navTo('my-patients')">My Patients</button></div>${todayMine.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>College</th><th>Service</th><th>Status</th></tr></thead><tbody>${todayMine.map(a=>{const pt=getPatientById(a.patientId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${collegeBadge(a.college)}</td><td>${a.service}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments scheduled for today.</p></div>'}</div>
     </div>`;
     return;
   }
@@ -3389,16 +3441,16 @@ function renderDashboard(){
     if(unreadMessages)attention+=dashboardAttentionItem(`${unreadMessages} unread message${unreadMessages>1?'s':''}`,'Check Chats for new patient or staff messages.','warn');
     if(!attention)attention=dashboardAttentionItem('Operations look good','No urgent clinic items need attention.','success');
     c.innerHTML=`<div class="dashboard-a">
-      <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(currentUser.fname)}.</h3><p>Monitor today's clinic flow and operational tasks.</p></div><button class="btn btn-primary btn-sm" onclick="navTo('appointments')">Manage Appointments</button></div>
+      <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(currentUser.fname)}.</h3><p>Monitor clinic flow and operational tasks for the selected date.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="navTo('appointments')">Manage Appointments</button>${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
-        ${dashboardStatCard("Today's appointments",allToday.length,`<strong>${todayCompleted}</strong> completed today`,globalVals,'📅')}
+        ${dashboardStatCard(`Appointments · ${fmtDate(today)}`,allToday.length,`<strong>${todayCompleted}</strong> completed today`,globalVals,'📅')}
         ${dashboardStatCard('Scheduled',scheduled.length,'Appointments still on the schedule',globalVals,'🕐')}
         ${dashboardStatCard('Certificate requests',pendingCerts.length,'Pending medical certificates',globalVals,'📄',pendingCerts.length?'attention':'')}
         ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory needs review':'Inventory levels healthy',globalVals,'⚠',lowStock.length?'critical':'')}
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
-        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">Clinic appointments during the last 7 days</div></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
         <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
       <div class="card"><div class="card-header"><h3>Today's Appointments</h3><button class="btn btn-xs" onclick="navTo('appointments')">View All</button></div>${allToday.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${allToday.slice(0,8).map(a=>{const pt=getPatientById(a.patientId),d=getUserById(a.doctorId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${a.clinic}</td><td>${d?docName(d):'Unknown'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments today.</p></div>'}</div>
@@ -3419,21 +3471,21 @@ function renderDashboard(){
   const doctors=getDoctors();
   const doctorLoad=doctors.map(d=>({name:`Dr. ${d.lname}`,count:allToday.filter(a=>a.doctorId===d.id).length,max:d.maxPatients||20}));
   c.innerHTML=`<div class="dashboard-a">
-    <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(currentUser.fname)}.</h3><p>CampusCare clinic activity, priorities, and service load.</p></div><button class="btn btn-sm" onclick="navTo('reports')">Open Reports & Analytics</button></div>
+    <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(currentUser.fname)}.</h3><p>CampusCare clinic activity, priorities, and service load.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-sm" onclick="navTo('reports')">Open Reports & Analytics</button>${dashboardControlsHtml()}</div></div>
     <div class="dashboard-a-grid">
       ${dashboardStatCard('Active patients',activePatients,'Registered non-archived patients',globalVals,'👥')}
-      ${dashboardStatCard("Today's appointments",allToday.length,`<strong>${completedToday}</strong> completed today`,globalVals,'📅')}
+      ${dashboardStatCard(`Appointments · ${fmtDate(today)}`,allToday.length,`<strong>${completedToday}</strong> completed on this date`,globalVals,'📅')}
       ${dashboardStatCard('Pending approvals',pendingUsers.length,pendingUsers.length?'Registration review required':'No registrations waiting',globalVals,'⏳',pendingUsers.length?'attention':'')}
       ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory action required':'Inventory levels healthy',globalVals,'⚠',lowStock.length?'critical':'')}
     </div>
     ${dashboardMobileQuickLinks(role)}
     <div class="dashboard-a-main">
-      <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">All clinic appointments during the last 7 days</div></div><button class="btn btn-xs" onclick="navTo('reports')">Analyze</button></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
+      <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div><button class="btn btn-xs" onclick="navTo('reports')">Analyze</button></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
       <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
     </div>
     <div class="dashboard-a-secondary">
       <div class="card"><div class="card-header"><h3>Today's Appointments</h3><button class="btn btn-xs" onclick="navTo('appointments')">View All</button></div>${allToday.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${allToday.slice(0,7).map(a=>{const pt=getPatientById(a.patientId),d=getUserById(a.doctorId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${a.clinic}</td><td>${d?docName(d):'Unknown'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments today.</p></div>'}</div>
-      <div class="card"><div class="card-header"><h3>Doctor Load Today</h3></div>${doctorLoad.length?doctorLoad.map(d=>{const pct=Math.min(100,Math.round(d.count/Math.max(1,d.max)*100));return `<div class="dashboard-progress-row"><span>${escapeHtml(d.name)}</span><div class="dashboard-progress-track"><div class="dashboard-progress-fill" style="width:${pct}%"></div></div><strong>${d.count}</strong></div>`;}).join(''):'<div class="empty-state"><p>No active doctors.</p></div>'}</div>
+      <div class="card"><div class="card-header"><h3>Doctor Load · ${fmtDate(today)}</h3></div>${doctorLoad.length?doctorLoad.map(d=>{const pct=Math.min(100,Math.round(d.count/Math.max(1,d.max)*100));return `<div class="dashboard-progress-row"><span>${escapeHtml(d.name)}</span><div class="dashboard-progress-track"><div class="dashboard-progress-fill" style="width:${pct}%"></div></div><strong>${d.count}</strong></div>`;}).join(''):'<div class="empty-state"><p>No active doctors.</p></div>'}</div>
     </div>
   </div>`;
 }
