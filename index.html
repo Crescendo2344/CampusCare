@@ -414,6 +414,7 @@ select option{background:#1c2128;color:#e9edf0}
 
 /* ===TABLES=== */
 .table-wrap{overflow-x:auto;border-radius:12px}
+.cert-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-width:thin;overscroll-behavior-x:contain}.cert-table-wrap table{min-width:720px}.cert-swipe-hint{display:none;font-size:.68rem;color:var(--ink-muted);margin:.15rem 0 .55rem;align-items:center;gap:.3rem}.cert-table-wrap::-webkit-scrollbar{height:6px}.cert-table-wrap::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:999px}@media(max-width:768px){.cert-swipe-hint{display:flex}.cert-table-wrap{margin-left:-.15rem;margin-right:-.15rem;padding-bottom:.25rem}.cert-table-wrap table{min-width:700px}}
 table{width:100%;border-collapse:collapse;font-size:.82rem}
 th{background:var(--overlay);padding:.55rem .8rem;text-align:left;font-weight:600;font-size:.74rem;color:var(--ink-muted);border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:.55rem .8rem;border-bottom:1px solid var(--line-soft);vertical-align:middle;color:var(--ink)}
@@ -529,7 +530,7 @@ tbody tr:hover td{background:var(--overlay)}
 .modern-calendar-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.65rem}
 .modern-calendar-title{font-weight:750;font-size:.92rem;color:var(--ink);text-align:center;flex:1;display:flex;align-items:center;justify-content:center;gap:.35rem}
 .modern-calendar-title select{height:32px;border:1px solid var(--line);border-radius:9px;background:var(--overlay);color:var(--ink);font:inherit;font-size:.76rem;font-weight:700;padding:.2rem .45rem;cursor:pointer}
-.dashboard-range-calendars{display:grid;grid-template-columns:1fr 1fr;gap:1rem}.dashboard-range-block>label{display:block;font-size:.72rem;font-weight:700;color:var(--ink-muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.35px}@media(max-width:720px){.dashboard-range-calendars{grid-template-columns:1fr}}
+.dashboard-range-picker{max-width:430px;margin:0 auto}.dashboard-range-summary{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:.6rem;margin-bottom:.8rem}.dashboard-range-value{padding:.65rem .75rem;border:1px solid var(--line);border-radius:12px;background:var(--overlay);min-width:0}.dashboard-range-value span{display:block;font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.45px;color:var(--ink-muted);margin-bottom:.18rem}.dashboard-range-value strong{display:block;font-size:.78rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dashboard-range-arrow{color:var(--ink-muted);font-size:.9rem}.dashboard-range-step{font-size:.72rem;color:var(--ink-muted);text-align:center;margin:.1rem 0 .65rem}.modern-calendar-day.in-range{background:rgba(10,126,168,.11);border-radius:8px}.modern-calendar-day.range-start,.modern-calendar-day.range-end{background:linear-gradient(150deg,var(--primary-mid),var(--primary-dark));color:#fff;font-weight:800;box-shadow:0 5px 14px rgba(10,126,168,.3)}.modern-calendar-day.range-start.has-appt::after,.modern-calendar-day.range-end.has-appt::after{background:#fff}@media(max-width:520px){.dashboard-range-summary{gap:.35rem}.dashboard-range-value{padding:.55rem}.dashboard-range-value strong{font-size:.7rem}}
 .modern-calendar-nav{width:34px;height:34px;border-radius:10px;border:1px solid var(--glass-border-soft);background:var(--overlay);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s ease}
 .modern-calendar-nav:hover{background:var(--overlay-strong);transform:scale(1.05)}
 .modern-calendar-weekdays,.modern-calendar-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
@@ -3264,6 +3265,7 @@ let dashboardDateFrom=isoDateOffset(TODAY,-6);
 let dashboardDateTo=TODAY;
 let dashboardPendingFrom=dashboardDateFrom;
 let dashboardPendingTo=dashboardDateTo;
+let dashboardRangeStage='from'; // First tap chooses From; second tap chooses To.
 let dashboardChartType='line';
 
 function setDashboardChartType(value){
@@ -3286,16 +3288,49 @@ function dashboardChartControlHtml(){
   </select></div>`;
 }
 function openDashboardDatePicker(){
-  dashboardPendingFrom=dashboardDateFrom; dashboardPendingTo=dashboardDateTo;
-  openModal(`<div class="modal modal-lg"><div class="modal-header"><div><h3>Select Dashboard Date Range</h3><div class="text-muted">Choose a From and To date. Month and year can be changed from each calendar header.</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div id="dashboard-range-msg"></div><div class="dashboard-range-calendars"><div class="dashboard-range-block"><label>From</label><div id="dashboard-calendar-from"></div></div><div class="dashboard-range-block"><label>To</label><div id="dashboard-calendar-to"></div></div></div></div><div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="applyDashboardDateRange()">Apply Date Range</button></div></div>`);
-  initModernCalendar('dashboard-calendar-from',dashboardPendingFrom,'','chooseDashboardFromDate');
-  initModernCalendar('dashboard-calendar-to',dashboardPendingTo,'','chooseDashboardToDate');
+  dashboardPendingFrom=dashboardDateFrom;
+  dashboardPendingTo='';
+  dashboardRangeStage='from';
+  openModal(`<div class="modal"><div class="modal-header"><div><h3>Select Dashboard Date Range</h3><div class="text-muted">Use one calendar: choose the From date first, then the To date.</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div id="dashboard-range-msg"></div><div class="dashboard-range-picker"><div class="dashboard-range-summary"><div class="dashboard-range-value"><span>From</span><strong id="dashboard-range-from-label">Not selected</strong></div><div class="dashboard-range-arrow">→</div><div class="dashboard-range-value"><span>To</span><strong id="dashboard-range-to-label">Not selected</strong></div></div><div class="dashboard-range-step" id="dashboard-range-step">1. Select the From date</div><div id="dashboard-range-calendar"></div></div></div><div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="applyDashboardDateRange()">Apply Date Range</button></div></div>`);
+  initModernCalendar('dashboard-range-calendar',dashboardDateFrom,'','chooseDashboardRangeDate',{rangeMode:true,rangeStart:'',rangeEnd:''});
+  updateDashboardRangePickerUI();
 }
-function chooseDashboardFromDate(date){dashboardPendingFrom=date||dashboardPendingFrom;}
-function chooseDashboardToDate(date){dashboardPendingTo=date||dashboardPendingTo;}
+function chooseDashboardRangeDate(date){
+  const msg=document.getElementById('dashboard-range-msg');
+  if(dashboardRangeStage==='from'){
+    dashboardPendingFrom=date;
+    dashboardPendingTo='';
+    dashboardRangeStage='to';
+    if(msg)hideAlert(msg);
+  }else{
+    if(date<dashboardPendingFrom){
+      if(msg)showAlert(msg,'Choose a To date on or after the From date.','warning');
+      return;
+    }
+    dashboardPendingTo=date;
+    dashboardRangeStage='done';
+    if(msg)hideAlert(msg);
+  }
+  const st=modernCalendarState['dashboard-range-calendar'];
+  if(st){st.rangeStart=dashboardPendingFrom||'';st.rangeEnd=dashboardPendingTo||'';}
+  updateDashboardRangePickerUI();
+}
+function updateDashboardRangePickerUI(){
+  const from=document.getElementById('dashboard-range-from-label');
+  const to=document.getElementById('dashboard-range-to-label');
+  const step=document.getElementById('dashboard-range-step');
+  if(from)from.textContent=dashboardPendingFrom?fmtDate(dashboardPendingFrom):'Not selected';
+  if(to)to.textContent=dashboardPendingTo?fmtDate(dashboardPendingTo):'Not selected';
+  if(step)step.textContent=dashboardRangeStage==='from'?'1. Select the From date':dashboardRangeStage==='to'?'2. Now select the To date':'Range selected. You can Apply or tap another date to start again.';
+  if(dashboardRangeStage==='done'){
+    // A third tap starts a fresh range, keeping the interaction simple on mobile.
+    dashboardRangeStage='from';
+  }
+}
 function applyDashboardDateRange(){
   const msg=document.getElementById('dashboard-range-msg');
-  if(dashboardPendingFrom>dashboardPendingTo){showAlert(msg,'The From date must be on or before the To date.');return;}
+  if(!dashboardPendingFrom||!dashboardPendingTo){showAlert(msg,'Please select both a From and To date.','warning');return;}
+  if(dashboardPendingFrom>dashboardPendingTo){showAlert(msg,'The From date must be on or before the To date.','warning');return;}
   dashboardDateFrom=dashboardPendingFrom; dashboardDateTo=dashboardPendingTo;
   closeAllModals(); renderDashboard();
 }
@@ -6092,7 +6127,7 @@ function renderMyCertificates(){
     <div class="card-header"><h3>Medical Certificates</h3>
       <button class="btn btn-primary btn-sm" onclick="openCertRequestModal()">+ Request Certificate</button></div>
     <p class="text-muted" style="font-size:.82rem;margin-bottom:.8rem">Staff prepares the certificate details, then the assigned doctor signs it before it becomes downloadable.</p>
-    ${reqs.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Purpose</th><th>Requested</th><th>Status</th><th>Certificate No.</th><th>Actions</th></tr></thead><tbody>${
+    ${reqs.length?`<div class="cert-swipe-hint"><i class="fa-solid fa-arrows-left-right"></i> Swipe horizontally to view the certificate number and download actions.</div><div class="table-wrap cert-table-wrap"><table><thead><tr><th>#</th><th>Purpose</th><th>Requested</th><th>Status</th><th>Certificate No.</th><th>Actions</th></tr></thead><tbody>${
       reqs.map(r=>`<tr><td>#${r.id}</td><td>${escapeHtml(r.purpose)}</td><td>${fmtDate(r.requestedAt)}</td>
         <td>${certStatusBadge(r.status)}</td><td>${r.certNo||'—'}</td>
         <td><div class="td-actions">
@@ -6376,9 +6411,9 @@ function zoomImageStep(delta){
 
 // ── Modern reusable calendar ──
 const modernCalendarState={};
-function initModernCalendar(id,selectedDate=TODAY,minDate='',callbackName=''){
+function initModernCalendar(id,selectedDate=TODAY,minDate='',callbackName='',options={}){
   const base=(selectedDate||TODAY);
-  modernCalendarState[id]={selected:base,minDate:minDate||'',callbackName,viewMonth:base.slice(0,7)};
+  modernCalendarState[id]={selected:base,minDate:minDate||'',callbackName,viewMonth:base.slice(0,7),...options};
   renderModernCalendar(id);
 }
 function modernCalendarShift(id,delta){
@@ -6432,13 +6467,17 @@ function renderModernCalendar(id){
     const classes=['modern-calendar-day'];
     if(outside)classes.push('outside');
     if(date===TODAY)classes.push('today');
-    if(date===st.selected)classes.push('selected');
+    if(st.rangeMode){
+      if(st.rangeStart&&date===st.rangeStart)classes.push('range-start');
+      if(st.rangeEnd&&date===st.rangeEnd)classes.push('range-end');
+      if(st.rangeStart&&st.rangeEnd&&date>st.rangeStart&&date<st.rangeEnd)classes.push('in-range');
+    }else if(date===st.selected)classes.push('selected');
     if(apptDates.has(date))classes.push('has-appt');
     days+=`<button type="button" class="${classes.join(' ')}" ${disabled?'disabled':''} onclick="modernCalendarSelect('${id}','${date}')" aria-label="${fmtDate(date)}">${d.getDate()}</button>`;
   }
   const monthOptions=Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===month?'selected':''}>${new Date(2000,i,1).toLocaleDateString('en-PH',{month:'short'})}</option>`).join('');
-  const thisYear=new Date().getFullYear();
-  const minYear=Math.min(thisYear-10,year-5),maxYear=Math.max(thisYear+10,year+5);
+  // Keep the year dropdown compact. The month arrows can still move beyond this window.
+  const minYear=year-4,maxYear=year+4;
   let yearOptions=''; for(let yy=minYear;yy<=maxYear;yy++)yearOptions+=`<option value="${yy}" ${yy===year?'selected':''}>${yy}</option>`;
   host.innerHTML=`<div class="modern-calendar">
     <div class="modern-calendar-head"><button type="button" class="modern-calendar-nav" onclick="modernCalendarShift('${id}',-1)" aria-label="Previous month">‹</button><div class="modern-calendar-title"><select aria-label="Month" onchange="modernCalendarSetMonth('${id}',this.value)">${monthOptions}</select><select aria-label="Year" onchange="modernCalendarSetYear('${id}',this.value)">${yearOptions}</select></div><button type="button" class="modern-calendar-nav" onclick="modernCalendarShift('${id}',1)" aria-label="Next month">›</button></div>
