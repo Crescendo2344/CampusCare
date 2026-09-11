@@ -527,7 +527,9 @@ tbody tr:hover td{background:var(--overlay)}
 .modern-date-btn i{color:var(--primary)}
 .modern-calendar{background:var(--glass-surface-strong);border:1px solid var(--glass-border);border-radius:18px;padding:.9rem;box-shadow:var(--glass-shadow);width:100%;max-width:390px;margin:0 auto;user-select:none}
 .modern-calendar-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.65rem}
-.modern-calendar-title{font-weight:750;font-size:.92rem;color:var(--ink);text-align:center;flex:1}
+.modern-calendar-title{font-weight:750;font-size:.92rem;color:var(--ink);text-align:center;flex:1;display:flex;align-items:center;justify-content:center;gap:.35rem}
+.modern-calendar-title select{height:32px;border:1px solid var(--line);border-radius:9px;background:var(--overlay);color:var(--ink);font:inherit;font-size:.76rem;font-weight:700;padding:.2rem .45rem;cursor:pointer}
+.dashboard-range-calendars{display:grid;grid-template-columns:1fr 1fr;gap:1rem}.dashboard-range-block>label{display:block;font-size:.72rem;font-weight:700;color:var(--ink-muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.35px}@media(max-width:720px){.dashboard-range-calendars{grid-template-columns:1fr}}
 .modern-calendar-nav{width:34px;height:34px;border-radius:10px;border:1px solid var(--glass-border-soft);background:var(--overlay);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s ease}
 .modern-calendar-nav:hover{background:var(--overlay-strong);transform:scale(1.05)}
 .modern-calendar-weekdays,.modern-calendar-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
@@ -593,6 +595,7 @@ tbody tr:hover td{background:var(--overlay)}
 .slot.selected{background:linear-gradient(150deg,var(--primary-mid),var(--primary-dark));color:#fff;border-color:var(--primary)}
 .slot.booked{background:var(--glass-surface-soft);color:var(--ink-muted);opacity:.5;cursor:not-allowed}
 .slot.blocked{background:var(--warning-bg);color:var(--warning);cursor:not-allowed;font-size:.7rem}
+.slot.past{background:var(--gray-light);color:var(--gray-mid);cursor:not-allowed;opacity:.7}.slot.lunch{background:var(--warning-bg);color:var(--warning);cursor:not-allowed}.slot .slot-state{display:block;font-size:.62rem;margin-top:2px;font-weight:650}.slot-manager-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.5rem}.slot-manager-item{display:flex;align-items:center;gap:.45rem;padding:.55rem .6rem;border:1px solid var(--line);border-radius:10px;background:var(--overlay);font-size:.76rem}.slot-manager-item.booked{opacity:.55}
 
 /* ===QUEUE (front-desk check-in board)=== */
 .queue-board{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem}
@@ -1352,6 +1355,9 @@ const DB = {
     semester2End:'2026-12-31',
     dentalLimitPerSemester:1,
     appointmentReminderDays:2,
+    lunchBreakStart:'12:00',
+    lunchBreakEnd:'13:00',
+    slotOverrides:[],
     clinicName:'CampusCare',
     address:'Corner M.J. Cuenco Ave. & R. Palma St., Cebu City, Philippines, 6000.',
     contactEmail:'campus.care@ctu.edu.ph',
@@ -2159,7 +2165,7 @@ function checkReminders(){
       const existing=DB.notifications.find(n=>n.userId===currentUser.id&&n.title.includes(a.date)&&!n.read);
       if(!existing){
         addNotif(currentUser.id,'Upcoming Appointment Reminder',
-          `You have a ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}.`,'warning');
+          `You have a ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}. Please bring your COR (Certificate of Registration) when you come to the clinic.`,'warning');
       }
     }
   });
@@ -3252,23 +3258,23 @@ function dashboardSparkline(values){
   return `<div class="das-spark"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/></svg></div>`;
 }
 
-// Dashboard filter state. The chosen date is also the end date of the 7-day chart window.
-let dashboardSelectedDate=TODAY;
+// Dashboard filter state. A From/To range controls the dashboard and trend card.
+function isoDateOffset(base,days){const d=new Date(base+'T12:00:00');d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
+let dashboardDateFrom=isoDateOffset(TODAY,-6);
+let dashboardDateTo=TODAY;
+let dashboardPendingFrom=dashboardDateFrom;
+let dashboardPendingTo=dashboardDateTo;
 let dashboardChartType='line';
 
-function setDashboardDate(value){
-  dashboardSelectedDate=value||TODAY;
-  renderDashboard();
-}
 function setDashboardChartType(value){
   dashboardChartType=value||'line';
   renderDashboard();
 }
 function dashboardControlsHtml(){
-  const dateLabel=dashboardSelectedDate===TODAY?'Today':fmtDate(dashboardSelectedDate);
+  const label=`${fmtDate(dashboardDateFrom)} – ${fmtDate(dashboardDateTo)}`;
   return `<div class="dashboard-controls">
-    <div class="dashboard-control"><label>Data date</label><button class="modern-date-btn" onclick="openDashboardDatePicker()"><i class="fa-regular fa-calendar"></i><span>${dateLabel}</span></button></div>
-    <div class="dashboard-date-note">Showing ${dateLabel}</div>
+    <div class="dashboard-control"><label>Data range</label><button class="modern-date-btn" onclick="openDashboardDatePicker()"><i class="fa-regular fa-calendar"></i><span>${label}</span></button></div>
+    <div class="dashboard-date-note">From – To</div>
   </div>`;
 }
 function dashboardChartControlHtml(){
@@ -3280,28 +3286,45 @@ function dashboardChartControlHtml(){
   </select></div>`;
 }
 function openDashboardDatePicker(){
-  openModal(`<div class="modal modal-sm"><div class="modal-header"><h3>Select Dashboard Date</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div id="dashboard-modern-calendar"></div></div></div>`);
-  initModernCalendar('dashboard-modern-calendar',dashboardSelectedDate,'','chooseDashboardDate');
+  dashboardPendingFrom=dashboardDateFrom; dashboardPendingTo=dashboardDateTo;
+  openModal(`<div class="modal modal-lg"><div class="modal-header"><div><h3>Select Dashboard Date Range</h3><div class="text-muted">Choose a From and To date. Month and year can be changed from each calendar header.</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div id="dashboard-range-msg"></div><div class="dashboard-range-calendars"><div class="dashboard-range-block"><label>From</label><div id="dashboard-calendar-from"></div></div><div class="dashboard-range-block"><label>To</label><div id="dashboard-calendar-to"></div></div></div></div><div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="applyDashboardDateRange()">Apply Date Range</button></div></div>`);
+  initModernCalendar('dashboard-calendar-from',dashboardPendingFrom,'','chooseDashboardFromDate');
+  initModernCalendar('dashboard-calendar-to',dashboardPendingTo,'','chooseDashboardToDate');
 }
-function chooseDashboardDate(date){
-  dashboardSelectedDate=date||TODAY;
-  closeAllModals();
-  renderDashboard();
+function chooseDashboardFromDate(date){dashboardPendingFrom=date||dashboardPendingFrom;}
+function chooseDashboardToDate(date){dashboardPendingTo=date||dashboardPendingTo;}
+function applyDashboardDateRange(){
+  const msg=document.getElementById('dashboard-range-msg');
+  if(dashboardPendingFrom>dashboardPendingTo){showAlert(msg,'The From date must be on or before the To date.');return;}
+  dashboardDateFrom=dashboardPendingFrom; dashboardDateTo=dashboardPendingTo;
+  closeAllModals(); renderDashboard();
 }
+function dashboardRangeLabel(){return `${fmtDate(dashboardDateFrom)} – ${fmtDate(dashboardDateTo)}`;}
+function dashboardInRange(date){return date>=dashboardDateFrom&&date<=dashboardDateTo;}
 
-// Returns seven daily counts ending on the selected dashboard date, including zero-value days.
-function dashboardSevenDayCounts(filterFn,endDate=dashboardSelectedDate){
-  const days=[];
-  for(let i=6;i>=0;i--){
-    const d=new Date((endDate||TODAY)+'T12:00:00');
-    d.setDate(d.getDate()-i);
-    const key=d.toISOString().slice(0,10);
-    days.push({key,label:d.toLocaleDateString('en-PH',{weekday:'short'}),value:DB.appointments.filter(a=>a.date===key&&filterFn(a)).length});
+// Returns daily counts for short ranges and monthly counts for longer ranges.
+function dashboardRangeCounts(filterFn){
+  const start=new Date(dashboardDateFrom+'T12:00:00'),end=new Date(dashboardDateTo+'T12:00:00');
+  const span=Math.max(0,Math.round((end-start)/864e5));
+  const points=[];
+  if(span<=31){
+    for(let i=0;i<=span;i++){
+      const d=new Date(start); d.setDate(d.getDate()+i); const key=d.toISOString().slice(0,10);
+      points.push({key,label:d.toLocaleDateString('en-PH',{month:'short',day:'numeric'}),value:DB.appointments.filter(a=>a.date===key&&filterFn(a)).length});
+    }
+  }else{
+    const cursor=new Date(start.getFullYear(),start.getMonth(),1,12);
+    while(cursor<=end){
+      const y=cursor.getFullYear(),m=cursor.getMonth();
+      const key=`${y}-${String(m+1).padStart(2,'0')}`;
+      points.push({key,label:cursor.toLocaleDateString('en-PH',{month:'short',year:'2-digit'}),value:DB.appointments.filter(a=>a.date.startsWith(key)&&dashboardInRange(a.date)&&filterFn(a)).length});
+      cursor.setMonth(cursor.getMonth()+1);
+    }
   }
-  return days;
+  return points;
 }
 
-// Builds the larger seven-day dashboard chart without depending on Chart.js.
+// Builds the selected-range dashboard chart without depending on Chart.js.
 function dashboardTrendSvg(points,label='Visits',chartType=dashboardChartType){
   if(!points||!points.length)return '<div class="dashboard-trend-empty">No trend data available.</div>';
   const values=points.map(p=>Number(p.value)||0);
@@ -3309,9 +3332,9 @@ function dashboardTrendSvg(points,label='Visits',chartType=dashboardChartType){
   const esc=t=>escapeHtml(String(t));
   const palette=['#0a7ea8','#3aa8d8','#5b4fd6','#0b7d63','#c62828','#a15c00','#b0431e'];
 
-  // Pie and doughnut views summarize how the seven-day total is distributed by day.
+  // Pie and doughnut views summarize how the selected-range total is distributed across periods.
   if(chartType==='pie'||chartType==='doughnut'){
-    if(total===0)return '<div class="dashboard-trend-empty">No activity in this 7-day window.</div>';
+    if(total===0)return '<div class="dashboard-trend-empty">No activity in this selected date range.</div>';
     let acc=0;
     const stops=values.map((v,i)=>{const a=acc/total*360;acc+=v;const b=acc/total*360;return `${palette[i%palette.length]} ${a}deg ${b}deg`;}).join(',');
     const hole=chartType==='doughnut'?`<div style="position:absolute;inset:27%;border-radius:50%;background:var(--glass-surface-strong);display:flex;align-items:center;justify-content:center;flex-direction:column"><strong style="font-size:1.15rem">${total}</strong><span class="text-muted">Total</span></div>`:'';
@@ -3324,7 +3347,7 @@ function dashboardTrendSvg(points,label='Visits',chartType=dashboardChartType){
   const grid=[0,.25,.5,.75,1].map(r=>{const yy=pt+r*(h-pt-pb);const val=Math.round(max*(1-r));return `<line x1="${pl}" y1="${yy}" x2="${w-pr}" y2="${yy}" stroke="currentColor" opacity=".08"/><text x="${pl-8}" y="${yy+3}" text-anchor="end" font-size="10" fill="currentColor" opacity=".55">${val}</text>`;}).join('');
   let marks='';
   if(chartType==='bar'){
-    const avail=w-pl-pr,gap=18,bw=(avail-gap*(points.length+1))/points.length;
+    const avail=w-pl-pr,gap=Math.max(2,Math.min(18,120/Math.max(1,points.length))),bw=Math.max(2,(avail-gap*(points.length+1))/points.length);
     marks=points.map((p,i)=>{const x=pl+gap+i*(bw+gap),yy=y(p.value),bh=h-pb-yy;return `<rect x="${x}" y="${yy}" width="${bw}" height="${Math.max(1,bh)}" rx="6" fill="var(--primary-mid)" opacity=".82"><title>${esc(p.label)}: ${p.value} ${esc(label.toLowerCase())}</title></rect><text x="${x+bw/2}" y="${h-10}" text-anchor="middle" font-size="10" fill="currentColor" opacity=".6">${esc(p.label)}</text>`;}).join('');
   }else{
     const x=i=>pl+i*(w-pl-pr)/Math.max(1,points.length-1);
@@ -3332,7 +3355,7 @@ function dashboardTrendSvg(points,label='Visits',chartType=dashboardChartType){
     const area=`${pl},${h-pb} ${poly} ${x(points.length-1)},${h-pb}`;
     marks=`<polygon points="${area}" fill="var(--primary)" opacity=".08"/><polyline points="${poly}" fill="none" stroke="var(--primary-mid)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${points.map((p,i)=>`<circle cx="${x(i)}" cy="${y(p.value)}" r="3.5" fill="var(--primary-mid)"><title>${esc(p.label)}: ${p.value} ${esc(label.toLowerCase())}</title></circle>`).join('')}${points.map((p,i)=>`<text x="${x(i)}" y="${h-10}" text-anchor="middle" font-size="10" fill="currentColor" opacity=".6">${esc(p.label)}</text>`).join('')}`;
   }
-  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)} for the seven days ending ${esc(fmtDate(dashboardSelectedDate))}">${grid}${marks}</svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)} for ${esc(dashboardRangeLabel())}">${grid}${marks}</svg>`;
 }
 
 function dashboardStatCard(label,value,meta,values,icon='•',tone=''){
@@ -3389,9 +3412,11 @@ function dashboardMobileQuickLinks(role){
 function renderDashboard(){
   const c=document.getElementById('app-content');
   const role=currentUser.role;
-  const today=dashboardSelectedDate||TODAY;
+  const today=dashboardDateTo||TODAY;
+  const rangeLabel=dashboardRangeLabel();
   const allToday=DB.appointments.filter(a=>a.date===today&&a.status!=='Cancelled');
-  const globalTrend=dashboardSevenDayCounts(()=>true);
+  const allRange=DB.appointments.filter(a=>dashboardInRange(a.date)&&a.status!=='Cancelled');
+  const globalTrend=dashboardRangeCounts(()=>true);
   const globalVals=globalTrend.map(p=>p.value);
   const lowStock=getLowStock();
   const pendingUsers=DB.users.filter(u=>u.status==='Pending');
@@ -3407,9 +3432,10 @@ function renderDashboard(){
     const mine=DB.appointments.filter(a=>a.patientId===pt.id);
     const upcoming=mine.filter(a=>a.status==='Scheduled'&&a.date>=today).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
     const completed=mine.filter(a=>a.status==='Completed');
+    const rangeMine=mine.filter(a=>dashboardInRange(a.date)&&a.status!=='Cancelled');
     const reminders=DB.medReminders.filter(r=>r.patientId===pt.id&&r.status==='active'&&r.endDate>=today);
     const dental=mine.filter(a=>a.clinic==='Dental Clinic'&&a.status!=='Cancelled'&&getSemester(a.date)===currentSemester());
-    const myTrend=dashboardSevenDayCounts(a=>a.patientId===pt.id);
+    const myTrend=dashboardRangeCounts(a=>a.patientId===pt.id);
     const myVals=myTrend.map(p=>p.value);
     const myCerts=(DB.certRequests||[]).filter(r=>r.patientId===pt.id);
     let attention='';
@@ -3423,13 +3449,13 @@ function renderDashboard(){
       <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(currentUser.fname)}.</h3><p>Here is your personal CampusCare health overview.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="navTo('my-appointments')">+ Book Appointment</button>${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
         ${dashboardStatCard('Upcoming appointments',upcoming.length,upcoming[0]?`Next: <strong>${fmtDate(upcoming[0].date)}</strong>`:'Nothing scheduled',myVals,'📅')}
-        ${dashboardStatCard('Completed visits',completed.length,'Your recorded clinic visits',myVals,'✓')}
+        ${dashboardStatCard('Visits in range',rangeMine.length,`${rangeMine.filter(a=>a.status==='Completed').length} completed · ${rangeLabel}`,myVals,'✓')}
         ${dashboardStatCard('Dental visits',`${dental.length}/${DB.settings.dentalLimitPerSemester}`,'Used this semester',myVals,'🦷',dental.length>=DB.settings.dentalLimitPerSemester?'attention':'')}
         ${dashboardStatCard('Active reminders',reminders.length,unreadMessages?`<strong>${unreadMessages}</strong> unread chat message${unreadMessages>1?'s':''}`:'Medication & follow-up reminders',myVals,'💊',reminders.length?'attention':'')}
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
-        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>My Clinic Activity</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(myTrend,'Appointments')}</div></div>
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>My Clinic Activity</h3><div class="text-muted">${rangeLabel}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(myTrend,'Appointments')}</div></div>
         <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
       ${upcoming.length?`<div class="card"><div class="card-header"><h3>Upcoming Appointments</h3><button class="btn btn-xs" onclick="navTo('my-appointments')">View All</button></div>${upcoming.slice(0,4).map(a=>{const d=getUserById(a.doctorId);return `<div style="display:flex;align-items:center;gap:.7rem;padding:.55rem 0;border-bottom:1px solid var(--line-soft)"><div style="flex:1"><strong style="font-size:.8rem">${a.clinic} · ${a.service}</strong><div class="text-muted">${fmtDate(a.date)} at ${fmtTime(a.time)} · ${d?docName(d):'Doctor TBA'}</div></div>${statusBadge(a.status)}</div>`;}).join('')}</div>`:''}
@@ -3441,10 +3467,11 @@ function renderDashboard(){
   if(role==='Doctor'){
     const mine=DB.appointments.filter(a=>a.doctorId===currentUser.id);
     const todayMine=mine.filter(a=>a.date===today&&a.status!=='Cancelled').sort((a,b)=>a.time.localeCompare(b.time));
+    const rangeMine=mine.filter(a=>dashboardInRange(a.date)&&a.status!=='Cancelled');
     const completed=mine.filter(a=>a.status==='Completed');
     const scheduled=mine.filter(a=>a.status==='Scheduled'&&a.date>=today);
     const uniquePatients=new Set(mine.map(a=>a.patientId)).size;
-    const trend=dashboardSevenDayCounts(a=>a.doctorId===currentUser.id);
+    const trend=dashboardRangeCounts(a=>a.doctorId===currentUser.id);
     const vals=trend.map(p=>p.value);
     const next=todayMine.find(a=>a.status==='Scheduled');
     let attention='';
@@ -3456,14 +3483,14 @@ function renderDashboard(){
     c.innerHTML=`<div class="dashboard-a">
       <div class="dashboard-a-head"><div><h3>${greeting}, Dr. ${escapeHtml(currentUser.lname)}.</h3><p>Your patient load and clinic activity at a glance.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-sm" onclick="navTo('schedule')">Full Schedule</button>${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
-        ${dashboardStatCard(`Appointments · ${fmtDate(today)}`,todayMine.length,`${todayCompleted} completed on this date`,vals,'🩺')}
+        ${dashboardStatCard('Appointments in range',rangeMine.length,`${rangeMine.filter(a=>a.status==='Completed').length} completed · ${rangeLabel}`,vals,'🩺')}
         ${dashboardStatCard('Upcoming',scheduled.length,'Scheduled from today onward',vals,'📅',scheduled.length>8?'attention':'')}
         ${dashboardStatCard('Total patients',uniquePatients,'Unique patients assigned to you',vals,'👥')}
         ${dashboardStatCard('Completed visits',completed.length,unreadMessages?`<strong>${unreadMessages}</strong> unread messages`:'All recorded consultations',vals,'✓')}
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
-        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(trend,'Appointments')}</div></div>
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">${rangeLabel}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(trend,'Appointments')}</div></div>
         <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
       <div class="card"><div class="card-header"><h3>Schedule · ${fmtDate(today)}</h3><button class="btn btn-xs" onclick="navTo('my-patients')">My Patients</button></div>${todayMine.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>College</th><th>Service</th><th>Status</th></tr></thead><tbody>${todayMine.map(a=>{const pt=getPatientById(a.patientId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${collegeBadge(a.college)}</td><td>${a.service}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments scheduled for today.</p></div>'}</div>
@@ -3474,7 +3501,7 @@ function renderDashboard(){
   // STAFF DASHBOARD
   if(role==='Staff'){
     const scheduled=DB.appointments.filter(a=>a.status==='Scheduled');
-    const todayCompleted=DB.appointments.filter(a=>a.date===today&&a.status==='Completed').length;
+    const todayCompleted=DB.appointments.filter(a=>dashboardInRange(a.date)&&a.status==='Completed').length;
     let attention='';
     if(lowStock.length)attention+=dashboardAttentionItem(`${lowStock.length} low-stock item${lowStock.length>1?'s':''}`,`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`,'danger');
     if(pendingCerts.length)attention+=dashboardAttentionItem(`${pendingCerts.length} certificate request${pendingCerts.length>1?'s':''}`, 'Patients are waiting for certificate review.','warn');
@@ -3483,14 +3510,14 @@ function renderDashboard(){
     c.innerHTML=`<div class="dashboard-a">
       <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(currentUser.fname)}.</h3><p>Monitor clinic flow and operational tasks for the selected date.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="navTo('appointments')">Manage Appointments</button>${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
-        ${dashboardStatCard(`Appointments · ${fmtDate(today)}`,allToday.length,`<strong>${todayCompleted}</strong> completed today`,globalVals,'📅')}
+        ${dashboardStatCard('Appointments in range',allRange.length,`<strong>${todayCompleted}</strong> completed · ${rangeLabel}`,globalVals,'📅')}
         ${dashboardStatCard('Scheduled',scheduled.length,'Appointments still on the schedule',globalVals,'🕐')}
         ${dashboardStatCard('Certificate requests',pendingCerts.length,'Pending medical certificates',globalVals,'📄',pendingCerts.length?'attention':'')}
         ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory needs review':'Inventory levels healthy',globalVals,'⚠',lowStock.length?'critical':'')}
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
-        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">${rangeLabel}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
         <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
       <div class="card"><div class="card-header"><h3>Today's Appointments</h3><button class="btn btn-xs" onclick="navTo('appointments')">View All</button></div>${allToday.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${allToday.slice(0,8).map(a=>{const pt=getPatientById(a.patientId),d=getUserById(a.doctorId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${a.clinic}</td><td>${d?docName(d):'Unknown'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments today.</p></div>'}</div>
@@ -3501,7 +3528,7 @@ function renderDashboard(){
   // ADMINISTRATOR DASHBOARD
   const scheduled=DB.appointments.filter(a=>a.status==='Scheduled');
   const activePatients=DB.patients.filter(p=>!p.archived).length;
-  const completedToday=DB.appointments.filter(a=>a.date===today&&a.status==='Completed').length;
+  const completedToday=DB.appointments.filter(a=>dashboardInRange(a.date)&&a.status==='Completed').length;
   let attention='';
   if(pendingUsers.length)attention+=dashboardAttentionItem(`${pendingUsers.length} pending user approval${pendingUsers.length>1?'s':''}`,'Review new CampusCare registrations.','warn');
   if(lowStock.length)attention+=dashboardAttentionItem(`${lowStock.length} low-stock item${lowStock.length>1?'s':''}`,`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`,'danger');
@@ -3514,13 +3541,13 @@ function renderDashboard(){
     <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(currentUser.fname)}.</h3><p>CampusCare clinic activity, priorities, and service load.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-sm" onclick="navTo('reports')">Open Reports & Analytics</button>${dashboardControlsHtml()}</div></div>
     <div class="dashboard-a-grid">
       ${dashboardStatCard('Active patients',activePatients,'Registered non-archived patients',globalVals,'👥')}
-      ${dashboardStatCard(`Appointments · ${fmtDate(today)}`,allToday.length,`<strong>${completedToday}</strong> completed on this date`,globalVals,'📅')}
+      ${dashboardStatCard('Appointments in range',allRange.length,`<strong>${completedToday}</strong> completed · ${rangeLabel}`,globalVals,'📅')}
       ${dashboardStatCard('Pending approvals',pendingUsers.length,pendingUsers.length?'Registration review required':'No registrations waiting',globalVals,'⏳',pendingUsers.length?'attention':'')}
       ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory action required':'Inventory levels healthy',globalVals,'⚠',lowStock.length?'critical':'')}
     </div>
     ${dashboardMobileQuickLinks(role)}
     <div class="dashboard-a-main">
-      <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div><div style="display:flex;align-items:center;gap:.45rem">${dashboardChartControlHtml()}<button class="btn btn-xs" onclick="navTo('reports')">Analyze</button></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
+      <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">${rangeLabel}</div></div><div style="display:flex;align-items:center;gap:.45rem">${dashboardChartControlHtml()}<button class="btn btn-xs" onclick="navTo('reports')">Analyze</button></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
       <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
     </div>
     <div class="dashboard-a-secondary">
@@ -4471,7 +4498,7 @@ function sendApptNotif(id){
   const pt=getPatientById(a.patientId);
   if(!pt)return;
   const u=DB.users.find(x=>x.id===pt.userId);
-  if(u){addNotif(u.id,'Appointment Reminder',`Reminder: You have a ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}.`,'warning');}
+  if(u){addNotif(u.id,'Appointment Reminder',`Reminder: You have a ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}. Please bring your COR (Certificate of Registration) when you arrive at the clinic.`,'warning');}
   const channels=[];
   if(u&&u.email)channels.push(`email (${maskEmail(u.email)})`);
   if(u&&u.contact)channels.push(`SMS (${maskPhone(u.contact)})`);
@@ -6361,6 +6388,18 @@ function modernCalendarShift(id,delta){
   st.viewMonth=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   renderModernCalendar(id);
 }
+function modernCalendarSetMonth(id,month){
+  const st=modernCalendarState[id]; if(!st)return;
+  const year=st.viewMonth.slice(0,4);
+  st.viewMonth=`${year}-${String(month).padStart(2,'0')}`;
+  renderModernCalendar(id);
+}
+function modernCalendarSetYear(id,year){
+  const st=modernCalendarState[id]; if(!st)return;
+  const month=st.viewMonth.slice(5,7);
+  st.viewMonth=`${year}-${month}`;
+  renderModernCalendar(id);
+}
 function modernCalendarGoToday(id){
   const st=modernCalendarState[id]; if(!st)return;
   const target=st.minDate&&TODAY<st.minDate?st.minDate:TODAY;
@@ -6397,8 +6436,12 @@ function renderModernCalendar(id){
     if(apptDates.has(date))classes.push('has-appt');
     days+=`<button type="button" class="${classes.join(' ')}" ${disabled?'disabled':''} onclick="modernCalendarSelect('${id}','${date}')" aria-label="${fmtDate(date)}">${d.getDate()}</button>`;
   }
+  const monthOptions=Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===month?'selected':''}>${new Date(2000,i,1).toLocaleDateString('en-PH',{month:'short'})}</option>`).join('');
+  const thisYear=new Date().getFullYear();
+  const minYear=Math.min(thisYear-10,year-5),maxYear=Math.max(thisYear+10,year+5);
+  let yearOptions=''; for(let yy=minYear;yy<=maxYear;yy++)yearOptions+=`<option value="${yy}" ${yy===year?'selected':''}>${yy}</option>`;
   host.innerHTML=`<div class="modern-calendar">
-    <div class="modern-calendar-head"><button type="button" class="modern-calendar-nav" onclick="modernCalendarShift('${id}',-1)" aria-label="Previous month">‹</button><div class="modern-calendar-title">${monthLabel}</div><button type="button" class="modern-calendar-nav" onclick="modernCalendarShift('${id}',1)" aria-label="Next month">›</button></div>
+    <div class="modern-calendar-head"><button type="button" class="modern-calendar-nav" onclick="modernCalendarShift('${id}',-1)" aria-label="Previous month">‹</button><div class="modern-calendar-title"><select aria-label="Month" onchange="modernCalendarSetMonth('${id}',this.value)">${monthOptions}</select><select aria-label="Year" onchange="modernCalendarSetYear('${id}',this.value)">${yearOptions}</select></div><button type="button" class="modern-calendar-nav" onclick="modernCalendarShift('${id}',1)" aria-label="Next month">›</button></div>
     <div class="modern-calendar-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<span>${d}</span>`).join('')}</div>
     <div class="modern-calendar-days">${days}</div>
     <div class="modern-calendar-footer"><span class="modern-calendar-hint"><span style="color:var(--primary)">●</span> Dates with appointments</span><button type="button" class="modern-calendar-today" onclick="modernCalendarGoToday('${id}')">Today</button></div>
@@ -6450,8 +6493,9 @@ function openBookApptModal(apptId=null){
         </div>
       </div>
       <div class="form-group full"><label>Choose Appointment Date</label><div class="booking-calendar-wrap"><div id="booking-modern-calendar"></div></div></div>
-      <div class="form-group"><label>Available Time Slots</label>
+      <div class="form-group"><div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap"><label>Available Time Slots</label>${['Staff','Administrator'].includes(currentUser.role)?`<button type="button" class="btn btn-xs" onclick="openManageDateSlots()"><i class="fa-solid fa-clock"></i> Manage slots for this date</button>`:''}</div>
         <div id="slot-grid" class="slot-grid" style="min-height:40px"><span class="text-muted" style="font-size:.78rem">Select a doctor and date to see available slots.</span></div>
+        <div class="form-note">Booked, past, lunch-break, and manually unavailable slots are clearly marked and cannot be selected.</div>
         <input type="hidden" id="b-time" value="${editing?editing.time:''}">
       </div>
       <div class="form-group full"><label>Reason / Chief Complaint</label>
@@ -6510,40 +6554,95 @@ function checkDentalWarn(){
   }
 }
 
+function timeToMinutes(t){const [h,m]=String(t||'00:00').split(':').map(Number);return h*60+(m||0);}
+function appointmentSlotBaseTimes(doc){
+  const start=timeToMinutes(doc.startTime||'08:00'),end=timeToMinutes(doc.endTime||'17:00'),dur=Math.max(15,doc.slotDuration||60),out=[];
+  for(let mins=start;mins<end;mins+=dur)out.push(`${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`);
+  return out;
+}
+function getSlotOverride(docId,date){
+  DB.settings.slotOverrides=Array.isArray(DB.settings.slotOverrides)?DB.settings.slotOverrides:[];
+  return DB.settings.slotOverrides.find(o=>o.doctorId===docId&&o.date===date)||null;
+}
+function isDefaultLunchSlot(time,doc){
+  const slotStart=timeToMinutes(time),dur=Math.max(15,doc.slotDuration||60),slotEnd=slotStart+dur;
+  const lunchStart=timeToMinutes(DB.settings.lunchBreakStart||'12:00'),lunchEnd=timeToMinutes(DB.settings.lunchBreakEnd||'13:00');
+  return slotStart<lunchEnd&&slotEnd>lunchStart;
+}
+function slotAvailabilityState(doc,date,time){
+  const override=getSlotOverride(doc.id,date),blocked=(override&&override.blockedTimes)||[],available=(override&&override.availableTimes)||[];
+  if(blocked.includes(time))return {blocked:true,label:'Unavailable',kind:'blocked'};
+  if(isDefaultLunchSlot(time,doc)&&!available.includes(time))return {blocked:true,label:'Lunch break',kind:'lunch'};
+  if(date===TODAY){const now=new Date(),nowMin=now.getHours()*60+now.getMinutes();if(timeToMinutes(time)<=nowMin)return {blocked:true,label:'Past time',kind:'past'};}
+  return {blocked:false,label:'Available',kind:'available'};
+}
+let bookingDraftForSlotManager=null;
+function openManageDateSlots(){
+  if(!['Staff','Administrator'].includes(currentUser.role))return;
+  const docId=parseInt((document.getElementById('b-doc')||{}).value),date=(document.getElementById('b-date')||{}).value;
+  const doc=getUserById(docId); if(!doc||!date){toast('Choose a doctor and date first.','warning');return;}
+  bookingDraftForSlotManager={
+    patientId:(document.getElementById('b-pt')||{}).value||'',
+    clinic:(document.getElementById('b-clinic')||{}).value||'Medical Clinic',
+    service:(document.getElementById('b-service')||{}).value||'',
+    doctorId:String(docId),date,
+    reason:(document.getElementById('b-reason')||{}).value||''
+  };
+  const slots=appointmentSlotBaseTimes(doc),taken=new Set(DB.appointments.filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time));
+  const override=getSlotOverride(docId,date),blocked=new Set((override&&override.blockedTimes)||[]),available=new Set((override&&override.availableTimes)||[]);
+  openModal(`<div class="modal modal-lg"><div class="modal-header"><div><h3>Manage Available Time Slots</h3><div class="text-muted">${escapeHtml(docName(doc))} · ${fmtDate(date)} · Lunch is ${fmtTime(DB.settings.lunchBreakStart||'12:00')}–${fmtTime(DB.settings.lunchBreakEnd||'13:00')}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div class="alert alert-info show">Checked slots are available for booking. Booked slots cannot be changed. You can reopen a lunch-break slot for a specific date if needed.</div><div class="slot-manager-grid">${slots.map(t=>{const isLunch=isDefaultLunchSlot(t,doc),isTaken=taken.has(t),checked=isTaken||(!blocked.has(t)&&(!isLunch||available.has(t)));return `<label class="slot-manager-item ${isTaken?'booked':''}"><input type="checkbox" class="slot-manager-check" value="${t}" ${checked?'checked':''} ${isTaken?'disabled':''}><span><strong>${fmtTime(t)}</strong><small style="display:block;color:var(--ink-muted)">${isTaken?'Booked':isLunch?'Lunch break':'Regular slot'}</small></span></label>`;}).join('')}</div></div><div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="saveManagedDateSlots(${docId},'${date}')">Save Availability</button></div></div>`);
+}
+function saveManagedDateSlots(docId,date){
+  const doc=getUserById(docId); if(!doc)return;
+  const slots=appointmentSlotBaseTimes(doc),checked=new Set(Array.from(document.querySelectorAll('.slot-manager-check:checked')).map(x=>x.value));
+  const taken=new Set(DB.appointments.filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time));
+  const blockedTimes=[],availableTimes=[];
+  slots.forEach(t=>{if(taken.has(t))return;const lunch=isDefaultLunchSlot(t,doc);if(!checked.has(t))blockedTimes.push(t);else if(lunch)availableTimes.push(t);});
+  DB.settings.slotOverrides=Array.isArray(DB.settings.slotOverrides)?DB.settings.slotOverrides:[];
+  DB.settings.slotOverrides=DB.settings.slotOverrides.filter(o=>!(o.doctorId===docId&&o.date===date));
+  DB.settings.slotOverrides.push({doctorId:docId,date,blockedTimes,availableTimes}); persistDB(); closeAllModals(); toast('Time-slot availability updated.','success');
+  const draft=bookingDraftForSlotManager; bookingDraftForSlotManager=null;
+  openBookApptModal();
+  setTimeout(()=>{
+    if(!draft)return;
+    const pt=document.getElementById('b-pt'),clinic=document.getElementById('b-clinic'),docEl=document.getElementById('b-doc'),reason=document.getElementById('b-reason');
+    if(pt&&!pt.disabled)pt.value=draft.patientId;
+    if(clinic){clinic.value=draft.clinic;onClinicChange();}
+    if(docEl)docEl.value=draft.doctorId;
+    chooseBookingDate(draft.date);
+    const svc=document.getElementById('b-service'); if(svc&&Array.from(svc.options).some(o=>o.value===draft.service||o.text===draft.service))svc.value=draft.service;
+    if(reason)reason.value=draft.reason;
+    loadTimeSlots();
+  },0);
+}
+
 function loadTimeSlots(){
   const docId=parseInt((document.getElementById('b-doc')||{}).value);
   const date=(document.getElementById('b-date')||{}).value;
   const grid=document.getElementById('slot-grid');
   if(!grid)return;
   if(!docId||!date){grid.innerHTML='<span class="text-muted" style="font-size:.78rem">Select doctor and date.</span>';return;}
-  const doc=getUserById(docId);
-  if(!doc){return;}
+  const doc=getUserById(docId); if(!doc)return;
   const leave=DB.doctorLeaves.find(l=>l.doctorId===docId&&l.date===date);
   if(leave){grid.innerHTML=`<span class="text-muted" style="font-size:.78rem">Dr. ${doc.lname} is on leave on ${fmtDate(date)}${leave.reason?' ('+escapeHtml(leave.reason)+')':''}. Please pick another date.</span>`;return;}
-  const dayName=dayOfWeek(date);
-  const workDays=doc.workDays||['Mon','Tue','Wed','Thu','Fri'];
+  const dayName=dayOfWeek(date),workDays=doc.workDays||['Mon','Tue','Wed','Thu','Fri'];
   if(!workDays.includes(dayName)){grid.innerHTML=`<span class="text-muted" style="font-size:.78rem">Dr. ${doc.lname} does not work on ${dayName}s.</span>`;return;}
-  const start=parseInt((doc.startTime||'08:00').split(':')[0]);
-  const end=parseInt((doc.endTime||'17:00').split(':')[0]);
-  const dur=doc.slotDuration||60;
-  const slots=[];
-  for(let h=start;h<end;h+=(dur/60)){
-    const hh=Math.floor(h);const mm=Math.round((h-hh)*60);
-    slots.push(`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`);
-  }
-  const takenSlots=DB.appointments.filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time);
+  const slots=appointmentSlotBaseTimes(doc);
+  const takenSlots=new Set(DB.appointments.filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time));
   const selectedTime=(document.getElementById('b-time')||{}).value;
-  grid.innerHTML=slots.map(s=>{
-    const taken=takenSlots.includes(s);
-    return`<div class="slot ${taken?'booked':selectedTime===s?'selected':''}" onclick="${taken?'':'selectSlot(\''+s+'\')'}">${fmtTime(s)}${taken?'<br><span style="font-size:.68rem">Taken</span>':''}</div>`;
+  grid.innerHTML=slots.map(t=>{
+    const taken=takenSlots.has(t),state=slotAvailabilityState(doc,date,t),disabled=taken||state.blocked;
+    const cls=taken?'booked':state.kind;
+    const label=taken?'Booked':state.label;
+    return `<div class="slot ${cls} ${!disabled&&selectedTime===t?'selected':''}" onclick="${disabled?'':'selectSlot(\''+t+'\',event)'}" title="${label}">${fmtTime(t)}<span class="slot-state">${label}</span></div>`;
   }).join('');
 }
 
-function selectSlot(t){
+function selectSlot(t,ev){
   const input=document.getElementById('b-time');
   if(input){input.value=t;}
   document.querySelectorAll('.slot:not(.booked)').forEach(s=>s.classList.remove('selected'));
-  event.currentTarget.classList.add('selected');
+  if(ev&&ev.currentTarget)ev.currentTarget.classList.add('selected');
 }
 
 function saveAppt(editId){
@@ -6559,6 +6658,8 @@ function saveAppt(editId){
   if(!ptId||!clinic||!svc||!docId||!date){showAlert(msg,'All required fields must be filled.');return;}
   if(!time){showAlert(msg,'Please select a time slot.');return;}
   if(date<TODAY){showAlert(msg,'Cannot book in the past.');return;}
+  const selectedDoc=getUserById(docId),slotState=selectedDoc?slotAvailabilityState(selectedDoc,date,time):null;
+  if(slotState&&slotState.blocked){showAlert(msg,`This slot is unavailable (${slotState.label}). Please choose another time.`);loadTimeSlots();return;}
   if(clinic==='Dental Clinic'&&checkDentalQuota(ptId,editId)){
     showAlert(msg,'Dental Clinic booking denied: Semester limit reached. Only 1 dental appointment per semester is allowed.');return;
   }
@@ -6573,8 +6674,16 @@ function saveAppt(editId){
   }else{
     const newId=DB.nextApptId++;
     DB.appointments.push({id:newId,patientId:ptId,doctorId:docId,clinic,service:svc,date,time,reason,status:'Scheduled',priority,college:pt?pt.college:'',createdBy:currentUser.id,notes:'',createdAt:TODAY});
-    if(pt){const u=DB.users.find(x=>x.id===pt.userId);if(u)addNotif(u.id,'Appointment Confirmed',`Your ${clinic} appointment is confirmed for ${fmtDate(date)} at ${fmtTime(time)}.`,'success');}
-    toast('Appointment booked!','success');
+    if(pt){
+      const u=DB.users.find(x=>x.id===pt.userId);
+      if(u){
+        const reminder=`Your ${clinic} appointment is confirmed for ${fmtDate(date)} at ${fmtTime(time)}. Please bring your COR (Certificate of Registration) when you arrive at the clinic.`;
+        addNotif(u.id,'Appointment Confirmed — Bring Your COR',reminder,'success');
+        const channels=[]; if(u.email)channels.push(`email (${maskEmail(u.email)})`); if(u.contact)channels.push(`SMS (${maskPhone(u.contact)})`);
+        toast(`Appointment booked. COR reminder sent${channels.length?' via '+channels.join(' and '):' in CampusCare'}.`,'success');
+      }else toast('Appointment booked!','success');
+    }else toast('Appointment booked!','success');
+    persistDB();
   }
   closeAllModals();
   // refresh
