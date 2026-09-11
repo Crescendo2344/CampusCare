@@ -572,8 +572,12 @@ tbody tr:hover td{background:var(--overlay)}
 /* Horizontal people carousel shown at the top of the chat lobby. */
 .msgr-people-wrap{padding:.7rem .7rem .65rem;border-top:1px solid var(--line-soft)}
 .msgr-people-title{display:flex;align-items:center;justify-content:space-between;margin:0 .15rem .55rem;font-size:.74rem;font-weight:700;color:var(--ink-muted)}
-.msgr-people-carousel{display:flex;gap:.7rem;overflow-x:auto;overflow-y:hidden;padding:.1rem .1rem .35rem;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-.msgr-people-carousel::-webkit-scrollbar{display:none}
+.msgr-people-carousel{display:flex;gap:.7rem;overflow-x:auto;overflow-y:hidden;padding:.1rem .1rem .5rem;scroll-snap-type:x proximity;scrollbar-width:thin;scrollbar-color:var(--scrollbar) transparent;scroll-behavior:smooth}
+.msgr-people-carousel::-webkit-scrollbar{height:7px}
+.msgr-people-carousel::-webkit-scrollbar-track{background:transparent}
+.msgr-people-carousel::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:999px}
+.msgr-people-carousel::-webkit-scrollbar-thumb:hover{background:var(--scrollbar-hover)}
+@media(max-width:768px){.msgr-people-carousel{scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:.35rem}.msgr-people-carousel::-webkit-scrollbar{display:none}}
 .msgr-person-card{width:64px;flex:0 0 64px;scroll-snap-align:start;background:none;border:none;padding:0;cursor:pointer;color:var(--ink);text-align:center}
 .msgr-person-card .msgr-avatar-wrap{margin:0 auto .3rem;width:max-content}
 .msgr-person-name{font-size:.68rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
@@ -729,6 +733,84 @@ tbody tr:hover td{background:var(--overlay)}
   body::before,body::after{display:none}
   .print-header{display:block!important}
 }
+
+
+/* === DASHBOARD A: PRIORITY + TRENDS === */
+.dashboard-a{display:flex;flex-direction:column;gap:1rem}
+.dashboard-a-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.dashboard-a-head h3{font-size:1.08rem;margin:0;color:var(--ink)}
+.dashboard-a-head p{margin:.2rem 0 0;color:var(--ink-muted);font-size:.8rem}
+.dashboard-a-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.8rem}
+.dashboard-a-stat{position:relative;overflow:hidden;background:var(--glass-surface);backdrop-filter:blur(var(--glass-blur)) saturate(160%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(160%);border:1px solid var(--glass-border-soft);border-radius:17px;padding:1rem;min-height:132px;box-shadow:var(--glass-shadow-sm);transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s ease,border-color .28s ease,filter .28s ease;will-change:transform}
+.dashboard-a-stat.attention{border-color:var(--warning-border);background:linear-gradient(145deg,var(--warning-bg),var(--glass-surface))}
+.dashboard-a-stat.critical{border-color:var(--danger-border);background:linear-gradient(145deg,var(--danger-bg),var(--glass-surface))}
+.dashboard-a-stat .das-top{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.dashboard-a-stat .das-label{font-size:.72rem;font-weight:650;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.35px}
+.dashboard-a-stat .das-icon{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--overlay);color:var(--primary);flex-shrink:0;transition:transform .3s cubic-bezier(.34,1.56,.64,1),background .25s ease,box-shadow .25s ease}
+.dashboard-a-stat .das-value{font-size:1.8rem;line-height:1.1;font-weight:800;letter-spacing:-.7px;margin-top:.4rem;color:var(--ink)}
+.dashboard-a-stat .das-meta{font-size:.72rem;color:var(--ink-muted);margin-top:.2rem;min-height:1em}
+.dashboard-a-stat .das-meta strong{color:var(--ink)}
+.dashboard-a-stat .das-spark{height:26px;margin-top:.35rem;opacity:.9;transition:transform .3s ease,opacity .3s ease}
+.dashboard-a-stat .das-spark svg{width:100%;height:100%;display:block}
+.dashboard-a-stat::after{content:'';position:absolute;inset:auto -28px -42px auto;width:100px;height:100px;border-radius:50%;background:radial-gradient(circle,rgba(58,168,216,.16),transparent 68%);opacity:0;transform:scale(.75);transition:opacity .3s ease,transform .35s ease;pointer-events:none}
+.dashboard-a-stat:hover{transform:translateY(-6px) scale(1.018);box-shadow:0 16px 36px rgba(10,30,50,.18),0 1px 0 rgba(255,255,255,.18) inset;border-color:rgba(63,169,221,.28);filter:saturate(1.05)}
+.dashboard-a-stat:hover::after{opacity:1;transform:scale(1)}
+.dashboard-a-stat:hover .das-icon{transform:translateY(-2px) rotate(-6deg) scale(1.1);background:var(--overlay-strong);box-shadow:0 6px 16px rgba(10,126,168,.14)}
+.dashboard-a-stat:hover .das-spark{transform:translateY(-2px) scaleY(1.08);opacity:1}
+.dashboard-a-stat:active{transform:translateY(-2px) scale(.995)}
+@media (prefers-reduced-motion:reduce){.dashboard-a-stat,.dashboard-a-stat::after,.dashboard-a-stat .das-icon,.dashboard-a-stat .das-spark{transition:none!important}.dashboard-a-stat:hover{transform:none!important}}
+
+.dashboard-a-main{display:grid;grid-template-columns:minmax(0,2fr) minmax(270px,.85fr);gap:1rem;align-items:stretch}
+.dashboard-trend-card,.dashboard-attn-card{margin:0!important}
+.dashboard-trend-wrap{height:230px;margin-top:.35rem;position:relative}
+.dashboard-trend-wrap svg{width:100%;height:100%;display:block;overflow:visible}
+.dashboard-trend-empty{height:100%;display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:.8rem}
+.dashboard-attn-list{display:flex;flex-direction:column;gap:.55rem}
+.dashboard-attn-item{display:flex;align-items:flex-start;gap:.65rem;padding:.65rem .7rem;border-radius:12px;background:var(--overlay);border:1px solid var(--glass-border-soft)}
+.dashboard-attn-dot{width:9px;height:9px;border-radius:50%;margin-top:4px;flex-shrink:0;background:var(--primary)}
+.dashboard-attn-dot.warn{background:var(--warning)}
+.dashboard-attn-dot.danger{background:var(--danger)}
+.dashboard-attn-dot.success{background:var(--success)}
+.dashboard-attn-copy{min-width:0;flex:1}
+.dashboard-attn-copy strong{display:block;font-size:.79rem;color:var(--ink)}
+.dashboard-attn-copy span{display:block;font-size:.7rem;color:var(--ink-muted);margin-top:2px;line-height:1.35}
+.dashboard-a-secondary{display:grid;grid-template-columns:1.45fr 1fr;gap:1rem}
+.dashboard-progress-row{display:grid;grid-template-columns:110px 1fr 42px;align-items:center;gap:.55rem;padding:.38rem 0;font-size:.75rem}
+.dashboard-progress-track{height:7px;background:var(--line);border-radius:999px;overflow:hidden}
+.dashboard-progress-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--primary-dark),var(--primary-mid))}
+.dashboard-mobile-quick{display:none}
+.dashboard-mobile-quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem}
+.dashboard-mobile-quick-btn{border:1px solid var(--glass-border-soft);background:var(--glass-surface);color:var(--ink);border-radius:14px;padding:.72rem .45rem;min-height:74px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.35rem;font:inherit;cursor:pointer;box-shadow:var(--glass-shadow-sm);transition:transform .18s ease,background .18s ease}
+.dashboard-mobile-quick-btn:active{transform:scale(.96)}
+.dashboard-mobile-quick-btn i{font-size:1.05rem;color:var(--primary)}
+.dashboard-mobile-quick-btn span{font-size:.68rem;font-weight:650;text-align:center;line-height:1.2}
+@media(max-width:768px){.dashboard-mobile-quick{display:block}.dashboard-mobile-quick-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:390px){.dashboard-mobile-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* Reports: inline SVG charts work without an external chart library. */
+.report-chart-host{height:340px;position:relative;display:flex;align-items:center;justify-content:center}
+.report-chart-host svg{width:100%;height:100%;display:block;overflow:visible}
+.report-chart-legend{display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center;margin-top:.55rem;font-size:.7rem;color:var(--ink-muted)}
+.report-chart-legend span{display:inline-flex;align-items:center;gap:.3rem}
+.report-chart-legend i{width:9px;height:9px;border-radius:3px;display:inline-block}
+
+@media(max-width:1050px){
+  .dashboard-a-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dashboard-a-main{grid-template-columns:1fr}
+}
+@media(max-width:768px){
+  .dashboard-a-grid{grid-template-columns:1fr 1fr}
+  .dashboard-a-secondary{grid-template-columns:1fr}
+  .dashboard-trend-wrap{height:210px}
+}
+@media(max-width:480px){
+  .dashboard-a-grid{grid-template-columns:1fr}
+  .dashboard-a-stat{min-height:120px}
+  .dashboard-a-head{align-items:flex-start}
+  .dashboard-progress-row{grid-template-columns:88px 1fr 36px}
+}
+
 </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
@@ -3083,155 +3165,235 @@ function renderPage(id){
 // ================================================================
 // DASHBOARD
 // ================================================================
+// Small inline sparkline used inside the Dashboard A stat cards.
+function dashboardSparkline(values){
+  const vals=(values||[]).map(Number).filter(Number.isFinite);
+  if(!vals.length)return '';
+  const w=180,h=26,p=2,min=Math.min(...vals),max=Math.max(...vals),span=(max-min)||1;
+  const pts=vals.map((v,i)=>`${p+(i*(w-2*p)/Math.max(1,vals.length-1))},${h-p-((v-min)/span)*(h-2*p)}`).join(' ');
+  return `<div class="das-spark"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/></svg></div>`;
+}
+
+// Returns counts for the most recent seven days, including zero-value days.
+function dashboardSevenDayCounts(filterFn){
+  const days=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date(TODAY+'T12:00:00');
+    d.setDate(d.getDate()-i);
+    const key=d.toISOString().slice(0,10);
+    days.push({key,label:d.toLocaleDateString('en-PH',{weekday:'short'}),value:DB.appointments.filter(a=>a.date===key&&filterFn(a)).length});
+  }
+  return days;
+}
+
+// Builds the larger seven-day trend chart without depending on Chart.js.
+function dashboardTrendSvg(points,label='Visits'){
+  if(!points||!points.length)return '<div class="dashboard-trend-empty">No trend data available.</div>';
+  const w=720,h=220,pl=42,pr=18,pt=18,pb=34;
+  const max=Math.max(1,...points.map(p=>p.value));
+  const x=i=>pl+i*(w-pl-pr)/Math.max(1,points.length-1);
+  const y=v=>pt+(max-v)*(h-pt-pb)/max;
+  const poly=points.map((p,i)=>`${x(i)},${y(p.value)}`).join(' ');
+  const area=`${pl},${h-pb} ${poly} ${x(points.length-1)},${h-pb}`;
+  const grid=[0,.25,.5,.75,1].map(r=>{const yy=pt+r*(h-pt-pb);const val=Math.round(max*(1-r));return `<line x1="${pl}" y1="${yy}" x2="${w-pr}" y2="${yy}" stroke="currentColor" opacity=".08"/><text x="${pl-8}" y="${yy+3}" text-anchor="end" font-size="10" fill="currentColor" opacity=".55">${val}</text>`;}).join('');
+  const labels=points.map((p,i)=>`<text x="${x(i)}" y="${h-10}" text-anchor="middle" font-size="10" fill="currentColor" opacity=".6">${p.label}</text>`).join('');
+  const dots=points.map((p,i)=>`<circle cx="${x(i)}" cy="${y(p.value)}" r="3.5" fill="var(--primary-mid)"><title>${p.label}: ${p.value} ${label.toLowerCase()}</title></circle>`).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${label} over the last seven days">${grid}<polygon points="${area}" fill="var(--primary)" opacity=".08"/><polyline points="${poly}" fill="none" stroke="var(--primary-mid)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${dots}${labels}</svg>`;
+}
+
+function dashboardStatCard(label,value,meta,values,icon='•',tone=''){
+  return `<div class="dashboard-a-stat ${tone}"><div class="das-top"><div class="das-label">${label}</div><div class="das-icon">${icon}</div></div><div class="das-value">${value}</div><div class="das-meta">${meta||'&nbsp;'}</div>${dashboardSparkline(values)}</div>`;
+}
+
+function dashboardAttentionItem(title,detail,tone=''){
+  return `<div class="dashboard-attn-item"><span class="dashboard-attn-dot ${tone}"></span><div class="dashboard-attn-copy"><strong>${title}</strong><span>${detail}</span></div></div>`;
+}
+
+// Mobile-only dashboard shortcuts. Each role gets the pages it is most likely to need.
+function dashboardMobileQuickLinks(role){
+  const links={
+    Patient:[
+      ['my-appointments','fa-calendar-plus','Appointments'],
+      ['my-records','fa-notes-medical','Health Records'],
+      ['my-certificates','fa-file-medical','Certificates'],
+      ['messages','fa-comments','Messages'],
+      ['health_education','fa-book-medical','Health Tips'],
+      ['my-account','fa-user-gear','Account']
+    ],
+    Doctor:[
+      ['schedule','fa-calendar-days','Schedule'],
+      ['my-patients','fa-hospital-user','My Patients'],
+      ['appointments','fa-stethoscope','Appointments'],
+      ['messages','fa-comments','Messages'],
+      ['cert-requests','fa-file-circle-check','Certificates'],
+      ['my-account','fa-user-gear','Account']
+    ],
+    Staff:[
+      ['patients','fa-hospital-user','Patients'],
+      ['appointments','fa-calendar-check','Appointments'],
+      ['cert-requests','fa-file-medical','Certificates'],
+      ['inventory','fa-boxes-stacked','Inventory'],
+      ['messages','fa-comments','Messages'],
+      ['my-account','fa-user-gear','Account']
+    ],
+    Administrator:[
+      ['patients','fa-hospital-user','Patients'],
+      ['appointments','fa-calendar-check','Appointments'],
+      ['approvals','fa-user-check','Approvals'],
+      ['reports','fa-chart-line','Reports'],
+      ['messages','fa-comments','Messages'],
+      ['settings','fa-gears','Settings']
+    ]
+  };
+  const items=links[role]||[];
+  return `<div class="card dashboard-mobile-quick"><div class="card-header"><h3>Quick Links</h3></div><div class="dashboard-mobile-quick-grid">${items.map(([id,icon,label])=>`<button class="dashboard-mobile-quick-btn" onclick="navTo('${id}')"><i class="fa-solid ${icon}" aria-hidden="true"></i><span>${label}</span></button>`).join('')}</div></div>`;
+}
+
+// ================================================================
+// DASHBOARD A — Priority + Trends for every CampusCare user role.
+// ================================================================
 function renderDashboard(){
   const c=document.getElementById('app-content');
   const role=currentUser.role;
-  const lowStock=getLowStock();
   const today=TODAY;
-  const todayAppts=DB.appointments.filter(a=>a.date===today&&a.status==='Scheduled');
+  const allToday=DB.appointments.filter(a=>a.date===today&&a.status!=='Cancelled');
+  const globalTrend=dashboardSevenDayCounts(()=>true);
+  const globalVals=globalTrend.map(p=>p.value);
+  const lowStock=getLowStock();
   const pendingUsers=DB.users.filter(u=>u.status==='Pending');
+  const pendingCerts=(DB.certRequests||[]).filter(r=>r.status==='Pending');
+  const unreadMessages=DB.messages.filter(m=>m.toUserId===currentUser.id&&!m.isRead&&!m.deleted).length;
+  const hour=new Date().getHours();
+  const greeting=hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
 
-  if (role === 'Patient') {
-  const pt = currentPatient;
-  if (!pt) {
-    c.innerHTML = `<div class="alert alert-warning show">No patient record linked. Please contact admin.</div>`;
-    return;
-  }
-  const myAppts = DB.appointments.filter(a => a.patientId === pt.id);
-  const upcoming = myAppts.filter(a => a.status === 'Scheduled' && a.date >= TODAY);
-  const completed = myAppts.filter(a => a.status === 'Completed');
-  const dentalThisSem = DB.appointments.filter(a =>
-    a.patientId === pt.id &&
-    a.clinic === 'Dental Clinic' &&
-    a.status !== 'Cancelled' &&
-    getSemester(a.date) === currentSemester()
-  );
-  const myReminders = DB.medReminders.filter(r => r.patientId === pt.id && r.status === 'active' && r.endDate >= TODAY);
-
-  let html = `
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon" style="background:var(--info-bg)">${svgIcon('M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', 18)}</div>
-        <div class="stat-val text-primary">${upcoming.length}</div>
-        <div class="stat-lbl">Upcoming Appointments</div>
+  // PATIENT DASHBOARD
+  if(role==='Patient'){
+    const pt=currentPatient;
+    if(!pt){c.innerHTML='<div class="alert alert-warning show">No patient record linked. Please contact admin.</div>';return;}
+    const mine=DB.appointments.filter(a=>a.patientId===pt.id);
+    const upcoming=mine.filter(a=>a.status==='Scheduled'&&a.date>=TODAY).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+    const completed=mine.filter(a=>a.status==='Completed');
+    const reminders=DB.medReminders.filter(r=>r.patientId===pt.id&&r.status==='active'&&r.endDate>=TODAY);
+    const dental=mine.filter(a=>a.clinic==='Dental Clinic'&&a.status!=='Cancelled'&&getSemester(a.date)===currentSemester());
+    const myTrend=dashboardSevenDayCounts(a=>a.patientId===pt.id);
+    const myVals=myTrend.map(p=>p.value);
+    const myCerts=(DB.certRequests||[]).filter(r=>r.patientId===pt.id);
+    let attention='';
+    if(upcoming[0])attention+=dashboardAttentionItem('Next appointment',`${fmtDate(upcoming[0].date)} at ${fmtTime(upcoming[0].time)} · ${upcoming[0].clinic}`,'success');
+    if(reminders.length)attention+=dashboardAttentionItem(`${reminders.length} active medication reminder${reminders.length>1?'s':''}`,'Open your medication reminders and keep your schedule on track.','warn');
+    const ready=myCerts.filter(r=>r.status==='Issued').length;
+    if(ready)attention+=dashboardAttentionItem(`${ready} certificate${ready>1?'s are':' is'} ready`,'Download issued medical certificates from Medical Certificates.','success');
+    if(unreadMessages)attention+=dashboardAttentionItem(`${unreadMessages} unread message${unreadMessages>1?'s':''}`,'You have new messages waiting in Chats.','warn');
+    if(!attention)attention=dashboardAttentionItem('You are all caught up','No urgent items need your attention right now.','success');
+    c.innerHTML=`<div class="dashboard-a">
+      <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(currentUser.fname)}.</h3><p>Here is your personal CampusCare health overview.</p></div><button class="btn btn-primary btn-sm" onclick="navTo('my-appointments')">+ Book Appointment</button></div>
+      <div class="dashboard-a-grid">
+        ${dashboardStatCard('Upcoming appointments',upcoming.length,upcoming[0]?`Next: <strong>${fmtDate(upcoming[0].date)}</strong>`:'Nothing scheduled',myVals,'📅')}
+        ${dashboardStatCard('Completed visits',completed.length,'Your recorded clinic visits',myVals,'✓')}
+        ${dashboardStatCard('Dental visits',`${dental.length}/${DB.settings.dentalLimitPerSemester}`,'Used this semester',myVals,'🦷',dental.length>=DB.settings.dentalLimitPerSemester?'attention':'')}
+        ${dashboardStatCard('Active reminders',reminders.length,unreadMessages?`<strong>${unreadMessages}</strong> unread chat message${unreadMessages>1?'s':''}`:'Medication & follow-up reminders',myVals,'💊',reminders.length?'attention':'')}
       </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:var(--success-bg)">${svgIcon('M5 13l4 4L19 7', 18)}</div>
-        <div class="stat-val text-success">${completed.length}</div>
-        <div class="stat-lbl">Completed Visits</div>
+      ${dashboardMobileQuickLinks(role)}
+      <div class="dashboard-a-main">
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>My Clinic Activity</h3><div class="text-muted">Appointments recorded during the last 7 days</div></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(myTrend,'Appointments')}</div></div>
+        <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:var(--warning-bg)">${svgIcon('M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', 18)}</div>
-        <div class="stat-val" style="color:var(--warning)">${dentalThisSem.length}/${DB.settings.dentalLimitPerSemester}</div>
-        <div class="stat-lbl">Dental Visits This Semester</div>
-      </div>
-    </div>
-  `;
-
-  if (upcoming.length) {
-    html += `
-      <div class="card">
-        <div class="card-header"><h3>Upcoming Appointments</h3></div>
-        ${upcoming.map(a => {
-          const doc = getUserById(a.doctorId);
-          return `
-            <div style="display:flex; align-items:center; gap:.75rem; padding:.6rem 0; border-bottom:1px solid var(--line)">
-              <div style="width:42px; height:42px; border-radius:10px; background:var(--primary-light); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:.8rem; font-weight:700; color:var(--primary)">
-                ${new Date(a.date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' })}
-              </div>
-              <div style="flex:1">
-                <div class="fw-500">${a.clinic} – ${a.service}</div>
-                <div class="text-muted">${fmtTime(a.time)} · ${doc ? docName(doc) : 'Unknown'}</div>
-              </div>
-              ${statusBadge(a.status)}
-            </div>`;
-        }).join('')}
-      </div>`;
-  }
-
-  if (myReminders.length) {
-    html += `
-      <div class="card">
-        <div class="card-header"><h3>💊 Medication Reminders</h3></div>
-        ${myReminders.map(rem => `
-          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding:.5rem 0">
-            <div>
-              <strong>${escapeHtml(rem.medicationName)}</strong><br>
-              <span class="text-muted">${escapeHtml(rem.dosage)} · Until ${fmtDate(rem.endDate)}</span>
-            </div>
-            <button class="btn btn-xs btn-success" onclick="markReminderTaken(${rem.id})">Mark Taken</button>
-          </div>
-        `).join('')}
-      </div>`;
-  }
-
-  const healthArticles=DB.healthResources.filter(r=>r.published).sort((a,b)=>b.id-a.id).slice(0,3);
-  if(healthArticles.length){
-    html += `
-      <div class="card">
-        <div class="card-header"><h3>📚 Health &amp; Wellness Picks for You</h3><button class="btn btn-xs" onclick="navTo('health_education')">See All</button></div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem">
-          ${healthArticles.map(art=>`
-            <div style="cursor:pointer;border-radius:12px;overflow:hidden;border:1px solid var(--glass-border-soft)" onclick="viewArticle(${art.id})">
-              ${articleBannerHtml(art,90)}
-              <div style="padding:.6rem .7rem">
-                <span class="badge badge-info" style="font-size:.65rem">${art.category}</span>
-                <div style="font-size:.8rem;font-weight:600;margin-top:.35rem;line-height:1.3">${escapeHtml(art.title)}</div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>`;
-  }
-
-  html += `
-    <div class="card">
-      <div class="card-header"><h3>Quick Actions</h3></div>
-      <div style="display:flex; gap:.5rem; flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="navTo('my-appointments')">Book Appointment</button>
-        <button class="btn" onclick="navTo('my-records')">View Health Records</button>
-        <button class="btn" onclick="navTo('my-account')">Account Settings</button>
-      </div>
-    </div>
-  `;
-
-  c.innerHTML = html;
-  return;
-}
-
-  if(role==='Doctor'){
-    const myAppts=DB.appointments.filter(a=>a.doctorId===currentUser.id);
-    const todayMine=myAppts.filter(a=>a.date===today&&a.status==='Scheduled');
-    const myPts=new Set(myAppts.map(a=>a.patientId)).size;
-    c.innerHTML=`
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-val text-primary">${todayMine.length}</div><div class="stat-lbl">Today's Appointments</div></div>
-        <div class="stat-card"><div class="stat-val" style="color:var(--teal)">${myPts}</div><div class="stat-lbl">Total Patients</div></div>
-        <div class="stat-card"><div class="stat-val text-success">${myAppts.filter(a=>a.status==='Completed').length}</div><div class="stat-lbl">Completed</div></div>
-        <div class="stat-card"><div class="stat-val" style="color:var(--warning)">${myAppts.filter(a=>a.status==='Scheduled').length}</div><div class="stat-lbl">Pending</div></div>
-      </div>
-      <div class="card"><div class="card-header"><h3>Today's Schedule  ${fmtDate(today)}</h3><button class="btn btn-sm" onclick="navTo('schedule')">Full Schedule</button></div>
-        ${todayMine.length?`<table><thead><tr><th>Time</th><th>Patient</th><th>College</th><th>Service</th><th>Status</th></tr></thead><tbody>${todayMine.map(a=>{const pt=getPatientById(a.patientId);return`<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${collegeBadge(a.college)}</td><td>${a.service}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table>`:
-        '<div class="empty-state"><p>No appointments scheduled for today.</p></div>'}
-      </div>`;
-    return;
-  }
-
-  // Staff & Admin dashboard
-  c.innerHTML=`
-    <div class="stats-grid">
-      <div class="stat-card"><div class="stat-val text-primary">${DB.patients.length}</div><div class="stat-lbl">Total Patients</div></div>
-      <div class="stat-card"><div class="stat-val" style="color:var(--teal)">${todayAppts.length}</div><div class="stat-lbl">Today's Appointments</div></div>
-      <div class="stat-card"><div class="stat-val text-success">${DB.appointments.filter(a=>a.status==='Scheduled').length}</div><div class="stat-lbl">Scheduled</div></div>
-      ${role==='Administrator'?`<div class="stat-card"><div class="stat-val" style="color:var(--warning)">${pendingUsers.length}</div><div class="stat-lbl">Pending Approvals</div></div>`:''}
-      <div class="stat-card"><div class="stat-val text-danger">${lowStock.length}</div><div class="stat-lbl">Low Stock Alerts</div></div>
-    </div>
-    ${lowStock.length?`<div class="card" style="border-left:3px solid var(--danger)"><div class="card-header"><h3>⚠️ Low Stock Alerts</h3><button class="btn btn-sm" onclick="navTo('inventory')">Manage Inventory</button></div>${lowStock.map(i=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--line);font-size:.83rem"><span><strong>${i.name}</strong> – ${i.qty} ${i.unit} remaining</span><span class="badge badge-danger">Below Threshold (${i.threshold})</span></div>`).join('')}</div>`:''}
-    ${role==='Administrator'&&pendingUsers.length?`<div class="card" style="border-left:3px solid var(--warning)"><div class="card-header"><h3>🕐 Pending Approvals</h3><button class="btn btn-sm" onclick="navTo('approvals')">Review All</button></div>${pendingUsers.slice(0,3).map(u=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--line);font-size:.83rem"><span><strong>${u.fname} ${u.lname}</strong> – ${u.personType} · ${u.college||'N/A'}</span><span>${statusBadge('Pending')}</span></div>`).join('')}</div>`:''}
-    <div class="card"><div class="card-header"><h3>Today's Appointments</h3><button class="btn btn-sm" onclick="navTo('appointments')">View All</button></div>
-      ${todayAppts.length?`<table><thead><tr><th>Time</th><th>Patient</th><th>College</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${todayAppts.map(a=>{const pt=getPatientById(a.patientId);const doc=getUserById(a.doctorId);return`<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${collegeBadge(a.college)}</td><td>${a.clinic}</td><td>${doc?'Dr. '+doc.lname:'Unknown'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table>`:
-      '<div class="empty-state"><p>No appointments today.</p></div>'}
+      ${upcoming.length?`<div class="card"><div class="card-header"><h3>Upcoming Appointments</h3><button class="btn btn-xs" onclick="navTo('my-appointments')">View All</button></div>${upcoming.slice(0,4).map(a=>{const d=getUserById(a.doctorId);return `<div style="display:flex;align-items:center;gap:.7rem;padding:.55rem 0;border-bottom:1px solid var(--line-soft)"><div style="flex:1"><strong style="font-size:.8rem">${a.clinic} · ${a.service}</strong><div class="text-muted">${fmtDate(a.date)} at ${fmtTime(a.time)} · ${d?docName(d):'Doctor TBA'}</div></div>${statusBadge(a.status)}</div>`;}).join('')}</div>`:''}
     </div>`;
+    return;
+  }
+
+  // DOCTOR DASHBOARD
+  if(role==='Doctor'){
+    const mine=DB.appointments.filter(a=>a.doctorId===currentUser.id);
+    const todayMine=mine.filter(a=>a.date===today&&a.status!=='Cancelled').sort((a,b)=>a.time.localeCompare(b.time));
+    const completed=mine.filter(a=>a.status==='Completed');
+    const scheduled=mine.filter(a=>a.status==='Scheduled'&&a.date>=TODAY);
+    const uniquePatients=new Set(mine.map(a=>a.patientId)).size;
+    const trend=dashboardSevenDayCounts(a=>a.doctorId===currentUser.id);
+    const vals=trend.map(p=>p.value);
+    const next=todayMine.find(a=>a.status==='Scheduled');
+    let attention='';
+    if(next){const pt=getPatientById(next.patientId);attention+=dashboardAttentionItem('Next patient',`${fmtTime(next.time)} · ${pt?pt.fname+' '+pt.lname:'Patient'} · ${next.service}`,'success');}
+    if(scheduled.length)attention+=dashboardAttentionItem(`${scheduled.length} scheduled appointment${scheduled.length>1?'s':''}`,'Review your upcoming schedule and patient list.','warn');
+    if(unreadMessages)attention+=dashboardAttentionItem(`${unreadMessages} unread message${unreadMessages>1?'s':''}`,'Open Chats to respond to patients or clinic staff.','warn');
+    if(!attention)attention=dashboardAttentionItem('Schedule is clear','No urgent items need your attention.','success');
+    const todayCompleted=todayMine.filter(a=>a.status==='Completed').length;
+    c.innerHTML=`<div class="dashboard-a">
+      <div class="dashboard-a-head"><div><h3>${greeting}, Dr. ${escapeHtml(currentUser.lname)}.</h3><p>Your patient load and clinic activity at a glance.</p></div><button class="btn btn-sm" onclick="navTo('schedule')">Full Schedule</button></div>
+      <div class="dashboard-a-grid">
+        ${dashboardStatCard("Today's appointments",todayMine.length,`${todayCompleted} completed today`,vals,'🩺')}
+        ${dashboardStatCard('Upcoming',scheduled.length,'Scheduled from today onward',vals,'📅',scheduled.length>8?'attention':'')}
+        ${dashboardStatCard('Total patients',uniquePatients,'Unique patients assigned to you',vals,'👥')}
+        ${dashboardStatCard('Completed visits',completed.length,unreadMessages?`<strong>${unreadMessages}</strong> unread messages`:'All recorded consultations',vals,'✓')}
+      </div>
+      ${dashboardMobileQuickLinks(role)}
+      <div class="dashboard-a-main">
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">Your appointments over the last 7 days</div></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(trend,'Appointments')}</div></div>
+        <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
+      </div>
+      <div class="card"><div class="card-header"><h3>Today's Schedule · ${fmtDate(today)}</h3><button class="btn btn-xs" onclick="navTo('my-patients')">My Patients</button></div>${todayMine.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>College</th><th>Service</th><th>Status</th></tr></thead><tbody>${todayMine.map(a=>{const pt=getPatientById(a.patientId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${collegeBadge(a.college)}</td><td>${a.service}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments scheduled for today.</p></div>'}</div>
+    </div>`;
+    return;
+  }
+
+  // STAFF DASHBOARD
+  if(role==='Staff'){
+    const scheduled=DB.appointments.filter(a=>a.status==='Scheduled');
+    const todayCompleted=DB.appointments.filter(a=>a.date===today&&a.status==='Completed').length;
+    let attention='';
+    if(lowStock.length)attention+=dashboardAttentionItem(`${lowStock.length} low-stock item${lowStock.length>1?'s':''}`,`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`,'danger');
+    if(pendingCerts.length)attention+=dashboardAttentionItem(`${pendingCerts.length} certificate request${pendingCerts.length>1?'s':''}`, 'Patients are waiting for certificate review.','warn');
+    if(unreadMessages)attention+=dashboardAttentionItem(`${unreadMessages} unread message${unreadMessages>1?'s':''}`,'Check Chats for new patient or staff messages.','warn');
+    if(!attention)attention=dashboardAttentionItem('Operations look good','No urgent clinic items need attention.','success');
+    c.innerHTML=`<div class="dashboard-a">
+      <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(currentUser.fname)}.</h3><p>Monitor today's clinic flow and operational tasks.</p></div><button class="btn btn-primary btn-sm" onclick="navTo('appointments')">Manage Appointments</button></div>
+      <div class="dashboard-a-grid">
+        ${dashboardStatCard("Today's appointments",allToday.length,`<strong>${todayCompleted}</strong> completed today`,globalVals,'📅')}
+        ${dashboardStatCard('Scheduled',scheduled.length,'Appointments still on the schedule',globalVals,'🕐')}
+        ${dashboardStatCard('Certificate requests',pendingCerts.length,'Pending medical certificates',globalVals,'📄',pendingCerts.length?'attention':'')}
+        ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory needs review':'Inventory levels healthy',globalVals,'⚠',lowStock.length?'critical':'')}
+      </div>
+      ${dashboardMobileQuickLinks(role)}
+      <div class="dashboard-a-main">
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">Clinic appointments during the last 7 days</div></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
+        <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
+      </div>
+      <div class="card"><div class="card-header"><h3>Today's Appointments</h3><button class="btn btn-xs" onclick="navTo('appointments')">View All</button></div>${allToday.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${allToday.slice(0,8).map(a=>{const pt=getPatientById(a.patientId),d=getUserById(a.doctorId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${a.clinic}</td><td>${d?docName(d):'Unknown'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments today.</p></div>'}</div>
+    </div>`;
+    return;
+  }
+
+  // ADMINISTRATOR DASHBOARD
+  const scheduled=DB.appointments.filter(a=>a.status==='Scheduled');
+  const activePatients=DB.patients.filter(p=>!p.archived).length;
+  const completedToday=DB.appointments.filter(a=>a.date===today&&a.status==='Completed').length;
+  let attention='';
+  if(pendingUsers.length)attention+=dashboardAttentionItem(`${pendingUsers.length} pending user approval${pendingUsers.length>1?'s':''}`,'Review new CampusCare registrations.','warn');
+  if(lowStock.length)attention+=dashboardAttentionItem(`${lowStock.length} low-stock item${lowStock.length>1?'s':''}`,`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`,'danger');
+  if(pendingCerts.length)attention+=dashboardAttentionItem(`${pendingCerts.length} certificate request${pendingCerts.length>1?'s':''}`,'Medical certificates are awaiting clinic action.','warn');
+  if(unreadMessages)attention+=dashboardAttentionItem(`${unreadMessages} unread message${unreadMessages>1?'s':''}`,'Open Chats to review new messages.','warn');
+  if(!attention)attention=dashboardAttentionItem('All systems normal','No urgent administrative items need attention.','success');
+  const doctors=getDoctors();
+  const doctorLoad=doctors.map(d=>({name:`Dr. ${d.lname}`,count:allToday.filter(a=>a.doctorId===d.id).length,max:d.maxPatients||20}));
+  c.innerHTML=`<div class="dashboard-a">
+    <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(currentUser.fname)}.</h3><p>CampusCare clinic activity, priorities, and service load.</p></div><button class="btn btn-sm" onclick="navTo('reports')">Open Reports & Analytics</button></div>
+    <div class="dashboard-a-grid">
+      ${dashboardStatCard('Active patients',activePatients,'Registered non-archived patients',globalVals,'👥')}
+      ${dashboardStatCard("Today's appointments",allToday.length,`<strong>${completedToday}</strong> completed today`,globalVals,'📅')}
+      ${dashboardStatCard('Pending approvals',pendingUsers.length,pendingUsers.length?'Registration review required':'No registrations waiting',globalVals,'⏳',pendingUsers.length?'attention':'')}
+      ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory action required':'Inventory levels healthy',globalVals,'⚠',lowStock.length?'critical':'')}
+    </div>
+    ${dashboardMobileQuickLinks(role)}
+    <div class="dashboard-a-main">
+      <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">All clinic appointments during the last 7 days</div></div><button class="btn btn-xs" onclick="navTo('reports')">Analyze</button></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
+      <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
+    </div>
+    <div class="dashboard-a-secondary">
+      <div class="card"><div class="card-header"><h3>Today's Appointments</h3><button class="btn btn-xs" onclick="navTo('appointments')">View All</button></div>${allToday.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${allToday.slice(0,7).map(a=>{const pt=getPatientById(a.patientId),d=getUserById(a.doctorId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${a.clinic}</td><td>${d?docName(d):'Unknown'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments today.</p></div>'}</div>
+      <div class="card"><div class="card-header"><h3>Doctor Load Today</h3></div>${doctorLoad.length?doctorLoad.map(d=>{const pct=Math.min(100,Math.round(d.count/Math.max(1,d.max)*100));return `<div class="dashboard-progress-row"><span>${escapeHtml(d.name)}</span><div class="dashboard-progress-track"><div class="dashboard-progress-fill" style="width:${pct}%"></div></div><strong>${d.count}</strong></div>`;}).join(''):'<div class="empty-state"><p>No active doctors.</p></div>'}</div>
+    </div>
+  </div>`;
 }
 
 function markReminderTaken(id) {
@@ -4504,7 +4666,7 @@ function renderMessages(){
           <input type="text" id="msgr-search" placeholder="Search people..." oninput="renderContactList()" style="width:100%;padding:.42rem .8rem;border:1px solid var(--line);border-radius:20px;font-size:.8rem;background:var(--overlay);backdrop-filter:blur(6px);color:var(--ink)">
         </div>
         <div class="msgr-people-wrap">
-          <div class="msgr-people-title"><span>People</span><span style="font-weight:500">Swipe to browse</span></div>
+          <div class="msgr-people-title"><span>People</span><span id="msgr-browse-hint" style="font-weight:500">Scroll to browse</span></div>
           <div class="msgr-people-carousel" id="msgr-people-carousel"></div>
         </div>
         <div class="msgr-contacts" id="msgr-contacts">
@@ -4517,6 +4679,9 @@ function renderMessages(){
     </div>`;
   // Fill the lobby's people carousel after its HTML has been added to the page.
   renderPeopleCarousel();
+  // Desktop users get a visible horizontal scrollbar; phones keep touch/swipe navigation.
+  const browseHint=document.getElementById('msgr-browse-hint');
+  if(browseHint)browseHint.textContent=window.matchMedia('(max-width:768px)').matches?'Swipe to browse':'Scroll to browse';
 
   // Desktop keeps the convenient split-view behavior; mobile stays on the lobby.
   if(contacts.length&&!window.matchMedia('(max-width:768px)').matches)openConversation(contacts[0].id);
@@ -5173,7 +5338,7 @@ function renderReports(){
 // ================================================================
 let lastReportRows=[];
 let lastReportTitle='Report';
-let reportChartInstance=null;
+let reportChartInstance=null; // Kept for backward compatibility; SVG charts do not need a Chart.js instance.
 
 const REPORT_METRICS={
   appointments:[
@@ -5197,17 +5362,6 @@ const REPORT_METRICS={
   ]
 };
 
-function loadChartJs(){
-  return new Promise((resolve,reject)=>{
-    if(window.Chart){resolve(window.Chart);return;}
-    const s=document.createElement('script');
-    s.src='https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
-    s.onload=()=>window.Chart?resolve(window.Chart):reject(new Error('Chart.js failed to initialize'));
-    s.onerror=()=>reject(new Error('Could not load charting library'));
-    document.head.appendChild(s);
-  });
-}
-
 function updateReportMetricOptions(){
   const type=document.getElementById('rpt-type').value;
   const sel=document.getElementById('rpt-metric');
@@ -5229,7 +5383,7 @@ function vizCardHtml(type){
       <select id="rpt-metric" onchange="renderReportChart()">${metrics.map(m=>`<option value="${m.value}">${m.label}</option>`).join('')}</select>
     </div>
     <div style="max-width:640px;margin:0 auto;position:relative;height:340px">
-      <canvas id="rpt-canvas"></canvas>
+      <div id="rpt-chart-host" class="report-chart-host"></div>
     </div>
   </div>`;
 }
@@ -5273,41 +5427,48 @@ function renderReportChart(){
   _reportChartTimeout=setTimeout(renderReportChartNow,120);
 }
 
-async function renderReportChartNow(){
+// Renders report charts with inline SVG/CSS so Reports & Analytics works offline.
+function renderReportChartNow(){
   const type=document.getElementById('rpt-type').value;
   const metric=(document.getElementById('rpt-metric')||{}).value||REPORT_METRICS[type][0].value;
   const chartType=(document.getElementById('rpt-charttype')||{}).value||'bar';
-  const canvas=document.getElementById('rpt-canvas');
-  if(!canvas)return;
-  try{
-    const Chart=await loadChartJs();
-    // The debounced canvas may have been re-rendered or removed while we
-    // were waiting for Chart.js to load — bail out if it's gone.
-    if(!document.body.contains(canvas))return;
-    const data=computeMetricData(type,metric,lastReportRows);
-    const labels=Object.keys(data);
-    const values=Object.values(data);
-    if(reportChartInstance){reportChartInstance.destroy();reportChartInstance=null;}
-    const isPie=chartType==='pie'||chartType==='doughnut';
-    reportChartInstance=new Chart(canvas.getContext('2d'),{
-      type:chartType,
-      data:{labels,datasets:[{
-        label:REPORT_METRICS[type].find(m=>m.value===metric).label,
-        data:values,
-        backgroundColor:isPie?labels.map((_,i)=>CHART_PALETTE[i%CHART_PALETTE.length]):'rgba(10,126,168,.55)',
-        borderColor:isPie?'#fff':'#0a7ea8',
-        borderWidth:isPie?2:1,
-        tension:.3
-      }]},
-      options:{
-        responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:isPie||chartType==='line',position:'bottom'}},
-        scales:isPie?{}:{y:{beginAtZero:true,ticks:{precision:0}}}
-      }
-    });
-  }catch(e){
-    if(canvas.parentElement)canvas.parentElement.innerHTML='<p class="text-muted" style="text-align:center;padding:2rem">Could not load the charting library (needs an internet connection). The table above still has the full data.</p>';
+  const host=document.getElementById('rpt-chart-host');
+  if(!host)return;
+  const data=computeMetricData(type,metric,lastReportRows);
+  const labels=Object.keys(data);
+  const values=Object.values(data).map(Number);
+  const metricObj=REPORT_METRICS[type].find(m=>m.value===metric);
+  if(!labels.length){host.innerHTML='<div class="dashboard-trend-empty">No data to visualize for this selection.</div>';return;}
+
+  const palette=['#0a7ea8','#3aa8d8','#5b4fd6','#0b7d63','#c62828','#a15c00','#b0431e','#2e7d32','#5cb3ea','#a89bf5'];
+  const esc=s=>escapeHtml(String(s));
+
+  // Pie and doughnut charts use conic-gradient, which is responsive and dependency-free.
+  if(chartType==='pie'||chartType==='doughnut'){
+    const total=values.reduce((a,b)=>a+b,0)||1;
+    let acc=0;
+    const stops=values.map((v,i)=>{const a=acc/total*360;acc+=v;const b=acc/total*360;return `${palette[i%palette.length]} ${a}deg ${b}deg`;}).join(',');
+    const hole=chartType==='doughnut'?'<div style="position:absolute;inset:24%;border-radius:50%;background:var(--glass-surface-strong);display:flex;align-items:center;justify-content:center;flex-direction:column"><strong style="font-size:1.2rem">'+values.reduce((a,b)=>a+b,0).toLocaleString()+'</strong><span class="text-muted">Total</span></div>':'';
+    host.innerHTML=`<div style="width:min(230px,65vw);aspect-ratio:1;border-radius:50%;background:conic-gradient(${stops});position:relative;box-shadow:var(--glass-shadow-sm)">${hole}</div>`;
+    host.insertAdjacentHTML('afterend',`<div class="report-chart-legend" id="rpt-chart-legend">${labels.map((l,i)=>`<span><i style="background:${palette[i%palette.length]}"></i>${esc(l)}: <strong>${values[i].toLocaleString()}</strong></span>`).join('')}</div>`);
+    const old=document.querySelectorAll('#rpt-chart-legend');if(old.length>1)old[0].remove();
+    return;
   }
+
+  const w=720,h=320,pl=52,pr=18,pt=22,pb=58,max=Math.max(1,...values);
+  const y=v=>pt+(max-v)*(h-pt-pb)/max;
+  const grid=[0,.25,.5,.75,1].map(r=>{const yy=pt+r*(h-pt-pb);const val=Math.round(max*(1-r));return `<line x1="${pl}" y1="${yy}" x2="${w-pr}" y2="${yy}" stroke="currentColor" opacity=".08"/><text x="${pl-8}" y="${yy+3}" text-anchor="end" font-size="10" fill="currentColor" opacity=".55">${val}</text>`;}).join('');
+  let marks='';
+  if(chartType==='line'){
+    const x=i=>pl+i*(w-pl-pr)/Math.max(1,labels.length-1);
+    const pts=values.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
+    marks=`<polyline points="${pts}" fill="none" stroke="var(--primary-mid)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`+values.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="var(--primary-mid)"><title>${esc(labels[i])}: ${v}</title></circle>`).join('')+labels.map((l,i)=>`<text x="${x(i)}" y="${h-20}" text-anchor="middle" font-size="10" fill="currentColor" opacity=".65">${esc(l.length>13?l.slice(0,12)+'…':l)}</text>`).join('');
+  }else{
+    const avail=w-pl-pr,gap=10,bw=Math.max(12,(avail-gap*(labels.length+1))/Math.max(1,labels.length));
+    marks=values.map((v,i)=>{const x=pl+gap+i*(bw+gap),yy=y(v),bh=h-pb-yy;return `<rect x="${x}" y="${yy}" width="${bw}" height="${Math.max(1,bh)}" rx="5" fill="var(--primary-mid)" opacity=".82"><title>${esc(labels[i])}: ${v}</title></rect><text x="${x+bw/2}" y="${h-20}" text-anchor="middle" font-size="9.5" fill="currentColor" opacity=".65">${esc(labels[i].length>12?labels[i].slice(0,11)+'…':labels[i])}</text>`;}).join('');
+  }
+  host.innerHTML=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(metricObj?metricObj.label:'Report chart')}">${grid}${marks}</svg>`;
+  const legend=document.getElementById('rpt-chart-legend');if(legend)legend.remove();
 }
 
 function exportToolbarHtml(){
