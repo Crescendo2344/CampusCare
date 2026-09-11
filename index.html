@@ -364,7 +364,7 @@ nav svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
 .form-group.full{grid-column:1/-1}
 .form-note{font-size:.75rem;color:var(--ink-muted);margin-top:2px}
 /* Registration password requirement checklist */
-.password-checklist{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.35rem .75rem;margin:-.25rem 0 .55rem;padding:.7rem .8rem;border:1px solid var(--glass-border-soft);border-radius:10px;background:var(--glass-surface-soft)}
+.password-checklist{grid-column:1/-1;display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:.35rem .75rem;margin:-.25rem 0 .55rem;padding:.7rem .8rem;border:1px solid var(--glass-border-soft);border-radius:10px;background:var(--glass-surface-soft)}
 .password-check{display:flex;align-items:center;gap:.4rem;font-size:.74rem;color:var(--ink-muted);transition:color .18s ease}
 .password-check .pw-check-icon{width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid var(--line);font-size:.62rem;font-weight:800;transition:all .18s ease}
 .password-check.met{color:var(--success)}
@@ -372,6 +372,11 @@ nav svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
 .password-check:not(.met) .pw-check-icon::before{content:'•'}
 .password-check.met .pw-check-icon::before{content:'✓'}
 @media(max-width:520px){.password-checklist{grid-template-columns:1fr}}
+.password-checklist.show{display:grid}
+.password-strength-label{grid-column:1/-1;font-size:.76rem;font-weight:700;margin-bottom:.05rem}
+.password-strength-label.weak{color:var(--danger)}
+.password-strength-label.medium{color:var(--warning)}
+.password-strength-label.strong{color:var(--success)}
 .required{color:var(--danger)}
 input[type="file"]{padding:.35rem .5rem;font-size:.82rem;cursor:pointer;color:var(--ink)}
 select option{background:#1c2128;color:#e9edf0}
@@ -1017,8 +1022,9 @@ tbody tr:hover td{background:var(--overlay)}
         <div class="form-group"><label>Email <span class="required">*</span></label><input id="r-email" type="email" oninput="sanitizeInput(this,'email')"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Password <span class="required">*</span></label><input id="r-pass" type="password" oninput="sanitizeInput(this,'password');updatePasswordStrength()"></div>
+        <div class="form-group"><label>Password <span class="required">*</span></label><input id="r-pass" type="password" onfocus="showPasswordChecklist()" oninput="sanitizeInput(this,'password');updatePasswordStrength()" onblur="hidePasswordChecklist()"></div>
         <div id="r-pass-strength" class="password-checklist" aria-live="polite">
+          <div id="r-pass-strength-label" class="password-strength-label weak">Weak password</div>
           <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>At least 8 characters</span></div>
           <div class="password-check" data-check="upper"><span class="pw-check-icon"></span><span>One uppercase letter</span></div>
           <div class="password-check" data-check="lower"><span class="pw-check-icon"></span><span>One lowercase letter</span></div>
@@ -2242,17 +2248,39 @@ function checkPasswordStrength(pw){
   return {checks,score,valid:checks.length&&checks.upper&&checks.lower&&checks.number};
 }
 
-function updatePasswordStrength(){
-  const pw=document.getElementById('r-pass').value;
+function showPasswordChecklist(){
+  // Only reveal the password guidance while the password field is active.
   const el=document.getElementById('r-pass-strength');
-  if(!el)return;
-  const {checks}=checkPasswordStrength(pw);
+  if(el)el.classList.add('show');
+  updatePasswordStrength();
+}
+function hidePasswordChecklist(){
+  // Hide the guidance after the user leaves the password field.
+  const el=document.getElementById('r-pass-strength');
+  if(el)el.classList.remove('show');
+}
+function updatePasswordStrength(){
+  const input=document.getElementById('r-pass');
+  const el=document.getElementById('r-pass-strength');
+  const label=document.getElementById('r-pass-strength-label');
+  if(!input||!el)return;
+  const pw=input.value;
+  const {checks,score,valid}=checkPasswordStrength(pw);
 
-  // Update each requirement individually instead of showing one strength sentence.
+  // Keep every checklist item live while the user types.
   el.querySelectorAll('.password-check').forEach(item=>{
     const key=item.dataset.check;
     item.classList.toggle('met',Boolean(checks[key]));
   });
+
+  // Show an overall strength rating above the checklist as well.
+  if(label){
+    let strength='Weak password',cls='weak';
+    if(valid&&score>=5){strength='Strong password';cls='strong';}
+    else if(valid||score>=3){strength='Medium password';cls='medium';}
+    label.textContent=strength;
+    label.className='password-strength-label '+cls;
+  }
 }
 
 async function doRegister() {
