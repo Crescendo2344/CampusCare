@@ -363,6 +363,15 @@ nav svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
 .form-group input:disabled,.form-group select:disabled{background:var(--glass-surface-soft);color:var(--ink-muted)}
 .form-group.full{grid-column:1/-1}
 .form-note{font-size:.75rem;color:var(--ink-muted);margin-top:2px}
+/* Registration password requirement checklist */
+.password-checklist{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.35rem .75rem;margin:-.25rem 0 .55rem;padding:.7rem .8rem;border:1px solid var(--glass-border-soft);border-radius:10px;background:var(--glass-surface-soft)}
+.password-check{display:flex;align-items:center;gap:.4rem;font-size:.74rem;color:var(--ink-muted);transition:color .18s ease}
+.password-check .pw-check-icon{width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid var(--line);font-size:.62rem;font-weight:800;transition:all .18s ease}
+.password-check.met{color:var(--success)}
+.password-check.met .pw-check-icon{background:var(--success-bg);border-color:var(--success-border);color:var(--success)}
+.password-check:not(.met) .pw-check-icon::before{content:'•'}
+.password-check.met .pw-check-icon::before{content:'✓'}
+@media(max-width:520px){.password-checklist{grid-template-columns:1fr}}
 .required{color:var(--danger)}
 input[type="file"]{padding:.35rem .5rem;font-size:.82rem;cursor:pointer;color:var(--ink)}
 select option{background:#1c2128;color:#e9edf0}
@@ -1009,7 +1018,13 @@ tbody tr:hover td{background:var(--overlay)}
       </div>
       <div class="form-row">
         <div class="form-group"><label>Password <span class="required">*</span></label><input id="r-pass" type="password" oninput="sanitizeInput(this,'password');updatePasswordStrength()"></div>
-        <div id="r-pass-strength" style="grid-column:1/-1;margin:-.4rem 0 .4rem;font-size:.74rem"></div>
+        <div id="r-pass-strength" class="password-checklist" aria-live="polite">
+          <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>At least 8 characters</span></div>
+          <div class="password-check" data-check="upper"><span class="pw-check-icon"></span><span>One uppercase letter</span></div>
+          <div class="password-check" data-check="lower"><span class="pw-check-icon"></span><span>One lowercase letter</span></div>
+          <div class="password-check" data-check="number"><span class="pw-check-icon"></span><span>One number</span></div>
+          <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
+        </div>
         <div class="form-group"><label>Contact No.</label><input id="r-contact" type="text" inputmode="numeric" placeholder="09XXXXXXXXX" oninput="sanitizeInput(this,'phone')"></div>
       </div>
       <div class="form-row">
@@ -2231,16 +2246,13 @@ function updatePasswordStrength(){
   const pw=document.getElementById('r-pass').value;
   const el=document.getElementById('r-pass-strength');
   if(!el)return;
-  if(!pw){el.textContent='';return;}
-  const {checks,score}=checkPasswordStrength(pw);
-  const label=score<=2?'Weak':score<=3?'Fair':score===4?'Good':'Strong';
-  const color=score<=2?'var(--danger)':score<=3?'var(--warning)':'var(--success)';
-  const missing=[];
-  if(!checks.length)missing.push('8+ characters');
-  if(!checks.upper)missing.push('an uppercase letter');
-  if(!checks.lower)missing.push('a lowercase letter');
-  if(!checks.number)missing.push('a number');
-  el.innerHTML=`<span style="color:${color};font-weight:600">${label}</span>${missing.length?` — needs ${missing.join(', ')}`:' — meets requirements ✓'}`;
+  const {checks}=checkPasswordStrength(pw);
+
+  // Update each requirement individually instead of showing one strength sentence.
+  el.querySelectorAll('.password-check').forEach(item=>{
+    const key=item.dataset.check;
+    item.classList.toggle('met',Boolean(checks[key]));
+  });
 }
 
 async function doRegister() {
@@ -2575,6 +2587,8 @@ const NAV_CONFIG={
     {id:'cert-requests',label:'Certificate Requests'},
     {id:'treatments',label:'Treatments'},
     {id:'inventory',label:'Inventory'},
+    {section:'Communication'},
+    {id:'messages',label:'Messages'},
     {section:'Management'},
     {id:'users',label:'User Management'},
     {id:'reports',label:'Reports & Analytics'},
