@@ -520,6 +520,33 @@ tbody tr:hover td{background:var(--overlay)}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem}
 .cal-nav button{background:var(--overlay);border:1px solid var(--glass-border-soft);border-radius:8px;padding:.25rem .55rem;cursor:pointer;color:var(--ink)}
 
+
+/* === MODERN DATE PICKER === */
+.modern-date-btn{height:34px;padding:.38rem .7rem;border:1px solid var(--line);border-radius:10px;background:var(--overlay);color:var(--ink);font:inherit;font-size:.76rem;display:inline-flex;align-items:center;gap:.45rem;cursor:pointer;transition:.18s ease;box-shadow:0 1px 0 rgba(255,255,255,.25) inset}
+.modern-date-btn:hover{background:var(--overlay-strong);border-color:rgba(63,169,221,.35);transform:translateY(-1px)}
+.modern-date-btn i{color:var(--primary)}
+.modern-calendar{background:var(--glass-surface-strong);border:1px solid var(--glass-border);border-radius:18px;padding:.9rem;box-shadow:var(--glass-shadow);width:100%;max-width:390px;margin:0 auto;user-select:none}
+.modern-calendar-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.65rem}
+.modern-calendar-title{font-weight:750;font-size:.92rem;color:var(--ink);text-align:center;flex:1}
+.modern-calendar-nav{width:34px;height:34px;border-radius:10px;border:1px solid var(--glass-border-soft);background:var(--overlay);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s ease}
+.modern-calendar-nav:hover{background:var(--overlay-strong);transform:scale(1.05)}
+.modern-calendar-weekdays,.modern-calendar-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.modern-calendar-weekdays span{text-align:center;font-size:.64rem;font-weight:700;color:var(--ink-muted);padding:.25rem 0;text-transform:uppercase;letter-spacing:.3px}
+.modern-calendar-day{aspect-ratio:1;border:none;border-radius:12px;background:transparent;color:var(--ink);font:inherit;font-size:.76rem;cursor:pointer;position:relative;transition:background .16s ease,transform .16s ease,color .16s ease,box-shadow .16s ease}
+.modern-calendar-day:hover:not(:disabled){background:var(--overlay-strong);transform:translateY(-1px)}
+.modern-calendar-day.outside{color:var(--ink-muted);opacity:.42}
+.modern-calendar-day.today{box-shadow:0 0 0 1px var(--primary-mid) inset;color:var(--primary);font-weight:750}
+.modern-calendar-day.selected{background:linear-gradient(150deg,var(--primary-mid),var(--primary-dark));color:#fff;font-weight:800;box-shadow:0 5px 14px rgba(10,126,168,.3)}
+.modern-calendar-day:disabled{opacity:.25;cursor:not-allowed}
+.modern-calendar-day.has-appt::after{content:'';position:absolute;width:4px;height:4px;border-radius:50%;background:var(--primary);bottom:4px;left:50%;transform:translateX(-50%)}
+.modern-calendar-day.selected.has-appt::after{background:#fff}
+.modern-calendar-footer{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:.7rem;padding-top:.65rem;border-top:1px solid var(--line-soft)}
+.modern-calendar-hint{font-size:.67rem;color:var(--ink-muted)}
+.modern-calendar-today{border:none;background:var(--primary-light);color:var(--primary-dark);font:inherit;font-size:.7rem;font-weight:700;padding:.35rem .65rem;border-radius:9px;cursor:pointer}
+.booking-calendar-wrap{padding:.2rem 0 .7rem}
+.booking-calendar-wrap .modern-calendar{max-width:none;box-shadow:none;background:var(--glass-surface-soft)}
+@media(max-width:520px){.modern-calendar{padding:.7rem}.modern-calendar-day{border-radius:10px;font-size:.72rem}.modern-calendar-weekdays,.modern-calendar-days{gap:3px}}
+
 /* ===PROGRESS BARS=== */
 .progress-bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:4px}
 .progress-fill{height:100%;border-radius:3px;transition:width .4s}
@@ -757,10 +784,10 @@ tbody tr:hover td{background:var(--overlay)}
 .dashboard-controls{display:flex;align-items:end;gap:.55rem;flex-wrap:wrap;margin-left:auto}
 .dashboard-control{display:flex;flex-direction:column;gap:.25rem}
 .dashboard-control label{font-size:.66rem;font-weight:650;text-transform:uppercase;letter-spacing:.35px;color:var(--ink-muted)}
-.dashboard-control input,.dashboard-control select{height:34px;padding:.35rem .65rem;border:1px solid var(--line);border-radius:9px;background:var(--overlay);color:var(--ink);font:inherit;font-size:.76rem;color-scheme:light dark}
-.dashboard-control input:focus,.dashboard-control select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(10,126,168,.14)}
+.dashboard-control input,.dashboard-control select,.dashboard-control button{height:34px;padding:.35rem .65rem;border:1px solid var(--line);border-radius:9px;background:var(--overlay);color:var(--ink);font:inherit;font-size:.76rem;color-scheme:light dark}
+.dashboard-control input:focus,.dashboard-control select:focus,.dashboard-control button:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(10,126,168,.14)}
 .dashboard-date-note{font-size:.7rem;color:var(--ink-muted);padding-bottom:.5rem}
-@media(max-width:640px){.dashboard-controls{width:100%;margin-left:0}.dashboard-control{flex:1;min-width:130px}.dashboard-control input,.dashboard-control select{width:100%}.dashboard-date-note{width:100%;padding-bottom:0}}
+@media(max-width:640px){.dashboard-controls{width:100%;margin-left:0}.dashboard-control{flex:1;min-width:130px}.dashboard-control input,.dashboard-control select,.dashboard-control button{width:100%}.dashboard-date-note{width:100%;padding-bottom:0}}
 .dashboard-a-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.8rem}
 .dashboard-a-stat{position:relative;overflow:hidden;background:var(--glass-surface);backdrop-filter:blur(var(--glass-blur)) saturate(160%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(160%);border:1px solid var(--glass-border-soft);border-radius:17px;padding:1rem;min-height:132px;box-shadow:var(--glass-shadow-sm);transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s ease,border-color .28s ease,filter .28s ease;will-change:transform}
 .dashboard-a-stat.attention{border-color:var(--warning-border);background:linear-gradient(145deg,var(--warning-bg),var(--glass-surface))}
@@ -783,6 +810,7 @@ tbody tr:hover td{background:var(--overlay)}
 
 .dashboard-a-main{display:grid;grid-template-columns:minmax(0,2fr) minmax(270px,.85fr);gap:1rem;align-items:stretch}
 .dashboard-trend-card,.dashboard-attn-card{margin:0!important}
+.dashboard-chart-picker{display:flex;align-items:center;gap:.4rem}.dashboard-chart-picker label{font-size:.68rem;color:var(--ink-muted);font-weight:650}.dashboard-chart-picker select{height:30px;padding:.25rem .55rem;border-radius:9px;border:1px solid var(--line);background:var(--overlay);color:var(--ink);font:inherit;font-size:.72rem}.dashboard-chart-picker select:focus{outline:none;border-color:var(--primary)}
 .dashboard-trend-wrap{height:230px;margin-top:.35rem;position:relative}
 .dashboard-trend-wrap svg{width:100%;height:100%;display:block;overflow:visible}
 .dashboard-trend-empty{height:100%;display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:.8rem}
@@ -2590,6 +2618,7 @@ const NAV_CONFIG={
     {id:'my-patients',label:'My Patients'},
     {id:'appointments',label:'Appointments'},
     {id:'treatments',label:'Treatments'},
+    {id:'cert-requests',label:'Certificate Signatures'},
     { id: 'messages', label: 'Patient Messages' },
     {section:'Reports'},
     {id:'reports',label:'Reports'},
@@ -3238,15 +3267,26 @@ function setDashboardChartType(value){
 function dashboardControlsHtml(){
   const dateLabel=dashboardSelectedDate===TODAY?'Today':fmtDate(dashboardSelectedDate);
   return `<div class="dashboard-controls">
-    <div class="dashboard-control"><label for="dashboard-date">Data date</label><input id="dashboard-date" type="date" value="${dashboardSelectedDate}" onchange="setDashboardDate(this.value)"></div>
-    <div class="dashboard-control"><label for="dashboard-chart-type">Graph</label><select id="dashboard-chart-type" onchange="setDashboardChartType(this.value)">
-      <option value="line" ${dashboardChartType==='line'?'selected':''}>Line</option>
-      <option value="bar" ${dashboardChartType==='bar'?'selected':''}>Bar</option>
-      <option value="pie" ${dashboardChartType==='pie'?'selected':''}>Pie</option>
-      <option value="doughnut" ${dashboardChartType==='doughnut'?'selected':''}>Doughnut</option>
-    </select></div>
+    <div class="dashboard-control"><label>Data date</label><button class="modern-date-btn" onclick="openDashboardDatePicker()"><i class="fa-regular fa-calendar"></i><span>${dateLabel}</span></button></div>
     <div class="dashboard-date-note">Showing ${dateLabel}</div>
   </div>`;
+}
+function dashboardChartControlHtml(){
+  return `<div class="dashboard-chart-picker"><label for="dashboard-chart-type">Graph</label><select id="dashboard-chart-type" onchange="setDashboardChartType(this.value)">
+    <option value="line" ${dashboardChartType==='line'?'selected':''}>Line</option>
+    <option value="bar" ${dashboardChartType==='bar'?'selected':''}>Bar</option>
+    <option value="pie" ${dashboardChartType==='pie'?'selected':''}>Pie</option>
+    <option value="doughnut" ${dashboardChartType==='doughnut'?'selected':''}>Doughnut</option>
+  </select></div>`;
+}
+function openDashboardDatePicker(){
+  openModal(`<div class="modal modal-sm"><div class="modal-header"><h3>Select Dashboard Date</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div id="dashboard-modern-calendar"></div></div></div>`);
+  initModernCalendar('dashboard-modern-calendar',dashboardSelectedDate,'','chooseDashboardDate');
+}
+function chooseDashboardDate(date){
+  dashboardSelectedDate=date||TODAY;
+  closeAllModals();
+  renderDashboard();
 }
 
 // Returns seven daily counts ending on the selected dashboard date, including zero-value days.
@@ -3389,7 +3429,7 @@ function renderDashboard(){
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
-        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>My Clinic Activity</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(myTrend,'Appointments')}</div></div>
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>My Clinic Activity</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(myTrend,'Appointments')}</div></div>
         <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
       ${upcoming.length?`<div class="card"><div class="card-header"><h3>Upcoming Appointments</h3><button class="btn btn-xs" onclick="navTo('my-appointments')">View All</button></div>${upcoming.slice(0,4).map(a=>{const d=getUserById(a.doctorId);return `<div style="display:flex;align-items:center;gap:.7rem;padding:.55rem 0;border-bottom:1px solid var(--line-soft)"><div style="flex:1"><strong style="font-size:.8rem">${a.clinic} · ${a.service}</strong><div class="text-muted">${fmtDate(a.date)} at ${fmtTime(a.time)} · ${d?docName(d):'Doctor TBA'}</div></div>${statusBadge(a.status)}</div>`;}).join('')}</div>`:''}
@@ -3423,7 +3463,7 @@ function renderDashboard(){
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
-        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(trend,'Appointments')}</div></div>
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(trend,'Appointments')}</div></div>
         <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
       <div class="card"><div class="card-header"><h3>Schedule · ${fmtDate(today)}</h3><button class="btn btn-xs" onclick="navTo('my-patients')">My Patients</button></div>${todayMine.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>College</th><th>Service</th><th>Status</th></tr></thead><tbody>${todayMine.map(a=>{const pt=getPatientById(a.patientId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${collegeBadge(a.college)}</td><td>${a.service}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments scheduled for today.</p></div>'}</div>
@@ -3450,7 +3490,7 @@ function renderDashboard(){
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
-        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
         <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
       <div class="card"><div class="card-header"><h3>Today's Appointments</h3><button class="btn btn-xs" onclick="navTo('appointments')">View All</button></div>${allToday.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${allToday.slice(0,8).map(a=>{const pt=getPatientById(a.patientId),d=getUserById(a.doctorId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${a.clinic}</td><td>${d?docName(d):'Unknown'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments today.</p></div>'}</div>
@@ -3480,7 +3520,7 @@ function renderDashboard(){
     </div>
     ${dashboardMobileQuickLinks(role)}
     <div class="dashboard-a-main">
-      <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div><button class="btn btn-xs" onclick="navTo('reports')">Analyze</button></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
+      <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">7-day window ending ${fmtDate(today)}</div></div><div style="display:flex;align-items:center;gap:.45rem">${dashboardChartControlHtml()}<button class="btn btn-xs" onclick="navTo('reports')">Analyze</button></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
       <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
     </div>
     <div class="dashboard-a-secondary">
@@ -6011,7 +6051,7 @@ function loadJsPDF(){
 }
 const CERT_PURPOSES=['OJT / Internship Requirement','Excused Absence','Sports / Athletics Participation','Enrollment Requirement','Employment Requirement','Scholarship Requirement','Other'];
 function certStatusBadge(s){
-  const m={Pending:'badge-warning',Issued:'badge-success',Declined:'badge-danger'};
+  const m={Pending:'badge-warning','Awaiting Signature':'badge-purple',Issued:'badge-success',Declined:'badge-danger'};
   return `<span class="badge ${m[s]||'badge-gray'}">${s}</span>`;
 }
 
@@ -6024,7 +6064,7 @@ function renderMyCertificates(){
   c.innerHTML=`<div class="card">
     <div class="card-header"><h3>Medical Certificates</h3>
       <button class="btn btn-primary btn-sm" onclick="openCertRequestModal()">+ Request Certificate</button></div>
-    <p class="text-muted" style="font-size:.82rem;margin-bottom:.8rem">Once the clinic issues your certificate you can download the PDF here — a copy is also sent to ${escapeHtml(currentUser.email)}.</p>
+    <p class="text-muted" style="font-size:.82rem;margin-bottom:.8rem">Staff prepares the certificate details, then the assigned doctor signs it before it becomes downloadable.</p>
     ${reqs.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Purpose</th><th>Requested</th><th>Status</th><th>Certificate No.</th><th>Actions</th></tr></thead><tbody>${
       reqs.map(r=>`<tr><td>#${r.id}</td><td>${escapeHtml(r.purpose)}</td><td>${fmtDate(r.requestedAt)}</td>
         <td>${certStatusBadge(r.status)}</td><td>${r.certNo||'—'}</td>
@@ -6042,16 +6082,17 @@ function openCertRequestModal(){
     <div class="modal-body">
       <div class="form-group"><label>Purpose</label><select id="cert-purpose">${CERT_PURPOSES.map(p=>`<option>${p}</option>`).join('')}</select></div>
       <div class="form-group"><label>Details (optional)</label><textarea id="cert-details" rows="3" placeholder="e.g. dates of absence, requesting office"></textarea></div>
-      <div class="alert alert-info show" style="font-size:.78rem">The clinic may ask you to visit for a quick check-up before issuing. You'll be notified once it's ready.</div>
+      <div class="alert alert-info show" style="font-size:.78rem">The clinic may ask you to visit for a quick check-up before preparing the certificate.</div>
       <button class="btn btn-primary" style="width:100%" onclick="submitCertRequest()">Submit Request</button>
     </div></div>`);
 }
 function submitCertRequest(){
   const purpose=document.getElementById('cert-purpose').value;
   const details=document.getElementById('cert-details').value.trim().slice(0,300);
-  DB.certRequests.push({id:DB.nextCertId++,patientId:currentPatient.id,purpose,details,status:'Pending',requestedAt:TODAY,certNo:'',issuedAt:'',issuedById:null,doctorId:null,findings:'',recommendations:'',declineReason:''});
+  DB.certRequests.push({id:DB.nextCertId++,patientId:currentPatient.id,purpose,details,status:'Pending',requestedAt:TODAY,certNo:'',issuedAt:'',issuedById:null,doctorId:null,findings:'',recommendations:'',declineReason:'',preparedById:null,preparedAt:'',signedById:null,signedAt:''});
   DB.users.filter(u=>(u.role==='Staff'||u.role==='Administrator')&&u.status==='Active')
     .forEach(u=>addNotif(u.id,'New Certificate Request',`${currentUser.fname} ${currentUser.lname} requested a medical certificate (${purpose}).`,'info'));
+  persistDB();
   closeAllModals();
   toast('Certificate request submitted.','success');
   renderMyCertificates();
@@ -6060,6 +6101,7 @@ function cancelCertRequest(id){
   const r=DB.certRequests.find(x=>x.id===id);
   if(!r||r.status!=='Pending')return;
   DB.certRequests=DB.certRequests.filter(x=>x.id!==id);
+  persistDB();
   toast('Request cancelled.','info');
   renderMyCertificates();
 }
@@ -6069,59 +6111,112 @@ function viewCertDecline(id){
     <div class="modal-body"><p style="font-size:.85rem">${escapeHtml(r.declineReason||'No reason provided.')}</p></div></div>`);
 }
 
-// ---- STAFF / ADMIN SIDE ----
+// ---- STAFF / DOCTOR / ADMIN WORKFLOW ----
 function renderCertRequests(filter='Pending'){
   const c=document.getElementById('app-content');
-  const all=DB.certRequests.slice().sort((a,b)=>b.id-a.id);
+  const canEdit=currentUser.role==='Staff'||currentUser.role==='Administrator';
+  const canSign=currentUser.role==='Doctor'||currentUser.role==='Administrator';
+  let all=DB.certRequests.slice().sort((a,b)=>b.id-a.id);
+  if(currentUser.role==='Doctor') all=all.filter(r=>r.doctorId===currentUser.id);
   const list=filter==='all'?all:all.filter(r=>r.status===filter);
+  const tabs=['Pending','Awaiting Signature','Issued','Declined','all'];
   c.innerHTML=`<div class="card">
-    <div class="card-header"><h3>Medical Certificate Requests</h3></div>
-    <div class="tabs">${['Pending','Issued','Declined','all'].map(t=>`<button class="tab ${t===filter?'active':''}" onclick="renderCertRequests('${t}')">${t==='all'?'All':t}</button>`).join('')}</div>
-    ${list.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>Purpose</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
+    <div class="card-header"><div><h3>Medical Certificate Requests</h3><div class="text-muted">${currentUser.role==='Doctor'?'Review and sign certificates assigned to you.':currentUser.role==='Staff'?'Prepare certificate details for doctor signature.':'Administrators can prepare and sign certificates.'}</div></div></div>
+    <div class="tabs">${tabs.map(t=>`<button class="tab ${t===filter?'active':''}" onclick="renderCertRequests('${t}')">${t==='all'?'All':t}</button>`).join('')}</div>
+    ${list.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>Purpose</th><th>Physician</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
       list.map(r=>{
-        const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null;
+        const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null, physician=getUserById(r.doctorId);
+        const editBtn=canEdit&&r.status!=='Issued'&&r.status!=='Declined'?`<button class="btn btn-xs btn-info" onclick="openEditCertModal(${r.id})">✎ Edit</button>`:'';
+        const signAllowed=canSign&&r.status==='Awaiting Signature'&&(currentUser.role==='Administrator'||r.doctorId===currentUser.id);
+        const signBtn=signAllowed?`<button class="btn btn-xs btn-success" onclick="openSignCertModal(${r.id})">✍ Sign</button>`:'';
+        const declineBtn=canEdit&&r.status!=='Issued'&&r.status!=='Declined'?`<button class="btn btn-xs btn-danger" onclick="openDeclineCertModal(${r.id})">Decline</button>`:'';
         return `<tr><td>#${r.id}</td><td>${u?escapeHtml(u.fname+' '+u.lname):'Unknown'}</td>
           <td>${escapeHtml(r.purpose)}${r.details?`<div class="text-muted" style="font-size:.72rem">${escapeHtml(r.details)}</div>`:''}</td>
-          <td>${fmtDate(r.requestedAt)}</td><td>${certStatusBadge(r.status)}</td>
-          <td><div class="td-actions">
-            ${r.status==='Pending'?`<button class="btn btn-xs btn-success" onclick="openIssueCertModal(${r.id})">Issue</button><button class="btn btn-xs btn-danger" onclick="openDeclineCertModal(${r.id})">Decline</button>`:''}
-            ${r.status==='Issued'?`<button class="btn btn-xs btn-primary" onclick="downloadCertPdf(${r.id})">⬇ PDF</button>`:''}
-          </div></td></tr>`;
+          <td>${physician?escapeHtml(docName(physician)):'Not assigned'}</td><td>${fmtDate(r.requestedAt)}</td><td>${certStatusBadge(r.status)}</td>
+          <td><div class="td-actions">${editBtn}${signBtn}${declineBtn}${r.status==='Issued'?`<button class="btn btn-xs btn-primary" onclick="downloadCertPdf(${r.id})">⬇ PDF</button>`:''}</div></td></tr>`;
       }).join('')
     }</tbody></table></div>`:'<div class="empty-state"><p>No requests found.</p></div>'}
   </div>`;
 }
-function openIssueCertModal(id){
-  const r=DB.certRequests.find(x=>x.id===id); if(!r)return;
+function openEditCertModal(id){
+  if(!(currentUser.role==='Staff'||currentUser.role==='Administrator')){toast('You do not have permission to edit certificates.','error');return;}
+  const r=DB.certRequests.find(x=>x.id===id); if(!r||r.status==='Issued'||r.status==='Declined')return;
   const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null;
-  openModal(`<div class="modal">
-    <div class="modal-header"><h3>Issue Medical Certificate</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+  openModal(`<div class="modal modal-lg">
+    <div class="modal-header"><div><h3>Prepare Medical Certificate</h3><div class="text-muted">Request #${r.id} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
-      <p style="font-size:.83rem;margin-bottom:.7rem"><strong>${u?escapeHtml(u.fname+' '+u.lname):'Unknown'}</strong> · ${escapeHtml(r.purpose)}</p>
-      <div class="form-group"><label>Attending Physician</label>
-        <select id="ic-doctor">${getDoctors().map(d=>`<option value="${d.id}">Dr. ${escapeHtml(d.fname+' '+d.lname)} — ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('')}</select></div>
-      <div class="form-group"><label>Examination Findings / Diagnosis</label>
-        <textarea id="ic-findings" rows="3" placeholder="e.g. Patient was examined and found to be physically fit."></textarea></div>
-      <div class="form-group"><label>Remarks / Recommendations</label>
-        <textarea id="ic-reco" rows="2" placeholder="e.g. Cleared to participate in sports activities."></textarea></div>
-      <button class="btn btn-success" style="width:100%" onclick="issueCert(${id})">Issue Certificate &amp; Notify Patient</button>
-    </div></div>`);
+      <div class="form-row">
+        <div class="form-group"><label>Purpose</label><select id="ec-purpose">${CERT_PURPOSES.map(p=>`<option ${p===r.purpose?'selected':''}>${p}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Attending Physician <span class="required">*</span></label><select id="ec-doctor"><option value="">Select physician</option>${getDoctors().map(d=>`<option value="${d.id}" ${d.id===r.doctorId?'selected':''}>${escapeHtml(docName(d))} — ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('')}</select></div>
+      </div>
+      <div class="form-group"><label>Request Details</label><textarea id="ec-details" rows="2">${escapeHtml(r.details||'')}</textarea></div>
+      <div class="form-group"><label>Examination Findings / Diagnosis <span class="required">*</span></label><textarea id="ec-findings" rows="4" placeholder="Enter the physician's findings or approved certificate wording.">${escapeHtml(r.findings||'')}</textarea></div>
+      <div class="form-group"><label>Remarks / Recommendations</label><textarea id="ec-reco" rows="3" placeholder="e.g. Cleared to return to class on...">${escapeHtml(r.recommendations||'')}</textarea></div>
+      <div class="alert alert-info show" style="font-size:.78rem">Saving sends the prepared certificate to the assigned doctor for signature. You can edit it again until it is signed.</div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="saveCertDraft(${id})">Save &amp; Send for Signature</button></div>
+  </div>`);
 }
-function issueCert(id){
+function saveCertDraft(id){
   const r=DB.certRequests.find(x=>x.id===id); if(!r)return;
-  const findings=document.getElementById('ic-findings').value.trim();
+  if(!(currentUser.role==='Staff'||currentUser.role==='Administrator'))return;
+  const doctorId=parseInt(document.getElementById('ec-doctor').value);
+  const findings=document.getElementById('ec-findings').value.trim();
+  if(!doctorId){toast('Please select the attending physician.','error');return;}
   if(!findings){toast('Please enter the examination findings.','error');return;}
+  r.purpose=document.getElementById('ec-purpose').value;
+  r.details=document.getElementById('ec-details').value.trim().slice(0,300);
+  r.doctorId=doctorId;
   r.findings=findings;
-  r.recommendations=document.getElementById('ic-reco').value.trim();
-  r.doctorId=parseInt(document.getElementById('ic-doctor').value);
-  r.status='Issued'; r.certNo=genId('CTU-MC',r.id); r.issuedAt=TODAY; r.issuedById=currentUser.id;
-  const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null;
-  if(u)addNotif(u.id,'Medical Certificate Ready',`Your certificate (${r.certNo}) has been issued. Download it from Medical Certificates. A copy was also sent to ${u.email}.`,'success');
+  r.recommendations=document.getElementById('ec-reco').value.trim();
+  r.status='Awaiting Signature';
+  r.preparedById=currentUser.id;
+  r.preparedAt=new Date().toISOString();
+  addNotif(doctorId,'Certificate Ready for Signature',`Certificate request #${r.id} has been prepared and is waiting for your signature.`,'info');
+  persistDB();
   closeAllModals();
-  toast(`Certificate ${r.certNo} issued${u?' and emailed to '+u.email:''}.`,'success');
-  renderCertRequests('Pending');
+  toast('Certificate saved and sent for doctor signature.','success');
+  renderCertRequests('Awaiting Signature');
+}
+function openSignCertModal(id){
+  const r=DB.certRequests.find(x=>x.id===id); if(!r||r.status!=='Awaiting Signature')return;
+  const isAdmin=currentUser.role==='Administrator';
+  if(!(currentUser.role==='Doctor'||isAdmin) || (!isAdmin&&r.doctorId!==currentUser.id)){toast('This certificate is not assigned to you.','error');return;}
+  const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null, physician=getUserById(r.doctorId);
+  openModal(`<div class="modal modal-lg">
+    <div class="modal-header"><h3>Review &amp; Sign Certificate</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div class="alert alert-info show" style="font-size:.78rem">Signing records your account as the approving signatory. This demo uses an electronic approval record, not a cryptographic digital signature.</div>
+      <div class="info-row"><span class="info-label">Patient</span><span class="info-val">${u?escapeHtml(u.fname+' '+u.lname):'Unknown'}</span></div>
+      <div class="info-row"><span class="info-label">Purpose</span><span class="info-val">${escapeHtml(r.purpose)}</span></div>
+      <div class="info-row"><span class="info-label">Attending Physician</span><span class="info-val">${physician?escapeHtml(docName(physician)):'—'}</span></div>
+      <div class="info-row"><span class="info-label">Findings</span><span class="info-val">${escapeHtml(r.findings)}</span></div>
+      <div class="info-row"><span class="info-label">Recommendations</span><span class="info-val">${escapeHtml(r.recommendations||'—')}</span></div>
+      <label style="display:flex;gap:.55rem;align-items:flex-start;margin-top:1rem;font-size:.8rem"><input type="checkbox" id="cert-sign-confirm" style="margin-top:2px"> <span>I reviewed the certificate information and authorize it for release.</span></label>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-success" onclick="signCert(${id})">✍ Sign &amp; Issue</button></div>
+  </div>`);
+}
+function signCert(id){
+  const r=DB.certRequests.find(x=>x.id===id); if(!r||r.status!=='Awaiting Signature')return;
+  const isAdmin=currentUser.role==='Administrator';
+  if(!(currentUser.role==='Doctor'||isAdmin) || (!isAdmin&&r.doctorId!==currentUser.id))return;
+  if(!document.getElementById('cert-sign-confirm').checked){toast('Please confirm that you reviewed the certificate.','warning');return;}
+  r.status='Issued';
+  r.certNo=r.certNo||genId('CTU-MC',r.id);
+  r.issuedAt=TODAY;
+  r.issuedById=currentUser.id;
+  r.signedById=currentUser.id;
+  r.signedAt=new Date().toISOString();
+  const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null;
+  if(u)addNotif(u.id,'Medical Certificate Ready',`Your certificate (${r.certNo}) has been signed and issued. Download it from Medical Certificates.`,'success');
+  persistDB();
+  closeAllModals();
+  toast(`Certificate ${r.certNo} signed and issued.`,'success');
+  renderCertRequests('Issued');
 }
 function openDeclineCertModal(id){
+  if(!(currentUser.role==='Staff'||currentUser.role==='Administrator')){toast('Only staff or administrators can decline requests.','error');return;}
   openModal(`<div class="modal">
     <div class="modal-header"><h3>Decline Request</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
@@ -6131,11 +6226,13 @@ function openDeclineCertModal(id){
 }
 function declineCert(id){
   const r=DB.certRequests.find(x=>x.id===id); if(!r)return;
+  if(!(currentUser.role==='Staff'||currentUser.role==='Administrator'))return;
   const reason=document.getElementById('dc-reason').value.trim();
   if(!reason){toast('Please provide a reason.','error');return;}
   r.status='Declined'; r.declineReason=reason;
   const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null;
   if(u)addNotif(u.id,'Certificate Request Declined',reason,'error');
+  persistDB();
   closeAllModals();
   toast('Request declined.','info');
   renderCertRequests('Pending');
@@ -6177,7 +6274,10 @@ async function downloadCertPdf(id){
   doc.text(`DR. ${(doctor.fname||'')+' '+(doctor.lname||'')}`.toUpperCase().trim(),sx+30,y,{align:'center'});y+=5;
   doc.setFont('times','normal');doc.setFontSize(9.5);
   doc.text('Attending Physician',sx+30,y,{align:'center'});y+=5;
-  doc.text('License No. _______________',sx+30,y,{align:'center'});y+=16;
+  doc.text('License No. _______________',sx+30,y,{align:'center'});y+=8;
+  const signer=getUserById(r.signedById)||{};
+  if(r.signedAt){doc.setFont('times','italic');doc.setFontSize(8.5);doc.text(`Electronically approved in CampusCare by ${(signer.fname||'')+' '+(signer.lname||'')}`.trim(),sx+30,y,{align:'center'});y+=4;}
+  y+=8;
   doc.setFont('times','italic');doc.setFontSize(9);
   doc.text('Not valid without the official clinic seal.',M,y);y+=5;
   doc.setFontSize(8);doc.setTextColor(120);
@@ -6247,6 +6347,64 @@ function zoomImageStep(delta){
   img.classList.toggle('zoomed',pct>100);
 }
 
+// ── Modern reusable calendar ──
+const modernCalendarState={};
+function initModernCalendar(id,selectedDate=TODAY,minDate='',callbackName=''){
+  const base=(selectedDate||TODAY);
+  modernCalendarState[id]={selected:base,minDate:minDate||'',callbackName,viewMonth:base.slice(0,7)};
+  renderModernCalendar(id);
+}
+function modernCalendarShift(id,delta){
+  const st=modernCalendarState[id]; if(!st)return;
+  const [y,m]=st.viewMonth.split('-').map(Number);
+  const d=new Date(y,m-1+delta,1,12);
+  st.viewMonth=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  renderModernCalendar(id);
+}
+function modernCalendarGoToday(id){
+  const st=modernCalendarState[id]; if(!st)return;
+  const target=st.minDate&&TODAY<st.minDate?st.minDate:TODAY;
+  st.viewMonth=target.slice(0,7);
+  st.selected=target;
+  renderModernCalendar(id);
+}
+function modernCalendarSelect(id,date){
+  const st=modernCalendarState[id]; if(!st)return;
+  if(st.minDate&&date<st.minDate)return;
+  st.selected=date;
+  st.viewMonth=date.slice(0,7);
+  if(st.callbackName&&typeof window[st.callbackName]==='function')window[st.callbackName](date);
+  renderModernCalendar(id);
+}
+function renderModernCalendar(id){
+  const host=document.getElementById(id), st=modernCalendarState[id];
+  if(!host||!st)return;
+  const [year,month]=st.viewMonth.split('-').map(Number);
+  const first=new Date(year,month-1,1,12);
+  const start=new Date(first); start.setDate(1-first.getDay());
+  const monthLabel=first.toLocaleDateString('en-PH',{month:'long',year:'numeric'});
+  const apptDates=new Set((DB.appointments||[]).filter(a=>a.status!=='Cancelled').map(a=>a.date));
+  let days='';
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i);
+    const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const outside=d.getMonth()!==month-1;
+    const disabled=!!(st.minDate&&date<st.minDate);
+    const classes=['modern-calendar-day'];
+    if(outside)classes.push('outside');
+    if(date===TODAY)classes.push('today');
+    if(date===st.selected)classes.push('selected');
+    if(apptDates.has(date))classes.push('has-appt');
+    days+=`<button type="button" class="${classes.join(' ')}" ${disabled?'disabled':''} onclick="modernCalendarSelect('${id}','${date}')" aria-label="${fmtDate(date)}">${d.getDate()}</button>`;
+  }
+  host.innerHTML=`<div class="modern-calendar">
+    <div class="modern-calendar-head"><button type="button" class="modern-calendar-nav" onclick="modernCalendarShift('${id}',-1)" aria-label="Previous month">‹</button><div class="modern-calendar-title">${monthLabel}</div><button type="button" class="modern-calendar-nav" onclick="modernCalendarShift('${id}',1)" aria-label="Next month">›</button></div>
+    <div class="modern-calendar-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<span>${d}</span>`).join('')}</div>
+    <div class="modern-calendar-days">${days}</div>
+    <div class="modern-calendar-footer"><span class="modern-calendar-hint"><span style="color:var(--primary)">●</span> Dates with appointments</span><button type="button" class="modern-calendar-today" onclick="modernCalendarGoToday('${id}')">Today</button></div>
+  </div>`;
+}
+
 // ── Book Appointment ──
 function openBookApptModal(apptId=null){
   const editing=apptId?DB.appointments.find(a=>a.id===apptId):null;
@@ -6286,10 +6444,12 @@ function openBookApptModal(apptId=null){
         <div class="form-group"><label>Doctor <span class="required">*</span></label>
           <select id="b-doc" onchange="loadTimeSlots()">${doctorOptions}</select>
         </div>
-        <div class="form-group"><label>Date <span class="required">*</span></label>
-          <input type="date" id="b-date" min="${TODAY}" value="${editing?editing.date:''}" onchange="loadTimeSlots()">
+        <div class="form-group"><label>Selected Date <span class="required">*</span></label>
+          <input type="hidden" id="b-date" value="${editing?editing.date:TODAY}">
+          <div class="modern-date-btn" style="cursor:default;justify-content:flex-start"><i class="fa-regular fa-calendar"></i><span id="b-date-label">${fmtDate(editing?editing.date:TODAY)}</span></div>
         </div>
       </div>
+      <div class="form-group full"><label>Choose Appointment Date</label><div class="booking-calendar-wrap"><div id="booking-modern-calendar"></div></div></div>
       <div class="form-group"><label>Available Time Slots</label>
         <div id="slot-grid" class="slot-grid" style="min-height:40px"><span class="text-muted" style="font-size:.78rem">Select a doctor and date to see available slots.</span></div>
         <input type="hidden" id="b-time" value="${editing?editing.time:''}">
@@ -6303,9 +6463,20 @@ function openBookApptModal(apptId=null){
       <button class="btn btn-primary" onclick="saveAppt(${apptId||'null'})">Confirm Booking</button>
     </div>
   </div>`);
+  initModernCalendar('booking-modern-calendar',editing?editing.date:TODAY,TODAY,'chooseBookingDate');
   if(editing)loadTimeSlots();
   onClinicChange();
   checkDentalWarn();
+}
+
+function chooseBookingDate(date){
+  const input=document.getElementById('b-date');
+  const label=document.getElementById('b-date-label');
+  const time=document.getElementById('b-time');
+  if(input)input.value=date;
+  if(label)label.textContent=fmtDate(date);
+  if(time)time.value='';
+  loadTimeSlots();
 }
 
 function onClinicChange(){
