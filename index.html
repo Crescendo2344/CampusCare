@@ -569,6 +569,17 @@ tbody tr:hover td{background:var(--overlay)}
 .msgr-sidebar-header{padding:.9rem 1rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
 .msgr-sidebar-header h3{font-size:.95rem;font-weight:700}
 .msgr-contacts{flex:1;overflow-y:auto;border-top:1px solid var(--line-soft)}
+/* Horizontal people carousel shown at the top of the chat lobby. */
+.msgr-people-wrap{padding:.7rem .7rem .65rem;border-top:1px solid var(--line-soft)}
+.msgr-people-title{display:flex;align-items:center;justify-content:space-between;margin:0 .15rem .55rem;font-size:.74rem;font-weight:700;color:var(--ink-muted)}
+.msgr-people-carousel{display:flex;gap:.7rem;overflow-x:auto;overflow-y:hidden;padding:.1rem .1rem .35rem;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.msgr-people-carousel::-webkit-scrollbar{display:none}
+.msgr-person-card{width:64px;flex:0 0 64px;scroll-snap-align:start;background:none;border:none;padding:0;cursor:pointer;color:var(--ink);text-align:center}
+.msgr-person-card .msgr-avatar-wrap{margin:0 auto .3rem;width:max-content}
+.msgr-person-name{font-size:.68rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.msgr-person-role{font-size:.59rem;color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;margin-top:1px}
+.msgr-person-card:hover .sb-avatar{box-shadow:0 0 0 3px rgba(10,126,168,.14)}
+.msgr-person-card:active{transform:scale(.95)}
 .msgr-contact-item{display:flex;align-items:center;gap:.6rem;padding:.65rem .9rem;cursor:pointer;transition:.12s;border-bottom:1px solid var(--line-soft);position:relative}
 .msgr-contact-item:hover{background:var(--overlay)}
 .msgr-contact-item.active{background:var(--primary-light)}
@@ -622,25 +633,39 @@ tbody tr:hover td{background:var(--overlay)}
 .msgr-send-btn:hover{transform:scale(1.12) rotate(8deg);box-shadow:0 4px 14px rgba(10,126,168,.4)}
 .msgr-send-btn:active{transform:scale(.92)}
 .msgr-pending-attach{padding:.4rem .8rem;display:flex;align-items:center;gap:.5rem;font-size:.78rem;color:var(--ink-muted);border-top:1px solid var(--line)}
+/* Mobile Messenger uses a two-screen flow: chat lobby first, conversation second. */
+.msgr-mobile-back{display:none}
 @media(max-width:768px){
   #auth-page .auth-section{padding:5.6rem .8rem 2.5rem}
   #auth-page-back{top:4.2rem;left:.8rem;padding:.4rem .9rem}
   .auth-box{border-radius:20px;max-height:none}
   #landing-navbar{padding:.7rem 1rem}
   .landing-logo span{display:none}
-  .msgr-shell{flex-direction:column;height:auto;min-height:0}
-  .msgr-sidebar{width:100%;max-height:220px}
-  .msgr-chat{min-height:360px}
-  .msgr-input-bar{flex-wrap:wrap;padding:.55rem;gap:.35rem}
-  .msgr-input-bar input[type=text]{order:1;flex:1 1 calc(100% - 44px);min-width:0;padding:.48rem .75rem}
-  .msgr-send-btn{order:2;width:36px;height:36px}
-  .msgr-input-bar .msgr-icon-btn{order:3;width:32px;height:32px;font-size:14px}
+
+  /* Messenger-style mobile lobby: only the conversation list is shown first. */
+  .msgr-shell{display:block;height:calc(100dvh - var(--header-h) - 2.5rem);min-height:480px;position:relative}
+  .msgr-sidebar{width:100%;height:100%;max-height:none;border-right:none}
+  .msgr-contacts{min-height:0}
+  .msgr-chat{display:none;height:100%;min-height:0}
+  .msgr-shell.mobile-chat-open .msgr-sidebar{display:none}
+  .msgr-shell.mobile-chat-open .msgr-chat{display:flex}
+  .msgr-mobile-back{display:flex;width:34px;height:34px}
+
+  /* Keep the composer on one row so controls never overlap or leave the screen. */
+  .msgr-input-bar{width:100%;flex-wrap:nowrap;padding:.5rem;gap:.3rem}
+  .msgr-input-bar input[type=text]{flex:1 1 auto;min-width:0;padding:.48rem .7rem;font-size:.82rem}
+  .msgr-input-bar .msgr-icon-btn{width:30px;height:30px;font-size:13px}
+  .msgr-send-btn{width:34px;height:34px}
+  .msgr-messages{padding:.75rem}
+  .msgr-bubble-row{max-width:84%}
 }
 @media(max-width:420px){
-  .msgr-input-bar{padding:.45rem;gap:.3rem}
-  .msgr-input-bar input[type=text]{flex-basis:calc(100% - 41px);font-size:.8rem}
-  .msgr-send-btn{width:34px;height:34px}
-  .msgr-input-bar .msgr-icon-btn{width:30px;height:30px}
+  .msgr-shell{height:calc(100dvh - var(--header-h) - 2rem);border-radius:14px}
+  .msgr-sidebar-header{padding:.75rem .8rem}
+  .msgr-input-bar{padding:.42rem;gap:.22rem}
+  .msgr-input-bar .msgr-icon-btn{width:28px;height:28px;font-size:12px}
+  .msgr-input-bar input[type=text]{padding:.45rem .6rem;font-size:.78rem}
+  .msgr-send-btn{width:32px;height:32px}
 }
 
 #sidebar-backdrop{display:none}
@@ -4416,6 +4441,19 @@ function getAllMessagePeople(){
   return [...staffDocAdmin,...patientList];
 }
 
+function renderPeopleCarousel(){
+  const el=document.getElementById('msgr-people-carousel');
+  if(!el)return;
+
+  // Show every user this account is allowed to message in a compact horizontal row.
+  const people=getAllMessagePeople();
+  el.innerHTML=people.length?people.map(p=>`<button class="msgr-person-card" onclick="openConversation(${p.id})" title="Message ${escapeHtml(docName(p.user))}">
+    ${msgrAvatarHtml(p.user,46)}
+    <span class="msgr-person-name">${escapeHtml(p.user.fname)}</span>
+    <span class="msgr-person-role">${escapeHtml(p.user.role==='Doctor'?(p.user.specialty||'Doctor'):p.user.role)}</span>
+  </button>`).join(''):'<span class="text-muted">No people available.</span>';
+}
+
 function renderContactList(){
   const el=document.getElementById('msgr-contacts');
   if(!el)return;
@@ -4447,8 +4485,13 @@ function renderMessages(){
   startPresenceSimulation();
   const c=document.getElementById('app-content');
   const contacts=getMessageContacts();
+
+  // On phones, always open Messages at the chat lobby instead of jumping
+  // directly into the first conversation like the desktop split view does.
+  if(window.matchMedia('(max-width:768px)').matches)activeConversationId=null;
+
   c.innerHTML=`
-    <div class="msgr-shell">
+    <div class="msgr-shell" id="msgr-shell">
       <div class="msgr-sidebar">
         <div class="msgr-sidebar-header">
           <h3>💬 Chats</h3>
@@ -4460,6 +4503,10 @@ function renderMessages(){
         <div style="padding:.6rem .7rem .7rem">
           <input type="text" id="msgr-search" placeholder="Search people..." oninput="renderContactList()" style="width:100%;padding:.42rem .8rem;border:1px solid var(--line);border-radius:20px;font-size:.8rem;background:var(--overlay);backdrop-filter:blur(6px);color:var(--ink)">
         </div>
+        <div class="msgr-people-wrap">
+          <div class="msgr-people-title"><span>People</span><span style="font-weight:500">Swipe to browse</span></div>
+          <div class="msgr-people-carousel" id="msgr-people-carousel"></div>
+        </div>
         <div class="msgr-contacts" id="msgr-contacts">
           ${contacts.length?contacts.map(contactItemHtml).join(''):'<div class="empty-state"><p>No conversations yet.<br>Start one with the ✏️ button.</p></div>'}
         </div>
@@ -4468,11 +4515,19 @@ function renderMessages(){
         <div class="empty-state" style="margin-top:4rem"><p>👋 Select a conversation, or start a new one.</p></div>
       </div>
     </div>`;
-  if(contacts.length)openConversation(contacts[0].id);
+  // Fill the lobby's people carousel after its HTML has been added to the page.
+  renderPeopleCarousel();
+
+  // Desktop keeps the convenient split-view behavior; mobile stays on the lobby.
+  if(contacts.length&&!window.matchMedia('(max-width:768px)').matches)openConversation(contacts[0].id);
 }
 
 function openConversation(userId){
   activeConversationId=userId;
+  const shell=document.getElementById('msgr-shell');
+
+  // On mobile, opening a conversation swaps the lobby for the chat screen.
+  if(shell&&window.matchMedia('(max-width:768px)').matches) shell.classList.add('mobile-chat-open');
   const user=getUserById(userId);
   if(!user)return;
   DB.messages.forEach(m=>{if(m.fromUserId===userId&&m.toUserId===currentUser.id)m.isRead=true;});
@@ -4482,7 +4537,9 @@ function openConversation(userId){
   const status=getPresence(userId);
   chat.innerHTML=`
     <div class="msgr-chat-header">
-      <div style="cursor:pointer;display:flex;align-items:center;gap:.65rem" onclick="openContactInfo(${userId})" title="View contact info">
+      <!-- Mobile-only back button returns to the Messenger-style chat lobby. -->
+      <button class="msgr-icon-btn msgr-mobile-back" onclick="backToMessageLobby()" title="Back to chats">←</button>
+      <div style="cursor:pointer;display:flex;align-items:center;gap:.65rem;min-width:0" onclick="openContactInfo(${userId})" title="View contact info">
         ${msgrAvatarHtml(user,38)}
         <div>
           <div class="msgr-chat-header-name">${escapeHtml(docName(user))}</div>
@@ -4504,6 +4561,29 @@ function openConversation(userId){
     </div>`;
   renderChatMessages(userId);
 }
+
+// Return to the mobile chat lobby without leaving the Messages page.
+function backToMessageLobby(){
+  const shell=document.getElementById('msgr-shell');
+  if(!shell)return;
+  shell.classList.remove('mobile-chat-open');
+  activeConversationId=null;
+  renderContactList();
+  const contacts=document.getElementById('msgr-contacts');
+  if(contacts)contacts.scrollTop=0;
+}
+
+// Keep the correct Messenger layout if the browser is resized or rotated.
+function syncMessengerMobileLayout(){
+  const shell=document.getElementById('msgr-shell');
+  if(!shell)return;
+  if(window.matchMedia('(max-width:768px)').matches){
+    shell.classList.toggle('mobile-chat-open',!!activeConversationId);
+  }else{
+    shell.classList.remove('mobile-chat-open');
+  }
+}
+window.addEventListener('resize',syncMessengerMobileLayout);
 
 // ================================================================
 // CONTACT INFO — profile + shared media/files/links history
