@@ -412,6 +412,15 @@ select option{background:#1c2128;color:#e9edf0}
 .badge-teal{background:var(--teal-bg);color:var(--teal)}
 .badge-coral{background:var(--coral-bg);color:var(--coral)}
 
+
+.appt-range-filter{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap}
+.appt-range-filter .modern-date-btn{width:min(100%,360px);justify-content:flex-start}
+.patient-combobox{position:relative}.patient-combobox input{width:100%}
+.patient-combobox-list{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:10050;display:none;max-height:220px;overflow:auto;background:#fff;border:1px solid #d6dde3;border-radius:10px;box-shadow:0 12px 28px rgba(10,20,35,.26)}
+[data-theme="dark"] .patient-combobox-list{background:#1d242c;border-color:#39434d;box-shadow:0 14px 32px rgba(0,0,0,.55)}
+.patient-combobox-list.show{display:block}.patient-combobox-option{display:block;width:100%;text-align:left;padding:.55rem .7rem;border:0;border-bottom:1px solid var(--line-soft);background:transparent;color:var(--ink);cursor:pointer}.patient-combobox-option:hover{background:var(--overlay-strong)}
+.dashboard-a-stat.clickable,.dashboard-attn-item.clickable{cursor:pointer}.dashboard-a-stat.clickable:focus-visible,.dashboard-attn-item.clickable:focus-visible{outline:2px solid var(--primary-mid);outline-offset:2px}.dashboard-attn-item.clickable:hover{background:var(--overlay)}
+
 /* ===TABLES=== */
 .table-wrap{overflow-x:auto;border-radius:12px}
 .cert-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-width:thin;overscroll-behavior-x:contain}.cert-table-wrap table{min-width:720px}.cert-swipe-hint{display:none;font-size:.68rem;color:var(--ink-muted);margin:.15rem 0 .55rem;align-items:center;gap:.3rem}.cert-table-wrap::-webkit-scrollbar{height:6px}.cert-table-wrap::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:999px}@media(max-width:768px){.cert-swipe-hint{display:flex}.cert-table-wrap{margin-left:-.15rem;margin-right:-.15rem;padding-bottom:.25rem}.cert-table-wrap table{min-width:700px}}
@@ -532,6 +541,12 @@ tbody tr:hover td{background:var(--overlay)}
 .modern-calendar-title select{height:32px;border:1px solid var(--line);border-radius:9px;background:var(--overlay);color:var(--ink);font:inherit;font-size:.76rem;font-weight:700;padding:.2rem .45rem;cursor:pointer}
 .dashboard-range-picker{max-width:430px;margin:0 auto}.dashboard-range-summary{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:.6rem;margin-bottom:.8rem}.dashboard-range-value{padding:.65rem .75rem;border:1px solid var(--line);border-radius:12px;background:var(--overlay);min-width:0}.dashboard-range-value span{display:block;font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.45px;color:var(--ink-muted);margin-bottom:.18rem}.dashboard-range-value strong{display:block;font-size:.78rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dashboard-range-arrow{color:var(--ink-muted);font-size:.9rem}.dashboard-range-step{font-size:.72rem;color:var(--ink-muted);text-align:center;margin:.1rem 0 .65rem}.modern-calendar-day.in-range{background:rgba(10,126,168,.11);border-radius:8px}.modern-calendar-day.range-start,.modern-calendar-day.range-end{background:linear-gradient(150deg,var(--primary-mid),var(--primary-dark));color:#fff;font-weight:800;box-shadow:0 5px 14px rgba(10,126,168,.3)}.modern-calendar-day.range-start.has-appt::after,.modern-calendar-day.range-end.has-appt::after{background:#fff}@media(max-width:520px){.dashboard-range-summary{gap:.35rem}.dashboard-range-value{padding:.55rem}.dashboard-range-value strong{font-size:.7rem}}
 .modern-calendar-nav{width:34px;height:34px;border-radius:10px;border:1px solid var(--glass-border-soft);background:var(--overlay);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s ease}
+.campus-date-field{display:flex;align-items:center;gap:.45rem;min-height:34px}
+.campus-date-field .modern-date-btn{width:100%;justify-content:flex-start}
+.report-range-control{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:.55rem}
+.report-range-control .dashboard-range-value{cursor:pointer}
+@media(max-width:620px){.report-range-control{grid-template-columns:1fr}.report-range-arrow{display:none}}
+
 .modern-calendar-nav:hover{background:var(--overlay-strong);transform:scale(1.05)}
 .modern-calendar-weekdays,.modern-calendar-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
 .modern-calendar-weekdays span{text-align:center;font-size:.64rem;font-weight:700;color:var(--ink-muted);padding:.25rem 0;text-transform:uppercase;letter-spacing:.3px}
@@ -766,6 +781,26 @@ tbody tr:hover td{background:var(--overlay)}
   #sidebar-backdrop.show{display:block;position:fixed;inset:0;background:rgba(5,15,25,.35);backdrop-filter:blur(3px);z-index:99}
   #back-to-top{bottom:1rem;right:1rem}
 }
+
+
+/* ===MEDICAL CERTIFICATE DOCUMENT EDITOR=== */
+/* A responsive A4-style editor that behaves like a lightweight word processor. */
+.cert-editor-shell{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:1rem;align-items:start}
+.cert-word-toolbar{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;padding:.55rem;background:var(--glass-surface-soft);border:1px solid var(--glass-border-soft);border-radius:12px;margin-bottom:.75rem;position:sticky;top:0;z-index:5;backdrop-filter:blur(16px)}
+.cert-word-toolbar button,.cert-word-toolbar select{height:32px;min-width:32px;border:1px solid var(--line);border-radius:8px;background:var(--overlay);color:var(--ink);cursor:pointer;padding:.25rem .55rem;font:inherit}
+.cert-word-toolbar button:hover,.cert-word-toolbar select:hover{background:var(--overlay-strong)}
+.cert-word-toolbar .toolbar-sep{width:1px;height:24px;background:var(--line);margin:0 .1rem}
+.cert-page-wrap{background:rgba(40,50,60,.08);padding:1rem;border-radius:14px;overflow:auto;max-height:70vh}
+.cert-paper{width:min(100%,794px);min-height:1010px;margin:0 auto;background:#fff;color:#111;padding:56px 64px;box-shadow:0 8px 28px rgba(0,0,0,.18);font-family:"Times New Roman",Times,serif;font-size:16px;line-height:1.55;outline:none}
+.cert-paper:focus{box-shadow:0 8px 28px rgba(0,0,0,.18),0 0 0 2px rgba(58,168,216,.35)}
+.cert-paper .cert-center{text-align:center}.cert-paper .cert-rule{border:0;border-top:2px solid #222;margin:12px 0 28px}.cert-paper .cert-title{font-size:24px;font-weight:700;text-align:center;letter-spacing:.3px;margin:0 0 22px}
+.cert-paper .cert-meta{display:flex;justify-content:space-between;gap:1rem;font-size:14px;margin-bottom:28px}.cert-paper p{margin:0 0 18px}
+.cert-paper .cert-signature-area{width:280px;margin:46px 0 0 auto;text-align:center}.cert-paper .cert-signature-area img{display:block;max-width:210px;max-height:80px;object-fit:contain;margin:0 auto -6px}.cert-paper .cert-sign-line{border-top:1px solid #111;padding-top:5px}
+.cert-paper [data-cert-field]{padding:1px 2px;border-radius:3px}.cert-paper [data-cert-field]:hover{background:#fff8d9}
+.cert-side-panel{display:flex;flex-direction:column;gap:.75rem}.cert-sign-pad{border:1px dashed var(--line);border-radius:12px;background:#fff;overflow:hidden;touch-action:none}.cert-sign-pad canvas{display:block;width:100%;height:140px;cursor:crosshair;touch-action:none}
+.cert-sign-actions{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem}.cert-sign-preview{min-height:72px;border:1px solid var(--line);border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;padding:.4rem}.cert-sign-preview img{max-width:100%;max-height:64px;object-fit:contain}.cert-autofill-note{font-size:.74rem;color:var(--ink-muted);line-height:1.45}
+@media(max-width:980px){.cert-editor-shell{grid-template-columns:1fr}.cert-page-wrap{max-height:none}.cert-side-panel{order:-1}.cert-paper{min-width:680px}}
+@media(max-width:720px){.cert-page-wrap{padding:.5rem}.cert-paper{min-width:620px;padding:40px 44px}.cert-word-toolbar{position:static}.cert-editor-shell{display:block}.cert-side-panel{margin-bottom:1rem}}
 
 /* ===PRINT=== */
 @media print{
@@ -1095,8 +1130,10 @@ tbody tr:hover td{background:var(--overlay)}
       </div>
       <div class="form-group"><label>Student/Employee ID No.</label><input id="r-idno" type="text" placeholder="e.g. 2021-00001" oninput="sanitizeInput(this,'idno')"></div>
       <div class="form-row">
-        <div class="form-group"><label>Date of Birth <span class="required">*</span></label><input id="r-dob" type="date"></div>
-        <script>document.getElementById('r-dob').max=new Date().toISOString().split('T')[0];</script>
+        <div class="form-group"><label>Date of Birth <span class="required">*</span></label>
+          <input type="hidden" id="r-dob" value="">
+          <div class="campus-date-field"><button type="button" class="modern-date-btn" onclick="openCampusDatePicker('r-dob','Select Date of Birth','',TODAY,'')"><i class="fa-regular fa-calendar"></i><span id="r-dob-label">Select date</span></button></div>
+        </div>
         <div class="form-group"><label>Sex <span class="required">*</span></label>
           <select id="r-sex">
             <option value="">Select</option>
@@ -1705,16 +1742,16 @@ async function openCamera(target){
     toast('Your browser does not support camera capture. Please upload a photo instead.','error');
     return;
   }
-  const isFrontFacing = target==='selfie'||target==='account';
+  const isFrontFacing = target==='selfie'||target==='account'||target==='assisted-profile';
   try{
     const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:isFrontFacing?'user':'environment'},audio:false});
     _cameraStream=stream;
     openModal(`<div class="modal modal-sm">
-      <div class="modal-header"><h3>${target==='id'?'Photograph Your ID':'Take a Photo'}</h3><button class="close-btn" onclick="stopCamera();closeAllModals()">✕</button></div>
+      <div class="modal-header"><h3>${target==='id'||target==='assisted-id'?'Photograph Your ID / COR':'Take a Photo'}</h3><button class="close-btn" onclick="stopCamera();closeAllModals()">✕</button></div>
       <div class="modal-body" style="text-align:center">
         <video id="camera-video" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;transform:${isFrontFacing?'scaleX(-1)':'none'}"></video>
         <canvas id="camera-canvas" style="display:none"></canvas>
-        <p class="form-note" style="margin-top:.6rem">Center your ${target==='id'?'ID':'face'} in the frame, then capture.</p>
+        <p class="form-note" style="margin-top:.6rem">Center your ${target==='id'||target==='assisted-id'?'ID / COR':'face'} in the frame, then capture.</p>
       </div>
       <div class="modal-footer"><button class="btn" onclick="stopCamera();closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="captureCameraPhoto('${target}')">📸 Capture</button></div>
     </div>`);
@@ -1733,7 +1770,7 @@ function captureCameraPhoto(target){
   const video=document.getElementById('camera-video');
   const canvas=document.getElementById('camera-canvas');
   if(!video||!canvas)return;
-  const isFrontFacing = target==='selfie'||target==='account';
+  const isFrontFacing = target==='selfie'||target==='account'||target==='assisted-profile';
   canvas.width=video.videoWidth||480;
   canvas.height=video.videoHeight||360;
   const ctx=canvas.getContext('2d');
@@ -1773,6 +1810,18 @@ function captureCameraPhoto(target){
       const preview=document.getElementById('art-photo-preview');
       if(preview)preview.innerHTML=`<img src="${resized}" style="width:100%;height:100%;object-fit:cover">`;
       toast('Photo captured.','success');
+    });
+  }else if(target==='assisted-profile'){
+    resizeImageDataUrl(dataUrl,500,0.86).then(resized=>{
+      assistedProfile=resized;
+      openPatientModal();
+      toast('Profile photo captured.','success');
+    });
+  }else if(target==='assisted-id'){
+    resizeImageDataUrl(dataUrl,1000,0.88).then(resized=>{
+      assistedIdCor=resized;
+      openPatientModal();
+      toast('ID / COR photo captured.','success');
     });
   }else{
     capturedIdDataUrl=dataUrl;
@@ -3393,12 +3442,22 @@ function dashboardTrendSvg(points,label='Visits',chartType=dashboardChartType){
   return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)} for ${esc(dashboardRangeLabel())}">${grid}${marks}</svg>`;
 }
 
-function dashboardStatCard(label,value,meta,values,icon='•',tone=''){
-  return `<div class="dashboard-a-stat ${tone}"><div class="das-top"><div class="das-label">${label}</div><div class="das-icon">${icon}</div></div><div class="das-value">${value}</div><div class="das-meta">${meta||'&nbsp;'}</div>${dashboardSparkline(values)}</div>`;
+function dashboardTarget(text=''){
+  const s=String(text).toLowerCase(),r=currentUser?.role;
+  if(s.includes('message')||s.includes('chat'))return 'messages';
+  if(s.includes('certificate'))return r==='Patient'?'my-certificates':'cert-requests';
+  if(s.includes('approval')||s.includes('registration'))return 'approvals';
+  if(s.includes('stock')||s.includes('inventory'))return 'inventory';
+  if(s.includes('patient'))return r==='Doctor'?'my-patients':'patients';
+  if(s.includes('appointment')||s.includes('scheduled')||s.includes('visit')||s.includes('dental'))return r==='Patient'?'my-appointments':'appointments';
+  if(s.includes('reminder'))return r==='Patient'?'my-records':'treatments';
+  return '';
 }
-
+function dashboardStatCard(label,value,meta,values,icon='•',tone=''){
+  const target=dashboardTarget(label+' '+(meta||''));return `<div class="dashboard-a-stat ${tone} ${target?'clickable':''}" ${target?`role="button" tabindex="0" onclick="navTo('${target}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navTo('${target}')}"`:''}><div class="das-top"><div class="das-label">${label}</div><div class="das-icon">${icon}</div></div><div class="das-value">${value}</div><div class="das-meta">${meta||'&nbsp;'}</div>${dashboardSparkline(values)}</div>`;
+}
 function dashboardAttentionItem(title,detail,tone=''){
-  return `<div class="dashboard-attn-item"><span class="dashboard-attn-dot ${tone}"></span><div class="dashboard-attn-copy"><strong>${title}</strong><span>${detail}</span></div></div>`;
+  const target=dashboardTarget(title+' '+detail);return `<div class="dashboard-attn-item ${target?'clickable':''}" ${target?`role="button" tabindex="0" onclick="navTo('${target}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navTo('${target}')}"`:''}><span class="dashboard-attn-dot ${tone}"></span><div class="dashboard-attn-copy"><strong>${title}</strong><span>${detail}</span></div></div>`;
 }
 
 // Mobile-only dashboard shortcuts. Each role gets the pages it is most likely to need.
@@ -3850,7 +3909,7 @@ function openScheduleChangeRequest(){
           ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer"><input type="checkbox" class="scr-day" value="${d}" ${(u.workDays||[]).includes(d)?'checked':''}> ${d}</label>`).join('')}
         </div>
       </div>
-      <div class="form-group"><label>Effective Date <span class="required">*</span></label><input type="date" id="scr-effective" min="${TODAY}" value="${TODAY}"><p class="form-note">The date your new schedule should start applying, once approved.</p></div>
+      <div class="form-group"><label>Effective Date <span class="required">*</span></label>${campusDateFieldHtml('scr-effective',TODAY,'Select Effective Date',TODAY)}<p class="form-note">The date your new schedule should start applying, once approved.</p></div>
       <div class="form-group"><label>Reason</label><textarea id="scr-reason" rows="2" placeholder="e.g. Requesting a later start time due to a morning clinic elsewhere"></textarea></div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="submitScheduleChangeRequest()">Submit Request</button></div>
@@ -4194,7 +4253,7 @@ function renderDoctorSchedule(){
       <p class="form-note" style="margin:-.2rem 0 .8rem">Days off need administrator approval before they block bookings. Submit a request below.</p>
       <div id="leave-msg"></div>
       <div class="form-row" style="align-items:flex-end">
-        <div class="form-group"><label>Date</label><input type="date" id="leave-date" min="${TODAY}"></div>
+        <div class="form-group"><label>Date</label>${campusDateFieldHtml('leave-date','','Select Day Off',TODAY)}</div>
         <div class="form-group"><label>Reason (optional)</label><input type="text" id="leave-reason" placeholder="e.g. Conference, sick leave"></div>
       </div>
       <button class="btn btn-primary btn-sm" onclick="requestDoctorLeave()">Request Day Off</button>
@@ -4369,7 +4428,7 @@ function renderPatients(){
 
 function patientAvatarHtml(pt,size=36){
   const user = pt.userId ? getUserById(pt.userId) : null;
-  const photo = user && user.profilePhoto;
+  const photo = (user && user.profilePhoto) || pt.profilePhoto || '';
   const initials = ((pt.fname[0]||'')+(pt.lname[0]||'')).toUpperCase();
   if(photo){
     return `<img src="${photo}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;cursor:pointer;flex-shrink:0" onclick="event.stopPropagation();showFilePreview('${jsAttrSafe(pt.fname)} ${jsAttrSafe(pt.lname)} - Photo','${photo}')" title="Click to view full size">`;
@@ -4428,7 +4487,7 @@ function renderAppointments(){
         <option value="">All Clinics</option>
         <option>Medical Clinic</option><option>Dental Clinic</option>
       </select>
-      <input type="date" id="appt-date" onchange="renderApptTable()">
+      <div class="appt-range-filter"><input type="hidden" id="appt-date-from"><input type="hidden" id="appt-date-to"><button type="button" class="modern-date-btn" onclick="openApptRangePicker()"><i class="fa-regular fa-calendar"></i><span id="appt-range-label">All dates</span></button></div>
       ${role!=='Doctor'?`<button class="btn btn-primary btn-sm" onclick="openBookApptModal()">+ Book Appointment</button>`:''}
     </div>
     <div class="card"><div id="appt-table"></div></div>`;
@@ -5518,8 +5577,11 @@ function renderReports(){
             <option value="patients">Patients</option>
           </select>
         </div>
-        <div class="form-group"><label>Date From</label><input type="date" id="rpt-from" value="${TODAY.substring(0,7)+'-01'}"></div>
-        <div class="form-group"><label>Date To</label><input type="date" id="rpt-to" value="${TODAY}"></div>
+        <div class="form-group full"><label>Date Range</label>
+          <input type="hidden" id="rpt-from" value="${TODAY.substring(0,7)+'-01'}"><input type="hidden" id="rpt-to" value="${TODAY}">
+          <button type="button" class="modern-date-btn" onclick="openReportDateRange()" style="width:min(100%,420px);justify-content:flex-start"><i class="fa-regular fa-calendar"></i><span id="rpt-range-label">${fmtDate(TODAY.substring(0,7)+'-01')} – ${fmtDate(TODAY)}</span></button>
+          <p class="form-note">Use one calendar: first select Date From, then Date To.</p>
+        </div>
         <div class="form-group"><label>College</label>
           <select id="rpt-college"><option value="">All Colleges</option>${['CCICT','COE','COED','CME','CAS','COT'].map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
         </div>
@@ -6038,10 +6100,10 @@ function renderSettings(){
       </div>
       <div class="card">
         <div class="card-header"><h3>Semester Configuration</h3></div>
-        <div class="form-group"><label>Semester 1 Start</label><input type="date" id="set-s1s" value="${s.semesterStart}"></div>
-        <div class="form-group"><label>Semester 1 End</label><input type="date" id="set-s1e" value="${s.semesterEnd}"></div>
-        <div class="form-group"><label>Semester 2 Start</label><input type="date" id="set-s2s" value="${s.semester2Start}"></div>
-        <div class="form-group"><label>Semester 2 End</label><input type="date" id="set-s2e" value="${s.semester2End}"></div>
+        <div class="form-group"><label>Semester 1 Start</label>${campusDateFieldHtml('set-s1s',s.semesterStart,'Semester 1 Start')}</div>
+        <div class="form-group"><label>Semester 1 End</label>${campusDateFieldHtml('set-s1e',s.semesterEnd,'Semester 1 End')}</div>
+        <div class="form-group"><label>Semester 2 Start</label>${campusDateFieldHtml('set-s2s',s.semester2Start,'Semester 2 Start')}</div>
+        <div class="form-group"><label>Semester 2 End</label>${campusDateFieldHtml('set-s2e',s.semester2End,'Semester 2 End')}</div>
         <button class="btn btn-primary btn-sm" onclick="saveSemSettings()">Save Semester</button>
       </div>
     </div>
@@ -6174,178 +6236,277 @@ function viewCertDecline(id){
 }
 
 // ---- STAFF / DOCTOR / ADMIN WORKFLOW ----
+// Staff/Admin prepare the editable document. The assigned doctor reviews and signs it.
+let certDraftSignature='';
+let certSignatureDrawing=false;
+let certSignatureLastPoint=null;
+
+// Return the newest clinical record for this patient, preferring the selected doctor's own record.
+function getLatestTreatmentForCertificate(patientId,doctorId=null){
+  const byDoctor=DB.treatments.filter(t=>t.patientId===patientId&&(!doctorId||t.doctorId===doctorId));
+  const fallback=DB.treatments.filter(t=>t.patientId===patientId);
+  const list=byDoctor.length?byDoctor:fallback;
+  return list.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||b.id-a.id)[0]||null;
+}
+
+// Build the default certificate text from findings, diagnosis, notes, treatment and follow-up data.
+function certificateAutofillFromTreatment(patientId,doctorId){
+  const t=getLatestTreatmentForCertificate(patientId,doctorId);
+  if(!t)return {findings:'',remarks:'',treatment:null};
+  const findings=[t.findings,t.diagnosis?`Diagnosis: ${t.diagnosis}`:''].filter(Boolean).join(' — ');
+  const remarks=[t.notes,t.prescription?`Prescription / Treatment: ${t.prescription}`:'',t.followupDate?`Follow-up: ${fmtDate(t.followupDate)}`:''].filter(Boolean).join(' ');
+  return {findings,remarks,treatment:t};
+}
+
+// Create the editable A4-like certificate document shown in the browser.
+function buildCertificateDocument(r,doctorId,findings,remarks,signature=''){
+  const pt=getPatientById(r.patientId)||{};
+  const u=getUserById(pt.userId)||{};
+  const doctor=getUserById(doctorId)||{};
+  const fullName=`${u.fname||pt.fname||''} ${u.lname||pt.lname||''}`.trim()||'Patient';
+  const age=pt.age?`, ${pt.age} years old`:'';
+  const gender=(pt.gender||pt.sex)?`, ${pt.gender||pt.sex}`:'';
+  const college=(u.college||pt.college)?`, of ${u.college||pt.college}`:'';
+  const idNo=(u.idNo||pt.idNo)?` (ID No. ${u.idNo||pt.idNo})`:'';
+  const certNo=r.certNo||'To be assigned upon issue';
+  const certDate=r.issuedAt||TODAY;
+  const doctorName=`DR. ${((doctor.fname||'')+' '+(doctor.lname||'')).toUpperCase().trim()}`;
+  return `<div class="cert-center"><div style="font-size:14px">Republic of the Philippines</div><div style="font-size:19px;font-weight:700">CEBU TECHNOLOGICAL UNIVERSITY</div><div>Main Campus</div><div style="font-size:13px">M.J. Cuenco Ave. cor. R. Palma St., Cebu City</div><div style="font-weight:700;margin-top:4px">UNIVERSITY MEDICAL CLINIC</div></div>
+    <hr class="cert-rule">
+    <div class="cert-title">MEDICAL CERTIFICATE</div>
+    <div class="cert-meta"><span>Certificate No.: <strong id="cert-number-display">${escapeHtml(certNo)}</strong></span><span>Date: <strong id="cert-date-display">${escapeHtml(fmtDate(certDate))}</strong></span></div>
+    <p><strong>TO WHOM IT MAY CONCERN:</strong></p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;This is to certify that <strong>${escapeHtml(fullName)}</strong>${escapeHtml(age+gender+college+idNo)}, was seen and examined at the University Medical Clinic, Cebu Technological University – Main Campus.</p>
+    <p><strong>FINDINGS / DIAGNOSIS:</strong> <span id="cert-findings-edit" data-cert-field="findings">${escapeHtml(findings||'')}</span></p>
+    <p><strong>REMARKS / RECOMMENDATIONS:</strong> <span id="cert-remarks-edit" data-cert-field="remarks">${escapeHtml(remarks||'')}</span></p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;This certification is issued upon the request of the above-named patient for <span data-cert-field="purpose">${escapeHtml((r.purpose||'').toLowerCase())}</span> purposes.</p>
+    <div class="cert-signature-area" contenteditable="false">
+      <img id="cert-signature-img" src="${signature||''}" style="${signature?'':'display:none'}" alt="Physician signature">
+      <div class="cert-sign-line"><strong id="cert-doctor-name">${escapeHtml(doctorName)}</strong><br><span>Attending Physician</span><br><span style="font-size:13px">License No. _______________</span></div>
+    </div>
+    <p style="font-size:13px;font-style:italic;margin-top:42px">Not valid without the official clinic seal.</p>`;
+}
+
+function certEditorToolbarHtml(){
+  return `<div class="cert-word-toolbar" aria-label="Document formatting toolbar">
+    <button type="button" title="Bold" onmousedown="event.preventDefault();formatCertDocument('bold')"><strong>B</strong></button>
+    <button type="button" title="Italic" onmousedown="event.preventDefault();formatCertDocument('italic')"><em>I</em></button>
+    <button type="button" title="Underline" onmousedown="event.preventDefault();formatCertDocument('underline')"><u>U</u></button>
+    <span class="toolbar-sep"></span>
+    <button type="button" title="Align left" onmousedown="event.preventDefault();formatCertDocument('justifyLeft')">☰</button>
+    <button type="button" title="Center" onmousedown="event.preventDefault();formatCertDocument('justifyCenter')">≡</button>
+    <button type="button" title="Align right" onmousedown="event.preventDefault();formatCertDocument('justifyRight')">☷</button>
+    <span class="toolbar-sep"></span>
+    <select onchange="formatCertDocument('fontSize',this.value);this.value=''" title="Text size"><option value="">Text size</option><option value="2">Small</option><option value="3">Normal</option><option value="4">Large</option><option value="5">Larger</option></select>
+    <button type="button" title="Undo" onmousedown="event.preventDefault();formatCertDocument('undo')">↶</button>
+    <button type="button" title="Redo" onmousedown="event.preventDefault();formatCertDocument('redo')">↷</button>
+  </div>`;
+}
+
 function renderCertRequests(filter='Pending'){
   const c=document.getElementById('app-content');
-  const canEdit=currentUser.role==='Staff'||currentUser.role==='Administrator';
-  const canSign=currentUser.role==='Doctor'||currentUser.role==='Administrator';
+  const canPrepare=currentUser.role==='Staff'||currentUser.role==='Administrator';
+  const canSign=currentUser.role==='Doctor';
   let all=DB.certRequests.slice().sort((a,b)=>b.id-a.id);
-  if(currentUser.role==='Doctor') all=all.filter(r=>r.doctorId===currentUser.id);
+  if(currentUser.role==='Doctor')all=all.filter(r=>r.doctorId===currentUser.id);
   const list=filter==='all'?all:all.filter(r=>r.status===filter);
   const tabs=['Pending','Awaiting Signature','Issued','Declined','all'];
   c.innerHTML=`<div class="card">
-    <div class="card-header"><div><h3>Medical Certificate Requests</h3><div class="text-muted">${currentUser.role==='Doctor'?'Review and sign certificates assigned to you.':currentUser.role==='Staff'?'Prepare certificate details for doctor signature.':'Administrators can prepare and sign certificates.'}</div></div></div>
+    <div class="card-header"><div><h3>Medical Certificate Requests</h3><div class="text-muted">${currentUser.role==='Doctor'?'Review the prepared document and add your signature.':currentUser.role==='Staff'?'Prepare the certificate document and send it to the assigned doctor.':'Prepare certificates and monitor doctor signatures.'}</div></div></div>
     <div class="tabs">${tabs.map(t=>`<button class="tab ${t===filter?'active':''}" onclick="renderCertRequests('${t}')">${t==='all'?'All':t}</button>`).join('')}</div>
-    ${list.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>Purpose</th><th>Physician</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
-      list.map(r=>{
-        const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null, physician=getUserById(r.doctorId);
-        const editBtn=canEdit&&r.status!=='Issued'&&r.status!=='Declined'?`<button class="btn btn-xs btn-info" onclick="openEditCertModal(${r.id})">✎ Edit</button>`:'';
-        const signAllowed=canSign&&r.status==='Awaiting Signature'&&(currentUser.role==='Administrator'||r.doctorId===currentUser.id);
-        const signBtn=signAllowed?`<button class="btn btn-xs btn-success" onclick="openSignCertModal(${r.id})">✍ Sign</button>`:'';
-        const declineBtn=canEdit&&r.status!=='Issued'&&r.status!=='Declined'?`<button class="btn btn-xs btn-danger" onclick="openDeclineCertModal(${r.id})">Decline</button>`:'';
-        return `<tr><td>#${r.id}</td><td>${u?escapeHtml(u.fname+' '+u.lname):'Unknown'}</td>
-          <td>${escapeHtml(r.purpose)}${r.details?`<div class="text-muted" style="font-size:.72rem">${escapeHtml(r.details)}</div>`:''}</td>
-          <td>${physician?escapeHtml(docName(physician)):'Not assigned'}</td><td>${fmtDate(r.requestedAt)}</td><td>${certStatusBadge(r.status)}</td>
-          <td><div class="td-actions">${editBtn}${signBtn}${declineBtn}${r.status==='Issued'?`<button class="btn btn-xs btn-primary" onclick="downloadCertPdf(${r.id})">⬇ PDF</button>`:''}</div></td></tr>`;
-      }).join('')
-    }</tbody></table></div>`:'<div class="empty-state"><p>No requests found.</p></div>'}
+    ${list.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>Purpose</th><th>Physician</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead><tbody>${list.map(r=>{
+      const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null,physician=getUserById(r.doctorId);
+      const prepareBtn=canPrepare&&(r.status==='Pending'||r.status==='Awaiting Signature'||r.status==='Issued')?`<button class="btn btn-xs btn-info" onclick="openEditCertModal(${r.id})">${r.status==='Issued'?'Edit / Re-sign':'✎ Prepare / Edit'}</button>`:'';
+      const signBtn=canSign&&r.status==='Awaiting Signature'&&r.doctorId===currentUser.id?`<button class="btn btn-xs btn-success" onclick="openSignCertModal(${r.id})">✍ Review & Sign</button>`:'';
+      const declineBtn=canPrepare&&r.status!=='Issued'&&r.status!=='Declined'?`<button class="btn btn-xs btn-danger" onclick="openDeclineCertModal(${r.id})">Decline</button>`:'';
+      return `<tr><td>#${r.id}</td><td>${u?escapeHtml(u.fname+' '+u.lname):'Unknown'}</td><td>${escapeHtml(r.purpose)}${r.details?`<div class="text-muted" style="font-size:.72rem">${escapeHtml(r.details)}</div>`:''}</td><td>${physician?escapeHtml(docName(physician)):'Not assigned'}</td><td>${fmtDate(r.requestedAt)}</td><td>${certStatusBadge(r.status)}</td><td><div class="td-actions">${prepareBtn}${signBtn}${declineBtn}${r.status==='Issued'?`<button class="btn btn-xs btn-primary" onclick="downloadCertPdf(${r.id})">⬇ PDF</button>`:''}</div></td></tr>`;
+    }).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No requests found.</p></div>'}
   </div>`;
 }
+
+// Staff/Admin use this Word-like screen to prepare or revise the document before doctor signing.
 function openEditCertModal(id){
-  if(!(currentUser.role==='Staff'||currentUser.role==='Administrator')){toast('You do not have permission to edit certificates.','error');return;}
-  const r=DB.certRequests.find(x=>x.id===id); if(!r||r.status==='Issued'||r.status==='Declined')return;
-  const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null;
-  openModal(`<div class="modal modal-lg">
-    <div class="modal-header"><div><h3>Prepare Medical Certificate</h3><div class="text-muted">Request #${r.id} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+  if(!(currentUser.role==='Staff'||currentUser.role==='Administrator')){toast('Only staff or administrators can prepare certificates.','error');return;}
+  const r=DB.certRequests.find(x=>x.id===id);if(!r||r.status==='Declined')return;
+  const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null;
+  const latest=getLatestTreatmentForCertificate(r.patientId,r.doctorId||null);
+  const defaultDoctor=r.doctorId||(latest&&latest.doctorId)||(getDoctors()[0]||{}).id;
+  const autofill=certificateAutofillFromTreatment(r.patientId,defaultDoctor);
+  const findings=r.findings||autofill.findings;
+  const remarks=r.recommendations||autofill.remarks;
+  const documentHtml=r.documentHtml||buildCertificateDocument(r,defaultDoctor,findings,remarks,'');
+  openModal(`<div class="modal modal-xl" style="max-width:1180px">
+    <div class="modal-header"><div><h3>${r.status==='Issued'?'Edit Medical Certificate':'Prepare Medical Certificate'}</h3><div class="text-muted">Request #${r.id} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group"><label>Purpose</label><select id="ec-purpose">${CERT_PURPOSES.map(p=>`<option ${p===r.purpose?'selected':''}>${p}</option>`).join('')}</select></div>
-        <div class="form-group"><label>Attending Physician <span class="required">*</span></label><select id="ec-doctor"><option value="">Select physician</option>${getDoctors().map(d=>`<option value="${d.id}" ${d.id===r.doctorId?'selected':''}>${escapeHtml(docName(d))} — ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('')}</select></div>
+      <div class="alert alert-info show" style="font-size:.78rem">Edit the certificate like a document. Findings and remarks are automatically filled from the selected doctor's latest clinical notes when available.</div>
+      <div class="cert-editor-shell">
+        <div>${certEditorToolbarHtml()}<div class="cert-page-wrap"><div class="cert-paper" id="cert-editor" contenteditable="true" spellcheck="true">${documentHtml}</div></div></div>
+        <div class="cert-side-panel">
+          <div class="card" style="margin:0"><div class="card-header"><h3>Certificate Details</h3></div>
+            <div class="form-group"><label>Purpose</label><select id="ec-purpose" onchange="updateCertPurposeText()">${CERT_PURPOSES.map(p=>`<option ${p===r.purpose?'selected':''}>${p}</option>`).join('')}</select></div>
+            <div class="form-group"><label>Attending Physician <span class="required">*</span></label><select id="ec-doctor" onchange="onCertPrepareDoctorChange(${id})"><option value="">Select physician</option>${getDoctors().map(d=>`<option value="${d.id}" ${d.id===defaultDoctor?'selected':''}>${escapeHtml(docName(d))} — ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('')}</select></div>
+            <div class="form-group"><label>Request Details</label><textarea id="ec-details" rows="2">${escapeHtml(r.details||'')}</textarea></div>
+            <p class="cert-autofill-note" id="cert-autofill-note">${autofill.treatment?`Autofilled from clinical notes dated ${fmtDate(autofill.treatment.date)}.`:'No clinical notes were found. The document can be completed manually.'}</p>
+            <button class="btn btn-sm" type="button" onclick="refreshCertAutofill(${id})">↻ Refill from Clinical Notes</button>
+          </div>
+          <div class="card" style="margin:0"><div class="card-header"><h3>Workflow</h3></div><p class="cert-autofill-note">Saving sends this prepared document to the assigned doctor. Only the assigned doctor can add the final signature and issue it.</p></div>
+        </div>
       </div>
-      <div class="form-group"><label>Request Details</label><textarea id="ec-details" rows="2">${escapeHtml(r.details||'')}</textarea></div>
-      <div class="form-group"><label>Examination Findings / Diagnosis <span class="required">*</span></label><textarea id="ec-findings" rows="4" placeholder="Enter the physician's findings or approved certificate wording.">${escapeHtml(r.findings||'')}</textarea></div>
-      <div class="form-group"><label>Remarks / Recommendations</label><textarea id="ec-reco" rows="3" placeholder="e.g. Cleared to return to class on...">${escapeHtml(r.recommendations||'')}</textarea></div>
-      <div class="alert alert-info show" style="font-size:.78rem">Saving sends the prepared certificate to the assigned doctor for signature. You can edit it again until it is signed.</div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="saveCertDraft(${id})">Save &amp; Send for Signature</button></div>
   </div>`);
 }
+
+// Save the editable document exactly as prepared and route it to the assigned doctor.
 function saveCertDraft(id){
-  const r=DB.certRequests.find(x=>x.id===id); if(!r)return;
+  const r=DB.certRequests.find(x=>x.id===id);if(!r)return;
   if(!(currentUser.role==='Staff'||currentUser.role==='Administrator'))return;
   const doctorId=parseInt(document.getElementById('ec-doctor').value);
-  const findings=document.getElementById('ec-findings').value.trim();
+  const editor=document.getElementById('cert-editor');
+  const findings=(document.getElementById('cert-findings-edit')||{}).textContent?.trim()||'';
+  const recommendations=(document.getElementById('cert-remarks-edit')||{}).textContent?.trim()||'';
   if(!doctorId){toast('Please select the attending physician.','error');return;}
-  if(!findings){toast('Please enter the examination findings.','error');return;}
+  if(!findings){toast('Please enter the examination findings / diagnosis in the document.','error');return;}
   r.purpose=document.getElementById('ec-purpose').value;
   r.details=document.getElementById('ec-details').value.trim().slice(0,300);
-  r.doctorId=doctorId;
-  r.findings=findings;
-  r.recommendations=document.getElementById('ec-reco').value.trim();
-  r.status='Awaiting Signature';
-  r.preparedById=currentUser.id;
-  r.preparedAt=new Date().toISOString();
+  r.doctorId=doctorId;r.findings=findings;r.recommendations=recommendations;
+  r.documentHtml=sanitizeCertHtml(editor.innerHTML);
+  r.signatureData='';
+  r.status='Awaiting Signature';r.preparedById=currentUser.id;r.preparedAt=new Date().toISOString();
   addNotif(doctorId,'Certificate Ready for Signature',`Certificate request #${r.id} has been prepared and is waiting for your signature.`,'info');
-  persistDB();
-  closeAllModals();
-  toast('Certificate saved and sent for doctor signature.','success');
-  renderCertRequests('Awaiting Signature');
+  persistDB();closeAllModals();toast('Certificate saved and sent for doctor signature.','success');renderCertRequests('Awaiting Signature');
 }
+
+// The assigned doctor reviews the same Word-like document and can make final wording edits before signing.
 function openSignCertModal(id){
-  const r=DB.certRequests.find(x=>x.id===id); if(!r||r.status!=='Awaiting Signature')return;
-  const isAdmin=currentUser.role==='Administrator';
-  if(!(currentUser.role==='Doctor'||isAdmin) || (!isAdmin&&r.doctorId!==currentUser.id)){toast('This certificate is not assigned to you.','error');return;}
-  const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null, physician=getUserById(r.doctorId);
-  openModal(`<div class="modal modal-lg">
-    <div class="modal-header"><h3>Review &amp; Sign Certificate</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+  const r=DB.certRequests.find(x=>x.id===id);if(!r||r.status!=='Awaiting Signature')return;
+  if(currentUser.role!=='Doctor'||r.doctorId!==currentUser.id){toast('Only the assigned doctor can sign this certificate.','error');return;}
+  const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null,doctor=currentUser;
+  const autofill=certificateAutofillFromTreatment(r.patientId,doctor.id);
+  const documentHtml=r.documentHtml||buildCertificateDocument(r,doctor.id,r.findings||autofill.findings,r.recommendations||autofill.remarks,'');
+  certDraftSignature=r.signatureData||doctor.savedSignature||'';
+  openModal(`<div class="modal modal-xl" style="max-width:1180px">
+    <div class="modal-header"><div><h3>Review &amp; Sign Medical Certificate</h3><div class="text-muted">Request #${r.id} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
-      <div class="alert alert-info show" style="font-size:.78rem">Signing records your account as the approving signatory. This demo uses an electronic approval record, not a cryptographic digital signature.</div>
-      <div class="info-row"><span class="info-label">Patient</span><span class="info-val">${u?escapeHtml(u.fname+' '+u.lname):'Unknown'}</span></div>
-      <div class="info-row"><span class="info-label">Purpose</span><span class="info-val">${escapeHtml(r.purpose)}</span></div>
-      <div class="info-row"><span class="info-label">Attending Physician</span><span class="info-val">${physician?escapeHtml(docName(physician)):'—'}</span></div>
-      <div class="info-row"><span class="info-label">Findings</span><span class="info-val">${escapeHtml(r.findings)}</span></div>
-      <div class="info-row"><span class="info-label">Recommendations</span><span class="info-val">${escapeHtml(r.recommendations||'—')}</span></div>
-      <label style="display:flex;gap:.55rem;align-items:flex-start;margin-top:1rem;font-size:.8rem"><input type="checkbox" id="cert-sign-confirm" style="margin-top:2px"> <span>I reviewed the certificate information and authorize it for release.</span></label>
+      <div class="alert alert-info show" style="font-size:.78rem">Review the document, make any final wording changes, then sign using your mouse, trackpad, touchscreen, uploaded image, pasted image, or saved signature.</div>
+      <input id="ic-doctor" type="hidden" value="${doctor.id}">
+      <div class="cert-editor-shell">
+        <div>${certEditorToolbarHtml()}<div class="cert-page-wrap"><div class="cert-paper" id="cert-editor" contenteditable="true" spellcheck="true">${documentHtml}</div></div></div>
+        <div class="cert-side-panel">
+          <div class="card" style="margin:0"><div class="card-header"><h3>Physician Signature</h3></div>
+            <div class="cert-sign-pad"><canvas id="cert-sign-canvas" width="900" height="280" aria-label="Draw physician signature"></canvas></div>
+            <div class="cert-sign-actions">
+              <button class="btn btn-xs" type="button" onclick="clearCertSignature()">Clear</button>
+              <button class="btn btn-xs" type="button" onclick="document.getElementById('cert-sign-upload').click()">Upload</button>
+              <button class="btn btn-xs" type="button" onclick="pasteCertSignatureFromClipboard()">Paste</button>
+              <button class="btn btn-xs btn-info" type="button" onclick="useSavedDoctorSignature()" ${doctor.savedSignature?'':'disabled'}>Use Saved</button>
+              <input id="cert-sign-upload" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="uploadCertSignature(this)">
+            </div>
+            <div class="cert-sign-preview" style="margin-top:.55rem"><img id="cert-sign-preview-img" src="${certDraftSignature||''}" style="${certDraftSignature?'':'display:none'}" alt="Signature preview"><span id="cert-sign-empty" class="text-muted" style="${certDraftSignature?'display:none':''}">Draw, upload, paste, or use your saved signature.</span></div>
+            <label style="display:flex;gap:.45rem;align-items:flex-start;margin-top:.6rem;font-size:.76rem;color:var(--ink-muted)"><input type="checkbox" id="cert-save-signature"> <span>Save this signature to my doctor profile for future document signing.</span></label>
+          </div>
+          <div class="card" style="margin:0"><div class="card-header"><h3>Clinical Source</h3></div><p class="cert-autofill-note">${autofill.treatment?`Latest matching clinical note: ${fmtDate(autofill.treatment.date)}.`:'No matching clinical note found.'}</p><button class="btn btn-sm" type="button" onclick="refreshCertAutofill(${id})">↻ Refill from My Clinical Notes</button></div>
+        </div>
+      </div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-success" onclick="signCert(${id})">✍ Sign &amp; Issue</button></div>
   </div>`);
-}
-function signCert(id){
-  const r=DB.certRequests.find(x=>x.id===id); if(!r||r.status!=='Awaiting Signature')return;
-  const isAdmin=currentUser.role==='Administrator';
-  if(!(currentUser.role==='Doctor'||isAdmin) || (!isAdmin&&r.doctorId!==currentUser.id))return;
-  if(!document.getElementById('cert-sign-confirm').checked){toast('Please confirm that you reviewed the certificate.','warning');return;}
-  r.status='Issued';
-  r.certNo=r.certNo||genId('CTU-MC',r.id);
-  r.issuedAt=TODAY;
-  r.issuedById=currentUser.id;
-  r.signedById=currentUser.id;
-  r.signedAt=new Date().toISOString();
-  const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null;
-  if(u)addNotif(u.id,'Medical Certificate Ready',`Your certificate (${r.certNo}) has been signed and issued. Download it from Medical Certificates.`,'success');
-  persistDB();
-  closeAllModals();
-  toast(`Certificate ${r.certNo} signed and issued.`,'success');
-  renderCertRequests('Issued');
-}
-function openDeclineCertModal(id){
-  if(!(currentUser.role==='Staff'||currentUser.role==='Administrator')){toast('Only staff or administrators can decline requests.','error');return;}
-  openModal(`<div class="modal">
-    <div class="modal-header"><h3>Decline Request</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
-    <div class="modal-body">
-      <div class="form-group"><label>Reason (shown to the patient)</label><textarea id="dc-reason" rows="3" placeholder="e.g. No clinic consultation on record for the stated dates."></textarea></div>
-      <button class="btn btn-danger" style="width:100%" onclick="declineCert(${id})">Decline Request</button>
-    </div></div>`);
-}
-function declineCert(id){
-  const r=DB.certRequests.find(x=>x.id===id); if(!r)return;
-  if(!(currentUser.role==='Staff'||currentUser.role==='Administrator'))return;
-  const reason=document.getElementById('dc-reason').value.trim();
-  if(!reason){toast('Please provide a reason.','error');return;}
-  r.status='Declined'; r.declineReason=reason;
-  const pt=getPatientById(r.patientId), u=pt?getUserById(pt.userId):null;
-  if(u)addNotif(u.id,'Certificate Request Declined',reason,'error');
-  persistDB();
-  closeAllModals();
-  toast('Request declined.','info');
-  renderCertRequests('Pending');
+  setTimeout(()=>{initCertSignaturePad();setCertSignaturePreview(certDraftSignature);},0);
 }
 
-// ---- PDF (standard PH school-clinic format) ----
+// Lightweight document formatting commands for the editable certificate page.
+function formatCertDocument(command,value=null){
+  const editor=document.getElementById('cert-editor');if(editor)editor.focus();
+  document.execCommand(command,false,value);
+}
+
+function updateCertPurposeText(){
+  const purpose=document.getElementById('ec-purpose')?.value||'';
+  const el=document.querySelector('[data-cert-field="purpose"]');if(el)el.textContent=purpose.toLowerCase();
+}
+
+// Refill only the clinical fields so manually edited header/body formatting is preserved.
+function refreshCertAutofill(id){
+  const r=DB.certRequests.find(x=>x.id===id);if(!r)return;
+  const doctorId=parseInt((document.getElementById('ec-doctor')||document.getElementById('ic-doctor')).value);
+  const data=certificateAutofillFromTreatment(r.patientId,doctorId);
+  const f=document.getElementById('cert-findings-edit'),m=document.getElementById('cert-remarks-edit');
+  if(f)f.textContent=data.findings||'';if(m)m.textContent=data.remarks||'';
+  const note=document.getElementById('cert-autofill-note');if(note)note.textContent=data.treatment?`Autofilled from clinical notes dated ${fmtDate(data.treatment.date)}.`:'No matching clinical notes were found for this patient and doctor.';
+}
+
+function onCertPrepareDoctorChange(id){
+  const doctorId=parseInt(document.getElementById('ec-doctor').value);const doctor=getUserById(doctorId)||{};
+  const name=document.getElementById('cert-doctor-name');if(name)name.textContent=`DR. ${((doctor.fname||'')+' '+(doctor.lname||'')).toUpperCase().trim()}`;
+  refreshCertAutofill(id);
+}
+
+// Canvas pointer events support mouse, trackpad, touchscreen and stylus input.
+function initCertSignaturePad(){
+  const canvas=document.getElementById('cert-sign-canvas');if(!canvas)return;
+  const ctx=canvas.getContext('2d');ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#111';
+  const point=e=>{const box=canvas.getBoundingClientRect();return{x:(e.clientX-box.left)*(canvas.width/box.width),y:(e.clientY-box.top)*(canvas.height/box.height)}};
+  canvas.addEventListener('pointerdown',e=>{certSignatureDrawing=true;certSignatureLastPoint=point(e);canvas.setPointerCapture(e.pointerId)});
+  canvas.addEventListener('pointermove',e=>{if(!certSignatureDrawing)return;const p=point(e);ctx.beginPath();ctx.moveTo(certSignatureLastPoint.x,certSignatureLastPoint.y);ctx.lineTo(p.x,p.y);ctx.stroke();certSignatureLastPoint=p});
+  const finish=()=>{if(!certSignatureDrawing)return;certSignatureDrawing=false;setCertSignaturePreview(canvas.toDataURL('image/png'))};
+  canvas.addEventListener('pointerup',finish);canvas.addEventListener('pointercancel',finish);canvas.addEventListener('pointerleave',finish);
+}
+
+function setCertSignaturePreview(data){
+  certDraftSignature=data||'';
+  const preview=document.getElementById('cert-sign-preview-img'),empty=document.getElementById('cert-sign-empty'),docImg=document.getElementById('cert-signature-img');
+  if(preview){preview.src=certDraftSignature;preview.style.display=certDraftSignature?'block':'none'}
+  if(empty)empty.style.display=certDraftSignature?'none':'inline';
+  if(docImg){docImg.src=certDraftSignature;docImg.style.display=certDraftSignature?'block':'none'}
+}
+function clearCertSignature(){const c=document.getElementById('cert-sign-canvas');if(c)c.getContext('2d').clearRect(0,0,c.width,c.height);setCertSignaturePreview('')}
+function uploadCertSignature(input){const file=input.files&&input.files[0];if(!file)return;if(!file.type.startsWith('image/')){toast('Please choose an image file for the signature.','error');return}const reader=new FileReader();reader.onload=()=>setCertSignaturePreview(reader.result);reader.readAsDataURL(file)}
+async function pasteCertSignatureFromClipboard(){try{if(!navigator.clipboard||!navigator.clipboard.read)throw new Error('Clipboard image access unavailable');const items=await navigator.clipboard.read();for(const item of items){const type=item.types.find(t=>t.startsWith('image/'));if(!type)continue;const blob=await item.getType(type);const reader=new FileReader();reader.onload=()=>setCertSignaturePreview(reader.result);reader.readAsDataURL(blob);return}toast('No image was found in the clipboard.','warning')}catch(e){toast('Clipboard image access was blocked. Use Upload instead.','warning')}}
+function useSavedDoctorSignature(){const doctor=getUserById(parseInt(document.getElementById('ic-doctor').value));if(!doctor||!doctor.savedSignature){toast('You do not have a saved signature yet.','warning');return}setCertSignaturePreview(doctor.savedSignature)}
+
+// Remove executable HTML before saving the editable document into local data.
+function sanitizeCertHtml(html){
+  const box=document.createElement('div');box.innerHTML=html;
+  box.querySelectorAll('script,style,iframe,object,embed').forEach(n=>n.remove());
+  box.querySelectorAll('*').forEach(el=>[...el.attributes].forEach(a=>{if(/^on/i.test(a.name))el.removeAttribute(a.name)}));
+  return box.innerHTML;
+}
+
+// Final doctor signing stores the document and optional reusable signature, then releases it to the patient.
+function signCert(id){
+  const r=DB.certRequests.find(x=>x.id===id);if(!r||r.status!=='Awaiting Signature')return;
+  if(currentUser.role!=='Doctor'||r.doctorId!==currentUser.id){toast('Only the assigned doctor can sign this certificate.','error');return;}
+  const editor=document.getElementById('cert-editor');
+  const findings=(document.getElementById('cert-findings-edit')||{}).textContent?.trim()||'';
+  const recommendations=(document.getElementById('cert-remarks-edit')||{}).textContent?.trim()||'';
+  if(!findings){toast('The certificate needs examination findings / diagnosis.','error');return;}
+  if(!certDraftSignature){toast('Please add your signature before issuing the certificate.','error');return;}
+  if(!r.certNo)r.certNo=genId('CTU-MC',r.id);if(!r.issuedAt)r.issuedAt=TODAY;
+  const noEl=document.getElementById('cert-number-display');if(noEl)noEl.textContent=r.certNo;
+  const dateEl=document.getElementById('cert-date-display');if(dateEl)dateEl.textContent=fmtDate(r.issuedAt);
+  r.findings=findings;r.recommendations=recommendations;r.signatureData=certDraftSignature;r.documentHtml=sanitizeCertHtml(editor.innerHTML);
+  r.status='Issued';r.issuedById=currentUser.id;r.signedById=currentUser.id;r.signedAt=new Date().toISOString();r.updatedAt=new Date().toLocaleString();
+  if(document.getElementById('cert-save-signature')?.checked)currentUser.savedSignature=certDraftSignature;
+  const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null;
+  if(u)addNotif(u.id,'Medical Certificate Ready',`Your certificate (${r.certNo}) has been signed and issued. Download it from Medical Certificates.`,'success');
+  persistDB();closeAllModals();toast(`Certificate ${r.certNo} signed and issued.`,'success');renderCertRequests('Issued');
+}
+
+function openDeclineCertModal(id){
+  if(!(currentUser.role==='Staff'||currentUser.role==='Administrator')){toast('Only staff or administrators can decline requests.','error');return;}
+  openModal(`<div class="modal"><div class="modal-header"><h3>Decline Request</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div class="form-group"><label>Reason (shown to the patient)</label><textarea id="dc-reason" rows="3" placeholder="e.g. No clinic consultation on record for the stated dates."></textarea></div><button class="btn btn-danger" style="width:100%" onclick="declineCert(${id})">Decline Request</button></div></div>`);
+}
+function declineCert(id){const r=DB.certRequests.find(x=>x.id===id);if(!r)return;if(!(currentUser.role==='Staff'||currentUser.role==='Administrator'))return;const reason=document.getElementById('dc-reason').value.trim();if(!reason){toast('Please provide a reason.','error');return}r.status='Declined';r.declineReason=reason;persistDB();const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null;if(u)addNotif(u.id,'Certificate Request Declined',reason,'error');closeAllModals();toast('Request declined.','info');renderCertRequests('Pending')}
+
+function loadHtml2Canvas(){return new Promise((resolve,reject)=>{if(window.html2canvas){resolve(window.html2canvas);return}const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';script.onload=()=>window.html2canvas?resolve(window.html2canvas):reject(new Error('html2canvas failed'));script.onerror=()=>reject(new Error('Could not load html2canvas'));document.head.appendChild(script)})}
+
+// Export the exact saved document styling and signature to PDF.
 async function downloadCertPdf(id){
-  const r=DB.certRequests.find(x=>x.id===id);
-  if(!r||r.status!=='Issued'){toast('Certificate not available.','error');return;}
-  let jsPDF;
-  try{jsPDF=await loadJsPDF();}catch(e){toast('Could not load the PDF generator. Check your connection.','error');return;}
-  const pt=getPatientById(r.patientId)||{}, u=getUserById(pt.userId)||{}, doctor=getUserById(r.doctorId)||{};
-  const name=`${u.fname||''} ${u.lname||''}`.trim()||'Unknown Patient';
-  let age='';
-  if(pt.dob){const a=Math.floor((new Date(TODAY)-new Date(pt.dob))/(365.25*864e5));if(a>0&&a<120)age=a+' years old';}
-  const doc=new jsPDF({unit:'mm',format:'a4'});
-  const W=210,M=25;let y=22;
-  const center=(t,s,st)=>{doc.setFont('times',st||'normal');doc.setFontSize(s);doc.text(t,W/2,y,{align:'center'});};
-  const para=t=>{doc.setFont('times','normal');doc.setFontSize(11.5);const ls=doc.splitTextToSize(t,W-2*M);doc.text(ls,M,y);y+=ls.length*6+4;};
-  center('Republic of the Philippines',11);y+=6;
-  center('CEBU TECHNOLOGICAL UNIVERSITY',14,'bold');y+=6;
-  center('Main Campus',11);y+=5.5;
-  center('M.J. Cuenco Ave. cor. R. Palma St., Cebu City',9.5);y+=5.5;
-  center('UNIVERSITY MEDICAL CLINIC',11,'bold');y+=4;
-  doc.setLineWidth(.6);doc.line(M,y,W-M,y);y+=13;
-  center('MEDICAL CERTIFICATE',16,'bold');y+=11;
-  doc.setFont('times','normal');doc.setFontSize(10.5);
-  doc.text(`Certificate No.: ${r.certNo}`,M,y);
-  doc.text(`Date: ${fmtDate(r.issuedAt)}`,W-M,y,{align:'right'});y+=12;
-  doc.setFontSize(11.5);doc.text('TO WHOM IT MAY CONCERN:',M,y);y+=10;
-  para(`     This is to certify that ${name}${age?', '+age:''}${pt.sex?', '+pt.sex:''}${u.college?', of the '+u.college:''}${u.idNo?' (ID No. '+u.idNo+')':''}, was seen and examined at the University Medical Clinic, Cebu Technological University – Main Campus.`);
-  para(`     FINDINGS / DIAGNOSIS: ${r.findings}`);
-  if(r.recommendations)para(`     REMARKS / RECOMMENDATIONS: ${r.recommendations}`);
-  para(`     This certification is issued upon the request of the above-named patient for ${r.purpose.toLowerCase()} purposes.`);
-  y+=16;
-  const sx=W-M-60;
-  doc.line(sx,y,W-M,y);y+=5;
-  doc.setFont('times','bold');doc.setFontSize(11);
-  doc.text(`DR. ${(doctor.fname||'')+' '+(doctor.lname||'')}`.toUpperCase().trim(),sx+30,y,{align:'center'});y+=5;
-  doc.setFont('times','normal');doc.setFontSize(9.5);
-  doc.text('Attending Physician',sx+30,y,{align:'center'});y+=5;
-  doc.text('License No. _______________',sx+30,y,{align:'center'});y+=8;
-  const signer=getUserById(r.signedById)||{};
-  if(r.signedAt){doc.setFont('times','italic');doc.setFontSize(8.5);doc.text(`Electronically approved in CampusCare by ${(signer.fname||'')+' '+(signer.lname||'')}`.trim(),sx+30,y,{align:'center'});y+=4;}
-  y+=8;
-  doc.setFont('times','italic');doc.setFontSize(9);
-  doc.text('Not valid without the official clinic seal.',M,y);y+=5;
-  doc.setFontSize(8);doc.setTextColor(120);
-  doc.text(`Generated by CampusCare · ${new Date().toLocaleString('en-PH')}`,M,y);
-  doc.save(`Medical_Certificate_${r.certNo}.pdf`);
-  toast('Certificate downloaded.','success');
+  const r=DB.certRequests.find(x=>x.id===id);if(!r||r.status!=='Issued'){toast('Certificate not available.','error');return;}
+  let jsPDF,html2canvas;try{jsPDF=await loadJsPDF();html2canvas=await loadHtml2Canvas()}catch(e){toast('Could not load the PDF generator. Check your connection.','error');return}
+  if(!r.documentHtml){toast('This older certificate needs to be prepared again before using the redesigned PDF.','warning');return}
+  const stage=document.createElement('div');stage.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1;';stage.innerHTML=`<div class="cert-paper" style="width:794px;min-height:1123px;box-shadow:none;margin:0">${r.documentHtml}</div>`;document.body.appendChild(stage);
+  try{await Promise.all([...stage.querySelectorAll('img')].map(img=>img.complete?Promise.resolve():new Promise(res=>{img.onload=img.onerror=res})));const canvas=await html2canvas(stage.firstElementChild,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false});const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});const imgData=canvas.toDataURL('image/jpeg',.96),pageW=210,pageH=297,imgH=canvas.height*pageW/canvas.width;let remaining=imgH,pos=0;pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH;while(remaining>0){pos=remaining-imgH;pdf.addPage();pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH}pdf.save(`Medical_Certificate_${r.certNo}.pdf`);toast('Certificate downloaded.','success')}finally{stage.remove()}
 }
 
 // ================================================================
@@ -6445,6 +6606,7 @@ function modernCalendarGoToday(id){
 function modernCalendarSelect(id,date){
   const st=modernCalendarState[id]; if(!st)return;
   if(st.minDate&&date<st.minDate)return;
+  if(st.maxDate&&date>st.maxDate)return;
   st.selected=date;
   st.viewMonth=date.slice(0,7);
   if(st.callbackName&&typeof window[st.callbackName]==='function')window[st.callbackName](date);
@@ -6487,6 +6649,155 @@ function renderModernCalendar(id){
   </div>`;
 }
 
+
+// ── Reusable CampusCare date picker ─────────────────────────────
+// Replaces the browser's native date UI so every date field uses the
+// same month/year navigation and visual style.
+function campusDateFieldHtml(id,value,title,minDate='',maxDate='',onChange=''){
+  const shown=value?fmtDate(value):'Select date';
+  return `<input type="hidden" id="${id}" value="${value||''}">
+    <div class="campus-date-field">
+      <button type="button" class="modern-date-btn" onclick="openCampusDatePicker('${id}','${jsAttrSafe(title)}','${minDate||''}','${maxDate||''}','${onChange||''}')">
+        <i class="fa-regular fa-calendar"></i><span id="${id}-label">${shown}</span>
+      </button>
+    </div>`;
+}
+let campusDatePickerTarget=null;
+function openCampusDatePicker(inputId,title,minDate='',maxDate='',onChange=''){
+  const input=document.getElementById(inputId);
+  if(!input)return;
+  campusDatePickerTarget={inputId,onChange};
+  const selected=input.value||((minDate&&minDate>TODAY)?minDate:TODAY);
+  openModal(`<div class="modal"><div class="modal-header"><div><h3>${escapeHtml(title||'Select Date')}</h3><div class="text-muted">Choose a month, year, and date.</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body"><div id="campus-single-date-calendar"></div></div>
+    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button></div></div>`);
+  initModernCalendar('campus-single-date-calendar',selected,minDate||'','applyCampusDateSelection',{maxDate:maxDate||''});
+}
+function applyCampusDateSelection(date){
+  if(!campusDatePickerTarget)return;
+  const {inputId,onChange}=campusDatePickerTarget;
+  const input=document.getElementById(inputId),label=document.getElementById(inputId+'-label');
+  if(input)input.value=date;
+  if(label)label.textContent=fmtDate(date);
+  const cb=onChange&&window[onChange];
+  campusDatePickerTarget=null;
+  closeAllModals();
+  if(typeof cb==='function')cb();
+}
+
+// One-calendar range selector for Reports & Analytics.
+let reportRangeStage='from';
+let reportRangeDraftFrom='';
+let reportRangeDraftTo='';
+function openReportDateRange(){
+  const from=document.getElementById('rpt-from'),to=document.getElementById('rpt-to');
+  if(!from||!to)return;
+  reportRangeDraftFrom=from.value||TODAY.substring(0,7)+'-01';
+  reportRangeDraftTo=to.value||TODAY;
+  reportRangeStage='from';
+  openModal(`<div class="modal"><div class="modal-header"><div><h3>Select Report Date Range</h3><div class="text-muted">First select Date From, then Date To using the same calendar.</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div id="report-range-msg"></div>
+      <div class="dashboard-range-picker">
+        <div class="dashboard-range-summary">
+          <div class="dashboard-range-value"><span>From</span><strong id="report-range-from-label">${fmtDate(reportRangeDraftFrom)}</strong></div>
+          <div class="dashboard-range-arrow">→</div>
+          <div class="dashboard-range-value"><span>To</span><strong id="report-range-to-label">${fmtDate(reportRangeDraftTo)}</strong></div>
+        </div>
+        <div class="dashboard-range-step" id="report-range-step">1. Select the From date</div>
+        <div id="report-range-calendar"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="applyReportDateRange()">Apply Date Range</button></div></div>`);
+  initModernCalendar('report-range-calendar',reportRangeDraftFrom,'','chooseReportRangeDate',{rangeMode:true,rangeStart:reportRangeDraftFrom,rangeEnd:reportRangeDraftTo});
+}
+function chooseReportRangeDate(date){
+  if(reportRangeStage==='from'||reportRangeStage==='done'){
+    reportRangeDraftFrom=date;
+    reportRangeDraftTo='';
+    reportRangeStage='to';
+  }else{
+    if(date<reportRangeDraftFrom){
+      reportRangeDraftTo=reportRangeDraftFrom;
+      reportRangeDraftFrom=date;
+    }else reportRangeDraftTo=date;
+    reportRangeStage='done';
+  }
+  const st=modernCalendarState['report-range-calendar'];
+  if(st){
+    st.rangeStart=reportRangeDraftFrom;
+    st.rangeEnd=reportRangeDraftTo;
+    st.selected=reportRangeDraftTo||reportRangeDraftFrom;
+    st.viewMonth=date.slice(0,7);
+    renderModernCalendar('report-range-calendar');
+  }
+  const f=document.getElementById('report-range-from-label'),t=document.getElementById('report-range-to-label'),step=document.getElementById('report-range-step');
+  if(f)f.textContent=reportRangeDraftFrom?fmtDate(reportRangeDraftFrom):'Not selected';
+  if(t)t.textContent=reportRangeDraftTo?fmtDate(reportRangeDraftTo):'Not selected';
+  if(step)step.textContent=reportRangeStage==='to'?'2. Now select the To date':'Range selected. Apply it, or select another date to start again.';
+}
+function applyReportDateRange(){
+  if(!reportRangeDraftFrom||!reportRangeDraftTo){toast('Please select both From and To dates.','warning');return;}
+  const from=document.getElementById('rpt-from'),to=document.getElementById('rpt-to'),label=document.getElementById('rpt-range-label');
+  if(from)from.value=reportRangeDraftFrom;
+  if(to)to.value=reportRangeDraftTo;
+  if(label)label.textContent=`${fmtDate(reportRangeDraftFrom)} – ${fmtDate(reportRangeDraftTo)}`;
+  closeAllModals();
+}
+
+
+
+let apptFilterStage='from',apptFilterFrom='',apptFilterTo='';
+function openApptRangePicker(){
+  apptFilterFrom=document.getElementById('appt-date-from')?.value||TODAY;apptFilterTo=document.getElementById('appt-date-to')?.value||'';apptFilterStage='from';
+  openModal(`<div class="modal"><div class="modal-header"><div><h3>Appointment Date Range</h3><div class="text-muted">Select Date From, then Date To.</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div class="dashboard-range-summary"><div class="dashboard-range-value"><span>From</span><strong id="af-from">${fmtDate(apptFilterFrom)}</strong></div><div class="dashboard-range-arrow">→</div><div class="dashboard-range-value"><span>To</span><strong id="af-to">${apptFilterTo?fmtDate(apptFilterTo):'Select date'}</strong></div></div><div class="dashboard-range-step" id="af-step">1. Select Date From</div><div id="appt-filter-calendar"></div></div><div class="modal-footer" style="justify-content:space-between"><button class="btn btn-danger" onclick="clearApptRange(true)"><i class="fa-solid fa-eraser"></i> Clear Range</button><div style="display:flex;gap:.5rem"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="applyApptRange()">Apply</button></div></div></div>`);
+  initModernCalendar('appt-filter-calendar',apptFilterFrom,'','selectApptFilterDate',{rangeMode:true,rangeStart:apptFilterFrom,rangeEnd:apptFilterTo});
+}
+function selectApptFilterDate(date){
+  if(apptFilterStage==='from'||apptFilterStage==='done'){apptFilterFrom=date;apptFilterTo='';apptFilterStage='to';}else{if(date<apptFilterFrom){apptFilterTo=apptFilterFrom;apptFilterFrom=date}else apptFilterTo=date;apptFilterStage='done'}
+  const st=modernCalendarState['appt-filter-calendar'];if(st){st.rangeStart=apptFilterFrom;st.rangeEnd=apptFilterTo;st.selected=date;st.viewMonth=date.slice(0,7);renderModernCalendar('appt-filter-calendar')}
+  document.getElementById('af-from').textContent=fmtDate(apptFilterFrom);document.getElementById('af-to').textContent=apptFilterTo?fmtDate(apptFilterTo):'Select date';document.getElementById('af-step').textContent=apptFilterStage==='to'?'2. Select Date To':'Range ready to apply';
+}
+function applyApptRange(){if(!apptFilterFrom||!apptFilterTo){toast('Select both Date From and Date To.','warning');return}document.getElementById('appt-date-from').value=apptFilterFrom;document.getElementById('appt-date-to').value=apptFilterTo;document.getElementById('appt-range-label').textContent=`${fmtDate(apptFilterFrom)} – ${fmtDate(apptFilterTo)}`;closeAllModals();renderApptTable()}
+function clearApptRange(closePicker=false){
+ const f=document.getElementById('appt-date-from'),t=document.getElementById('appt-date-to'),label=document.getElementById('appt-range-label');
+ if(f)f.value='';if(t)t.value='';if(label)label.textContent='All dates';
+ apptFilterFrom='';apptFilterTo='';apptFilterStage='from';
+ if(closePicker)closeAllModals();
+ renderApptTable();
+}
+
+function filterBookPatients(q=''){
+ const box=document.getElementById('b-pt-results');if(!box)return;
+ const s=(q||'').trim().toLowerCase();
+ // Keep the suggestion panel hidden until the staff/admin actually types.
+ if(!s){box.innerHTML='';box.classList.remove('show');return;}
+ const pts=DB.patients.filter(p=>!p.archived&&`${p.fname} ${p.lname} ${p.idNo||''} ${p.college||''}`.toLowerCase().includes(s)).slice(0,15);
+ box.innerHTML=pts.length?pts.map(p=>`<button type="button" class="patient-combobox-option" onclick="selectBookPatient(${p.id})"><strong>${escapeHtml(p.fname+' '+p.lname)}</strong><span class="text-muted" style="display:block">${escapeHtml(p.idNo||'No ID')} · ${escapeHtml(p.college||'')}</span></button>`).join(''):'<div class="text-muted" style="padding:.65rem">No matching patient.</div>';
+ box.classList.add('show');
+}
+function selectBookPatient(id){const p=getPatientById(id);if(!p)return;document.getElementById('b-pt').value=id;document.getElementById('b-pt-search').value=`${p.fname} ${p.lname}`;document.getElementById('b-pt-results').classList.remove('show');checkDentalWarn()}
+
+let assistedProfile='',assistedIdCor='',assistedPatientDraft=null;
+function assistedFile(input,kind){
+ const f=input.files?.[0];if(!f)return;const r=new FileReader();
+ r.onload=e=>{if(kind==='profile'){assistedProfile=e.target.result;const im=document.getElementById('pm-profile-preview');if(im){im.src=assistedProfile;im.style.display='block'}}else{assistedIdCor=e.target.result;const x=document.getElementById('pm-id-preview');if(x)x.textContent='Selected: '+f.name}};
+ r.readAsDataURL(f);
+}
+function captureAssistedPatientDraft(){
+ const ids=['pm-fname','pm-lname','pm-age','pm-gender','pm-blood','pm-contact','pm-college','pm-ptype','pm-height','pm-weight','pm-addr','pm-allergy','pm-history','pm-emergency','pm-emergency-contact'];
+ const d={};ids.forEach(id=>{const el=document.getElementById(id);if(el)d[id]=el.value});return d;
+}
+function restoreAssistedPatientDraft(){
+ if(!assistedPatientDraft)return;
+ Object.entries(assistedPatientDraft).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.value=value});
+ assistedPatientDraft=null;
+}
+function openAssistedPatientCamera(kind){
+ assistedPatientDraft=captureAssistedPatientDraft();
+ openCamera(kind==='profile'?'assisted-profile':'assisted-id');
+}
+
 // ── Book Appointment ──
 function openBookApptModal(apptId=null){
   const editing=apptId?DB.appointments.find(a=>a.id===apptId):null;
@@ -6502,7 +6813,7 @@ function openBookApptModal(apptId=null){
       <div id="dental-warn" class="alert alert-warning"></div>
       <div class="form-row">
         <div class="form-group ${isPt?'full':''}"><label>Patient <span class="required">*</span></label>
-          <select id="b-pt" ${isPt?'disabled':''}>${patientOptions}</select>
+          ${isPt?`<select id="b-pt" disabled>${patientOptions}</select>`:`<input type="hidden" id="b-pt" value="${editing?editing.patientId:''}"><div class="patient-combobox"><input type="search" id="b-pt-search" autocomplete="off" placeholder="Search patient by name, ID, or college…" value="${editing?(()=>{const p=getPatientById(editing.patientId);return p?escapeHtml(p.fname+' '+p.lname):''})():''}" oninput="filterBookPatients(this.value)"><div class="patient-combobox-list" id="b-pt-results"></div></div>`}
         </div>
         ${!isPt?`<div class="form-group"><label>Priority</label>
           <select id="b-priority"><option>Student</option><option>Teaching</option><option>Non-Teaching</option></select>
@@ -6765,6 +7076,27 @@ function openPatientModal(id=null){
     <div class="modal-header"><h3>${pt?'Edit':'Add'} Patient Record</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
       <div id="ptm-msg"></div>
+      ${!pt?`<div class="alert alert-info show">Assisted account setup: profile picture and a valid ID/COR are required, matching the normal registration process.</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Profile Picture <span class="required">*</span></label>
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+            <button type="button" class="btn btn-sm" onclick="document.getElementById('pm-profile').click()"><i class="fa-solid fa-upload"></i> Upload Photo</button>
+            <button type="button" class="btn btn-sm btn-info" onclick="openAssistedPatientCamera('profile')"><i class="fa-solid fa-camera"></i> Use Camera</button>
+          </div>
+          <input type="file" id="pm-profile" accept="image/*" style="display:none" onchange="assistedFile(this,'profile')">
+          <img id="pm-profile-preview" src="${assistedProfile||''}" style="${assistedProfile?'':'display:none;'}width:72px;height:72px;border-radius:50%;object-fit:cover;margin-top:.35rem;border:1px solid var(--line)">
+        </div>
+        <div class="form-group">
+          <label>Valid ID / COR <span class="required">*</span></label>
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+            <button type="button" class="btn btn-sm" onclick="document.getElementById('pm-idcor').click()"><i class="fa-solid fa-upload"></i> Upload ID/COR</button>
+            <button type="button" class="btn btn-sm btn-info" onclick="openAssistedPatientCamera('id')"><i class="fa-solid fa-camera"></i> Use Camera</button>
+          </div>
+          <input type="file" id="pm-idcor" accept="image/*,.pdf" style="display:none" onchange="assistedFile(this,'id')">
+          <div id="pm-id-preview" class="form-note">${assistedIdCor?'✓ Photo captured / file selected.':'No file selected.'}</div>
+        </div>
+      </div>`:''}
       <div class="form-row">
         <div class="form-group"><label>First Name <span class="required">*</span></label><input id="pm-fname" value="${pt?pt.fname:''}"></div>
         <div class="form-group"><label>Last Name <span class="required">*</span></label><input id="pm-lname" value="${pt?pt.lname:''}"></div>
@@ -6804,7 +7136,7 @@ function savePatient(id){
   const age=parseInt(document.getElementById('pm-age').value);
   const contact=document.getElementById('pm-contact').value.trim();
   const msg=document.getElementById('ptm-msg');
-  if(!fname||!lname||!age){showAlert(msg,'Name and age are required.');return;}
+  if(!fname||!lname||!age){showAlert(msg,'Name and age are required.');return;}if(!id&&(!assistedProfile||!assistedIdCor)){showAlert(msg,'Profile picture and valid ID/COR are required for assisted registration.');return;}
   if(age<1||age>120){showAlert(msg,'Invalid age.');return;}
   const data={fname,lname,age,gender:document.getElementById('pm-gender').value,blood:document.getElementById('pm-blood').value,contact,college:document.getElementById('pm-college').value,personType:document.getElementById('pm-ptype').value,height:document.getElementById('pm-height').value,weight:document.getElementById('pm-weight').value,address:document.getElementById('pm-addr').value,allergies:document.getElementById('pm-allergy').value,medHistory:document.getElementById('pm-history').value,emergencyName:document.getElementById('pm-ename').value,emergencyContact:document.getElementById('pm-econtact').value};
   if(id){
@@ -6812,7 +7144,7 @@ function savePatient(id){
     if(idx>=0)DB.patients[idx]={...DB.patients[idx],...data};
     toast('Patient updated.','success');
   }else{
-    DB.patients.push({id:DB.nextPatientId++,...data,userId:null,idNo:'',createdAt:TODAY});
+    const newUserId=DB.nextUserId++;DB.users.push({id:newUserId,username:`assisted${newUserId}`,password:'ChangeMe123',role:'Patient',fname,lname,email:'',contact,active:true,approved:true,profilePhoto:assistedProfile,idPhoto:assistedIdCor,createdAt:TODAY});DB.patients.push({id:DB.nextPatientId++,...data,userId:newUserId,idNo:'',createdAt:TODAY});persistDB();assistedProfile='';assistedIdCor='';
     toast('Patient added.','success');
   }
   closeAllModals();
@@ -6922,8 +7254,8 @@ function openAddTreatmentModalPt(ptId,apptId=null){
         <textarea id="tm-notes" rows="2" placeholder="Advice, special instructions..."></textarea>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Date <span class="required">*</span></label><input type="date" id="tm-date" value="${TODAY}"></div>
-        <div class="form-group"><label>Follow-up Date</label><input type="date" id="tm-followup"></div>
+        <div class="form-group"><label>Date <span class="required">*</span></label>${campusDateFieldHtml('tm-date',TODAY,'Treatment Date')}</div>
+        <div class="form-group"><label>Follow-up Date</label>${campusDateFieldHtml('tm-followup','','Follow-up Date')}</div>
         <div class="form-group full"><label>Has X-ray / Imaging?</label>
           <select id="tm-xray"><option value="">No</option><option value="X-ray taken">X-ray taken</option><option value="Dental X-ray taken">Dental X-ray taken</option><option value="Referred for imaging">Referred for imaging</option></select>
         </div>
@@ -6932,7 +7264,7 @@ function openAddTreatmentModalPt(ptId,apptId=null){
     <div class="form-row">
         <div class="form-group"><label>Medication Name</label><input id="tm-medname" placeholder="e.g. Amoxicillin"></div>
         <div class="form-group"><label>Dosage</label><input id="tm-dosage" placeholder="e.g. 3x/day"></div>
-        <div class="form-group"><label>End Date</label><input type="date" id="tm-enddate" value="${new Date(Date.now()+7*86400000).toISOString().slice(0,10)}"></div>
+        <div class="form-group"><label>End Date</label>${campusDateFieldHtml('tm-enddate',new Date(Date.now()+7*86400000).toISOString().slice(0,10),'Medication End Date')}</div>
       </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeAllModals()">Cancel</button>
@@ -7073,9 +7405,9 @@ function openInvModal(id=null){
         <div class="form-group"><label>Threshold <span class="required">*</span></label><input id="im-thresh" type="number" value="${it?it.threshold:''}" min="0"></div>
         <div class="form-group"><label>Unit</label><input id="im-unit" value="${it?it.unit||'pcs':'pcs'}"></div>
         <div class="form-group"><label>Unit Cost (₱)</label><input id="im-cost" type="number" value="${it?it.unitCost||'':''}" min="0" step="0.01"></div>
-        <div class="form-group"><label>Expiry Date</label><input type="date" id="im-expiry" value="${it?it.expiryDate||'':''}"></div>
+        <div class="form-group"><label>Expiry Date</label>${campusDateFieldHtml('im-expiry',it?it.expiryDate||'':'','Expiry Date')}</div>
         <div class="form-group full"><label>Disbursement Date</label>
-          <input type="date" id="im-disb" value="${it?it.disbursementDate||'':''}">
+          ${campusDateFieldHtml('im-disb',it?it.disbursementDate||'':'','Disbursement Date')}
           <div class="form-note">Date when this batch should be fully disbursed/issued to patients.</div>
         </div>
       </div>
@@ -7184,7 +7516,7 @@ function openDisbursementModal(){
         <select id="disb-item">${DB.inventory.map(i=>`<option value="${i.id}">${i.name} (${i.qty} ${i.unit})</option>`).join('')}</select>
       </div>
       <div class="form-group"><label>Quantity to Disburse <span class="required">*</span></label><input type="number" id="disb-qty" min="1"></div>
-      <div class="form-group"><label>Date</label><input type="date" id="disb-date" value="${TODAY}"></div>
+      <div class="form-group"><label>Date</label>${campusDateFieldHtml('disb-date',TODAY,'Disbursement Date')}</div>
       <div class="form-group"><label>Notes</label><input id="disb-notes" placeholder="e.g. Regular monthly disbursement"></div>
     </div>
     <div class="modal-footer">
