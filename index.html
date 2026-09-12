@@ -305,7 +305,37 @@ nav svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
 #main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-width:0;min-height:100vh}
 .top-bar{height:var(--header-h);min-height:var(--header-h);flex-shrink:0;background:var(--glass-surface);backdrop-filter:blur(var(--glass-blur)) saturate(180%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(180%);border-bottom:1px solid var(--glass-border-soft);display:flex;align-items:center;padding:0 1.25rem;gap:.75rem;position:sticky;top:0;z-index:50;box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 4px 20px rgba(10,30,50,.06)}
 .top-bar h2{font-size:.95rem;font-weight:600;flex:1;color:var(--ink)}
-.top-bar-actions{display:flex;align-items:center;gap:.5rem}
+.top-bar-actions{display:flex;align-items:center;gap:.5rem;min-width:0}
+.top-search{position:relative;width:min(360px,34vw);min-width:190px}
+.top-search-input{width:100%;height:34px;padding:.4rem 2rem .4rem .75rem;border:1px solid var(--glass-border-soft);border-radius:10px;background:var(--overlay);color:var(--ink);font:inherit;font-size:.78rem;outline:none;transition:.15s}
+.top-search-input:focus{background:var(--overlay-strong);border-color:var(--primary-mid);box-shadow:0 0 0 3px rgba(10,126,168,.12)}
+.top-search-icon{position:absolute;right:.65rem;top:50%;transform:translateY(-50%);color:var(--ink-muted);pointer-events:none;font-size:.72rem}
+.top-search-results{position:absolute;top:calc(100% + 7px);left:0;right:0;z-index:500;display:none;max-height:280px;overflow:auto;background:#fff;border:1px solid #d7dde3;border-radius:12px;box-shadow:0 14px 32px rgba(10,20,35,.24)}
+[data-theme="dark"] .top-search-results{background:#1d242c;border-color:#39434d;box-shadow:0 16px 34px rgba(0,0,0,.55)}
+.top-search-results.show{display:block}
+.top-search-item{display:flex;align-items:center;gap:.55rem;width:100%;padding:.58rem .7rem;border:0;border-bottom:1px solid var(--line-soft);background:transparent;color:var(--ink);text-align:left;cursor:pointer;font:inherit}
+.top-search-item:last-child{border-bottom:0}
+.top-search-item:hover,.top-search-item.active{background:var(--overlay-strong)}
+.top-search-item i{width:18px;text-align:center;color:var(--primary)}
+.top-search-item small{display:block;color:var(--ink-muted);font-size:.66rem;margin-top:1px}
+#top-date{font-size:.78rem;color:var(--ink-muted);white-space:nowrap;flex-shrink:0}
+@media(max-width:1000px){
+  .top-search{width:min(300px,31vw);min-width:165px}
+}
+@media(max-width:768px){
+  .top-bar{padding:0 .55rem;gap:.4rem}
+  .top-bar h2{font-size:.76rem;flex:0 1 auto;max-width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .top-search{flex:1 1 auto;width:auto;min-width:0}
+  .top-search-input{height:32px;font-size:.72rem;padding-left:.6rem}
+  .top-bar-actions{gap:.35rem;flex:1;justify-content:flex-end}
+  #top-date{font-size:.65rem}
+  .notif-btn{padding:.3rem}
+}
+@media(max-width:430px){
+  .top-bar h2{max-width:70px;font-size:.7rem}
+  .top-search-input{font-size:.68rem}
+  #top-date{font-size:.6rem}
+}
 .notif-btn{position:relative;background:var(--overlay);border:1px solid var(--glass-border-soft);cursor:pointer;padding:.35rem;border-radius:9px;color:var(--ink-muted);transition:background .15s ease,color .15s ease;display:flex}
 .notif-btn:hover{background:var(--overlay-strong);color:var(--ink)}
 .notif-btn svg{transition:transform .2s ease}
@@ -1281,11 +1311,18 @@ tbody tr:hover td{background:var(--overlay)}
       </button>
       <h2 id="top-title">Dashboard</h2>
       <div class="top-bar-actions">
+        <div class="top-search" id="top-search-wrap">
+          <input id="top-search-input" class="top-search-input" type="search" placeholder="Search CampusCare…" autocomplete="off"
+                 oninput="renderTopSearch(this.value)" onkeydown="handleTopSearchKey(event)"
+                 onfocus="renderTopSearch(this.value)" aria-label="Search CampusCare">
+          <i class="fa-solid fa-magnifying-glass top-search-icon" aria-hidden="true"></i>
+          <div class="top-search-results" id="top-search-results"></div>
+        </div>
         <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
           <span class="notif-dot" id="notif-dot" style="display:none"></span>
         </button>
-        <div style="font-size:.78rem;color:#888" id="top-date"></div>
+        <div id="top-date" aria-label="Current date"></div>
       </div>
     </div>
     <div class="content" id="app-content">
@@ -2625,12 +2662,126 @@ function initApp(){
   roleBadge.textContent=currentUser.role;
   const rColors={Administrator:'badge-purple',Doctor:'badge-teal',Staff:'badge-warning',Patient:'badge-info'};
   roleBadge.className=`badge sb-role-badge ${rColors[currentUser.role]||'badge-gray'}`;
-  document.getElementById('top-date').textContent=new Date().toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  updateTopDate();
+  window.removeEventListener('resize',updateTopDate);
+  window.addEventListener('resize',updateTopDate);
   buildNav();
   updateNotifUI();
   const firstNav = NAV_CONFIG[currentUser.role]?.find(item => item.id);
   if(firstNav) navTo(firstNav.id);
 }
+
+
+// ================================================================
+// TOP BAR — responsive date + role-aware navigation search
+// ================================================================
+function updateTopDate(){
+  const el=document.getElementById('top-date');
+  if(!el)return;
+  const now=new Date();
+  // Mobile uses a short date (9/12/26) to preserve space for search.
+  // Desktop keeps the full date for readability.
+  el.textContent=window.innerWidth<=768
+    ? now.toLocaleDateString('en-PH',{month:'numeric',day:'numeric',year:'2-digit'})
+    : now.toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+}
+
+const TOP_SEARCH_ALIASES={
+  dashboard:['home','overview'],
+  appointments:['appointment','book','booking','schedule patient'],
+  'my-appointments':['appointment','book','booking'],
+  patients:['patient','records','add patient'],
+  'my-patients':['patient','records'],
+  approvals:['approval','registration','pending account'],
+  'cert-requests':['certificate','medical certificate','signature'],
+  'my-certificates':['certificate','medical certificate'],
+  treatments:['treatment','diagnosis','medical notes'],
+  inventory:['stock','medicine','supplies'],
+  messages:['message','chat','conversation'],
+  reports:['report','analytics','statistics'],
+  users:['user','account','management'],
+  settings:['settings','configuration'],
+  schedule:['doctor schedule','leave','time off'],
+  health_education:['health education','article','health tips'],
+  'my-records':['health record','medical record'],
+  'my-account':['account','profile','password'],
+  'report-issue':['issue','feedback','support'],
+  'feedback-issues':['feedback','issues','support']
+};
+
+let topSearchIndex=-1;
+function getTopSearchItems(){
+  if(!currentUser)return[];
+  return (NAV_CONFIG[currentUser.role]||[])
+    .filter(x=>x.id)
+    .map(x=>({
+      id:x.id,
+      label:String(x.label||x.id).replace(/&amp;/g,'&'),
+      aliases:TOP_SEARCH_ALIASES[x.id]||[]
+    }));
+}
+
+function renderTopSearch(raw=''){
+  const box=document.getElementById('top-search-results');
+  if(!box)return;
+  const q=String(raw||'').trim().toLowerCase();
+  topSearchIndex=-1;
+  // Keep results hidden until the user actually types something.
+  if(!q){box.innerHTML='';box.classList.remove('show');return;}
+
+  const items=getTopSearchItems().filter(item=>{
+    const hay=[item.label,item.id,...item.aliases].join(' ').toLowerCase();
+    return hay.includes(q);
+  }).slice(0,8);
+
+  box.innerHTML=items.length
+    ?items.map((item,i)=>`<button type="button" class="top-search-item" data-search-index="${i}" onclick="openTopSearchResult('${item.id}')">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <span><strong>${escapeHtml(item.label)}</strong><small>Open ${escapeHtml(item.label)}</small></span>
+      </button>`).join('')
+    :'<div class="text-muted" style="padding:.7rem .8rem">No matching page found.</div>';
+  box.classList.add('show');
+}
+
+function openTopSearchResult(id){
+  const input=document.getElementById('top-search-input');
+  const box=document.getElementById('top-search-results');
+  if(input)input.value='';
+  if(box){box.innerHTML='';box.classList.remove('show');}
+  navTo(id);
+}
+
+function handleTopSearchKey(e){
+  const box=document.getElementById('top-search-results');
+  if(!box||!box.classList.contains('show'))return;
+  const items=[...box.querySelectorAll('.top-search-item')];
+  if(!items.length)return;
+
+  if(e.key==='ArrowDown'){
+    e.preventDefault();
+    topSearchIndex=(topSearchIndex+1)%items.length;
+  }else if(e.key==='ArrowUp'){
+    e.preventDefault();
+    topSearchIndex=(topSearchIndex-1+items.length)%items.length;
+  }else if(e.key==='Enter'){
+    if(topSearchIndex>=0&&items[topSearchIndex]){
+      e.preventDefault();items[topSearchIndex].click();
+    }
+    return;
+  }else if(e.key==='Escape'){
+    box.classList.remove('show');return;
+  }else return;
+
+  items.forEach((el,i)=>el.classList.toggle('active',i===topSearchIndex));
+  items[topSearchIndex]?.scrollIntoView({block:'nearest'});
+}
+
+// Close search results when clicking anywhere outside the search control.
+document.addEventListener('click',e=>{
+  const wrap=document.getElementById('top-search-wrap');
+  const box=document.getElementById('top-search-results');
+  if(wrap&&box&&!wrap.contains(e.target))box.classList.remove('show');
+});
 
 const NAV_ICONS={
   dashboard:'M3 12L12 3l9 9v9H15v-5h-6v5H3z',
