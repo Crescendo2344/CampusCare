@@ -451,6 +451,36 @@ select option{background:#1c2128;color:#e9edf0}
 .patient-combobox-list.show{display:block}.patient-combobox-option{display:block;width:100%;text-align:left;padding:.55rem .7rem;border:0;border-bottom:1px solid var(--line-soft);background:transparent;color:var(--ink);cursor:pointer}.patient-combobox-option:hover{background:var(--overlay-strong)}
 .dashboard-a-stat.clickable,.dashboard-attn-item.clickable{cursor:pointer}.dashboard-a-stat.clickable:focus-visible,.dashboard-attn-item.clickable:focus-visible{outline:2px solid var(--primary-mid);outline-offset:2px}.dashboard-attn-item.clickable:hover{background:var(--overlay)}
 
+
+/* ===EMERGING TECHNOLOGY: COPILOT / PREDICTIONS / FHIR=== */
+.intel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.75rem;margin:.8rem 0}
+.intel-card{background:var(--glass-surface-soft);border:1px solid var(--glass-border-soft);border-radius:14px;padding:.85rem .9rem;box-shadow:var(--glass-shadow-sm)}
+.intel-card .intel-kicker{font-size:.66rem;text-transform:uppercase;letter-spacing:.65px;color:var(--ink-muted);font-weight:700}
+.intel-card .intel-value{font-size:1.22rem;font-weight:800;margin:.22rem 0;color:var(--ink)}
+.intel-card .intel-meta{font-size:.73rem;color:var(--ink-muted);line-height:1.45}
+.intel-risk-high{border-color:var(--danger-border);background:linear-gradient(135deg,var(--danger-bg),var(--glass-surface-soft))}
+.intel-risk-medium{border-color:var(--warning-border);background:linear-gradient(135deg,var(--warning-bg),var(--glass-surface-soft))}
+.intel-risk-low{border-color:var(--success-border);background:linear-gradient(135deg,var(--success-bg),var(--glass-surface-soft))}
+.intel-badge{display:inline-flex;align-items:center;gap:.28rem;padding:.16rem .5rem;border-radius:999px;font-size:.66rem;font-weight:700;border:1px solid var(--glass-border-soft)}
+.intel-alert-list{display:flex;flex-direction:column;gap:.5rem}
+.intel-alert-item{display:flex;gap:.6rem;align-items:flex-start;padding:.65rem .75rem;border:1px solid var(--glass-border-soft);border-radius:12px;background:var(--overlay)}
+.intel-alert-icon{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--overlay-strong)}
+.intel-alert-copy strong{font-size:.78rem;display:block;margin-bottom:.1rem}
+.intel-alert-copy span{font-size:.72rem;color:var(--ink-muted);line-height:1.45}
+.copilot-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem;padding:.9rem;border-radius:14px;background:linear-gradient(135deg,rgba(91,79,214,.16),rgba(10,126,168,.12));border:1px solid var(--glass-border-soft);margin-bottom:.85rem}
+.copilot-title{display:flex;align-items:center;gap:.45rem;font-weight:800}
+.copilot-disclaimer{font-size:.7rem;color:var(--ink-muted);line-height:1.45;margin-top:.3rem}
+.copilot-section{margin-top:.85rem}
+.copilot-section h4{font-size:.78rem;margin-bottom:.4rem;color:var(--ink)}
+.copilot-summary{font-size:.8rem;line-height:1.58;background:var(--overlay);border:1px solid var(--glass-border-soft);border-radius:11px;padding:.7rem .8rem;white-space:pre-wrap}
+.fhir-preview{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.68rem;line-height:1.45;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;background:#101820;color:#d8eef7;border-radius:12px;padding:.85rem}
+.fhir-toolbar{display:flex;gap:.45rem;flex-wrap:wrap}
+.prediction-meter{height:7px;border-radius:999px;background:var(--overlay);overflow:hidden;margin-top:.3rem}
+.prediction-meter>span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--success),var(--warning),var(--danger))}
+.tech-note{font-size:.7rem;color:var(--ink-muted);line-height:1.45}
+@media(max-width:640px){.copilot-hero{flex-direction:column}.intel-grid{grid-template-columns:1fr 1fr}.fhir-toolbar{width:100%}.fhir-toolbar .btn{flex:1;justify-content:center}}
+@media(max-width:430px){.intel-grid{grid-template-columns:1fr}}
+
 /* ===TABLES=== */
 .table-wrap{overflow-x:auto;border-radius:12px}
 .cert-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-width:thin;overscroll-behavior-x:contain}.cert-table-wrap table{min-width:720px}.cert-swipe-hint{display:none;font-size:.68rem;color:var(--ink-muted);margin:.15rem 0 .55rem;align-items:center;gap:.3rem}.cert-table-wrap::-webkit-scrollbar{height:6px}.cert-table-wrap::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:999px}@media(max-width:768px){.cert-swipe-hint{display:flex}.cert-table-wrap{margin-left:-.15rem;margin-right:-.15rem;padding-bottom:.25rem}.cert-table-wrap table{min-width:700px}}
@@ -1414,8 +1444,20 @@ const DB = {
   notifications: [],
   nextNotifId:1,
 
-  disbursements: [],
-  nextDisbId:1,
+  // Historical usage powers the predictive-inventory demo.
+  // These are normal disbursement records, so new disbursements automatically
+  // improve the forecast without a separate data structure.
+  disbursements: [
+    {id:1,itemId:3,qty:36,date:'2026-08-18',notes:'Routine clinic dispensing',userId:5},
+    {id:2,itemId:3,qty:42,date:'2026-08-27',notes:'Routine clinic dispensing',userId:5},
+    {id:3,itemId:3,qty:48,date:'2026-09-05',notes:'Routine clinic dispensing',userId:5},
+    {id:4,itemId:1,qty:18,date:'2026-08-20',notes:'Dispensed per prescriptions',userId:5},
+    {id:5,itemId:1,qty:24,date:'2026-09-03',notes:'Dispensed per prescriptions',userId:5},
+    {id:6,itemId:5,qty:2,date:'2026-08-22',notes:'Clinic consumption',userId:5},
+    {id:7,itemId:5,qty:3,date:'2026-09-06',notes:'Clinic consumption',userId:5},
+    {id:8,itemId:7,qty:6,date:'2026-09-01',notes:'Clinic consumption',userId:5}
+  ],
+  nextDisbId:9,
 
   doctorLeaves: [],
   nextLeaveId:1,
@@ -1991,6 +2033,393 @@ function getDoctors(){return DB.users.filter(u=>u.role==='Doctor'&&u.status==='A
 function getDentalDoctors(){return getDoctors().filter(d=>d.specialty==='Dental');}
 function getMedDoctors(){return getDoctors().filter(d=>d.specialty!=='Dental');}
 
+
+// ================================================================
+// EMERGING TECHNOLOGY ENGINE
+// 1. AI Clinical Copilot (local, explainable prototype)
+// 2. Predictive Campus Health Analytics
+// 3. Predictive Inventory
+// 4. FHIR-ready record mapping/export
+// ================================================================
+
+// ---------- Predictive Campus Health Analytics ----------
+function healthAnalyticsAnchorDate(){
+  const clinicalDates=[
+    ...DB.treatments.map(t=>t.date),
+    ...DB.appointments.filter(a=>a.status==='Completed').map(a=>a.date)
+  ].filter(Boolean).sort();
+  // Use today's date when there is recent data. For old demo datasets, anchor
+  // on the most recent clinical event so the prototype still demonstrates
+  // the analytics honestly instead of manufacturing current cases.
+  const latest=clinicalDates[clinicalDates.length-1]||TODAY;
+  const days=Math.abs((new Date(TODAY+'T12:00:00')-new Date(latest+'T12:00:00'))/86400000);
+  return {date:days<=45?TODAY:latest,isHistorical:days>45};
+}
+
+function extractHealthSignals(record){
+  const source=[
+    record.reason,record.notes,record.findings,record.diagnosis,record.prescription,record.service
+  ].filter(Boolean).join(' ').toLowerCase();
+  const defs=[
+    ['Fever / flu-like',['fever','flu','influenza','febrile']],
+    ['Respiratory',['urti','cough','cold','sore throat','pharyngeal','respiratory']],
+    ['Headache / dizziness',['headache','migraine','dizziness','dizzy']],
+    ['Dental',['tooth','dental','caries','molar','extraction','gum']],
+    ['Gastrointestinal',['stomach','abdominal','diarrhea','vomit','nausea']],
+    ['Injury / wound',['injury','wound','sprain','cut','bruise']]
+  ];
+  return defs.filter(([,keys])=>keys.some(k=>source.includes(k))).map(([label])=>label);
+}
+
+function computeCampusHealthAnalytics(windowDays=7){
+  const anchorInfo=healthAnalyticsAnchorDate();
+  const anchor=anchorInfo.date;
+  const currentFrom=isoDateOffset(anchor,-(windowDays-1));
+  const prevTo=isoDateOffset(currentFrom,-1);
+  const prevFrom=isoDateOffset(prevTo,-(windowDays-1));
+
+  const clinical=DB.treatments.map(t=>{
+    const pt=getPatientById(t.patientId)||{};
+    return {...t,_kind:'Treatment',college:pt.college||'',signals:extractHealthSignals(t)};
+  });
+  const current=clinical.filter(x=>x.date>=currentFrom&&x.date<=anchor);
+  const previous=clinical.filter(x=>x.date>=prevFrom&&x.date<=prevTo);
+
+  const countSignals=list=>{
+    const m={};list.forEach(x=>x.signals.forEach(s=>m[s]=(m[s]||0)+1));return m;
+  };
+  const currSignals=countSignals(current),prevSignals=countSignals(previous);
+  const allSignals=[...new Set([...Object.keys(currSignals),...Object.keys(prevSignals)])];
+
+  const signalRows=allSignals.map(name=>{
+    const now=currSignals[name]||0,before=prevSignals[name]||0;
+    const growth=before===0?(now>0?100:0):Math.round(((now-before)/before)*100);
+    return {name,now,before,growth};
+  }).sort((a,b)=>b.now-a.now||b.growth-a.growth);
+
+  const diagnosisCount={};
+  current.forEach(t=>{
+    const d=(t.diagnosis||'Unspecified').trim();
+    diagnosisCount[d]=(diagnosisCount[d]||0)+1;
+  });
+  const topDiagnosis=Object.entries(diagnosisCount).sort((a,b)=>b[1]-a[1])[0]||null;
+
+  const collegeCount={};
+  current.forEach(t=>{const c=t.college||'Unknown';collegeCount[c]=(collegeCount[c]||0)+1;});
+  const topCollege=Object.entries(collegeCount).sort((a,b)=>b[1]-a[1])[0]||null;
+
+  const prevCount=previous.length;
+  const visitGrowth=prevCount===0?(current.length?100:0):Math.round(((current.length-prevCount)/prevCount)*100);
+
+  // Conservative alerting: a trend needs at least 2 current records.
+  // This intentionally says "trend" rather than "outbreak".
+  const alerts=signalRows.filter(r=>r.now>=2&&r.growth>=50).map(r=>({
+    severity:r.growth>=100?'high':'medium',
+    title:`${r.name} trend increased`,
+    detail:`${r.now} related clinical record${r.now===1?'':'s'} in the current ${windowDays}-day window (${r.growth>=0?'+':''}${r.growth}% vs the previous window).`
+  }));
+
+  return {
+    anchor,anchorInfo,currentFrom,prevFrom,prevTo,windowDays,current,previous,
+    signalRows,topDiagnosis,topCollege,visitGrowth,alerts
+  };
+}
+
+function renderHealthIntelligenceCard(windowDays=7){
+  const a=computeCampusHealthAnalytics(windowDays);
+  const anchorNote=a.anchorInfo.isHistorical
+    ?`Demo note: the newest clinical record is ${fmtDate(a.anchor)}, so this analysis is anchored to the latest available data.`
+    :`Analysis through ${fmtDate(a.anchor)}.`;
+  const topSignal=a.signalRows[0];
+  const growthTone=a.visitGrowth>30?'text-danger':a.visitGrowth>0?'text-warning':'text-success';
+
+  return `<div class="card">
+    <div class="card-header">
+      <div><h3>Campus Health Intelligence</h3><div class="tech-note">Predictive trend detection from clinical records — not an outbreak diagnosis.</div></div>
+      <select id="health-window" onchange="refreshHealthIntelligence()" style="padding:.35rem .55rem;border-radius:9px;background:var(--overlay);color:var(--ink);border:1px solid var(--line)">
+        ${[7,14,30].map(n=>`<option value="${n}" ${n===windowDays?'selected':''}>${n} days</option>`).join('')}
+      </select>
+    </div>
+    <div class="intel-grid">
+      <div class="intel-card"><div class="intel-kicker">Clinical records</div><div class="intel-value">${a.current.length}</div><div class="intel-meta">${fmtDate(a.currentFrom)} – ${fmtDate(a.anchor)}</div></div>
+      <div class="intel-card"><div class="intel-kicker">Period change</div><div class="intel-value ${growthTone}">${a.visitGrowth>=0?'+':''}${a.visitGrowth}%</div><div class="intel-meta">Compared with the previous ${windowDays}-day window</div></div>
+      <div class="intel-card"><div class="intel-kicker">Top signal</div><div class="intel-value" style="font-size:.95rem">${topSignal?escapeHtml(topSignal.name):'No signal'}</div><div class="intel-meta">${topSignal?`${topSignal.now} matching record${topSignal.now===1?'':'s'}`:'More data is needed'}</div></div>
+      <div class="intel-card"><div class="intel-kicker">Most active college</div><div class="intel-value">${a.topCollege?escapeHtml(a.topCollege[0]):'—'}</div><div class="intel-meta">${a.topCollege?`${a.topCollege[1]} clinical record${a.topCollege[1]===1?'':'s'}`:'No records in range'}</div></div>
+    </div>
+    <div class="section-label">Health trend alerts</div>
+    <div class="intel-alert-list">
+      ${a.alerts.length?a.alerts.map(x=>`<div class="intel-alert-item"><div class="intel-alert-icon">${x.severity==='high'?'⚠️':'📈'}</div><div class="intel-alert-copy"><strong>${escapeHtml(x.title)}</strong><span>${escapeHtml(x.detail)}</span></div></div>`).join(''):`<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No unusual cluster detected</strong><span>The current rule-based detector did not find a signal meeting the alert threshold in this period.</span></div></div>`}
+    </div>
+    <div class="tech-note" style="margin-top:.65rem">${escapeHtml(anchorNote)}</div>
+  </div>`;
+}
+
+function refreshHealthIntelligence(){
+  const days=parseInt(document.getElementById('health-window')?.value||7);
+  const el=document.getElementById('health-intelligence-wrap');
+  if(el)el.innerHTML=renderHealthIntelligenceCard(days);
+}
+
+// ---------- Predictive Inventory ----------
+function inventoryUsageRecords(itemId,lookbackDays=60){
+  const anchor=healthAnalyticsAnchorDate().date;
+  const from=isoDateOffset(anchor,-lookbackDays);
+  return DB.disbursements.filter(d=>d.itemId===itemId&&d.date>=from&&d.date<=anchor).sort((a,b)=>a.date.localeCompare(b.date));
+}
+
+function getInventoryForecast(item){
+  const usage=inventoryUsageRecords(item.id,60);
+  const a=computeCampusHealthAnalytics(14);
+  const consumable=!['Equipment'].includes(item.category);
+  if(!usage.length||!consumable){
+    return {hasData:false,avgDaily:0,adjustedDaily:0,daysRemaining:null,stockoutDate:'',reorderQty:0,risk:'unknown',usageCount:usage.length,demandMultiplier:1};
+  }
+
+  const totalUsed=usage.reduce((s,d)=>s+Number(d.qty||0),0);
+  const first=usage[0].date,last=usage[usage.length-1].date;
+  const observedDays=Math.max(14,Math.min(60,Math.round((new Date(last+'T12:00:00')-new Date(first+'T12:00:00'))/86400000)+7));
+  const avgDaily=totalUsed/observedDays;
+
+  // Link campus-wide activity to inventory demand, capped so one noisy period
+  // cannot produce an extreme forecast.
+  const demandMultiplier=Math.max(.85,Math.min(1.35,1+(a.visitGrowth/100)*.25));
+  const adjustedDaily=avgDaily*demandMultiplier;
+  const daysRemaining=adjustedDaily>0?Math.floor(item.qty/adjustedDaily):null;
+  const stockoutDate=daysRemaining!==null?isoDateOffset(healthAnalyticsAnchorDate().date,daysRemaining):'';
+  const target30=Math.ceil(adjustedDaily*30+item.threshold);
+  const reorderQty=Math.max(0,target30-item.qty);
+  const risk=daysRemaining!==null&&daysRemaining<=7?'high':daysRemaining!==null&&daysRemaining<=14?'medium':'low';
+  return {hasData:true,avgDaily,adjustedDaily,daysRemaining,stockoutDate,reorderQty,risk,usageCount:usage.length,demandMultiplier};
+}
+
+function inventoryForecastBadge(f){
+  if(!f.hasData)return `<span class="badge badge-gray">Needs history</span>`;
+  const cls=f.risk==='high'?'badge-danger':f.risk==='medium'?'badge-warning':'badge-success';
+  return `<span class="badge ${cls}">${f.risk==='high'?'High risk':f.risk==='medium'?'Watch':'Stable'}</span>`;
+}
+
+function predictiveInventorySummaryHtml(){
+  const forecasts=DB.inventory.map(item=>({item,f:getInventoryForecast(item)})).filter(x=>x.f.hasData);
+  const atRisk=forecasts.filter(x=>x.f.daysRemaining<=14).sort((a,b)=>a.f.daysRemaining-b.f.daysRemaining);
+  const soon=atRisk[0];
+  return `<div class="card">
+    <div class="card-header"><div><h3>Predictive Inventory</h3><div class="tech-note">Forecasts use recent disbursement history and current clinic-activity trends.</div></div><span class="intel-badge">Forecast engine</span></div>
+    <div class="intel-grid">
+      <div class="intel-card ${atRisk.length?'intel-risk-medium':'intel-risk-low'}"><div class="intel-kicker">At risk in 14 days</div><div class="intel-value">${atRisk.length}</div><div class="intel-meta">Consumable item${atRisk.length===1?'':'s'} projected to run low soon</div></div>
+      <div class="intel-card"><div class="intel-kicker">Soonest projected depletion</div><div class="intel-value" style="font-size:.95rem">${soon?escapeHtml(soon.item.name):'No immediate risk'}</div><div class="intel-meta">${soon?`${soon.f.daysRemaining} days · ${fmtDate(soon.f.stockoutDate)}`:'Based on available history'}</div></div>
+      <div class="intel-card"><div class="intel-kicker">Forecast coverage</div><div class="intel-value">${forecasts.length}/${DB.inventory.length}</div><div class="intel-meta">Items with enough usage history</div></div>
+    </div>
+    ${atRisk.length?`<div class="intel-alert-list">${atRisk.slice(0,4).map(({item,f})=>`<div class="intel-alert-item"><div class="intel-alert-icon">${f.risk==='high'?'⚠️':'📦'}</div><div class="intel-alert-copy"><strong>${escapeHtml(item.name)} — ${f.daysRemaining} days remaining</strong><span>Projected depletion ${fmtDate(f.stockoutDate)}. Suggested reorder: ${f.reorderQty} ${escapeHtml(item.unit)}. Current adjusted usage ≈ ${f.adjustedDaily.toFixed(1)} ${escapeHtml(item.unit)}/day.</span></div></div>`).join('')}</div>`:`<div class="tech-note">No item with sufficient usage history is forecast to deplete within 14 days.</div>`}
+  </div>`;
+}
+
+// ---------- AI Clinical Copilot ----------
+function buildClinicalCopilot(patientId){
+  const pt=getPatientById(patientId);
+  if(!pt)return null;
+  const treatments=DB.treatments.filter(t=>t.patientId===patientId).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const appointments=DB.appointments.filter(a=>a.patientId===patientId).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const latest=treatments[0]||null;
+
+  const diagnosisCounts={};
+  treatments.forEach(t=>{
+    const d=(t.diagnosis||'Unspecified').trim();
+    diagnosisCounts[d]=(diagnosisCounts[d]||0)+1;
+  });
+  const repeated=Object.entries(diagnosisCounts).filter(([,n])=>n>1).sort((a,b)=>b[1]-a[1]);
+
+  const alerts=[];
+  if(pt.allergies&&pt.allergies.toLowerCase()!=='none')alerts.push({type:'danger',title:'Recorded allergy',detail:pt.allergies});
+  if(pt.medHistory&&pt.medHistory.toLowerCase()!=='none')alerts.push({type:'info',title:'Medical history',detail:pt.medHistory});
+  if(latest?.followupDate&&latest.followupDate<TODAY)alerts.push({type:'warning',title:'Follow-up date has passed',detail:`Follow-up was recorded for ${fmtDate(latest.followupDate)}.`});
+  if(repeated.length)alerts.push({type:'warning',title:'Repeated diagnosis pattern',detail:repeated.map(([d,n])=>`${d} (${n}×)`).join(', ')});
+
+  const recent=treatments.slice(0,3);
+  const summary=[
+    `${pt.fname} ${pt.lname}, ${pt.age||'age not recorded'}${pt.gender?`, ${pt.gender}`:''}.`,
+    `Blood type: ${pt.blood||'not recorded'}. Allergies: ${pt.allergies||'none recorded'}.`,
+    treatments.length?`${treatments.length} treatment record${treatments.length===1?'':'s'} on file. Latest: ${latest.diagnosis||'unspecified'} on ${fmtDate(latest.date)}.`:'No treatment records on file.',
+    appointments.length?`${appointments.length} appointment record${appointments.length===1?'':'s'}; latest status: ${appointments[0].status}.`:'No appointment records on file.'
+  ].join(' ');
+
+  const history=recent.length?recent.map(t=>`${fmtDate(t.date)} — ${t.diagnosis||'No diagnosis'}${t.prescription?`; treatment: ${t.prescription}`:''}`).join('\n'):'No recent treatment history.';
+
+  const soap=latest?[
+    `S: ${latest.notes||latest.findings||'Review patient-reported symptoms and current concerns.'}`,
+    `O: ${latest.findings||'Enter current examination findings.'}${latest.vitals?` Vitals: BP ${latest.vitals.bp||'-'}, Temp ${latest.vitals.temp||'-'}, Pulse ${latest.vitals.pulse||'-'}, SpO₂ ${latest.vitals.spo2||'-'}.`:''}`,
+    `A: Previous recorded diagnosis: ${latest.diagnosis||'not recorded'}. Reassess before using.`,
+    `P: Previous treatment: ${latest.prescription||'not recorded'}. Confirm/update plan and follow-up.`
+  ].join('\n'):'S: Enter current symptoms.\nO: Enter examination findings and vitals.\nA: Enter clinician assessment.\nP: Enter treatment and follow-up plan.';
+
+  return {pt,treatments,appointments,latest,alerts,summary,history,soap};
+}
+
+function openClinicalCopilot(patientId){
+  const x=buildClinicalCopilot(patientId);if(!x)return;
+  openModal(`<div class="modal modal-xl">
+    <div class="modal-header"><h3>AI Clinical Copilot — ${escapeHtml(x.pt.fname+' '+x.pt.lname)}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div class="copilot-hero">
+        <div><div class="copilot-title">✦ Clinical Copilot</div><div class="copilot-disclaimer">This prototype summarizes existing CampusCare records locally. It does not diagnose, prescribe, or replace clinical judgment. The clinician must verify all output before use.</div></div>
+        <span class="intel-badge">Human review required</span>
+      </div>
+      <div class="copilot-section"><h4>Patient snapshot</h4><div class="copilot-summary">${escapeHtml(x.summary)}</div></div>
+      <div class="copilot-section"><h4>Attention items</h4>
+        <div class="intel-alert-list">${x.alerts.length?x.alerts.map(a=>`<div class="intel-alert-item"><div class="intel-alert-icon">${a.type==='danger'?'⚠️':a.type==='warning'?'⏱':'ℹ️'}</div><div class="intel-alert-copy"><strong>${escapeHtml(a.title)}</strong><span>${escapeHtml(a.detail)}</span></div></div>`).join(''):`<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No automatic warning generated</strong><span>Review the complete chart before making clinical decisions.</span></div></div>`}</div>
+      </div>
+      <div class="grid-2" style="margin-top:.85rem">
+        <div class="copilot-section" style="margin-top:0"><h4>Recent clinical history</h4><div class="copilot-summary">${escapeHtml(x.history)}</div></div>
+        <div class="copilot-section" style="margin-top:0"><h4>Draft structured note</h4><textarea id="copilot-soap" rows="10" style="width:100%;padding:.7rem;border-radius:11px;border:1px solid var(--line);background:var(--overlay);color:var(--ink)">${escapeHtml(x.soap)}</textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <div class="fhir-toolbar">
+        <button class="btn btn-info btn-sm" onclick="viewPatientFHIR(${patientId})">FHIR Preview</button>
+        <button class="btn btn-sm" onclick="downloadPatientFHIR(${patientId})">Export FHIR JSON</button>
+      </div>
+      <div style="display:flex;gap:.45rem">
+        <button class="btn" onclick="closeAllModals()">Close</button>
+        <button class="btn btn-primary" onclick="copyCopilotDraft()">Copy Draft Note</button>
+      </div>
+    </div>
+  </div>`);
+}
+
+function copyCopilotDraft(){
+  const text=document.getElementById('copilot-soap')?.value||'';
+  if(!text)return;
+  if(navigator.clipboard?.writeText){
+    navigator.clipboard.writeText(text).then(()=>toast('Copilot draft copied. Review it before saving to the record.','success')).catch(()=>toast('Could not access clipboard.','warning'));
+  }else toast('Clipboard is not available in this browser.','warning');
+}
+
+// ---------- FHIR-ready Health Records ----------
+// This is a pragmatic FHIR R4-style mapping layer for the prototype.
+// It is intentionally export-only: a production deployment should validate
+// resources against a FHIR server/profile before external exchange.
+function fhirId(prefix,id){return `${prefix}-${id}`;}
+function fhirPatientResource(patientId){
+  const p=getPatientById(patientId);if(!p)return null;
+  const u=getUserById(p.userId)||{};
+  const gender=String(p.gender||'unknown').toLowerCase();
+  return {
+    resourceType:'Patient',
+    id:fhirId('patient',p.id),
+    identifier:[{system:'urn:campuscare:university-id',value:p.idNo||u.idNo||String(p.id)}],
+    active:!p.archived,
+    name:[{use:'official',family:p.lname||u.lname||'',given:[p.fname||u.fname||'']}],
+    telecom:[
+      ...(u.contact?[{system:'phone',value:u.contact,use:'mobile'}]:[]),
+      ...(u.email?[{system:'email',value:u.email}]:[])
+    ],
+    gender:['male','female','other','unknown'].includes(gender)?gender:'unknown',
+    address:p.address?[{text:p.address}]:[],
+    extension:[
+      {url:'urn:campuscare:college',valueString:p.college||''},
+      {url:'urn:campuscare:person-type',valueString:p.personType||''},
+      {url:'urn:campuscare:blood-type',valueString:p.blood||''}
+    ]
+  };
+}
+
+function campusCareFHIRBundle(patientId){
+  const p=getPatientById(patientId);if(!p)return null;
+  const entries=[];
+  const push=resource=>{if(resource)entries.push({fullUrl:`urn:uuid:${resource.id}`,resource});};
+  push(fhirPatientResource(patientId));
+
+  DB.appointments.filter(a=>a.patientId===patientId).forEach(a=>{
+    const doc=getUserById(a.doctorId)||{};
+    push({
+      resourceType:'Appointment',id:fhirId('appointment',a.id),
+      status:a.status==='Completed'?'fulfilled':a.status==='Cancelled'?'cancelled':'booked',
+      serviceType:[{text:a.service||a.clinic||'Campus clinic service'}],
+      description:a.reason||a.notes||'CampusCare appointment',
+      start:`${a.date}T${a.time||'00:00'}:00+08:00`,
+      participant:[
+        {actor:{reference:`Patient/${fhirId('patient',patientId)}`,display:`${p.fname} ${p.lname}`},status:'accepted'},
+        {actor:{reference:`Practitioner/${fhirId('practitioner',a.doctorId)}`,display:doc.fname?`Dr. ${doc.fname} ${doc.lname}`:'Doctor'},status:'accepted'}
+      ]
+    });
+  });
+
+  DB.treatments.filter(t=>t.patientId===patientId).forEach(t=>{
+    const encounterId=fhirId('encounter',t.id);
+    push({
+      resourceType:'Encounter',id:encounterId,status:'finished',
+      class:{system:'http://terminology.hl7.org/CodeSystem/v3-ActCode',code:'AMB',display:'ambulatory'},
+      subject:{reference:`Patient/${fhirId('patient',patientId)}`},
+      period:{start:`${t.date}T00:00:00+08:00`,end:`${t.date}T23:59:59+08:00`}
+    });
+    push({
+      resourceType:'Condition',id:fhirId('condition',t.id),
+      clinicalStatus:{text:'active/recorded'},code:{text:t.diagnosis||'Unspecified'},
+      subject:{reference:`Patient/${fhirId('patient',patientId)}`},
+      encounter:{reference:`Encounter/${encounterId}`},recordedDate:t.date,
+      note:[{text:t.findings||''},{text:t.notes||''}].filter(n=>n.text)
+    });
+    if(t.vitals){
+      const vitals=[
+        ['blood-pressure','Blood pressure',t.vitals.bp],
+        ['body-temperature','Body temperature',t.vitals.temp],
+        ['heart-rate','Pulse rate',t.vitals.pulse],
+        ['oxygen-saturation','Oxygen saturation',t.vitals.spo2],
+        ['body-weight','Body weight',t.vitals.weight]
+      ];
+      vitals.filter(v=>v[2]&&v[2]!=='-').forEach(([code,label,value],idx)=>push({
+        resourceType:'Observation',id:fhirId(`obs-${t.id}`,idx+1),status:'final',
+        code:{text:label},subject:{reference:`Patient/${fhirId('patient',patientId)}`},
+        encounter:{reference:`Encounter/${encounterId}`},effectiveDateTime:`${t.date}T00:00:00+08:00`,
+        valueString:String(value)
+      }));
+    }
+    if(t.prescription)push({
+      resourceType:'MedicationRequest',id:fhirId('medrequest',t.id),status:'active',intent:'order',
+      medicationCodeableConcept:{text:t.prescription},
+      subject:{reference:`Patient/${fhirId('patient',patientId)}`},
+      encounter:{reference:`Encounter/${encounterId}`},authoredOn:t.date,
+      note:[{text:'Free-text medication/treatment instruction from CampusCare clinical record.'}]
+    });
+  });
+
+  (DB.certRequests||[]).filter(r=>r.patientId===patientId&&r.status==='Issued').forEach(r=>push({
+    resourceType:'DocumentReference',id:fhirId('document',r.id),status:'current',
+    type:{text:'Medical Certificate'},subject:{reference:`Patient/${fhirId('patient',patientId)}`},
+    date:r.issuedAt||r.date||TODAY,
+    description:r.certNo?`CampusCare Medical Certificate ${r.certNo}`:'CampusCare Medical Certificate'
+  }));
+
+  return {
+    resourceType:'Bundle',
+    id:`campuscare-patient-${patientId}-${TODAY}`,
+    type:'collection',
+    timestamp:new Date().toISOString(),
+    meta:{tag:[{system:'urn:campuscare:export',code:'fhir-ready-prototype',display:'CampusCare FHIR-ready export'}]},
+    entry:entries
+  };
+}
+
+function viewPatientFHIR(patientId){
+  const bundle=campusCareFHIRBundle(patientId);if(!bundle)return;
+  openModal(`<div class="modal modal-xl">
+    <div class="modal-header"><div><h3>FHIR-ready Record Preview</h3><div class="tech-note">FHIR R4-style prototype mapping. Validate against your target implementation guide before real interoperability.</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body"><pre class="fhir-preview">${escapeHtml(JSON.stringify(bundle,null,2))}</pre></div>
+    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Close</button><button class="btn btn-primary" onclick="downloadPatientFHIR(${patientId})">Download JSON</button></div>
+  </div>`);
+}
+
+function downloadPatientFHIR(patientId){
+  const bundle=campusCareFHIRBundle(patientId);if(!bundle)return;
+  const p=getPatientById(patientId)||{};
+  const blob=new Blob([JSON.stringify(bundle,null,2)],{type:'application/fhir+json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`CampusCare_FHIR_${(p.lname||'patient').replace(/\s+/g,'_')}_${patientId}.json`;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  toast('FHIR-ready JSON exported.','success');
+}
+
+
 // ================================================================
 // NOTIFICATIONS
 // ================================================================
@@ -2024,9 +2453,9 @@ function resetAssistantChat(){
 function getAssistantChips(){
   if(!currentUser)return [];
   const role=currentUser.role;
-  if(role==='Administrator')return ['How many pending approvals?','Any low stock items?',"Today's appointments","How do I archive a patient?"];
-  if(role==='Doctor')return ["Today's appointments","My upcoming days off","How do I complete an appointment?","Unread messages"];
-  if(role==='Staff')return ['Any low stock items?','Pending approvals','How do I add a patient?','Unread messages'];
+  if(role==='Administrator')return ['Any predicted stock-outs?','Campus health trends','How many pending approvals?',"Today's appointments"];
+  if(role==='Doctor')return ["Today's appointments",'Campus health trends','How do I use Clinical Copilot?',"Unread messages"];
+  if(role==='Staff')return ['Any predicted stock-outs?','Campus health trends','Pending approvals','Unread messages'];
   return ['My next appointment','How do I book an appointment?','Unread messages','Clinic hours'];
 }
 
@@ -2094,6 +2523,28 @@ function getAssistantReply(raw){
       toggleAssistant();
       return `Sure, here's ${match.label.replace('&amp;','&')}.`;
     }
+  }
+
+  // Emerging-tech intelligence shortcuts
+  if(has('predicted stock','stock-out','stockout','inventory forecast','forecast inventory')){
+    if(!(role==='Administrator'||role==='Staff'||role==='Doctor'))return "Inventory forecasting is available to clinic staff.";
+    const rows=DB.inventory.map(i=>({i,f:getInventoryForecast(i)})).filter(x=>x.f.hasData).sort((a,b)=>a.f.daysRemaining-b.f.daysRemaining);
+    if(!rows.length)return "There is not enough disbursement history yet to calculate a reliable inventory forecast.";
+    const risk=rows.filter(x=>x.f.daysRemaining<=14);
+    return risk.length
+      ?`${risk.length} item${risk.length===1?' is':'s are'} projected to deplete within 14 days: ${risk.slice(0,4).map(x=>`${x.i.name} (~${x.f.daysRemaining} days)`).join(', ')}. Open Inventory for reorder recommendations.`
+      :"No item with sufficient usage history is projected to deplete within 14 days.";
+  }
+
+  if(has('campus health trend','health trends','health analytics','trend alert')){
+    if(role==='Patient')return "Campus-wide analytics are available to authorized clinic personnel.";
+    const a=computeCampusHealthAnalytics(7),top=a.signalRows[0];
+    return `The current 7-day analytics window contains ${a.current.length} clinical record${a.current.length===1?'':'s'} (${a.visitGrowth>=0?'+':''}${a.visitGrowth}% versus the previous window). ${top?`Top detected signal: ${top.name} (${top.now}). `:''}${a.alerts.length?`${a.alerts.length} trend alert${a.alerts.length===1?'':'s'} meet the review threshold.`:'No unusual cluster currently meets the alert threshold.'}`;
+  }
+
+  if(has('clinical copilot','copilot')){
+    if(role!=='Doctor'&&role!=='Administrator')return "The Clinical Copilot is available to doctors and administrators from a patient's record.";
+    return "Open Patient Records (or My Patients), view a patient, then choose “Clinical Copilot.” It summarizes existing history, highlights recorded allergies/follow-ups, and prepares a draft structured note. All output requires clinician review.";
   }
 
   // Low stock / inventory (staff/admin/doctor)
@@ -2690,15 +3141,15 @@ const TOP_SEARCH_ALIASES={
   dashboard:['home','overview'],
   appointments:['appointment','book','booking','schedule patient'],
   'my-appointments':['appointment','book','booking'],
-  patients:['patient','records','add patient'],
-  'my-patients':['patient','records'],
+  patients:['patient','records','add patient','FHIR','clinical copilot'],
+  'my-patients':['patient','records','FHIR','clinical copilot'],
   approvals:['approval','registration','pending account'],
   'cert-requests':['certificate','medical certificate','signature'],
   'my-certificates':['certificate','medical certificate'],
   treatments:['treatment','diagnosis','medical notes'],
-  inventory:['stock','medicine','supplies'],
+  inventory:['stock','medicine','supplies','predictive inventory','stock forecast','reorder prediction'],
   messages:['message','chat','conversation'],
-  reports:['report','analytics','statistics'],
+  reports:['report','analytics','statistics','campus health intelligence','predictive health','health trends'],
   users:['user','account','management'],
   settings:['settings','configuration'],
   schedule:['doctor schedule','leave','time off'],
@@ -5622,6 +6073,7 @@ function renderInventory(){
   const canEdit=currentUser.role==='Staff'||currentUser.role==='Administrator';
   c.innerHTML=`
     ${lowStock.length?`<div class="alert alert-danger show">⚠️ <strong>${lowStock.length} item(s)</strong> are below threshold and need restocking.</div>`:''}
+    ${predictiveInventorySummaryHtml()}
     <div class="card">
       <div class="card-header">
         <h3>Inventory Management</h3>
@@ -5673,7 +6125,7 @@ function renderInvTable(){
   if(!el)return;
   const canEdit=currentUser.role==='Staff'||currentUser.role==='Administrator';
   if(!items.length){el.innerHTML='<div class="empty-state"><p>No items found.</p></div>';return;}
-  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>#</th><th>Item</th><th>Category</th><th>Qty</th><th>Threshold</th><th>Unit Cost</th><th>Expiry</th><th>Disburse Date</th><th>Stock</th><th>Actions</th></tr></thead><tbody>${
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>#</th><th>Item</th><th>Category</th><th>Qty</th><th>Threshold</th><th>Unit Cost</th><th>Expiry</th><th>Disburse Date</th><th>Stock</th><th>Forecast</th><th>Actions</th></tr></thead><tbody>${
     items.map(i=>{
       const pct=Math.min(100,Math.round(i.qty/Math.max(i.threshold*2,1)*100));
       const lvl=i.qty<=i.threshold?'Low':i.qty<=i.threshold*1.5?'Medium':'Good';
@@ -5691,6 +6143,7 @@ function renderInvTable(){
         <td class="${i.expiryDate&&i.expiryDate<=TODAY?'text-danger':''}">${fmtDate(i.expiryDate)}</td>
         <td class="${disbWarn?'text-warning':''}"><strong>${fmtDate(i.disbursementDate)}</strong>${disbWarn?` <span class="badge badge-warning">In ${daysToDisb}d</span>`:''}</td>
         <td><span class="badge ${bdg}">${lvl}</span><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${i.qty<=i.threshold?'var(--danger)':i.qty<=i.threshold*1.5?'var(--warning)':'var(--success)'}"></div></div></td>
+        ${(()=>{const f=getInventoryForecast(i);return `<td>${inventoryForecastBadge(f)}${f.hasData?`<div class="text-muted" style="margin-top:.2rem">${f.daysRemaining}d remaining<br>Reorder ${f.reorderQty} ${i.unit}</div>`:`<div class="text-muted" style="margin-top:.2rem">Record usage to forecast</div>`}</td>`})()}
         <td><div class="td-actions">
           ${canEdit?`<button class="btn btn-xs btn-info" onclick="openUpdateQtyModal(${i.id})">Update Qty</button>
           <button class="btn btn-xs" onclick="openInvModal(${i.id})">Edit</button>
@@ -5717,6 +6170,7 @@ function renderDisbTable(){
 function renderReports(){
   const c=document.getElementById('app-content');
   c.innerHTML=`
+    <div id="health-intelligence-wrap">${renderHealthIntelligenceCard(7)}</div>
     <div class="card">
       <div class="card-header"><h3>Generate Report</h3></div>
       <div class="form-row">
@@ -7332,9 +7786,16 @@ function viewPatient(id){
       <div class="section-label">Recent Appointments</div>
       ${appts.length?`<table><thead><tr><th>Date</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${appts.map(a=>{const doc=getUserById(a.doctorId);return`<tr><td>${fmtDate(a.date)}</td><td>${a.clinic}</td><td>${doc?docName(doc):'?'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table>`:'<p class="text-muted">No appointments.</p>'}
     </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeAllModals()">Close</button>
-      <button class="btn btn-info btn-sm" onclick="closeAllModals();openPatientModal(${id})">Edit Record</button>
+    <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap">
+      <div class="fhir-toolbar">
+        ${currentUser.role==='Doctor'||currentUser.role==='Administrator'?`<button class="btn btn-purple btn-sm" onclick="openClinicalCopilot(${id})">✦ Clinical Copilot</button>`:''}
+        ${currentUser.role!=='Patient'?`<button class="btn btn-info btn-sm" onclick="viewPatientFHIR(${id})">FHIR Preview</button>
+        <button class="btn btn-sm" onclick="downloadPatientFHIR(${id})">Export FHIR</button>`:''}
+      </div>
+      <div style="display:flex;gap:.45rem">
+        <button class="btn" onclick="closeAllModals()">Close</button>
+        <button class="btn btn-info btn-sm" onclick="closeAllModals();openPatientModal(${id})">Edit Record</button>
+      </div>
     </div>
   </div>`);
 }
