@@ -481,6 +481,44 @@ select option{background:#1c2128;color:#e9edf0}
 @media(max-width:640px){.copilot-hero{flex-direction:column}.intel-grid{grid-template-columns:1fr 1fr}.fhir-toolbar{width:100%}.fhir-toolbar .btn{flex:1;justify-content:center}}
 @media(max-width:430px){.intel-grid{grid-template-columns:1fr}}
 
+
+
+/* ===TREATMENT RECORD DOCUMENT VIEW=== */
+.treatment-record-shell{background:rgba(0,0,0,.04);padding:1rem;border-radius:14px;overflow:auto}
+.treatment-record-doc{width:min(100%,760px);margin:0 auto;background:#fff;color:#1f2933;border:1px solid #d9e0e6;border-radius:6px;box-shadow:0 14px 36px rgba(15,35,55,.16);padding:34px 38px;font-family:Arial,Helvetica,sans-serif}
+.treatment-doc-head{text-align:center;border-bottom:2px solid #0a7ea8;padding-bottom:14px;margin-bottom:18px}
+.treatment-doc-head h2{font-size:1.25rem;margin:0;color:#12314a;letter-spacing:.2px}
+.treatment-doc-head p{font-size:.72rem;color:#5f6d76;margin:3px 0 0}
+.treatment-doc-title{text-align:center;font-size:.95rem;font-weight:800;letter-spacing:1px;margin:16px 0;color:#0a5f80}
+.treatment-doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-bottom:16px}
+.treatment-doc-field{font-size:.76rem;border-bottom:1px solid #e7ecef;padding:5px 0}
+.treatment-doc-field span{display:block;font-size:.64rem;text-transform:uppercase;letter-spacing:.55px;color:#76848d;font-weight:700;margin-bottom:2px}
+.treatment-doc-vitals{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 17px}
+.treatment-vital-box{border:1px solid #dfe7ec;border-radius:8px;padding:8px;text-align:center;background:#f8fbfd}
+.treatment-vital-box span{display:block;font-size:.61rem;text-transform:uppercase;color:#72818b;font-weight:700;letter-spacing:.45px}
+.treatment-vital-box strong{display:block;font-size:.8rem;margin-top:3px;color:#1e3b4a}
+.treatment-doc-section{margin:14px 0}
+.treatment-doc-section h4{font-size:.7rem;text-transform:uppercase;letter-spacing:.75px;color:#0a6f96;border-bottom:1px solid #cfe0e8;padding-bottom:4px;margin-bottom:6px}
+.treatment-doc-section p{font-size:.78rem;line-height:1.55;white-space:pre-wrap}
+.treatment-doc-sign{display:flex;justify-content:flex-end;margin-top:34px}
+.treatment-doc-sign>div{width:240px;text-align:center;font-size:.72rem}
+.treatment-doc-sign .line{border-top:1px solid #333;margin-top:38px;padding-top:5px}
+.treatment-archived-mark{display:inline-flex;padding:3px 9px;border:1px solid #d29a42;border-radius:999px;background:#fff3d6;color:#8a5a00;font-size:.68rem;font-weight:700}
+@media(max-width:640px){.treatment-record-shell{padding:.45rem}.treatment-record-doc{padding:22px 18px}.treatment-doc-grid{grid-template-columns:1fr}.treatment-doc-vitals{grid-template-columns:repeat(2,1fr)}}
+
+/* ===STUDY OBJECTIVES ENHANCEMENTS: fitness, privacy, audit, backups=== */
+.objective-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.75rem}
+.objective-card{border:1px solid var(--glass-border-soft);background:var(--glass-surface-soft);border-radius:14px;padding:.9rem}
+.objective-card h4{font-size:.82rem;margin-bottom:.35rem}.objective-card p{font-size:.74rem;color:var(--ink-muted);line-height:1.5}
+.privacy-agree{display:flex;gap:.55rem;align-items:flex-start;padding:.75rem;border:1px solid var(--glass-border-soft);border-radius:12px;background:var(--overlay);margin:.7rem 0}
+.privacy-agree input{margin-top:.18rem;flex-shrink:0}.privacy-agree label{font-size:.76rem;line-height:1.5;color:var(--ink-muted)}
+.privacy-agree a{color:var(--primary);font-weight:600;cursor:pointer}
+.audit-toolbar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem}.audit-toolbar input,.audit-toolbar select{padding:.42rem .65rem;border:1px solid var(--line);border-radius:9px;background:var(--overlay);color:var(--ink)}
+.backup-row{display:flex;justify-content:space-between;align-items:center;gap:.7rem;padding:.6rem 0;border-bottom:1px solid var(--line-soft)}.backup-row:last-child{border-bottom:0}
+.fitness-decision{font-weight:800}.fitness-fit{color:var(--success)}.fitness-restrict{color:var(--warning)}.fitness-notfit{color:var(--danger)}
+.forecast-table td,.forecast-table th{text-align:right}.forecast-table td:first-child,.forecast-table th:first-child{text-align:left}
+@media(max-width:640px){.objective-grid{grid-template-columns:1fr}.backup-row{align-items:flex-start;flex-direction:column}}
+
 /* ===TABLES=== */
 .table-wrap{overflow-x:auto;border-radius:12px}
 .cert-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-width:thin;overscroll-behavior-x:contain}.cert-table-wrap table{min-width:720px}.cert-swipe-hint{display:none;font-size:.68rem;color:var(--ink-muted);margin:.15rem 0 .55rem;align-items:center;gap:.3rem}.cert-table-wrap::-webkit-scrollbar{height:6px}.cert-table-wrap::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:999px}@media(max-width:768px){.cert-swipe-hint{display:flex}.cert-table-wrap{margin-left:-.15rem;margin-right:-.15rem;padding-bottom:.25rem}.cert-table-wrap table{min-width:700px}}
@@ -1226,6 +1264,10 @@ tbody tr:hover td{background:var(--overlay)}
         <button type="button" class="btn btn-sm btn-info" style="margin-top:.5rem" onclick="event.stopPropagation();openCamera('id')">📷 Use Camera Instead</button>
         <div id="id-analyze-status" class="form-note"></div>
       </div>
+      <div class="privacy-agree">
+        <input type="checkbox" id="r-privacy-consent">
+        <label for="r-privacy-consent">I have read and agree to the <a onclick="event.preventDefault();openPrivacyNotice()">CampusCare Privacy Notice and Consent</a>. I understand that my personal and health information will be collected and processed for CTU clinic registration, consultation, treatment, appointment, certificate, inventory-linked clinical operations, reporting, and other legitimate clinic purposes.</label>
+      </div>
       <button class="btn btn-primary" style="width:100%" onclick="doRegister()">Submit Registration</button>
     </div>
 
@@ -1465,6 +1507,13 @@ const DB = {
   certRequests: [],
   nextCertId:1,
 
+  // Fitness-to-compete assessments and audit events are persisted just like
+  // the other prototype records and can later map to backend database tables.
+  fitnessAssessments: [],
+  nextFitnessId:1,
+  activityLogs: [],
+  nextActivityLogId:1,
+
   settings: {
     semesterStart:'2026-01-01',
     semesterEnd:'2026-06-30',
@@ -1478,6 +1527,9 @@ const DB = {
     clinicName:'CampusCare',
     address:'Corner M.J. Cuenco Ave. & R. Palma St., Cebu City, Philippines, 6000.',
     contactEmail:'campus.care@ctu.edu.ph',
+    privacyPolicyVersion:'1.0',
+    privacyPolicyUpdated:'2026-09-12',
+    backupRetentionDays:7,
   }
 };
 
@@ -1535,6 +1587,7 @@ const Services = {
 // ================================================================
 // UTILITIES
 // ================================================================
+const CTU_MAIN_LOGO_DATA = "data:image/jpeg;base64,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";
 const TODAY = new Date().toISOString().split('T')[0];
 let currentUser = null;
 let currentPatient = null;
@@ -1562,7 +1615,7 @@ function loadDB(){
     if(!raw)return false;
     const saved=JSON.parse(raw);
     if(!saved||typeof saved!=='object')return false;
-    const arrayKeys=['users','patients','appointments','treatments','inventory','certRequests','disbursements','messages','notifications','articles','doctorLeaves','nameChangeRequests'];
+    const arrayKeys=['users','patients','appointments','treatments','inventory','certRequests','disbursements','messages','notifications','articles','doctorLeaves','nameChangeRequests','fitnessAssessments','activityLogs'];
     Object.keys(saved).forEach(k=>{
       // Guard against corrupted/incompatible cached data from an older
       // version of the app silently breaking everything on load.
@@ -1583,6 +1636,80 @@ function loadDB(){
     return true;
   }catch(e){ console.warn('CampusCare: could not load local data.',e); return false; }
 }
+
+// ================================================================
+// ACTIVITY LOGGING + AUTOMATED DAILY BACKUP (prototype)
+// ================================================================
+const BACKUP_STORAGE_KEY='campuscare_daily_backups_v1';
+
+function auditLog(action,details='',targetType='',targetId=null,userOverride=null){
+  try{
+    DB.activityLogs=Array.isArray(DB.activityLogs)?DB.activityLogs:[];
+    DB.nextActivityLogId=DB.nextActivityLogId||1;
+    const actor=userOverride||currentUser;
+    DB.activityLogs.push({
+      id:DB.nextActivityLogId++,timestamp:new Date().toISOString(),
+      userId:actor?.id||null,userName:actor?`${actor.fname} ${actor.lname}`:'System / Guest',
+      role:actor?.role||'Guest',action,details,targetType,targetId
+    });
+    if(DB.activityLogs.length>2000)DB.activityLogs=DB.activityLogs.slice(-2000);
+  }catch(e){console.warn('Audit log failed',e);}
+}
+
+function getDailyBackups(){
+  try{return JSON.parse(localStorage.getItem(BACKUP_STORAGE_KEY)||'[]');}catch(e){return[];}
+}
+function createDailyBackup(force=false){
+  try{
+    const backups=getDailyBackups();
+    const day=new Date().toISOString().slice(0,10);
+    if(!force&&backups.some(b=>b.day===day))return false;
+    const snapshot=JSON.parse(JSON.stringify(DB));
+    // Keep browser demo backups within storage limits.
+    (snapshot.users||[]).forEach(u=>{if(u.idFileData&&u.idFileData.length>250000)u.idFileData='[large attachment omitted from local backup]';if(u.profilePhoto&&u.profilePhoto.length>250000)u.profilePhoto='[large photo omitted from local backup]';});
+    const item={id:`backup-${Date.now()}`,day,createdAt:new Date().toISOString(),snapshot};
+    backups.unshift(item);
+    const retention=Math.max(1,Math.min(30,DB.settings?.backupRetentionDays||7));
+    localStorage.setItem(BACKUP_STORAGE_KEY,JSON.stringify(backups.slice(0,retention)));
+    if(force)auditLog('BACKUP_CREATED','Manual browser backup snapshot created.','System',null);
+    return true;
+  }catch(e){console.warn('Daily backup could not be created',e);return false;}
+}
+function runAutomatedDailyBackup(){createDailyBackup(false);}
+function downloadBackup(id){
+  const b=getDailyBackups().find(x=>x.id===id);if(!b)return;
+  const blob=new Blob([JSON.stringify(b.snapshot,null,2)],{type:'application/json'}),a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=`CampusCare_Backup_${b.day}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  auditLog('BACKUP_EXPORTED',`Backup ${b.day} downloaded.`,'System',null);persistDB();
+}
+function restoreBackup(id){
+  const b=getDailyBackups().find(x=>x.id===id);if(!b)return;
+  showConfirmDialog({title:'Restore Backup',message:`Restore the local CampusCare snapshot from <strong>${escapeHtml(b.day)}</strong>? Current browser data will be replaced.`,confirmLabel:'Restore',danger:true,onConfirm:()=>{
+    localStorage.setItem(DB_STORAGE_KEY,JSON.stringify(b.snapshot));sessionStorage.removeItem(SESSION_KEY);location.reload();
+  }});
+}
+
+function renderActivityLog(){
+  const c=document.getElementById('app-content');
+  if(currentUser.role!=='Administrator'){c.innerHTML='<div class="alert alert-danger show">Administrator access required.</div>';return;}
+  const roles=[...new Set((DB.activityLogs||[]).map(x=>x.role))].filter(Boolean);
+  c.innerHTML=`<div class="card"><div class="card-header"><div><h3>Activity & Audit Log</h3><div class="tech-note">Tracks important access and record-changing events for accountability.</div></div><button class="btn btn-sm" onclick="exportActivityLog()">Export CSV</button></div>
+    <div class="audit-toolbar"><input id="audit-q" type="search" placeholder="Search user, action, details..." oninput="renderActivityLogTable()"><select id="audit-role" onchange="renderActivityLogTable()"><option value="">All roles</option>${roles.map(r=>`<option>${escapeHtml(r)}</option>`).join('')}</select></div><div id="audit-table"></div></div>`;
+  renderActivityLogTable();
+}
+function renderActivityLogTable(){
+  const el=document.getElementById('audit-table');if(!el)return;
+  const q=(document.getElementById('audit-q')?.value||'').toLowerCase(),role=document.getElementById('audit-role')?.value||'';
+  const rows=(DB.activityLogs||[]).slice().reverse().filter(x=>(!role||x.role===role)&&(!q||`${x.userName} ${x.action} ${x.details} ${x.targetType}`.toLowerCase().includes(q))).slice(0,500);
+  el.innerHTML=rows.length?`<div class="table-wrap"><table><thead><tr><th>Date / Time</th><th>User</th><th>Role</th><th>Action</th><th>Details</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${new Date(x.timestamp).toLocaleString('en-PH')}</td><td>${escapeHtml(x.userName)}</td><td>${escapeHtml(x.role)}</td><td><span class="badge badge-info">${escapeHtml(x.action)}</span></td><td>${escapeHtml(x.details||'-')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No activity has been logged yet.</p></div>';
+}
+function exportActivityLog(){
+  const rows=[['Timestamp','User','Role','Action','Details'],...(DB.activityLogs||[]).map(x=>[x.timestamp,x.userName,x.role,x.action,x.details])];
+  const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`CampusCare_Activity_Log_${TODAY}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  auditLog('AUDIT_LOG_EXPORTED','Administrator exported activity log.','Audit',null);persistDB();
+}
+
 function resetDemoData(){
   showConfirmDialog({
     title:'Reset to Demo Data',
@@ -1596,6 +1723,7 @@ function resetDemoData(){
   });
 }
 loadDB();
+runAutomatedDailyBackup();
 
 // ================================================================
 // THEME (light / dark)
@@ -1633,17 +1761,24 @@ function toast(msg, type='info', dur=3000){
 // In-app confirmation dialog — replaces the native browser confirm()
 // popup with a styled modal that matches the rest of the app.
 function showConfirmDialog(opts){
-  const {title='Please Confirm',message,confirmLabel='Confirm',cancelLabel='Cancel',danger=false,onConfirm,onCancel}=opts;
-  openModal(`<div class="modal modal-sm">
-    <div class="modal-header"><h3>${danger?'⚠️ ':''}${title}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
-    <div class="modal-body"><p style="font-size:.87rem;line-height:1.55;color:var(--ink)">${message}</p></div>
-    <div class="modal-footer">
-      <button class="btn" id="cc-confirm-cancel-btn">${cancelLabel}</button>
-      <button class="btn ${danger?'btn-danger':'btn-primary'}" id="cc-confirm-ok-btn">${confirmLabel}</button>
-    </div>
-  </div>`);
-  document.getElementById('cc-confirm-ok-btn').onclick=()=>{closeAllModals();if(onConfirm)onConfirm();};
-  document.getElementById('cc-confirm-cancel-btn').onclick=()=>{closeAllModals();if(onCancel)onCancel();};
+  const {title='Please Confirm',message,confirmLabel='Confirm',cancelLabel='Cancel',danger=false,onConfirm,onCancel,bypassSecondStep=false}=opts;
+  const renderStep=(step)=>{
+    const finalStep=step===2;
+    openModal(`<div class="modal modal-sm">
+      <div class="modal-header"><h3>${danger?'⚠️ ':''}${finalStep?'Final Confirmation':title}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+      <div class="modal-body">
+        ${finalStep?`<div class="alert ${danger?'alert-warning':'alert-info'} show" style="margin-bottom:.7rem"><strong>Please confirm again.</strong></div>`:''}
+        <p style="font-size:.87rem;line-height:1.55;color:var(--ink)">${finalStep?'You are about to continue with this change. Please confirm that you really want to proceed.':message}</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="cc-confirm-cancel-btn">${finalStep?'Go Back':cancelLabel}</button>
+        <button class="btn ${danger?'btn-danger':'btn-primary'}" id="cc-confirm-ok-btn">${finalStep?'Yes, Continue':confirmLabel}</button>
+      </div>
+    </div>`);
+    document.getElementById('cc-confirm-ok-btn').onclick=()=>{closeAllModals();if(finalStep||bypassSecondStep){if(onConfirm)onConfirm();}else renderStep(2);};
+    document.getElementById('cc-confirm-cancel-btn').onclick=()=>{closeAllModals();if(finalStep)renderStep(1);else if(onCancel)onCancel();};
+  };
+  renderStep(1);
 }
 
 function toastWithUndo(msg, undoFn, dur=6000){
@@ -2125,39 +2260,48 @@ function computeCampusHealthAnalytics(windowDays=7){
   };
 }
 
-function renderHealthIntelligenceCard(windowDays=7){
-  const a=computeCampusHealthAnalytics(windowDays);
-  const anchorNote=a.anchorInfo.isHistorical
-    ?`Demo note: the newest clinical record is ${fmtDate(a.anchor)}, so this analysis is anchored to the latest available data.`
-    :`Analysis through ${fmtDate(a.anchor)}.`;
-  const topSignal=a.signalRows[0];
-  const growthTone=a.visitGrowth>30?'text-danger':a.visitGrowth>0?'text-warning':'text-success';
 
+// Uses the exact Reports & Analytics From/To range and compares it with the
+// immediately preceding range of the same length.
+function computeCampusHealthAnalyticsRange(dateFrom,dateTo){
+  const from=dateFrom||TODAY.substring(0,7)+'-01',to=dateTo||TODAY;
+  const fromD=new Date(from+'T12:00:00'),toD=new Date(to+'T12:00:00');
+  const spanDays=Math.max(1,Math.round((toD-fromD)/86400000)+1);
+  const prevTo=isoDateOffset(from,-1),prevFrom=isoDateOffset(prevTo,-(spanDays-1));
+  const clinical=DB.treatments.filter(t=>!t.archived).map(t=>{const pt=getPatientById(t.patientId)||{};return {...t,college:pt.college||'',signals:extractHealthSignals(t)};});
+  const current=clinical.filter(x=>x.date>=from&&x.date<=to),previous=clinical.filter(x=>x.date>=prevFrom&&x.date<=prevTo);
+  const countSignals=list=>{const m={};list.forEach(x=>x.signals.forEach(s=>m[s]=(m[s]||0)+1));return m;};
+  const curr=countSignals(current),prev=countSignals(previous),names=[...new Set([...Object.keys(curr),...Object.keys(prev)])];
+  const signalRows=names.map(name=>{const now=curr[name]||0,before=prev[name]||0;const growth=before===0?(now>0?100:0):Math.round(((now-before)/before)*100);return {name,now,before,growth};}).sort((a,b)=>b.now-a.now||b.growth-a.growth);
+  const collegeCount={};current.forEach(t=>{const c=t.college||'Unknown';collegeCount[c]=(collegeCount[c]||0)+1;});
+  const topCollege=Object.entries(collegeCount).sort((a,b)=>b[1]-a[1])[0]||null;
+  const visitGrowth=previous.length===0?(current.length?100:0):Math.round(((current.length-previous.length)/previous.length)*100);
+  const alerts=signalRows.filter(r=>r.now>=2&&r.growth>=50).map(r=>({severity:r.growth>=100?'high':'medium',title:`${r.name} trend increased`,detail:`${r.now} related clinical record${r.now===1?'':'s'} in the selected range (${r.growth>=0?'+':''}${r.growth}% vs the preceding ${spanDays}-day range).`}));
+  return {currentFrom:from,anchor:to,prevFrom,prevTo,spanDays,current,previous,signalRows,topCollege,visitGrowth,alerts};
+}
+
+function renderHealthIntelligenceCard(dateFrom,dateTo){
+  const a=computeCampusHealthAnalyticsRange(dateFrom,dateTo);
+  const topSignal=a.signalRows[0],growthTone=a.visitGrowth>30?'text-danger':a.visitGrowth>0?'text-warning':'text-success';
   return `<div class="card">
     <div class="card-header">
       <div><h3>Campus Health Intelligence</h3><div class="tech-note">Predictive trend detection from clinical records — not an outbreak diagnosis.</div></div>
-      <select id="health-window" onchange="refreshHealthIntelligence()" style="padding:.35rem .55rem;border-radius:9px;background:var(--overlay);color:var(--ink);border:1px solid var(--line)">
-        ${[7,14,30].map(n=>`<option value="${n}" ${n===windowDays?'selected':''}>${n} days</option>`).join('')}
-      </select>
+      <button class="btn btn-sm" type="button" onclick="openReportDateRange()"><i class="fa-regular fa-calendar"></i> ${fmtDate(a.currentFrom)} – ${fmtDate(a.anchor)}</button>
     </div>
     <div class="intel-grid">
       <div class="intel-card"><div class="intel-kicker">Clinical records</div><div class="intel-value">${a.current.length}</div><div class="intel-meta">${fmtDate(a.currentFrom)} – ${fmtDate(a.anchor)}</div></div>
-      <div class="intel-card"><div class="intel-kicker">Period change</div><div class="intel-value ${growthTone}">${a.visitGrowth>=0?'+':''}${a.visitGrowth}%</div><div class="intel-meta">Compared with the previous ${windowDays}-day window</div></div>
+      <div class="intel-card"><div class="intel-kicker">Period change</div><div class="intel-value ${growthTone}">${a.visitGrowth>=0?'+':''}${a.visitGrowth}%</div><div class="intel-meta">Compared with the previous ${a.spanDays}-day range</div></div>
       <div class="intel-card"><div class="intel-kicker">Top signal</div><div class="intel-value" style="font-size:.95rem">${topSignal?escapeHtml(topSignal.name):'No signal'}</div><div class="intel-meta">${topSignal?`${topSignal.now} matching record${topSignal.now===1?'':'s'}`:'More data is needed'}</div></div>
       <div class="intel-card"><div class="intel-kicker">Most active college</div><div class="intel-value">${a.topCollege?escapeHtml(a.topCollege[0]):'—'}</div><div class="intel-meta">${a.topCollege?`${a.topCollege[1]} clinical record${a.topCollege[1]===1?'':'s'}`:'No records in range'}</div></div>
     </div>
     <div class="section-label">Health trend alerts</div>
-    <div class="intel-alert-list">
-      ${a.alerts.length?a.alerts.map(x=>`<div class="intel-alert-item"><div class="intel-alert-icon">${x.severity==='high'?'⚠️':'📈'}</div><div class="intel-alert-copy"><strong>${escapeHtml(x.title)}</strong><span>${escapeHtml(x.detail)}</span></div></div>`).join(''):`<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No unusual cluster detected</strong><span>The current rule-based detector did not find a signal meeting the alert threshold in this period.</span></div></div>`}
-    </div>
-    <div class="tech-note" style="margin-top:.65rem">${escapeHtml(anchorNote)}</div>
+    <div class="intel-alert-list">${a.alerts.length?a.alerts.map(x=>`<div class="intel-alert-item"><div class="intel-alert-icon">${x.severity==='high'?'⚠️':'📈'}</div><div class="intel-alert-copy"><strong>${escapeHtml(x.title)}</strong><span>${escapeHtml(x.detail)}</span></div></div>`).join(''):`<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No unusual cluster detected</strong><span>The detector did not find a signal meeting the review threshold for the selected date range.</span></div></div>`}</div>
+    <div class="tech-note" style="margin-top:.65rem">The comparison automatically uses the immediately preceding range with the same number of days.</div>
   </div>`;
 }
-
 function refreshHealthIntelligence(){
-  const days=parseInt(document.getElementById('health-window')?.value||7);
-  const el=document.getElementById('health-intelligence-wrap');
-  if(el)el.innerHTML=renderHealthIntelligenceCard(days);
+  const from=document.getElementById('rpt-from')?.value||TODAY.substring(0,7)+'-01',to=document.getElementById('rpt-to')?.value||TODAY;
+  const el=document.getElementById('health-intelligence-wrap');if(el)el.innerHTML=renderHealthIntelligenceCard(from,to);
 }
 
 // ---------- Predictive Inventory ----------
@@ -2198,6 +2342,26 @@ function inventoryForecastBadge(f){
   return `<span class="badge ${cls}">${f.risk==='high'?'High risk':f.risk==='medium'?'Watch':'Stable'}</span>`;
 }
 
+
+function getThreeMonthForecast(item){
+  const f=getInventoryForecast(item);if(!f.hasData)return [];
+  const base=new Date((healthAnalyticsAnchorDate().date||TODAY)+'T12:00:00');
+  const rows=[];
+  for(let i=1;i<=3;i++){
+    const d=new Date(base.getFullYear(),base.getMonth()+i,1,12);const year=d.getFullYear(),month=d.getMonth();const days=new Date(year,month+1,0).getDate();
+    // Very lightweight trend projection: recent clinic activity influences the base
+    // demand, while a small 2% monthly smoothing factor avoids a flat forecast.
+    const projected=Math.max(0,Math.round(f.adjustedDaily*days*Math.pow(1.02,i-1)));
+    rows.push({label:d.toLocaleDateString('en-PH',{month:'long',year:'numeric'}),days,projected});
+  }
+  return rows;
+}
+function threeMonthForecastTableHtml(){
+  const items=DB.inventory.map(i=>({i,rows:getThreeMonthForecast(i)})).filter(x=>x.rows.length&&x.i.category!=='Equipment');
+  if(!items.length)return '<div class="tech-note">Record more inventory disbursements to generate the 3-month forecast.</div>';
+  return `<div class="table-wrap"><table class="forecast-table"><thead><tr><th>Item</th>${items[0].rows.map(r=>`<th>${escapeHtml(r.label)}</th>`).join('')}</tr></thead><tbody>${items.map(x=>`<tr><td>${escapeHtml(x.i.name)}<div class="text-muted">${escapeHtml(x.i.unit)}</div></td>${x.rows.map(r=>`<td>${r.projected}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
 function predictiveInventorySummaryHtml(){
   const forecasts=DB.inventory.map(item=>({item,f:getInventoryForecast(item)})).filter(x=>x.f.hasData);
   const atRisk=forecasts.filter(x=>x.f.daysRemaining<=14).sort((a,b)=>a.f.daysRemaining-b.f.daysRemaining);
@@ -2210,6 +2374,9 @@ function predictiveInventorySummaryHtml(){
       <div class="intel-card"><div class="intel-kicker">Forecast coverage</div><div class="intel-value">${forecasts.length}/${DB.inventory.length}</div><div class="intel-meta">Items with enough usage history</div></div>
     </div>
     ${atRisk.length?`<div class="intel-alert-list">${atRisk.slice(0,4).map(({item,f})=>`<div class="intel-alert-item"><div class="intel-alert-icon">${f.risk==='high'?'⚠️':'📦'}</div><div class="intel-alert-copy"><strong>${escapeHtml(item.name)} — ${f.daysRemaining} days remaining</strong><span>Projected depletion ${fmtDate(f.stockoutDate)}. Suggested reorder: ${f.reorderQty} ${escapeHtml(item.unit)}. Current adjusted usage ≈ ${f.adjustedDaily.toFixed(1)} ${escapeHtml(item.unit)}/day.</span></div></div>`).join('')}</div>`:`<div class="tech-note">No item with sufficient usage history is forecast to deplete within 14 days.</div>`}
+    <div class="section-label" style="margin-top:1rem">3-Month Consumption Forecast</div>
+    ${threeMonthForecastTableHtml()}
+    <div class="tech-note" style="margin-top:.5rem">Forecast values are planning estimates based on recent disbursement rates and clinic activity; they are not guaranteed demand.</div>
   </div>`;
 }
 
@@ -2805,6 +2972,7 @@ function doLogin(){
   if(user.status==='Suspended'){showAlert(err,'Your account has been suspended. Contact admin.');return;}
   user.lastLogin=new Date().toLocaleString();
   currentUser=user;
+  auditLog('LOGIN_SUCCESS','User signed in to CampusCare.','Session',user.id,user);
   if(user.role==='Patient')currentPatient=getPatientByUserId(user.id);
   sessionStorage.setItem(SESSION_KEY,String(user.id));
   persistDB();
@@ -2862,6 +3030,20 @@ function updatePasswordStrength(){
   }
 }
 
+
+function openPrivacyNotice(){
+  const v=DB.settings?.privacyPolicyVersion||'1.0';
+  openModal(`<div class="modal modal-lg"><div class="modal-header"><h3>CampusCare Privacy Notice & Consent</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body" style="font-size:.8rem;line-height:1.65">
+    <div class="alert alert-info show">Designed to support responsible processing of health information under the Data Privacy Act of 2012 (RA 10173). Actual legal compliance also depends on CTU policies, infrastructure, personnel, and deployment controls.</div>
+    <h4 style="margin:.7rem 0 .25rem">Information collected</h4><p>Identity and contact details, school/employee information, profile/verification images, appointment information, medical and dental records, consultation findings, diagnoses, prescriptions, procedures, certificates, messages, and system activity relevant to clinic operations.</p>
+    <h4 style="margin:.7rem 0 .25rem">Purpose of processing</h4><p>Patient identification, clinic registration, appointment scheduling, medical/dental care, treatment documentation, certificate processing, authorized communication, operational reporting, safety, audit/accountability, inventory planning, and service improvement.</p>
+    <h4 style="margin:.7rem 0 .25rem">Access and protection</h4><p>Access is role-based and should follow the minimum-necessary principle. Sensitive data should be transmitted over HTTPS and stored in secured server-side databases in production. Access and important changes are recorded in an audit trail.</p>
+    <h4 style="margin:.7rem 0 .25rem">Retention and rights</h4><p>Records should be retained according to applicable CTU clinic and legal retention requirements. Data subjects may request appropriate access or correction through the clinic, subject to lawful medical-record and institutional requirements.</p>
+    <h4 style="margin:.7rem 0 .25rem">Consent</h4><p>By registering, the user acknowledges this notice and consents to processing necessary for the stated clinic purposes. Consent does not waive rights provided by applicable privacy law.</p>
+    <div class="tech-note" style="margin-top:.7rem">Privacy Notice version ${escapeHtml(v)} · Updated ${fmtDate(DB.settings?.privacyPolicyUpdated||TODAY)}</div>
+  </div><div class="modal-footer"><button class="btn btn-primary" onclick="closeAllModals()">Close</button></div></div>`);
+}
+
 async function doRegister() {
   const dobInput = document.getElementById('r-dob');
   if (dobInput && !dobInput.max) dobInput.max = TODAY;
@@ -2881,6 +3063,8 @@ async function doRegister() {
   const err = document.getElementById('reg-err');
   const ok = document.getElementById('reg-ok');
   hideAlert(err); hideAlert(ok);
+  const privacyConsent=document.getElementById('r-privacy-consent');
+  if(!privacyConsent||!privacyConsent.checked){showAlert(err,'Please read and agree to the CampusCare Privacy Notice and Consent before registering.');return;}
 
   if (!fname || !lname || !uname || !email || !pass) {
     showAlert(err, 'Name, username, email and password are required.');
@@ -2944,9 +3128,12 @@ async function doRegister() {
     idFile: idFileName,
     idFileData: idFileDataUrl,
     profilePhoto: selfieDataUrl,
-    verified: false, createdAt: TODAY, lastLogin: ''
+    verified: false, createdAt: TODAY, lastLogin: '',
+    privacyConsent:true, privacyConsentVersion:DB.settings.privacyPolicyVersion,
+    privacyConsentAt:new Date().toISOString()
   };
   DB.users.push(newUser);
+  auditLog('REGISTRATION_SUBMITTED',`${fname} ${lname} submitted registration and privacy consent v${DB.settings.privacyPolicyVersion}.`,'User',uid,newUser);
   addNotif(1, 'New Registration Request', `${fname} ${lname} (${ptype}) has submitted a registration request.`, 'info');
   persistDB();
   showPendingPanel(newUser);
@@ -3064,10 +3251,12 @@ function submitNewPassword(){
 }
 
 function logout(){
+  if(currentUser){auditLog('LOGOUT','User signed out of CampusCare.','Session',currentUser.id);persistDB();}
   showConfirmDialog({
     title:'Log Out',
     message:'Are you sure you want to logout?',
     confirmLabel:'Logout',
+    bypassSecondStep:true,
     onConfirm:()=>{
       currentUser=null;currentPatient=null;
       sessionStorage.removeItem(SESSION_KEY);
@@ -3100,6 +3289,7 @@ function tryRestoreSession(){
 // APP INIT
 // ================================================================
 function initApp(){
+  runAutomatedDailyBackup();
   applyDueScheduleChanges();
   document.getElementById('auth-wrap').style.display='none';
   document.getElementById('app').classList.add('visible');
@@ -3157,7 +3347,9 @@ const TOP_SEARCH_ALIASES={
   'my-records':['health record','medical record'],
   'my-account':['account','profile','password'],
   'report-issue':['issue','feedback','support'],
-  'feedback-issues':['feedback','issues','support']
+  'feedback-issues':['feedback','issues','support'],
+  fitness:['fitness','fit to compete','sports clearance','athletics assessment'],
+  'activity-log':['activity','audit','audit trail','logs']
 };
 
 let topSearchIndex=-1;
@@ -3238,7 +3430,7 @@ const NAV_ICONS={
   dashboard:'M3 12L12 3l9 9v9H15v-5h-6v5H3z',
   'my-appointments':'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
   'my-records':'M7 3h7l5 5v11a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2zM14 3v5h5M9 13h6M9 17h6M9 9h2',
-  certificates:'M9 12h6m-6 4h6M9 8h1M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z','cert-requests':'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+  certificates:'M9 12h6m-6 4h6M9 8h1M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z','cert-requests':'M6 2h9l5 5v15H6a2 2 0 01-2-2V4a2 2 0 012-2zM14 2v6h6M8 13h8M8 17h5M15 18l2 2 4-4',
   'messages': 'M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4v4l4-4h8c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z',
   'my-account':'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
   patients:'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
@@ -3254,6 +3446,8 @@ const NAV_ICONS={
   approvals:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
   'report-issue':'M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z',
   'feedback-issues':'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2zM9 10h.01M13 10h.01M17 10h.01',
+  fitness:'M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78zM3.8 12h4l1.3-3 2.2 6 1.7-3h7.2',
+  'activity-log':'M12 6v6l4 2M12 3a9 9 0 100 18 9 9 0 000-18z',
 };
 
 const NAV_CONFIG={
@@ -3263,6 +3457,7 @@ const NAV_CONFIG={
     {id:'my-appointments',label:'My Appointments'},
     {id:'my-records',label:'My Health Records'},
     {id:'my-certificates',label:'Medical Certificates'},
+    {id:'fitness',label:'Fitness to Compete'},
     {id: 'health_education', label: 'Health Education' },
     { id: 'messages', label: 'Ask a Doctor' },
     {section:'Account'},
@@ -3276,6 +3471,7 @@ const NAV_CONFIG={
     {id:'my-patients',label:'My Patients'},
     {id:'appointments',label:'Appointments'},
     {id:'treatments',label:'Treatments'},
+    {id:'fitness',label:'Fitness Assessments'},
     {id:'cert-requests',label:'Certificate Signatures'},
     { id: 'messages', label: 'Patient Messages' },
     {section:'Reports'},
@@ -3291,6 +3487,7 @@ const NAV_CONFIG={
     {id:'appointments',label:'Appointments'},
     {id:'approvals',label:'Approval Queue'},
     {id:'cert-requests',label:'Certificate Requests'},
+    {id:'fitness',label:'Fitness Assessments'},
     {id:'inventory',label:'Inventory'},
     {id:'health_education',label:'Health Education'},
     {section:'Communication'},
@@ -3308,6 +3505,7 @@ const NAV_CONFIG={
     {id:'approvals',label:'Approval Queue'},
     {id:'cert-requests',label:'Certificate Requests'},
     {id:'treatments',label:'Treatments'},
+    {id:'fitness',label:'Fitness Assessments'},
     {id:'inventory',label:'Inventory'},
     {section:'Communication'},
     {id:'messages',label:'Messages'},
@@ -3316,6 +3514,7 @@ const NAV_CONFIG={
     {id:'reports',label:'Reports & Analytics'},
     {id:'feedback-issues',label:'Feedback &amp; Issues'},
     {id:'settings',label:'System Settings'},
+    {id:'activity-log',label:'Activity Log'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
   ],
@@ -3354,7 +3553,7 @@ function navTo(id){
     approvals:'Approval Queue',certificates:'Medical Certificates','cert-requests':'Certificate Requests',treatments:'Treatments',inventory:'Inventory Management',
     reports:'Reports & Analytics',users:'User Management',settings:'System Settings',
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',
-    'feedback-issues':'Feedback & Issues','health_education':'Health Education'
+    'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log'
   }[id]||id;
   renderPage(id);
   window.scrollTo({top:0,behavior:'smooth'});
@@ -3892,6 +4091,8 @@ function renderPage(id){
     'health_education':renderHealthEducation,
     'report-issue':renderReportIssue,
     'feedback-issues':renderFeedbackIssues,
+    fitness:renderFitnessAssessments,
+    'activity-log':renderActivityLog,
   };
   c.innerHTML='';
   if(renders[id])renders[id]();
@@ -5068,6 +5269,73 @@ function renderPatientTable(){
   }</tbody></table></div>`;
 }
 
+
+// ================================================================
+// FITNESS-TO-COMPETE ASSESSMENT
+// ================================================================
+function fitnessDecisionBadge(d){
+  const cls=d==='Fit to Compete'?'badge-success':d==='Fit with Restrictions'?'badge-warning':d==='Not Fit to Compete'?'badge-danger':'badge-gray';
+  return `<span class="badge ${cls}">${escapeHtml(d||'Pending Assessment')}</span>`;
+}
+function renderFitnessAssessments(){
+  const c=document.getElementById('app-content'),role=currentUser.role;
+  let rows=(DB.fitnessAssessments||[]).slice().sort((a,b)=>b.id-a.id);
+  if(role==='Patient'&&currentPatient)rows=rows.filter(x=>x.patientId===currentPatient.id);
+  if(role==='Doctor')rows=rows.filter(x=>!x.doctorId||x.doctorId===currentUser.id);
+  c.innerHTML=`<div class="card"><div class="card-header"><div><h3>Fitness-to-Compete Assessments</h3><div class="tech-note">Pre-participation clinic assessment for sports and athletic activities. Final clearance is determined by the attending doctor.</div></div>${role==='Patient'?`<button class="btn btn-primary btn-sm" onclick="openFitnessRequestModal()">+ Request Assessment</button>`:role!=='Staff'?`<button class="btn btn-primary btn-sm" onclick="openFitnessAssessmentModal()">+ New Assessment</button>`:''}</div>
+    ${rows.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>Sport / Event</th><th>Date</th><th>Doctor</th><th>Decision</th><th>Actions</th></tr></thead><tbody>${rows.map(x=>{const p=getPatientById(x.patientId),d=getUserById(x.doctorId);return `<tr><td>#${x.id}</td><td>${p?escapeHtml(p.fname+' '+p.lname):'Unknown'}</td><td>${escapeHtml(x.sport||'-')}</td><td>${fmtDate(x.date||x.requestedDate)}</td><td>${d?escapeHtml(docName(d)):'Pending assignment'}</td><td>${fitnessDecisionBadge(x.decision)}</td><td><button class="btn btn-xs" onclick="viewFitnessAssessment(${x.id})">View</button>${(role==='Doctor'||role==='Administrator')?` <button class="btn btn-xs btn-info" onclick="openFitnessAssessmentModal(${x.id})">${x.decision?'Edit':'Assess'}</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No fitness-to-compete assessments yet.</p></div>'}</div>`;
+}
+function openFitnessRequestModal(){
+  if(!currentPatient)return;
+  openModal(`<div class="modal"><div class="modal-header"><h3>Request Fitness-to-Compete Assessment</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div class="form-group"><label>Sport / Event <span class="required">*</span></label><input id="fit-sport" placeholder="e.g. Basketball Intramurals"></div><div class="form-group"><label>Competition / Event Date</label>${campusDateFieldHtml('fit-event-date','','Event Date',TODAY)}</div><div class="form-group"><label>Notes / Relevant Concern</label><textarea id="fit-notes" rows="3" placeholder="Optional information for the clinic"></textarea></div></div><div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="saveFitnessRequest()">Submit Request</button></div></div>`);
+}
+function saveFitnessRequest(){
+  const sport=document.getElementById('fit-sport').value.trim();if(!sport){toast('Sport or event is required.','warning');return;}
+  const rec={id:DB.nextFitnessId++,patientId:currentPatient.id,doctorId:null,sport,eventDate:document.getElementById('fit-event-date').value,notes:document.getElementById('fit-notes').value.trim(),requestedDate:TODAY,date:'',status:'Requested',decision:'',createdAt:new Date().toISOString()};
+  DB.fitnessAssessments.push(rec);auditLog('FITNESS_REQUEST_SUBMITTED',`Requested fitness-to-compete assessment for ${sport}.`,'FitnessAssessment',rec.id);persistDB();closeAllModals();toast('Fitness assessment request submitted.','success');renderFitnessAssessments();
+}
+function openFitnessAssessmentModal(id=null){
+  const x=id?DB.fitnessAssessments.find(r=>r.id===id):null;
+  const patients=DB.patients.filter(p=>!p.archived),doctors=getMedDoctors();
+  const patientId=x?.patientId||patients[0]?.id||'';
+  openModal(`<div class="modal modal-xl"><div class="modal-header"><h3>${x?'Fitness-to-Compete Assessment':'New Fitness-to-Compete Assessment'}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body">
+    <div class="form-row"><div class="form-group"><label>Patient</label>
+      ${x?`<input type="hidden" id="fit-patient" value="${patientId}"><input value="${escapeHtml((getPatientById(patientId)||{}).fname||'')} ${escapeHtml((getPatientById(patientId)||{}).lname||'')}" disabled>`:`<div class="patient-combobox"><input type="hidden" id="fit-patient" value=""><input id="fit-patient-search" type="search" autocomplete="off" placeholder="Search patient by name, ID, or college..." oninput="filterFitnessPatients(this.value)" onfocus="if(this.value.trim())filterFitnessPatients(this.value)"><div id="fit-patient-results" class="patient-combobox-list"></div></div>`}
+    </div><div class="form-group"><label>Sport / Event</label><input id="fit-sport-a" value="${escapeHtml(x?.sport||'')}"></div></div>
+    <div class="form-row"><div class="form-group"><label>Assessment Date</label>${campusDateFieldHtml('fit-date',x?.date||TODAY,'Assessment Date','','')}</div><div class="form-group"><label>Attending Doctor</label><select id="fit-doctor">${doctors.map(d=>`<option value="${d.id}" ${(x?.doctorId||currentUser.id)===d.id?'selected':''}>${escapeHtml(docName(d))}</option>`).join('')}</select></div></div>
+    <div class="section-label">Vitals</div><div class="form-row"><div class="form-group"><label>Blood Pressure</label><input id="fit-bp" value="${escapeHtml(x?.vitals?.bp||'')}"></div><div class="form-group"><label>Heart Rate</label><input id="fit-hr" value="${escapeHtml(x?.vitals?.hr||'')}"></div><div class="form-group"><label>Height</label><input id="fit-height" value="${escapeHtml(x?.vitals?.height||'')}"></div><div class="form-group"><label>Weight</label><input id="fit-weight" value="${escapeHtml(x?.vitals?.weight||'')}"></div></div>
+    <div class="section-label">Pre-participation review</div><div class="form-row"><div class="form-group"><label>Medical History / Previous Injury</label><textarea id="fit-history" rows="3">${escapeHtml(x?.history||'')}</textarea></div><div class="form-group"><label>Cardiovascular / Respiratory Symptoms</label><textarea id="fit-cardio" rows="3">${escapeHtml(x?.cardioResp||'')}</textarea></div></div>
+    <div class="form-group"><label>Musculoskeletal / Physical Examination Findings</label><textarea id="fit-exam" rows="3">${escapeHtml(x?.examFindings||'')}</textarea></div>
+    <div class="form-row"><div class="form-group"><label>Decision</label><select id="fit-decision"><option value="">Pending Assessment</option>${['Fit to Compete','Fit with Restrictions','Not Fit to Compete'].map(v=>`<option ${x?.decision===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="form-group"><label>Restrictions / Recommendations</label><textarea id="fit-restrict" rows="3">${escapeHtml(x?.restrictions||'')}</textarea></div></div>
+    <div class="alert alert-info show">This assessment supports clinic documentation. The attending doctor remains responsible for the final medical clearance decision.</div>
+  </div><div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="saveFitnessAssessment(${id||'null'})">Save Assessment</button></div></div>`);
+}
+
+function filterFitnessPatients(q=''){
+  const box=document.getElementById('fit-patient-results');if(!box)return;
+  const term=String(q||'').trim().toLowerCase();
+  if(!term){box.innerHTML='';box.classList.remove('show');return;}
+  const matches=DB.patients.filter(p=>!p.archived).filter(p=>`${p.fname} ${p.lname} ${p.idNo||''} ${p.college||''}`.toLowerCase().includes(term)).slice(0,15);
+  box.innerHTML=matches.length?matches.map(p=>`<button type="button" class="patient-combobox-option" onclick="selectFitnessPatient(${p.id})"><strong>${escapeHtml(p.fname+' '+p.lname)}</strong><br><span class="text-muted">${escapeHtml(p.idNo||'No ID')} · ${escapeHtml(p.college||'No college')}</span></button>`).join(''):`<div class="patient-combobox-option" style="cursor:default">No matching patients</div>`;
+  box.classList.add('show');
+}
+function selectFitnessPatient(id){
+  const p=getPatientById(id),hidden=document.getElementById('fit-patient'),search=document.getElementById('fit-patient-search'),box=document.getElementById('fit-patient-results');if(!p)return;
+  if(hidden)hidden.value=String(id);if(search)search.value=`${p.fname} ${p.lname} · ${p.idNo||'No ID'} · ${p.college||''}`;if(box){box.innerHTML='';box.classList.remove('show');}
+}
+
+function saveFitnessAssessment(id){
+  const patientId=parseInt(document.getElementById('fit-patient')?.value||'');if(!patientId){toast('Please search for and select a patient.','warning');return;}
+  const rec=id?DB.fitnessAssessments.find(x=>x.id===id):{id:DB.nextFitnessId++,requestedDate:TODAY,createdAt:new Date().toISOString()};if(!rec)return;
+  rec.patientId=patientId;rec.sport=document.getElementById('fit-sport-a').value.trim();rec.date=document.getElementById('fit-date').value||TODAY;rec.doctorId=parseInt(document.getElementById('fit-doctor').value)||currentUser.id;
+  rec.vitals={bp:document.getElementById('fit-bp').value.trim(),hr:document.getElementById('fit-hr').value.trim(),height:document.getElementById('fit-height').value.trim(),weight:document.getElementById('fit-weight').value.trim()};rec.history=document.getElementById('fit-history').value.trim();rec.cardioResp=document.getElementById('fit-cardio').value.trim();rec.examFindings=document.getElementById('fit-exam').value.trim();rec.decision=document.getElementById('fit-decision').value;rec.restrictions=document.getElementById('fit-restrict').value.trim();rec.status=rec.decision?'Completed':'In Assessment';rec.updatedAt=new Date().toISOString();
+  if(!id)DB.fitnessAssessments.push(rec);auditLog(id?'FITNESS_ASSESSMENT_UPDATED':'FITNESS_ASSESSMENT_CREATED',`${rec.sport||'Sports'} assessment · ${rec.decision||'pending decision'}.`,'FitnessAssessment',rec.id);persistDB();closeAllModals();toast('Fitness assessment saved.','success');renderFitnessAssessments();
+}
+function viewFitnessAssessment(id){
+  const x=DB.fitnessAssessments.find(r=>r.id===id);if(!x)return;const p=getPatientById(x.patientId),d=getUserById(x.doctorId);
+  openModal(`<div class="modal modal-lg"><div class="modal-header"><h3>Fitness-to-Compete Assessment #${x.id}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div class="info-row"><div class="info-label">Patient</div><div class="info-val">${p?escapeHtml(p.fname+' '+p.lname):'-'}</div></div><div class="info-row"><div class="info-label">Sport / Event</div><div class="info-val">${escapeHtml(x.sport||'-')}</div></div><div class="info-row"><div class="info-label">Assessment Date</div><div class="info-val">${fmtDate(x.date||x.requestedDate)}</div></div><div class="info-row"><div class="info-label">Doctor</div><div class="info-val">${d?escapeHtml(docName(d)):'Pending assignment'}</div></div><div class="info-row"><div class="info-label">Decision</div><div class="info-val">${fitnessDecisionBadge(x.decision)}</div></div><hr class="divider"><div class="section-label">Vitals</div><p class="text-muted">BP: ${escapeHtml(x.vitals?.bp||'-')} · Heart rate: ${escapeHtml(x.vitals?.hr||'-')} · Height: ${escapeHtml(x.vitals?.height||'-')} · Weight: ${escapeHtml(x.vitals?.weight||'-')}</p><div class="section-label" style="margin-top:.7rem">History / Symptoms</div><p style="font-size:.8rem;line-height:1.55">${escapeHtml(x.history||'-')}<br>${escapeHtml(x.cardioResp||'')}</p><div class="section-label" style="margin-top:.7rem">Physical Examination</div><p style="font-size:.8rem;line-height:1.55">${escapeHtml(x.examFindings||'-')}</p><div class="section-label" style="margin-top:.7rem">Restrictions / Recommendations</div><p style="font-size:.8rem;line-height:1.55">${escapeHtml(x.restrictions||'None recorded.')}</p></div><div class="modal-footer"><button class="btn" onclick="closeAllModals()">Close</button></div></div>`);
+}
+
 // ================================================================
 // APPOINTMENTS PAGE (Staff/Admin/Doctor)
 // ================================================================
@@ -5149,24 +5417,13 @@ function renderApptTable(){
 }
 
 function completeAppt(id){
-  const a=DB.appointments.find(x=>x.id===id);
-  if(!a)return;
-  a.status='Completed';
-  const pt=getPatientById(a.patientId);
-  if(pt){
-    const u=DB.users.find(x=>x.id===pt.userId);
-    if(u)addNotif(u.id,'Appointment Completed',`Your ${a.clinic} appointment on ${fmtDate(a.date)} has been marked complete.`,'success');
-  }
-  toast('Appointment marked as completed.','success');
-  renderApptTable();
-  if(document.getElementById('my-appts-list'))filterMyAppts('all',document.querySelector('#app-content .tab'));
+  const a=DB.appointments.find(x=>x.id===id);if(!a)return;
+  showConfirmDialog({title:'Complete Appointment',message:`Mark appointment #${id} as completed?`,confirmLabel:'Mark Completed',onConfirm:()=>{a.status='Completed';const pt=getPatientById(a.patientId);if(pt){const u=DB.users.find(x=>x.id===pt.userId);if(u)addNotif(u.id,'Appointment Completed',`Your ${a.clinic} appointment on ${fmtDate(a.date)} has been marked complete.`,'success');}auditLog('APPOINTMENT_COMPLETED',`Appointment #${id} marked completed.`,'Appointment',id);persistDB();toast('Appointment marked as completed.','success');renderApptTable();if(document.getElementById('my-appts-list'))filterMyAppts('all',document.querySelector('#app-content .tab'));}});
 }
-
 function noShowAppt(id){
-  const a=DB.appointments.find(x=>x.id===id);
-  if(a){a.status='No-show';toast('Marked as no-show.','warning');renderApptTable();}
+  const a=DB.appointments.find(x=>x.id===id);if(!a)return;
+  showConfirmDialog({title:'Mark as No-show',message:`Mark appointment #${id} as a no-show?`,confirmLabel:'Mark No-show',danger:true,onConfirm:()=>{a.status='No-show';auditLog('APPOINTMENT_NO_SHOW',`Appointment #${id} marked no-show.`,'Appointment',id);persistDB();toast('Marked as no-show.','warning');renderApptTable();}});
 }
-
 function cancelAppt(id,patient=false){
   showConfirmDialog({
     title:'Cancel Appointment',
@@ -5303,6 +5560,7 @@ function renderTreatments(){
         <option value="">All Colleges</option>
         ${['CCICT','COE','COED','CME','CAS','COT'].map(col=>`<option value="${col}">${col}</option>`).join('')}
       </select>
+      <select id="tr-status" onchange="renderTreatTable()"><option value="active">Active Records</option><option value="archived">Archived Records</option><option value="all">All Records</option></select>
       <button class="btn btn-primary btn-sm" onclick="openAddTreatmentModalPt(null)">+ Add Treatment</button>
     </div>
     <div class="card"><div id="treat-table"></div></div>`;
@@ -5312,6 +5570,7 @@ function renderTreatments(){
 function renderTreatTable(){
   const q=(document.getElementById('tr-search')||{}).value||'';
   const col=(document.getElementById('tr-college')||{}).value||'';
+  const status=(document.getElementById('tr-status')||{}).value||'active';
   const role=currentUser.role;
   let treats=DB.treatments.filter(t=>{
     const pt=getPatientById(t.patientId);
@@ -5319,7 +5578,8 @@ function renderTreatTable(){
     const matchQ=!q||name.includes(q.toLowerCase())||t.diagnosis.toLowerCase().includes(q.toLowerCase());
     const matchC=!col||(pt&&pt.college===col);
     const matchDoc=role!=='Doctor'||t.doctorId===currentUser.id;
-    return matchQ&&matchC&&matchDoc;
+    const matchStatus=status==='all'||(status==='archived'?!!t.archived:!t.archived);
+    return matchQ&&matchC&&matchDoc&&matchStatus;
   }).slice().sort((a,b)=>b.id-a.id);
   const el=document.getElementById('treat-table');
   if(!el)return;
@@ -5328,8 +5588,8 @@ function renderTreatTable(){
     treats.map(t=>{
       const pt=getPatientById(t.patientId);
       const doc=getUserById(t.doctorId);
-      return`<tr>
-        <td>#${t.id}</td>
+      return`<tr ${t.archived?'style="opacity:.67"':''}>
+        <td>#${t.id}${t.archived?'<br><span class="badge badge-gray">Archived</span>':''}</td>
         <td>${pt?pt.fname+' '+pt.lname:'?'}</td>
         <td>${collegeBadge(pt?pt.college:'')}</td>
         <td>${t.diagnosis}</td>
@@ -5338,7 +5598,7 @@ function renderTreatTable(){
         <td>${fmtDate(t.followupDate)}</td>
         <td><div class="td-actions">
           <button class="btn btn-xs" onclick="viewTreatment(${t.id})">View</button>
-          ${currentUser.role==='Administrator'?`<button class="btn btn-xs btn-danger" onclick="deleteTreat(${t.id})">Delete</button>`:''}
+          ${currentUser.role==='Administrator'?(t.archived?`<button class="btn btn-xs btn-success" onclick="restoreTreat(${t.id})">Restore</button>`:`<button class="btn btn-xs btn-warning" onclick="archiveTreat(${t.id})">Archive</button>`):''}
         </div></td>
       </tr>`;
     }).join('')
@@ -6170,7 +6430,7 @@ function renderDisbTable(){
 function renderReports(){
   const c=document.getElementById('app-content');
   c.innerHTML=`
-    <div id="health-intelligence-wrap">${renderHealthIntelligenceCard(7)}</div>
+    <div id="health-intelligence-wrap">${renderHealthIntelligenceCard(TODAY.substring(0,7)+'-01',TODAY)}</div>
     <div class="card">
       <div class="card-header"><h3>Generate Report</h3></div>
       <div class="form-row">
@@ -6627,7 +6887,7 @@ function renderUserTable(){
       <td>${u.archived?'<span class="badge badge-gray">Archived</span>':statusBadge(u.status)}</td>
       <td><div class="td-actions">
         ${!u.archived?`<button class="btn btn-xs" onclick="openEditUserModal(${u.id})">Edit</button>`:''}
-        ${!u.archived&&u.status==='Active'?`<button class="btn btn-xs btn-warning" onclick="suspendUser(${u.id})">Suspend</button>`:''}
+        ${!u.archived&&u.status==='Active'&&u.id!==currentUser.id?`<button class="btn btn-xs btn-warning" onclick="suspendUser(${u.id})">Suspend</button>`:''}
         ${!u.archived&&u.status==='Pending'?`<button class="btn btn-xs btn-success" onclick="approveUser(${u.id})">Approve</button><button class="btn btn-xs btn-danger" onclick="rejectUser(${u.id})">Reject</button>`:''}
         ${!u.archived&&u.status==='Suspended'?`<button class="btn btn-xs btn-success" onclick="reactivateUser(${u.id})">Reactivate</button>`:''}
         ${u.id!==currentUser.id?(u.archived?`<button class="btn btn-xs btn-success" onclick="restoreUser(${u.id})">Restore</button>`:`<button class="btn btn-xs btn-warning" onclick="archiveUser(${u.id})">🗄️ Archive</button>`):''}
@@ -6637,6 +6897,8 @@ function renderUserTable(){
 }
 
 function suspendUser(id){
+  // Administrators must never be able to suspend their own active session/account.
+  if(currentUser?.role==='Administrator'&&id===currentUser.id){toast('You cannot suspend your own administrator account.','warning');return;}
   const u=DB.users.find(x=>x.id===id);
   if(!u)return;
   showConfirmDialog({
@@ -6685,6 +6947,12 @@ function restoreUser(id){
   });
 }
 
+
+function renderBackupListHtml(){
+  const bs=getDailyBackups();if(!bs.length)return '<div class="empty-state"><p>No backup snapshot yet.</p></div>';
+  return bs.map(b=>`<div class="backup-row"><div><strong style="font-size:.8rem">${escapeHtml(b.day)}</strong><div class="text-muted">${new Date(b.createdAt).toLocaleString('en-PH')}</div></div><div style="display:flex;gap:.35rem"><button class="btn btn-xs" onclick="downloadBackup('${b.id}')">Download</button><button class="btn btn-xs btn-warning" onclick="restoreBackup('${b.id}')">Restore</button></div></div>`).join('');
+}
+
 // ================================================================
 // SETTINGS
 // ================================================================
@@ -6711,6 +6979,15 @@ function renderSettings(){
         <div class="form-group"><label>Semester 2 End</label>${campusDateFieldHtml('set-s2e',s.semester2End,'Semester 2 End')}</div>
         <button class="btn btn-primary btn-sm" onclick="saveSemSettings()">Save Semester</button>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div><h3>Privacy & Data Protection</h3><div class="tech-note">Controls that support CTU privacy governance and RA 10173 accountability.</div></div><button class="btn btn-sm" onclick="openPrivacyNotice()">View Privacy Notice</button></div>
+      <div class="objective-grid"><div class="objective-card"><h4>Role-based access</h4><p>Users see functions appropriate to their role; production APIs must enforce the same authorization server-side.</p></div><div class="objective-card"><h4>Audit trail</h4><p>Important access and record-changing events are logged for accountability and review.</p></div><div class="objective-card"><h4>Consent record</h4><p>New patient registrations store the accepted privacy-notice version and timestamp.</p></div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div><h3>Automated Daily Backups</h3><div class="tech-note">Browser prototype: one automatic local snapshot per day, retaining the most recent ${s.backupRetentionDays||7} days.</div></div><button class="btn btn-primary btn-sm" onclick="createDailyBackup(true);persistDB();renderSettings();toast('Backup snapshot created.','success')">Back Up Now</button></div>
+      <div id="backup-list">${renderBackupListHtml()}</div>
+      <div class="alert alert-warning show" style="margin-top:.7rem">For production, replace these local snapshots with encrypted server/database backups on AWS or Google Cloud. A browser cannot perform unattended cloud backups when the site is closed.</div>
     </div>
     <div class="card">
       <div class="card-header"><h3>Data &amp; Storage</h3></div>
@@ -6863,6 +7140,19 @@ function certificateAutofillFromTreatment(patientId,doctorId){
   return {findings,remarks,treatment:t};
 }
 
+
+// Ensures newly generated and previously saved medical certificates include
+// the official CTU Main Campus logo. Older saved certificate HTML is upgraded
+// when it is opened or exported.
+function ensureCertificateLogo(html=''){
+  let value=String(html||'');
+  if(!value)return value;
+  if(value.includes('data-ctu-cert-logo="1"'))return value;
+  const logo=`<img data-ctu-cert-logo="1" src="${CTU_MAIN_LOGO_DATA}" alt="CTU Main Campus Logo" style="width:84px;height:84px;object-fit:contain;display:block;margin:0 auto 8px">`;
+  if(value.includes('<div class="cert-center">'))return value.replace('<div class="cert-center">',`<div class="cert-center">${logo}`);
+  return logo+value;
+}
+
 // Create the editable A4-like certificate document shown in the browser.
 function buildCertificateDocument(r,doctorId,findings,remarks,signature=''){
   const pt=getPatientById(r.patientId)||{};
@@ -6876,7 +7166,7 @@ function buildCertificateDocument(r,doctorId,findings,remarks,signature=''){
   const certNo=r.certNo||'To be assigned upon issue';
   const certDate=r.issuedAt||TODAY;
   const doctorName=`DR. ${((doctor.fname||'')+' '+(doctor.lname||'')).toUpperCase().trim()}`;
-  return `<div class="cert-center"><div style="font-size:14px">Republic of the Philippines</div><div style="font-size:19px;font-weight:700">CEBU TECHNOLOGICAL UNIVERSITY</div><div>Main Campus</div><div style="font-size:13px">M.J. Cuenco Ave. cor. R. Palma St., Cebu City</div><div style="font-weight:700;margin-top:4px">UNIVERSITY MEDICAL CLINIC</div></div>
+  return `<div class="cert-center"><img data-ctu-cert-logo="1" src="${CTU_MAIN_LOGO_DATA}" alt="CTU Main Campus Logo" style="width:84px;height:84px;object-fit:contain;display:block;margin:0 auto 8px"><div style="font-size:14px">Republic of the Philippines</div><div style="font-size:19px;font-weight:700">CEBU TECHNOLOGICAL UNIVERSITY</div><div>Main Campus</div><div style="font-size:13px">M.J. Cuenco Ave. cor. R. Palma St., Cebu City</div><div style="font-weight:700;margin-top:4px">UNIVERSITY MEDICAL CLINIC</div></div>
     <hr class="cert-rule">
     <div class="cert-title">MEDICAL CERTIFICATE</div>
     <div class="cert-meta"><span>Certificate No.: <strong id="cert-number-display">${escapeHtml(certNo)}</strong></span><span>Date: <strong id="cert-date-display">${escapeHtml(fmtDate(certDate))}</strong></span></div>
@@ -6939,7 +7229,7 @@ function openEditCertModal(id){
   const autofill=certificateAutofillFromTreatment(r.patientId,defaultDoctor);
   const findings=r.findings||autofill.findings;
   const remarks=r.recommendations||autofill.remarks;
-  const documentHtml=r.documentHtml||buildCertificateDocument(r,defaultDoctor,findings,remarks,'');
+  const documentHtml=ensureCertificateLogo(r.documentHtml||buildCertificateDocument(r,defaultDoctor,findings,remarks,''));
   openModal(`<div class="modal modal-xl" style="max-width:1180px">
     <div class="modal-header"><div><h3>${r.status==='Issued'?'Edit Medical Certificate':'Prepare Medical Certificate'}</h3><div class="text-muted">Request #${r.id} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
@@ -6975,7 +7265,7 @@ function saveCertDraft(id){
   r.purpose=document.getElementById('ec-purpose').value;
   r.details=document.getElementById('ec-details').value.trim().slice(0,300);
   r.doctorId=doctorId;r.findings=findings;r.recommendations=recommendations;
-  r.documentHtml=sanitizeCertHtml(editor.innerHTML);
+  r.documentHtml=ensureCertificateLogo(sanitizeCertHtml(editor.innerHTML));
   r.signatureData='';
   r.status='Awaiting Signature';r.preparedById=currentUser.id;r.preparedAt=new Date().toISOString();
   addNotif(doctorId,'Certificate Ready for Signature',`Certificate request #${r.id} has been prepared and is waiting for your signature.`,'info');
@@ -6988,7 +7278,7 @@ function openSignCertModal(id){
   if(currentUser.role!=='Doctor'||r.doctorId!==currentUser.id){toast('Only the assigned doctor can sign this certificate.','error');return;}
   const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null,doctor=currentUser;
   const autofill=certificateAutofillFromTreatment(r.patientId,doctor.id);
-  const documentHtml=r.documentHtml||buildCertificateDocument(r,doctor.id,r.findings||autofill.findings,r.recommendations||autofill.remarks,'');
+  const documentHtml=ensureCertificateLogo(r.documentHtml||buildCertificateDocument(r,doctor.id,r.findings||autofill.findings,r.recommendations||autofill.remarks,''));
   certDraftSignature=r.signatureData||doctor.savedSignature||'';
   openModal(`<div class="modal modal-xl" style="max-width:1180px">
     <div class="modal-header"><div><h3>Review &amp; Sign Medical Certificate</h3><div class="text-muted">Request #${r.id} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
@@ -7089,8 +7379,9 @@ function signCert(id){
   if(!r.certNo)r.certNo=genId('CTU-MC',r.id);if(!r.issuedAt)r.issuedAt=TODAY;
   const noEl=document.getElementById('cert-number-display');if(noEl)noEl.textContent=r.certNo;
   const dateEl=document.getElementById('cert-date-display');if(dateEl)dateEl.textContent=fmtDate(r.issuedAt);
-  r.findings=findings;r.recommendations=recommendations;r.signatureData=certDraftSignature;r.documentHtml=sanitizeCertHtml(editor.innerHTML);
-  r.status='Issued';r.issuedById=currentUser.id;r.signedById=currentUser.id;r.signedAt=new Date().toISOString();r.updatedAt=new Date().toLocaleString();
+  r.findings=findings;r.recommendations=recommendations;r.signatureData=certDraftSignature;r.documentHtml=ensureCertificateLogo(sanitizeCertHtml(editor.innerHTML));
+  r.status='Issued';
+  auditLog('MEDICAL_CERTIFICATE_ISSUED',`Medical certificate request #${r.id} issued.`,'MedicalCertificate',r.id);r.issuedById=currentUser.id;r.signedById=currentUser.id;r.signedAt=new Date().toISOString();r.updatedAt=new Date().toLocaleString();
   if(document.getElementById('cert-save-signature')?.checked)currentUser.savedSignature=certDraftSignature;
   const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null;
   if(u)addNotif(u.id,'Medical Certificate Ready',`Your certificate (${r.certNo}) has been signed and issued. Download it from Medical Certificates.`,'success');
@@ -7110,7 +7401,8 @@ async function downloadCertPdf(id){
   const r=DB.certRequests.find(x=>x.id===id);if(!r||r.status!=='Issued'){toast('Certificate not available.','error');return;}
   let jsPDF,html2canvas;try{jsPDF=await loadJsPDF();html2canvas=await loadHtml2Canvas()}catch(e){toast('Could not load the PDF generator. Check your connection.','error');return}
   if(!r.documentHtml){toast('This older certificate needs to be prepared again before using the redesigned PDF.','warning');return}
-  const stage=document.createElement('div');stage.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1;';stage.innerHTML=`<div class="cert-paper" style="width:794px;min-height:1123px;box-shadow:none;margin:0">${r.documentHtml}</div>`;document.body.appendChild(stage);
+  const certHtml=ensureCertificateLogo(r.documentHtml);
+  const stage=document.createElement('div');stage.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1;';stage.innerHTML=`<div class="cert-paper" style="width:794px;min-height:1123px;box-shadow:none;margin:0">${certHtml}</div>`;document.body.appendChild(stage);
   try{await Promise.all([...stage.querySelectorAll('img')].map(img=>img.complete?Promise.resolve():new Promise(res=>{img.onload=img.onerror=res})));const canvas=await html2canvas(stage.firstElementChild,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false});const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});const imgData=canvas.toDataURL('image/jpeg',.96),pageW=210,pageH=297,imgH=canvas.height*pageW/canvas.width;let remaining=imgH,pos=0;pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH;while(remaining>0){pos=remaining-imgH;pdf.addPage();pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH}pdf.save(`Medical_Certificate_${r.certNo}.pdf`);toast('Certificate downloaded.','success')}finally{stage.remove()}
 }
 
@@ -7348,6 +7640,7 @@ function applyReportDateRange(){
   if(to)to.value=reportRangeDraftTo;
   if(label)label.textContent=`${fmtDate(reportRangeDraftFrom)} – ${fmtDate(reportRangeDraftTo)}`;
   closeAllModals();
+  refreshHealthIntelligence();
 }
 
 
@@ -7624,11 +7917,12 @@ function saveAppt(editId){
   const priority=pt?pt.personType==='Student'?'Student':pt.personType==='Teaching Personnel'?'Teaching':'Non-Teaching':'Student';
   if(editId){
     const idx=DB.appointments.findIndex(a=>a.id===editId);
-    if(idx>=0){DB.appointments[idx]={...DB.appointments[idx],clinic,service:svc,doctorId:docId,date,time,reason};}
+    if(idx>=0){DB.appointments[idx]={...DB.appointments[idx],clinic,service:svc,doctorId:docId,date,time,reason};auditLog('APPOINTMENT_UPDATED',`Appointment #${editId} rescheduled to ${date} ${time}.`,'Appointment',editId);}
     toast('Appointment rescheduled.','success');
   }else{
     const newId=DB.nextApptId++;
     DB.appointments.push({id:newId,patientId:ptId,doctorId:docId,clinic,service:svc,date,time,reason,status:'Scheduled',priority,college:pt?pt.college:'',createdBy:currentUser.id,notes:'',createdAt:TODAY});
+    auditLog('APPOINTMENT_CREATED',`Appointment #${newId} booked for ${clinic} on ${date} ${time}.`,'Appointment',newId);
     if(pt){
       const u=DB.users.find(x=>x.id===pt.userId);
       if(u){
@@ -7902,7 +8196,9 @@ function saveTreatment(ptId,apptId){
   if(presc.length>600){showAlert(msg,'Prescription exceeds 600 characters.');return;}
   const vitals={bp:document.getElementById('tm-bp').value,temp:document.getElementById('tm-temp').value,pulse:document.getElementById('tm-pulse').value,spo2:document.getElementById('tm-spo2').value,weight:document.getElementById('tm-weight').value,height:document.getElementById('tm-height').value};
   const docId=currentUser.role==='Doctor'?currentUser.id:(getDoctors()[0]||{id:2}).id;
-  DB.treatments.push({id:DB.nextTreatId++,patientId:ptIdVal,doctorId:docId,appointmentId:apptId,diagnosis:diag,prescription:presc,findings,notes,xray,vitals,date,followupDate:followup,createdAt:new Date().toLocaleString()});
+  const treatmentId=DB.nextTreatId++;
+  DB.treatments.push({id:treatmentId,patientId:ptIdVal,doctorId:docId,appointmentId:apptId,diagnosis:diag,prescription:presc,findings,notes,xray,vitals,date,followupDate:followup,createdAt:new Date().toLocaleString()});
+  auditLog('TREATMENT_CREATED',`Treatment #${treatmentId} recorded with diagnosis: ${diag}.`,'Treatment',treatmentId);
   if(apptId){const a=DB.appointments.find(x=>x.id===apptId);if(a)a.status='Completed';}
   const pt=getPatientById(ptIdVal);
   if(pt){const u=DB.users.find(x=>x.id===pt.userId);if(u)addNotif(u.id,'Treatment Record Added',`Dr. ${currentUser.lname} has added treatment notes for your visit on ${fmtDate(date)}.`,'info');}
@@ -7926,66 +8222,81 @@ function saveTreatment(ptId,apptId){
   if(document.getElementById('my-appts-list'))renderMyAppointments();
 }
 
+function treatmentDocumentHtml(t){
+  const pt=getPatientById(t.patientId)||{},doc=getUserById(t.doctorId)||{},s=DB.settings,vit=t.vitals||{},safe=v=>escapeHtml(v||'—');
+  return `<div class="treatment-record-doc" id="treatment-document-${t.id}">
+    <div class="treatment-doc-head"><img src="${CTU_MAIN_LOGO_DATA}" alt="CTU Main Campus Logo" width="78" height="78" style="width:78px;height:78px;object-fit:contain;display:block;margin:0 auto 8px"><h2>${escapeHtml(s.clinicName||'CTU Main Medical & Dental Clinic')}</h2><p>${escapeHtml(s.address||'CTU Main Campus')}</p><p>${escapeHtml(s.contactEmail||'')}</p></div>
+    <div class="treatment-doc-title">CLINICAL TREATMENT RECORD</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:.7rem;color:#64717a"><span>Record No. <strong>#${t.id}</strong></span>${t.archived?'<span class="treatment-archived-mark">ARCHIVED</span>':''}</div>
+    <div class="treatment-doc-grid">
+      <div class="treatment-doc-field"><span>Patient</span><strong>${safe((pt.fname||'')+' '+(pt.lname||''))}</strong></div>
+      <div class="treatment-doc-field"><span>Patient ID</span><strong>${safe(pt.idNo||('P-'+pt.id))}</strong></div>
+      <div class="treatment-doc-field"><span>Attending Doctor</span><strong>${safe(doc.fname?docName(doc):'')}</strong></div>
+      <div class="treatment-doc-field"><span>Treatment Date</span><strong>${fmtDate(t.date)}</strong></div>
+      <div class="treatment-doc-field"><span>College / Unit</span><strong>${safe(pt.college)}</strong></div>
+      <div class="treatment-doc-field"><span>Follow-up Date</span><strong>${t.followupDate?fmtDate(t.followupDate):'—'}</strong></div>
+    </div>
+    ${pt.allergies&&pt.allergies!=='None'?`<div style="border:1px solid #e3a6a6;background:#fff1f1;color:#8d2323;border-radius:7px;padding:8px 10px;font-size:.74rem;margin-bottom:14px"><strong>Known Allergy:</strong> ${safe(pt.allergies)}</div>`:''}
+    <div class="treatment-doc-section"><h4>Vital Signs</h4><div class="treatment-doc-vitals">
+      <div class="treatment-vital-box"><span>Blood Pressure</span><strong>${safe(vit.bp)}</strong></div><div class="treatment-vital-box"><span>Temperature</span><strong>${safe(vit.temp)}${vit.temp?' °C':''}</strong></div><div class="treatment-vital-box"><span>Pulse</span><strong>${safe(vit.pulse)}${vit.pulse?' bpm':''}</strong></div><div class="treatment-vital-box"><span>SpO₂</span><strong>${safe(vit.spo2)}</strong></div><div class="treatment-vital-box"><span>Weight</span><strong>${safe(vit.weight)}</strong></div><div class="treatment-vital-box"><span>Height</span><strong>${safe(vit.height)}</strong></div>
+    </div></div>
+    <div class="treatment-doc-section"><h4>Examination Findings</h4><p>${safe(t.findings)}</p></div>
+    <div class="treatment-doc-section"><h4>Diagnosis / Clinical Impression</h4><p><strong>${safe(t.diagnosis)}</strong></p></div>
+    <div class="treatment-doc-section"><h4>Prescription / Treatment Given</h4><p>${safe(t.prescription)}</p></div>
+    ${t.xray?`<div class="treatment-doc-section"><h4>Imaging / X-ray</h4><p>${safe(t.xray)}</p></div>`:''}
+    <div class="treatment-doc-section"><h4>Clinical Notes / Instructions</h4><p>${safe(t.notes)}</p></div>
+    <div class="treatment-doc-sign"><div><div class="line">${safe(doc.fname?docName(doc):'Attending Doctor')}</div><span>Attending Clinician</span></div></div>
+    <div style="margin-top:25px;padding-top:10px;border-top:1px solid #edf0f2;font-size:.6rem;color:#7a858d;text-align:center">Generated by CampusCare · CTU Main Campus · ${new Date().toLocaleString('en-PH')}</div>
+  </div>`;
+}
 function viewTreatment(id){
   const t=DB.treatments.find(x=>x.id===id);if(!t)return;
-  const pt=getPatientById(t.patientId);const doc=getUserById(t.doctorId);
-  const s=DB.settings;
-  openModal(`<div class="modal modal-lg">
-    <div class="modal-header no-print"><h3>Treatment Record #${t.id}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
-    <div class="modal-body">
-      <div class="print-header" style="display:none">
-        <h2 style="margin-bottom:2px">${escapeHtml(s.clinicName)}</h2>
-        <p style="font-size:.8rem;color:#444;margin-bottom:2px">${escapeHtml(s.address)}</p>
-        <p style="font-size:.8rem;color:#444;margin-bottom:10px">${escapeHtml(s.contactEmail)}</p>
-        <hr style="margin-bottom:10px">
-      </div>
-      <div class="grid-2" style="margin-bottom:.75rem">
-        <div class="info-row"><span class="info-label">Patient</span><span class="info-val">${pt?pt.fname+' '+pt.lname:'?'}</span></div>
-        <div class="info-row"><span class="info-label">Doctor</span><span class="info-val">Dr. ${doc?doc.fname+' '+doc.lname:'?'}</span></div>
-        <div class="info-row"><span class="info-label">Date</span><span class="info-val">${fmtDate(t.date)}</span></div>
-        <div class="info-row"><span class="info-label">Follow-up</span><span class="info-val">${fmtDate(t.followupDate)}</span></div>
-      </div>
-      ${pt&&pt.allergies&&pt.allergies!=='None'?`<div class="alert alert-danger show" style="margin-bottom:.6rem;font-size:.8rem">⚠️ Known allergy: <strong>${escapeHtml(pt.allergies)}</strong></div>`:''}
-      <div class="section-label">Vital Signs</div>
-      <div class="grid-2" style="margin-bottom:.75rem;font-size:.82rem">
-        <div>BP: <strong>${t.vitals?t.vitals.bp||'—':'—'}</strong> · Temp: <strong>${t.vitals?t.vitals.temp||'—':'—'}°C</strong></div>
-        <div>Pulse: <strong>${t.vitals?t.vitals.pulse||'—':'—'} bpm</strong> · SpO2: <strong>${t.vitals?t.vitals.spo2||'—':'—'}</strong></div>
-        <div>Weight: <strong>${t.vitals?t.vitals.weight||'—':'—'}</strong></div>
-        <div>Height: <strong>${t.vitals?t.vitals.height||'—':'—'}</strong></div>
-      </div>
-      <div class="section-label">Findings</div>
-      <p style="font-size:.83rem;margin-bottom:.6rem">${t.findings||'—'}</p>
-      <div class="section-label">Diagnosis</div>
-      <p style="font-size:.83rem;margin-bottom:.6rem"><strong>${t.diagnosis}</strong></p>
-      <div class="section-label">Prescription</div>
-      <p style="font-size:.83rem;margin-bottom:.6rem">${t.prescription||'—'}</p>
-      ${t.xray?`<div class="alert alert-info show" style="margin-bottom:.6rem;font-size:.8rem">📷 Imaging: ${t.xray}</div>`:''}
-      <div class="section-label">Notes</div>
-      <p style="font-size:.83rem">${t.notes||'—'}</p>
-      <p class="print-header" style="display:none;font-size:.75rem;color:#666;margin-top:16px">Printed ${new Date().toLocaleString('en-PH')} · Dr. ${doc?doc.fname+' '+doc.lname:'?'} (signature) ________________</p>
-    </div>
-    <div class="modal-footer no-print"><button class="btn" onclick="closeAllModals()">Close</button><button class="btn btn-info" onclick="window.print()">🖨️ Print</button></div>
-  </div>`);
+  openModal(`<div class="modal modal-xl"><div class="modal-header"><div><h3>Treatment Record #${t.id}</h3><div class="text-muted">Clinical document preview</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div class="treatment-record-shell">${treatmentDocumentHtml(t)}</div></div><div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap"><span class="tech-note">PDF uses the same clinical-document layout shown in the preview.</span><div style="display:flex;gap:.45rem;flex-wrap:wrap"><button class="btn" onclick="closeAllModals()">Close</button><button class="btn btn-info" onclick="printTreatmentRecord(${id})"><i class="fa-solid fa-print"></i> Print</button><button class="btn btn-primary" onclick="downloadTreatmentPDF(${id})"><i class="fa-solid fa-file-arrow-down"></i> Download PDF</button></div></div></div>`);
+}
+function printTreatmentRecord(id){
+  const t=DB.treatments.find(x=>x.id===id);if(!t)return;
+  const w=window.open('','_blank','width=900,height=900');if(!w){toast('Please allow pop-ups to print the treatment record.','warning');return;}
+  w.document.write(`<!doctype html><html><head><title>Treatment Record #${id}</title><style>body{font-family:Arial,sans-serif;background:#fff;margin:0;padding:24px}.treatment-record-doc{max-width:760px;margin:auto;color:#1f2933}.treatment-doc-head{text-align:center;border-bottom:2px solid #0a7ea8;padding-bottom:14px;margin-bottom:18px}.treatment-doc-head h2{font-size:20px;margin:0;color:#12314a}.treatment-doc-head p{font-size:11px;color:#5f6d76}.treatment-doc-title{text-align:center;font-size:15px;font-weight:800;letter-spacing:1px;margin:16px 0;color:#0a5f80}.treatment-doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}.treatment-doc-field{font-size:12px;border-bottom:1px solid #e7ecef;padding:5px 0}.treatment-doc-field span,.treatment-vital-box span{display:block;font-size:10px;text-transform:uppercase;color:#76848d;font-weight:700}.treatment-doc-vitals{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 17px}.treatment-vital-box{border:1px solid #dfe7ec;border-radius:8px;padding:8px;text-align:center}.treatment-doc-section{margin:14px 0}.treatment-doc-section h4{font-size:11px;text-transform:uppercase;color:#0a6f96;border-bottom:1px solid #cfe0e8;padding-bottom:4px}.treatment-doc-section p{font-size:12px;line-height:1.55}.treatment-doc-sign{display:flex;justify-content:flex-end;margin-top:34px}.treatment-doc-sign>div{width:240px;text-align:center;font-size:11px}.treatment-doc-sign .line{border-top:1px solid #333;margin-top:38px;padding-top:5px}</style></head><body>${treatmentDocumentHtml(t)}</body></html>`);
+  w.document.close();w.focus();setTimeout(()=>w.print(),250);
 }
 
+async function waitForDocumentImages(root){
+  const images=[...(root?.querySelectorAll?.('img')||[])];
+  await Promise.all(images.map(img=>{
+    if(img.complete&&img.naturalWidth>0)return Promise.resolve();
+    return new Promise(resolve=>{img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true});setTimeout(resolve,1500);});
+  }));
+}
+
+async function downloadTreatmentPDF(id){
+  const t=DB.treatments.find(x=>x.id===id);if(!t)return;
+  let stage=null;
+  try{
+    const [jsPDF,html2canvas]=await Promise.all([loadJsPDF(),loadHtml2Canvas()]);
+    stage=document.createElement('div');stage.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1';stage.innerHTML=treatmentDocumentHtml(t);document.body.appendChild(stage);
+    const doc=stage.querySelector('.treatment-record-doc');doc.style.width='794px';doc.style.maxWidth='794px';doc.style.boxShadow='none';doc.style.border='none';doc.style.borderRadius='0';
+    await waitForDocumentImages(doc);
+    const canvas=await html2canvas(doc,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false});
+    const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'}),imgData=canvas.toDataURL('image/jpeg',.96),pageW=210,pageH=297,imgH=canvas.height*pageW/canvas.width;
+    let remaining=imgH,pos=0;pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH;while(remaining>0){pos=remaining-imgH;pdf.addPage();pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH;}
+    const pt=getPatientById(t.patientId)||{};pdf.save(`CampusCare_Treatment_${(pt.lname||'Patient').replace(/\s+/g,'_')}_${t.id}.pdf`);
+    auditLog('TREATMENT_PDF_EXPORTED',`Treatment #${t.id} downloaded as PDF.`,'Treatment',t.id);toast('Treatment record downloaded as PDF.','success');
+  }catch(e){console.error(e);toast('Could not generate the PDF. Please try Print instead.','error');}
+  finally{if(stage)stage.remove();}
+}
 function viewTreatmentForAppt(apptId){
   const t=DB.treatments.find(x=>x.appointmentId===apptId);
   if(t)viewTreatment(t.id);
   else toast('No treatment record for this appointment.','warning');
 }
 
-function deleteTreat(id){
-  const t=DB.treatments.find(x=>x.id===id);
-  showConfirmDialog({
-    title:'Delete Treatment Record',
-    message:'Are you sure you want to delete this treatment record? This cannot be undone.',
-    confirmLabel:'Delete',danger:true,
-    onConfirm:()=>{
-      DB.treatments=DB.treatments.filter(x=>x.id!==id);
-      toastWithUndo('Treatment deleted.',()=>{if(t){DB.treatments.push(t);renderTreatTable&&renderTreatTable();}});
-      renderTreatTable&&renderTreatTable();
-    }
-  });
+function archiveTreat(id){
+  const t=DB.treatments.find(x=>x.id===id);if(!t)return;
+  showConfirmDialog({title:'Archive Treatment Record',message:'Archive this treatment record? It will be hidden from the active list but preserved and can be restored later.',confirmLabel:'Archive',danger:true,onConfirm:()=>{t.archived=true;t.archivedAt=new Date().toISOString();t.archivedBy=currentUser.id;auditLog('TREATMENT_ARCHIVED',`Treatment #${id} archived.`,'Treatment',id);persistDB();toast('Treatment record archived.','success');renderTreatTable();}});
+}
+function restoreTreat(id){
+  const t=DB.treatments.find(x=>x.id===id);if(!t)return;
+  showConfirmDialog({title:'Restore Treatment Record',message:'Restore this treatment record to the active treatment list?',confirmLabel:'Restore',onConfirm:()=>{t.archived=false;t.restoredAt=new Date().toISOString();t.restoredBy=currentUser.id;auditLog('TREATMENT_RESTORED',`Treatment #${id} restored.`,'Treatment',id);persistDB();toast('Treatment record restored.','success');renderTreatTable();}});
 }
 
 // ── Inventory Modals ──
@@ -8062,10 +8373,11 @@ async function saveInv(id){
   const data={name,category:document.getElementById('im-cat').value,supplier:document.getElementById('im-supplier').value,qty,threshold:thresh,unit:document.getElementById('im-unit').value||'pcs',unitCost:parseFloat(document.getElementById('im-cost').value)||0,expiryDate:document.getElementById('im-expiry').value,disbursementDate:document.getElementById('im-disb').value,photo};
   if(id){
     const idx=DB.inventory.findIndex(i=>i.id===id);
-    if(idx>=0)DB.inventory[idx]={...DB.inventory[idx],...data};
+    if(idx>=0){DB.inventory[idx]={...DB.inventory[idx],...data};auditLog('INVENTORY_ITEM_UPDATED',`Updated inventory item ${data.name}.`,'Inventory',id);}
     toast('Item updated.','success');
   }else{
-    DB.inventory.push({id:DB.nextInvId++,...data});
+    const newInvId=DB.nextInvId++;DB.inventory.push({id:newInvId,...data});
+    auditLog('INVENTORY_ITEM_CREATED',`Added inventory item ${data.name}.`,'Inventory',newInvId);
     toast('Item added.','success');
   }
   if(data.qty<=data.threshold){
@@ -8149,6 +8461,7 @@ function saveDisbursement(){
   if(!qty||qty<1){showAlert(msg,'Quantity must be at least 1.');return;}
   if(qty>it.qty){showAlert(msg,`Only ${it.qty} ${it.unit} available.`);return;}
   it.qty-=qty;
+  auditLog('INVENTORY_DISBURSEMENT',`Recorded inventory disbursement.`,'Inventory',itemId);
   DB.disbursements.push({id:DB.nextDisbId++,itemId,qty,date,notes,userId:currentUser.id});
   if(it.qty<=it.threshold){
     DB.users.filter(u=>u.role==='Staff'||u.role==='Administrator').forEach(u=>addNotif(u.id,'Low Stock After Disbursement',`${it.name} is now below threshold after disbursement.`,'danger'));
