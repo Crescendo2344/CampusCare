@@ -1582,7 +1582,7 @@ tbody tr:hover td{background:var(--overlay)}
     <!-- LOGIN -->
     <div id="login-section">
       <div class="alert alert-danger" id="login-err"></div>
-      <div class="form-group"><label>Email</label><input id="li-user" type="email" placeholder="Enter your email" oninput="sanitizeInput(this,'username')" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="form-group"><label>Username or Email</label><input id="li-user" type="email" placeholder="Enter username or email" oninput="sanitizeInput(this,'username')" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <div class="form-group"><label>Password</label><input id="li-pass" type="password" placeholder="Enter password" oninput="sanitizeInput(this,'password')" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <p style="text-align:right;margin:-.2rem 0 .2rem"><a href="#" style="font-size:.78rem;color:var(--primary);text-decoration:none" onclick="openForgotPassword();return false;">Forgot password?</a></p>
       <button class="btn btn-primary" style="width:100%;margin-top:.3rem" onclick="doLogin()">Login to CampusCare</button>
@@ -3362,73 +3362,54 @@ function setLoginAttempts(data){
 }
 
 async function doLogin(){
-  // Supabase Auth signs the user in and returns a JWT-backed session.
-  const email=document.getElementById('li-user').value.trim().toLowerCase();
-  const password=document.getElementById('li-pass').value;
-  const err=document.getElementById('login-err');
-  hideAlert(err);
+  // Supabase Auth signs in with email. For username login, the public Edge
+  // Function resolves the CampusCare username to its associated email first.
+  const identifier=document.getElementById('login-user').value.trim();
+  const password=document.getElementById('login-pass').value;
+  if(!identifier||!password){toast('Enter your username/email and password.','error');return;}
 
-  if(!email||!password){showAlert(err,'Please enter your email and password.');return;}
-  if(SUPABASE_PUBLISHABLE_KEY.includes('PASTE_YOUR_')){
-    showAlert(err,'Supabase is not configured yet. Add the project publishable key in SUPABASE_PUBLISHABLE_KEY.');
-    return;
+  try{
+    let email=identifier;
+    if(!identifier.includes('@')){
+      const response=await fetch(`${SUPABASE_URL}/functions/v1/resolve-login`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':SUPABASE_PUBLISHABLE_KEY},
+        body:JSON.stringify({identifier})
+      });
+      const resolved=await response.json().catch(()=>({}));
+      if(!response.ok||!resolved.email) throw new Error('Invalid username/email or password.');
+      email=resolved.email;
+    }
+
+    const {data,error}=await supabaseClient.auth.signInWithPassword({email,password});
+    if(error) throw error;
+
+    const {data:profile,error:profileError}=await supabaseClient
+      .from('users').select('*').eq('auth_user_id',data.user.id).single();
+    if(profileError||!profile){
+      await supabaseClient.auth.signOut();
+      throw new Error('CampusCare profile could not be loaded.');
+    }
+    if(profile.status==='Pending'){
+      await supabaseClient.auth.signOut();
+      throw new Error('Your registration is still pending administrator approval.');
+    }
+    if(profile.status==='Suspended'||profile.status==='Archived'){
+      await supabaseClient.auth.signOut();
+      throw new Error('This account is not currently active.');
+    }
+
+    currentUser=profile;
+    try{ await supabaseClient.from('users').update({last_login_at:new Date().toISOString()}).eq('user_id',profile.user_id); }catch(_){}
+    if(typeof enterApp==='function') enterApp();
+    if(profile.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
+      setTimeout(refreshRealApprovalQueue,300);
+    }
+  }catch(e){
+    toast(e?.message||'Invalid username/email or password.','error');
   }
-
-  const {data,error}=await supabaseClient.auth.signInWithPassword({email,password});
-  if(error||!data.user){
-    showAlert(err,'Invalid email or password.');
-    return;
-  }
-
-  // Load the application profile protected by RLS.
-  const {data:profile,error:profileError}=await supabaseClient
-    .from('users')
-    .select('*')
-    .eq('auth_user_id',data.user.id)
-    .single();
-
-  if(profileError||!profile){
-    await supabaseClient.auth.signOut();
-    showAlert(err,'Your CampusCare profile could not be loaded. Please contact the administrator.');
-    return;
-  }
-  if(profile.status==='Pending'){
-    await supabaseClient.auth.signOut();
-    showAlert(err,'Your registration is still pending administrator approval.');
-    return;
-  }
-  if(profile.status==='Suspended'){
-    await supabaseClient.auth.signOut();
-    showAlert(err,'Your account has been suspended. Contact the administrator.');
-    return;
-  }
-
-  // Adapt PostgreSQL column names to the existing CampusCare UI object shape.
-  currentUser={
-    id:profile.user_id,
-    authUserId:data.user.id,
-    fname:profile.first_name||'',
-    lname:profile.last_name||'',
-    username:profile.username||'',
-    email:profile.email||data.user.email||'',
-    contact:profile.contact_no||profile.contact||'',
-    role:profile.role||'Patient',
-    status:profile.status||'Active',
-    college:profile.college||'',
-    personType:profile.person_type||'Student',
-    idNo:profile.id_number||'',
-    profilePhoto:profile.profile_photo_url||''
-  };
-
-  // Patient modules still use the prototype patient object while module-by-module
-  // database integration is underway. Match it when a corresponding demo record exists.
-  if(currentUser.role==='Patient') currentPatient=getPatientByUserId(currentUser.id)||null;
-  initApp();
 }
 
-// ================================================================
-// PASSWORD STRENGTH — enforced on registration
-// ================================================================
 function checkPasswordStrength(pw){
   const checks={
     length: pw.length>=8,
@@ -5064,7 +5045,7 @@ function renderMyAccount(){
           </div>
           <p class="form-note" style="margin:-.2rem 0 .8rem">${u.role==='Administrator'?'As an administrator, you can update your name directly from User Management.':'For security, your name can only be changed by an administrator. <a href="#" onclick="openNameChangeRequest();return false;" style="color:var(--primary);text-decoration:none">Request a name change →</a>'}</p>
           <div class="divider"></div>
-          <div class="form-group"><label>Email</label><input id="acc-email" value="${u.email}" type="email" oninput="sanitizeInput(this,'email')"></div>
+          <div class="form-group"><label>Username or Email</label><input id="acc-email" value="${u.email}" type="email" oninput="sanitizeInput(this,'email')"></div>
           <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${u.contact||''}" inputmode="numeric" placeholder="09XXXXXXXXX" oninput="sanitizeInput(this,'phone')"></div>
           ${u.role==='Administrator'?'<p class="form-note">As an administrator, updating your email or contact applies immediately — no verification code needed.</p>':''}
           <p class="form-note">Changing your email or contact requires verifying it's you via your <em>current</em> email or phone.</p>
@@ -8977,7 +8958,7 @@ function openEditUserModal(id){
       <div class="form-row">
         <div class="form-group"><label>First Name</label><input id="eu-fname" value="${u.fname}"></div>
         <div class="form-group"><label>Last Name</label><input id="eu-lname" value="${u.lname}"></div>
-        <div class="form-group"><label>Email</label><input id="eu-email" type="email" value="${u.email}"></div>
+        <div class="form-group"><label>Username or Email</label><input id="eu-email" type="email" value="${u.email}"></div>
         <div class="form-group"><label>Contact</label><input id="eu-contact" value="${u.contact||''}"></div>
         <div class="form-group"><label>Status</label>
           <select id="eu-status"><option ${u.status==='Active'?'selected':''}>Active</option><option ${u.status==='Pending'?'selected':''}>Pending</option><option ${u.status==='Suspended'?'selected':''}>Suspended</option></select>
