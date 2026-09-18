@@ -1074,6 +1074,13 @@ tbody tr:hover td{background:var(--overlay)}
   .dashboard-progress-row{grid-template-columns:88px 1fr 36px}
 }
 
+
+/* Calendar year selector: same closed UI as Month.
+   Long year lists use the browser's native scrollable dropdown. */
+.modern-calendar-title .modern-calendar-year-select{
+  max-width:82px;
+}
+
 </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -7668,11 +7675,24 @@ function renderModernCalendar(id){
     days+=`<button type="button" class="${classes.join(' ')}" ${disabled?'disabled':''} onclick="modernCalendarSelect('${id}','${date}')" aria-label="${fmtDate(date)}">${d.getDate()}</button>`;
   }
   const monthOptions=Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===month?'selected':''}>${new Date(2000,i,1).toLocaleDateString('en-PH',{month:'short'})}</option>`).join('');
-  // Keep the year dropdown compact. The month arrows can still move beyond this window.
-  const minYear=year-4,maxYear=year+4;
-  let yearOptions=''; for(let yy=minYear;yy<=maxYear;yy++)yearOptions+=`<option value="${yy}" ${yy===year?'selected':''}>${yy}</option>`;
+  // Build a complete year list instead of limiting the dropdown to ±4 years.
+  // DOB calendars can now scroll from the current year down to 1950.
+  // Other calendars still receive a useful range based on their min/max dates.
+  const currentYear=new Date().getFullYear();
+  let minYear=st.minDate ? Number(st.minDate.slice(0,4)) : Math.min(1950,year);
+  let maxYear=st.maxDate ? Number(st.maxDate.slice(0,4)) : Math.max(currentYear+10,year+10);
+
+  // Never allow an invalid range if a date field has unusual constraints.
+  if(!Number.isFinite(minYear)) minYear=1950;
+  if(!Number.isFinite(maxYear)) maxYear=currentYear+10;
+  if(minYear>maxYear){ const temp=minYear; minYear=maxYear; maxYear=temp; }
+
+  let yearOptions='';
+  for(let yy=minYear;yy<=maxYear;yy++){
+    yearOptions+=`<option value="${yy}" ${yy===year?'selected':''}>${yy}</option>`;
+  }
   host.innerHTML=`<div class="modern-calendar">
-    <div class="modern-calendar-head"><button type="button" class="modern-calendar-nav" onclick="modernCalendarShift('${id}',-1)" aria-label="Previous month">‹</button><div class="modern-calendar-title"><select aria-label="Month" onchange="modernCalendarSetMonth('${id}',this.value)">${monthOptions}</select><select aria-label="Year" onchange="modernCalendarSetYear('${id}',this.value)">${yearOptions}</select></div><button type="button" class="modern-calendar-nav" onclick="modernCalendarShift('${id}',1)" aria-label="Next month">›</button></div>
+    <div class="modern-calendar-head"><button type="button" class="modern-calendar-nav" onclick="modernCalendarShift('${id}',-1)" aria-label="Previous month">‹</button><div class="modern-calendar-title"><select aria-label="Month" onchange="modernCalendarSetMonth('${id}',this.value)">${monthOptions}</select><select class="modern-calendar-year-select" aria-label="Year" onchange="modernCalendarSetYear('${id}',this.value)">${yearOptions}</select></div><button type="button" class="modern-calendar-nav" onclick="modernCalendarShift('${id}',1)" aria-label="Next month">›</button></div>
     <div class="modern-calendar-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<span>${d}</span>`).join('')}</div>
     <div class="modern-calendar-days">${days}</div>
     <div class="modern-calendar-footer"><span class="modern-calendar-hint"><span style="color:var(--primary)">●</span> Dates with appointments</span><button type="button" class="modern-calendar-today" onclick="modernCalendarGoToday('${id}')">Today</button></div>
