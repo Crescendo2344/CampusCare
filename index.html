@@ -1164,10 +1164,6 @@ tbody tr:hover td{background:var(--overlay)}
 }
 
 
-/* Registration name row: First / Middle Initial / Last. */
-.reg-name-row{grid-template-columns:1fr .55fr 1fr}
-@media(max-width:640px){.reg-name-row{grid-template-columns:1fr}}
-
 /* Registration-only toast position. */
 #registration-toast-wrap{
   position:fixed;
@@ -1384,9 +1380,8 @@ tbody tr:hover td{background:var(--overlay)}
       </div>
       <div class="alert alert-danger" id="reg-err"></div>
       <div class="alert alert-success" id="reg-ok"></div>
-      <div class="form-row reg-name-row">
+      <div class="form-row">
         <div class="form-group"><label>First Name <span class="required">*</span></label><input id="r-fname" type="text" oninput="sanitizeInput(this,'name');recheckNameMatch()"></div>
-        <div class="form-group"><label>Middle Initial <span class="text-muted">(Optional)</span></label><input id="r-mi" type="text" maxlength="2" placeholder="e.g. V." autocomplete="additional-name" oninput="sanitizeMiddleInitial(this);recheckNameMatch()"></div>
         <div class="form-group"><label>Last Name <span class="required">*</span></label><input id="r-lname" type="text" oninput="sanitizeInput(this,'name');recheckNameMatch()"></div>
       </div>
       <div class="form-row">
@@ -2061,13 +2056,6 @@ function toastWithUndo(msg, undoFn, dur=6000){
 }
 
 
-function sanitizeMiddleInitial(input){
-  // Allow one letter with an optional period, e.g. "V" or "V.".
-  let v=String(input.value||'').toUpperCase().replace(/[^A-Z.]/g,'');
-  const letter=(v.match(/[A-Z]/)||[''])[0];
-  input.value=letter ? letter+(v.includes('.')?'.':'') : '';
-}
-
 function registrationToast(msg,type='error',dur=4500){
   const wrap=document.getElementById('registration-toast-wrap');
   if(!wrap)return toast(msg,type,dur);
@@ -2402,7 +2390,6 @@ function handleOcrResult(){
 function recheckNameMatch(justAutoFilled){
   const statusEl=document.getElementById('id-analyze-status');
   const fnameInput=document.getElementById('r-fname');
-  const miInput=document.getElementById('r-mi');
   const lnameInput=document.getElementById('r-lname');
   if(!statusEl||!fnameInput||!lnameInput||!lastOcrCleanText)return;
 
@@ -2413,11 +2400,10 @@ function recheckNameMatch(justAutoFilled){
 
   const typedFirst=normalize(fnameInput.value);
   const typedLast=normalize(lnameInput.value);
-  const typedMi=normalize(miInput?.value).charAt(0);
   const scanned=normalize(lastOcrCleanText);
 
   if(justAutoFilled){
-    statusEl.innerHTML='✓ Name detected from your ID — please double-check it\'s correct.';
+    statusEl.innerHTML="✓ Name detected from your ID — please double-check it's correct.";
     statusEl.style.color='var(--success)';
     return;
   }
@@ -2428,22 +2414,16 @@ function recheckNameMatch(justAutoFilled){
     return;
   }
 
+  // Match only first and last name. Middle names/initials are deliberately ignored
+  // because IDs and CORs may abbreviate, omit, or OCR them inconsistently.
   const firstMatch=scanned.includes(typedFirst);
   const lastMatch=scanned.includes(typedLast);
 
   if(firstMatch&&lastMatch){
-    // Middle initial is supportive only. It must not reject a valid ID because
-    // some IDs omit the middle name or OCR may fail to recognize one letter.
-    const middleVisible=typedMi ? new RegExp(`(?:^|\\s)${typedMi}(?:\\s|$)`).test(scanned) : true;
-    if(typedMi&&!middleVisible){
-      statusEl.innerHTML='✓ First and last name match. Middle initial was not clearly detected; the administrator can verify it from the uploaded ID.';
-      statusEl.style.color='var(--warning)';
-    }else{
-      statusEl.innerHTML='✓ Your name matches the uploaded ID.';
-      statusEl.style.color='var(--success)';
-    }
+    statusEl.innerHTML='✓ Your first and last name match the uploaded ID.';
+    statusEl.style.color='var(--success)';
   }else{
-    statusEl.innerHTML='⚠️ We couldn\'t confirm the first and last name against this ID. Double-check the spelling or upload a clearer image.';
+    statusEl.innerHTML="⚠️ We couldn't confirm the first and last name against this ID. Double-check the spelling or upload a clearer image.";
     statusEl.style.color='var(--warning)';
   }
 }
@@ -3360,7 +3340,6 @@ async function doRegister() {
   const dobInput = document.getElementById('r-dob');
   if (dobInput && !dobInput.max) dobInput.max = TODAY;
   const fname = document.getElementById('r-fname').value.trim();
-  const middleInitial=(document.getElementById('r-mi')?.value||'').trim().replace(/\./g,'').toUpperCase();
   const lname = document.getElementById('r-lname').value.trim();
   const uname = document.getElementById('r-user').value.trim();
   const email = document.getElementById('r-email').value.trim();
@@ -3435,7 +3414,7 @@ async function doRegister() {
   }
   const uid = DB.nextUserId++;
   const newUser = {
-    id: uid, fname, middleInitial, lname, username: uname, password: pass, role: 'Patient',
+    id: uid, fname, lname, username: uname, password: pass, role: 'Patient',
     email, contact, status: 'Pending', college, personType: ptype, idNo,
     dob, sex,
     idFile: idFileName,
@@ -3451,7 +3430,7 @@ async function doRegister() {
   persistDB();
   showPendingPanel(newUser);
   // Reset the form for next time, now that the pending panel has taken over the view.
-  ['r-fname','r-mi','r-lname','r-user','r-email','r-pass','r-contact','r-idno','r-dob','r-sex'].forEach(id=>{const el=document.getElementById(id); if(el)el.value='';});
+  ['r-fname','r-lname','r-user','r-email','r-pass','r-contact','r-idno','r-dob','r-sex'].forEach(id=>{const el=document.getElementById(id); if(el)el.value='';});
   fileInput.value=''; selfieInput.value='';
   document.getElementById('r-file-preview').textContent='';
   resetSelfiePreview();
