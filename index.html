@@ -4770,34 +4770,61 @@ async function withDatabaseSkeleton(task,type='table',targetId='app-content'){
 
 function renderPage(id){
   const c=document.getElementById('app-content');
+  if(!c)return;
+
+  // Use lazy callbacks. A missing optional page renderer must never stop
+  // Dashboard or other modules from loading.
   const renders={
-    dashboard:renderDashboard,
-    'my-appointments':renderMyAppointments,
-    'my-records':renderMyRecords,
-    'my-certificates':renderMyCertificates,
-    'my-account':renderMyAccount,
-    patients:renderPatients,
-    appointments:renderAppointments,
-    approvals:renderApprovals,
-    certificates:renderMyCertificates,
-    'cert-requests':renderCertRequests,
-    treatments:renderTreatments,
-    inventory:renderInventory,
-    messages:renderMessages,
-    reports:renderReports,
-    users:renderUsers,
-    settings:renderSettings,
-    schedule:renderDoctorSchedule,
-    'my-patients':renderMyPatients,
-    'health_education':renderHealthEducation,
-    'report-issue':renderReportIssue,
-    'feedback-issues':renderFeedbackIssues,
-    fitness:renderFitnessAssessments,
-    'activity-log':renderActivityLog,
+    dashboard:()=>renderDashboard(),
+    'my-appointments':()=>renderMyAppointments(),
+    'my-records':()=>renderMyRecords(),
+    'my-certificates':()=>renderMyCertificates(),
+    'my-account':()=>renderMyAccount(),
+    patients:()=>renderPatients(),
+    appointments:()=>renderAppointments(),
+    approvals:()=>renderApprovals(),
+    certificates:()=>renderMyCertificates(),
+    'cert-requests':()=>renderCertRequests(),
+    treatments:()=>renderTreatments(),
+    inventory:()=>renderInventory(),
+    messages:()=>renderMessages(),
+    reports:()=>renderReports(),
+    users:()=>renderUsers(),
+    settings:()=>renderSettings(),
+    schedule:()=>renderDoctorSchedule(),
+    'my-patients':()=>renderMyPatients(),
+    'health_education':()=>renderHealthEducation(),
+    'report-issue':()=>renderReportIssue(),
+    'feedback-issues':()=>renderFeedbackIssues(),
+    fitness:()=>renderFitnessAssessments(),
+    'activity-log':()=>renderActivityLog()
   };
+
   c.innerHTML='';
-  if(renders[id])renders[id]();
-  else c.innerHTML=`<div class="empty-state"><p>Page "${id}" coming soon.</p></div>`;
+  const renderer=renders[id];
+  if(!renderer){
+    c.innerHTML=`<div class="empty-state"><p>Page "${escapeHtml(id)}" coming soon.</p></div>`;
+    return;
+  }
+
+  try{
+    const result=renderer();
+    if(result&&typeof result.catch==='function'){
+      result.catch(err=>{
+        console.error(`CampusCare page "${id}" failed:`,err);
+        c.innerHTML=`<div class="card">
+          <div class="alert alert-danger show">This page could not finish loading.</div>
+          <button class="btn btn-sm" onclick="renderPage('${jsAttrSafe(id)}')">Retry</button>
+        </div>`;
+      });
+    }
+  }catch(err){
+    console.error(`CampusCare page "${id}" failed:`,err);
+    c.innerHTML=`<div class="card">
+      <div class="alert alert-danger show">${escapeHtml(err?.message||'This page could not load.')}</div>
+      <button class="btn btn-sm" onclick="renderPage('${jsAttrSafe(id)}')">Retry</button>
+    </div>`;
+  }
 }
 
 // ================================================================
@@ -7826,6 +7853,205 @@ function restoreUser(id){
   });
 }
 
+
+// ================================================================
+// RESTORED SETTINGS + PATIENT CERTIFICATE RENDERERS
+// These functions existed in the original CampusCare build but were
+// accidentally removed during the Supabase merge.
+// ================================================================
+
+function renderBackupListHtml(){
+  const bs=getDailyBackups();
+  if(!bs.length)return '<div class="empty-state"><p>No backup snapshot yet.</p></div>';
+  return bs.map(b=>`<div class="backup-row">
+    <div><strong style="font-size:.8rem">${escapeHtml(b.day)}</strong>
+      <div class="text-muted">${new Date(b.createdAt).toLocaleString('en-PH')}</div>
+    </div>
+    <div style="display:flex;gap:.35rem">
+      <button class="btn btn-xs" onclick="downloadBackup('${b.id}')">Download</button>
+      <button class="btn btn-xs btn-warning" onclick="restoreBackup('${b.id}')">Restore</button>
+    </div>
+  </div>`).join('');
+}
+
+function renderSettings(){
+  const s=DB.settings;
+  const c=document.getElementById('app-content');
+  if(!c)return;
+  c.innerHTML=`
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><h3>Clinic Settings</h3></div>
+        <div id="set-msg"></div>
+        <div class="form-group"><label>Clinic Name</label><input id="set-name" value="${escapeHtml(s.clinicName||'')}"></div>
+        <div class="form-group"><label>Address</label><input id="set-addr" value="${escapeHtml(s.address||'')}"></div>
+        <div class="form-group"><label>Contact Email</label><input id="set-email" type="email" value="${escapeHtml(s.contactEmail||'')}"></div>
+        <div class="form-group"><label>Dental Visits Allowed Per Semester</label><input id="set-dental" type="number" min="1" max="5" value="${Number(s.dentalLimitPerSemester||1)}"></div>
+        <div class="form-group"><label>Appointment Reminder Days Before</label><input id="set-remind" type="number" min="1" max="14" value="${Number(s.appointmentReminderDays||2)}"></div>
+        <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>Semester Configuration</h3></div>
+        <div class="form-group"><label>Semester 1 Start</label>${campusDateFieldHtml('set-s1s',s.semesterStart,'Semester 1 Start')}</div>
+        <div class="form-group"><label>Semester 1 End</label>${campusDateFieldHtml('set-s1e',s.semesterEnd,'Semester 1 End')}</div>
+        <div class="form-group"><label>Semester 2 Start</label>${campusDateFieldHtml('set-s2s',s.semester2Start,'Semester 2 Start')}</div>
+        <div class="form-group"><label>Semester 2 End</label>${campusDateFieldHtml('set-s2e',s.semester2End,'Semester 2 End')}</div>
+        <button class="btn btn-primary btn-sm" onclick="saveSemSettings()">Save Semester</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div><h3>Privacy & Data Protection</h3>
+          <div class="tech-note">Controls that support CTU privacy governance and RA 10173 accountability.</div>
+        </div>
+        <button class="btn btn-sm" onclick="openPrivacyNotice()">View Privacy Notice</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div><h3>Automated Daily Backups</h3>
+          <div class="tech-note">Local prototype snapshots are retained while production backup integration is completed.</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="createDailyBackup(true);persistDB();renderSettings();toast('Backup snapshot created.','success')">Back Up Now</button>
+      </div>
+      <div id="backup-list">${renderBackupListHtml()}</div>
+    </div>`;
+}
+
+function saveSettings(){
+  showConfirmDialog({
+    title:'Save Clinic Settings',
+    message:'Save these clinic-wide settings?',
+    confirmLabel:'Save Settings',
+    onConfirm:()=>{
+      const s=DB.settings;
+      s.clinicName=document.getElementById('set-name').value;
+      s.address=document.getElementById('set-addr').value;
+      s.contactEmail=document.getElementById('set-email').value;
+      s.dentalLimitPerSemester=parseInt(document.getElementById('set-dental').value)||1;
+      s.appointmentReminderDays=parseInt(document.getElementById('set-remind').value)||2;
+      persistDB();
+      toast('Settings saved.','success');
+    }
+  });
+}
+
+function saveSemSettings(){
+  const s=DB.settings;
+  s.semesterStart=document.getElementById('set-s1s').value;
+  s.semesterEnd=document.getElementById('set-s1e').value;
+  s.semester2Start=document.getElementById('set-s2s').value;
+  s.semester2End=document.getElementById('set-s2e').value;
+  persistDB();
+  toast('Semester settings saved.','success');
+}
+
+function loadJsPDF(){
+  return new Promise((resolve,reject)=>{
+    if(window.jspdf&&window.jspdf.jsPDF){resolve(window.jspdf.jsPDF);return;}
+    const sources=[
+      'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+    ];
+    let index=0;
+    const tryNext=()=>{
+      if(index>=sources.length){reject(new Error('Could not load PDF library'));return;}
+      const script=document.createElement('script');
+      script.src=sources[index++];
+      script.async=true;
+      script.onload=()=>window.jspdf&&window.jspdf.jsPDF?resolve(window.jspdf.jsPDF):tryNext();
+      script.onerror=tryNext;
+      document.head.appendChild(script);
+    };
+    tryNext();
+  });
+}
+
+const CERT_PURPOSES=[
+  'OJT / Internship Requirement',
+  'Excused Absence',
+  'Sports / Athletics Participation',
+  'Enrollment Requirement',
+  'Employment Requirement',
+  'Scholarship Requirement',
+  'Other'
+];
+
+function certStatusBadge(s){
+  const m={Pending:'badge-warning','Awaiting Signature':'badge-purple',Issued:'badge-success',Declined:'badge-danger'};
+  return `<span class="badge ${m[s]||'badge-gray'}">${escapeHtml(s||'')}</span>`;
+}
+
+function renderMyCertificates(){
+  const c=document.getElementById('app-content');
+  const pt=currentPatient;
+  if(!c)return;
+  if(!pt){
+    c.innerHTML='<div class="alert alert-warning show">No patient record linked. Contact admin.</div>';
+    return;
+  }
+  const reqs=(DB.certRequests||[]).filter(r=>r.patientId===pt.id).slice().sort((a,b)=>b.id-a.id);
+  c.innerHTML=`<div class="card">
+    <div class="card-header">
+      <h3>Medical Certificates</h3>
+      <button class="btn btn-primary btn-sm" onclick="openCertRequestModal()">+ Request Certificate</button>
+    </div>
+    <p class="text-muted" style="font-size:.82rem;margin-bottom:.8rem">Staff prepares the certificate details, then the assigned doctor signs it before it becomes downloadable.</p>
+    ${reqs.length?`<div class="cert-swipe-hint"><i class="fa-solid fa-arrows-left-right"></i> Swipe horizontally to view the certificate number and download actions.</div>
+      <div class="table-wrap cert-table-wrap"><table>
+        <thead><tr><th>#</th><th>Purpose</th><th>Requested</th><th>Status</th><th>Certificate No.</th><th>Actions</th></tr></thead>
+        <tbody>${reqs.map(r=>`<tr>
+          <td>#${r.id}</td>
+          <td>${escapeHtml(r.purpose)}</td>
+          <td>${fmtDate(r.requestedAt)}</td>
+          <td>${certStatusBadge(r.status)}</td>
+          <td>${r.certNo||'—'}</td>
+          <td><div class="td-actions">
+            ${r.status==='Issued'?`<button class="btn btn-xs btn-primary" onclick="downloadCertPdf(${r.id})">⬇ Download PDF</button>`:''}
+            ${r.status==='Pending'?`<button class="btn btn-xs btn-danger" onclick="cancelCertRequest(${r.id})">Cancel</button>`:''}
+            ${r.status==='Declined'&&r.declineReason?`<button class="btn btn-xs" onclick="viewCertDecline(${r.id})">Reason</button>`:''}
+          </div></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`:'<div class="empty-state"><p>No certificate requests yet.</p></div>'}
+  </div>`;
+}
+
+function openCertRequestModal(){
+  openModal(`<div class="modal">
+    <div class="modal-header">
+      <h3>Request Medical Certificate</h3>
+      <button class="close-btn" onclick="closeAllModals()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>Purpose</label>
+        <select id="cert-purpose">${CERT_PURPOSES.map(p=>`<option>${escapeHtml(p)}</option>`).join('')}</select>
+      </div>
+      <div class="form-group"><label>Details (optional)</label>
+        <textarea id="cert-details" rows="3" placeholder="e.g. dates of absence, requesting office"></textarea>
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="submitCertRequest()">Submit Request</button>
+    </div>
+  </div>`);
+}
+
+function submitCertRequest(){
+  if(!currentPatient){toast('No patient record linked.','error');return;}
+  const purpose=document.getElementById('cert-purpose').value;
+  const details=document.getElementById('cert-details').value.trim().slice(0,300);
+  DB.certRequests.push({
+    id:DB.nextCertId++,
+    patientId:currentPatient.id,
+    purpose,details,status:'Pending',requestedAt:TODAY,
+    certNo:'',issuedAt:'',issuedById:null,doctorId:null,
+    findings:'',recommendations:'',declineReason:'',
+    preparedById:null,preparedAt:'',signedById:null,signedAt:''
+  });
+  persistDB();
+  closeAllModals();
+  toast('Certificate request submitted.','success');
+  renderMyCertificates();
+}
+
 function cancelCertRequest(id){
   const r=DB.certRequests.find(x=>x.id===id);
   if(!r||r.status!=='Pending')return;
@@ -9491,7 +9717,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v12 loaded.');
+console.log('CampusCare v17 loaded.');
 </script>
 </body>
 </html>
