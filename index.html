@@ -40,19 +40,32 @@ async function syncCampusCareSessionUI(){
       return false;
     }
 
-    if(currentUser.role==='Administrator'){
-      await syncAdminDirectoryFromSupabase();
-    }else if(currentUser.role==='Patient'){
-      await syncCurrentPatientFromSupabase();
-    }
-
+    // Open CampusCare immediately once the authenticated profile is available.
+    // Do not keep the whole page blocked while secondary directory data loads.
     initApp();
 
-    if(currentUser.role==='Administrator'&&typeof refreshRealApprovalQueue==='function'){
-      setTimeout(()=>refreshRealApprovalQueue(false).then(()=>{
-        if(typeof renderDashboard==='function'&&document.getElementById('app-content'))renderDashboard();
-      }).catch(console.error),250);
+    if(currentUser.role==='Administrator'){
+      showDatabaseSkeleton('dashboard');
+      syncAdminDirectoryFromSupabase()
+        .then(()=>{
+          if(typeof renderDashboard==='function')renderDashboard();
+          if(typeof refreshRealApprovalQueue==='function')
+            return refreshRealApprovalQueue(false);
+        })
+        .then(()=>{
+          if(typeof renderDashboard==='function')renderDashboard();
+        })
+        .catch(err=>{
+          console.error('Admin directory background sync:',err);
+          if(typeof renderDashboard==='function')renderDashboard();
+          toast('Some database data could not be refreshed. You can retry from the page.','warning');
+        });
+    }else if(currentUser.role==='Patient'){
+      syncCurrentPatientFromSupabase()
+        .then(()=>{if(typeof renderDashboard==='function')renderDashboard();})
+        .catch(err=>console.error('Patient background sync:',err));
     }
+
     return true;
   }catch(err){
     console.error('CampusCare session UI sync:',err);
@@ -108,16 +121,24 @@ function normalizeSupabaseUser(profile){
   };
 }
 
+
+function fetchWithTimeout(url,options={},timeoutMs=7000){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  return fetch(url,{...options,signal:controller.signal})
+    .finally(()=>clearTimeout(timer));
+}
+
 async function fetchAdminDirectory(){
   if(currentUser?.role!=='Administrator')return [];
   const {data:{session}}=await supabaseClient.auth.getSession();
   if(!session)return [];
-  const response=await fetch(`${SUPABASE_URL}/functions/v1/admin-directory`,{
+  const response=await fetchWithTimeout(`${SUPABASE_URL}/functions/v1/admin-directory`,{
     headers:{
       apikey:SUPABASE_PUBLISHABLE_KEY,
       Authorization:`Bearer ${session.access_token}`
     }
-  });
+  },7000);
   const result=await response.json().catch(()=>({}));
   if(!response.ok||!result.ok)throw new Error(result.error||'Unable to load CampusCare directory.');
   return result.users||[];
@@ -1388,7 +1409,15 @@ tbody tr:hover td{background:var(--overlay)}
   background:var(--page-base);
 }
 #session-restore-skeleton.show{display:flex}
-#session-restore-skeleton .restore-shell{width:min(820px,calc(100vw - 2rem));}
+#session-restore-skeleton .restore-shell{width:min(820px,calc(100vw - 2rem))}
+#session-restore-skeleton::before{
+  content:'Loading CampusCare…';
+  position:absolute;
+  top:calc(50% - 215px);
+  color:var(--ink-muted);
+  font-size:.82rem;
+  font-weight:600;
+}
 
 </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -9378,27 +9407,47 @@ document.addEventListener('DOMContentLoaded',async()=>{
   initializeSupabaseClient();
   const restoreSkeleton=document.getElementById('session-restore-skeleton');
 
-  // Only show the full-page skeleton when Supabase actually has a persisted session.
-  const {data:{session:existingSession}}=await supabaseClient.auth.getSession();
-  if(existingSession)restoreSkeleton?.classList.add('show');
+  // Never allow the startup overlay to trap the whole website.
+  const safetyTimer=setTimeout(()=>restoreSkeleton?.classList.remove('show'),4000);
 
-  // First restore any already-persisted Supabase session.
-  const restored=await syncCampusCareSessionUI();
-  restoreSkeleton?.classList.remove('show');
+  try{
+    const {data:{session:existingSession}}=await supabaseClient.auth.getSession();
+    if(existingSession)restoreSkeleton?.classList.add('show');
 
-  // Then keep the UI synchronized with future auth changes.
-  supabaseClient.auth.onAuthStateChange((event,session)=>{
-    if(event==='SIGNED_IN'&&session&&!currentUser){
-      setTimeout(()=>syncCampusCareSessionUI(),0);
+    const restored=await Promise.race([
+      syncCampusCareSessionUI(),
+      new Promise(resolve=>setTimeout(()=>resolve(false),5000))
+    ]);
+
+    restoreSkeleton?.classList.remove('show');
+
+    supabaseClient.auth.onAuthStateChange((event,session)=>{
+      if(event==='SIGNED_IN'&&session&&!currentUser){
+        setTimeout(()=>syncCampusCareSessionUI(),0);
+      }
+      if(event==='SIGNED_OUT'){
+        currentUser=null;
+        currentPatient=null;
+      }
+    });
+
+    if(!restored&&!existingSession){
+      document.getElementById('app')?.classList.remove('visible');
+      document.getElementById('auth-wrap').style.display='block';
+    }else if(!restored&&existingSession){
+      // A temporary database/network issue should not leave a blank page.
+      document.getElementById('auth-wrap').style.display='block';
+      document.getElementById('app')?.classList.remove('visible');
+      toast('CampusCare took too long to load. Please try again.','warning');
     }
-    if(event==='SIGNED_OUT'){
-      currentUser=null;
-      currentPatient=null;
-    }
-  });
-
-  if(!restored){
+  }catch(err){
+    console.error('CampusCare startup:',err);
+    restoreSkeleton?.classList.remove('show');
+    document.getElementById('auth-wrap').style.display='block';
     document.getElementById('app')?.classList.remove('visible');
+  }finally{
+    clearTimeout(safetyTimer);
+    restoreSkeleton?.classList.remove('show');
   }
 });
 
