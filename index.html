@@ -227,7 +227,7 @@ function refreshActivePageAfterSync(){
 }
 
 async function syncAdminDirectoryFromSupabase(){
-  if(currentUser?.role!=='Administrator')return;
+  if(!['Administrator','Staff','Doctor'].includes(currentUser?.role))return;
   const rows=await fetchAdminDirectory();
 
   // Remove prior synced real records, then insert fresh authoritative copies.
@@ -2059,9 +2059,9 @@ const Services = {
   },
   appointments: {
     getAll: () => DB.appointments,
-    getById: (id) => DB.appointments.find(a => a.id === id),
-    getByPatientId: (patientId) => DB.appointments.filter(a => a.patientId === patientId),
-    getByDoctorId: (doctorId) => DB.appointments.filter(a => a.doctorId === doctorId),
+    getById: (id) => appointmentRecords().find(a => a.id === id),
+    getByPatientId: (patientId) => appointmentRecords().filter(a => a.patientId === patientId),
+    getByDoctorId: (doctorId) => appointmentRecords().filter(a => a.doctorId === doctorId),
     save: (data) => { /* later: POST/PUT /api/appointments */ return data; },
     cancel: (id) => { /* later: PATCH /api/appointments/:id/cancel */ },
   },
@@ -2722,7 +2722,7 @@ function updateCollegeField(){
 
 function checkDentalQuota(patientId,excludeId=null){
   const sem=currentSemester();
-  return DB.appointments.filter(a=>
+  return appointmentRecords().filter(a=>
     a.patientId===patientId&&
     a.clinic==='Dental Clinic'&&
     a.status!=='Cancelled'&&
@@ -2737,7 +2737,7 @@ function getPatientByUserId(uid){return DB.patients.find(p=>p.userId===uid)||nul
 function getUserById(id){return DB.users.find(u=>u.id===id);}
 function getPatientById(id){return DB.patients.find(p=>p.id===id);}
 
-function getDoctors(){return DB.users.filter(u=>u.role==='Doctor'&&u.status==='Active');}
+function getDoctors(){const all=DB.users.filter(u=>u.role==='Doctor'&&u.status==='Active');return currentUser?._realSupabase?all.filter(u=>u._realSupabase):all;}
 function getDentalDoctors(){return getDoctors().filter(d=>d.specialty==='Dental');}
 function getMedDoctors(){return getDoctors().filter(d=>d.specialty!=='Dental');}
 
@@ -2754,7 +2754,7 @@ function getMedDoctors(){return getDoctors().filter(d=>d.specialty!=='Dental');}
 function healthAnalyticsAnchorDate(){
   const clinicalDates=[
     ...DB.treatments.map(t=>t.date),
-    ...DB.appointments.filter(a=>a.status==='Completed').map(a=>a.date)
+    ...appointmentRecords().filter(a=>a.status==='Completed').map(a=>a.date)
   ].filter(Boolean).sort();
   // Use today's date when there is recent data. For old demo datasets, anchor
   // on the most recent clinical event so the prototype still demonstrates
@@ -2958,7 +2958,7 @@ function buildClinicalCopilot(patientId){
   const pt=getPatientById(patientId);
   if(!pt)return null;
   const treatments=DB.treatments.filter(t=>t.patientId===patientId).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  const appointments=DB.appointments.filter(a=>a.patientId===patientId).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const appointments=appointmentRecords().filter(a=>a.patientId===patientId).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const latest=treatments[0]||null;
 
   const diagnosisCounts={};
@@ -3068,7 +3068,7 @@ function campusCareFHIRBundle(patientId){
   const push=resource=>{if(resource)entries.push({fullUrl:`urn:uuid:${resource.id}`,resource});};
   push(fhirPatientResource(patientId));
 
-  DB.appointments.filter(a=>a.patientId===patientId).forEach(a=>{
+  appointmentRecords().filter(a=>a.patientId===patientId).forEach(a=>{
     const doc=getUserById(a.doctorId)||{};
     push({
       resourceType:'Appointment',id:fhirId('appointment',a.id),
@@ -3305,17 +3305,17 @@ function getAssistantReply(raw){
   // Today's appointments
   if(has("today's appointment","today appointment","appointments today","my appointment","upcoming appointment","next appointment")){
     if(role==='Patient'){
-      const mine=DB.appointments.filter(a=>currentPatient&&a.patientId===currentPatient.id&&a.status==='Scheduled').sort((a,b)=>a.date.localeCompare(b.date));
+      const mine=appointmentRecords().filter(a=>currentPatient&&a.patientId===currentPatient.id&&a.status==='Scheduled').sort((a,b)=>a.date.localeCompare(b.date));
       if(!mine.length)return "You don't have any upcoming appointments. Want to book one from the Appointments page?";
       const next=mine[0];
       const doc=getUserById(next.doctorId);
       return `Your next appointment is ${next.clinic} – ${next.service} on ${fmtDate(next.date)} at ${fmtTime(next.time)}${doc?' with '+docName(doc):''}.`;
     }
     if(role==='Doctor'){
-      const mine=DB.appointments.filter(a=>a.doctorId===u.id&&a.date===TODAY&&a.status==='Scheduled');
+      const mine=appointmentRecords().filter(a=>a.doctorId===u.id&&a.date===TODAY&&a.status==='Scheduled');
       return mine.length?`You have ${mine.length} appointment${mine.length===1?'':'s'} today, starting with ${fmtTime(mine.sort((a,b)=>a.time.localeCompare(b.time))[0].time)}.`:"You have no appointments scheduled for today.";
     }
-    const today=DB.appointments.filter(a=>a.date===TODAY&&a.status==='Scheduled');
+    const today=appointmentRecords().filter(a=>a.date===TODAY&&a.status==='Scheduled');
     return today.length?`There ${today.length===1?'is':'are'} ${today.length} appointment${today.length===1?'':'s'} scheduled today across the clinic.`:"No appointments are scheduled for today.";
   }
 
@@ -3436,7 +3436,7 @@ function checkReminders(){
   const pt=getPatientByUserId(currentUser.id);
   if(!pt)return;
   const reminderDays=DB.settings.appointmentReminderDays;
-  DB.appointments.forEach(a=>{
+  appointmentRecords().forEach(a=>{
     if(a.patientId!==pt.id||a.status!=='Scheduled')return;
     const diff=(new Date(a.date)-new Date(TODAY))/(1000*60*60*24);
     if(diff>=0&&diff<=reminderDays){
@@ -4931,14 +4931,14 @@ function dashboardRangeCounts(filterFn){
   if(span<=31){
     for(let i=0;i<=span;i++){
       const d=new Date(start); d.setDate(d.getDate()+i); const key=d.toISOString().slice(0,10);
-      points.push({key,label:d.toLocaleDateString('en-PH',{month:'short',day:'numeric'}),value:DB.appointments.filter(a=>a.date===key&&filterFn(a)).length});
+      points.push({key,label:d.toLocaleDateString('en-PH',{month:'short',day:'numeric'}),value:appointmentRecords().filter(a=>a.date===key&&filterFn(a)).length});
     }
   }else{
     const cursor=new Date(start.getFullYear(),start.getMonth(),1,12);
     while(cursor<=end){
       const y=cursor.getFullYear(),m=cursor.getMonth();
       const key=`${y}-${String(m+1).padStart(2,'0')}`;
-      points.push({key,label:cursor.toLocaleDateString('en-PH',{month:'short',year:'2-digit'}),value:DB.appointments.filter(a=>a.date.startsWith(key)&&dashboardInRange(a.date)&&filterFn(a)).length});
+      points.push({key,label:cursor.toLocaleDateString('en-PH',{month:'short',year:'2-digit'}),value:appointmentRecords().filter(a=>a.date.startsWith(key)&&dashboardInRange(a.date)&&filterFn(a)).length});
       cursor.setMonth(cursor.getMonth()+1);
     }
   }
@@ -5045,8 +5045,8 @@ function renderDashboard(){
   const role=currentUser.role;
   const today=dashboardDateTo||TODAY;
   const rangeLabel=dashboardRangeLabel();
-  const allToday=DB.appointments.filter(a=>a.date===today&&a.status!=='Cancelled');
-  const allRange=DB.appointments.filter(a=>dashboardInRange(a.date)&&a.status!=='Cancelled');
+  const allToday=appointmentRecords().filter(a=>a.date===today&&a.status!=='Cancelled');
+  const allRange=appointmentRecords().filter(a=>dashboardInRange(a.date)&&a.status!=='Cancelled');
   const globalTrend=dashboardRangeCounts(()=>true);
   const globalVals=globalTrend.map(p=>p.value);
   const lowStock=getLowStock();
@@ -5060,7 +5060,7 @@ function renderDashboard(){
   if(role==='Patient'){
     const pt=currentPatient;
     if(!pt){c.innerHTML='<div class="alert alert-warning show">No patient record linked. Please contact admin.</div>';return;}
-    const mine=DB.appointments.filter(a=>a.patientId===pt.id);
+    const mine=appointmentRecords().filter(a=>a.patientId===pt.id);
     const upcoming=mine.filter(a=>a.status==='Scheduled'&&a.date>=today).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
     const completed=mine.filter(a=>a.status==='Completed');
     const rangeMine=mine.filter(a=>dashboardInRange(a.date)&&a.status!=='Cancelled');
@@ -5096,7 +5096,7 @@ function renderDashboard(){
 
   // DOCTOR DASHBOARD
   if(role==='Doctor'){
-    const mine=DB.appointments.filter(a=>a.doctorId===currentUser.id);
+    const mine=appointmentRecords().filter(a=>a.doctorId===currentUser.id);
     const todayMine=mine.filter(a=>a.date===today&&a.status!=='Cancelled').sort((a,b)=>a.time.localeCompare(b.time));
     const rangeMine=mine.filter(a=>dashboardInRange(a.date)&&a.status!=='Cancelled');
     const completed=mine.filter(a=>a.status==='Completed');
@@ -5131,8 +5131,8 @@ function renderDashboard(){
 
   // STAFF DASHBOARD
   if(role==='Staff'){
-    const scheduled=DB.appointments.filter(a=>a.status==='Scheduled');
-    const todayCompleted=DB.appointments.filter(a=>dashboardInRange(a.date)&&a.status==='Completed').length;
+    const scheduled=appointmentRecords().filter(a=>a.status==='Scheduled');
+    const todayCompleted=appointmentRecords().filter(a=>dashboardInRange(a.date)&&a.status==='Completed').length;
     let attention='';
     if(lowStock.length)attention+=dashboardAttentionItem(`${lowStock.length} low-stock item${lowStock.length>1?'s':''}`,`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`,'danger');
     if(pendingCerts.length)attention+=dashboardAttentionItem(`${pendingCerts.length} certificate request${pendingCerts.length>1?'s':''}`, 'Patients are waiting for certificate review.','warn');
@@ -5157,9 +5157,9 @@ function renderDashboard(){
   }
 
   // ADMINISTRATOR DASHBOARD
-  const scheduled=DB.appointments.filter(a=>a.status==='Scheduled');
+  const scheduled=appointmentRecords().filter(a=>a.status==='Scheduled');
   const activePatients=(currentUser?.role==='Administrator'?DB.patients.filter(p=>p._realSupabase):DB.patients).filter(p=>!p.archived).length;
-  const completedToday=DB.appointments.filter(a=>dashboardInRange(a.date)&&a.status==='Completed').length;
+  const completedToday=appointmentRecords().filter(a=>dashboardInRange(a.date)&&a.status==='Completed').length;
   let attention='';
   if(pendingUsers.length)attention+=dashboardAttentionItem(`${pendingUsers.length} pending user approval${pendingUsers.length>1?'s':''}`,'Review new CampusCare registrations.','warn');
   if(lowStock.length)attention+=dashboardAttentionItem(`${lowStock.length} low-stock item${lowStock.length>1?'s':''}`,`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`,'danger');
@@ -5197,14 +5197,178 @@ function markReminderTaken(id) {
   }
 }
 
+
+// ================================================================
+// REAL SUPABASE APPOINTMENTS
+// ================================================================
+function appointmentRecords(){
+  if(currentUser?._realSupabase)return (DB.appointments||[]).filter(a=>a._realSupabase);
+  return DB.appointments||[];
+}
+
+async function appointmentAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/appointment-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Appointment action failed.');
+  return result;
+}
+
+async function syncRealDoctorDirectory(){
+  if(!currentUser?._realSupabase)return;
+
+  // Admin/Staff/Doctor already have database permission to load the clinical directory.
+  if(['Administrator','Staff','Doctor'].includes(currentUser.role)){
+    await syncAdminDirectoryFromSupabase();
+    return;
+  }
+
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)return;
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/doctor-directory`,{
+    headers:{
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    }
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Unable to load doctors.');
+
+  DB.users=(DB.users||[]).filter(u=>!u._realDoctorDirectory);
+  for(const d of result.doctors||[]){
+    DB.users.push({
+      id:100000+Number(d.user_id),
+      dbUserId:Number(d.user_id),
+      fname:d.first_name||'',
+      lname:d.last_name||'',
+      role:'Doctor',
+      status:'Active',
+      verified:true,
+      specialty:d.specialty||'General Medicine',
+      workDays:Array.isArray(d.work_days)?d.work_days:['Mon','Tue','Wed','Thu','Fri'],
+      startTime:String(d.start_time||'08:00').slice(0,5),
+      endTime:String(d.end_time||'17:00').slice(0,5),
+      slotDuration:Number(d.slot_duration||60),
+      maxPatients:Number(d.max_patients||20),
+      _realSupabase:true,
+      _realDoctorDirectory:true
+    });
+  }
+}
+
+function realAppointmentToUi(a){
+  const pt=(DB.patients||[]).find(p=>p._realSupabase&&Number(p.dbPatientId)===Number(a.patient_id));
+  const doc=(DB.users||[]).find(u=>u._realSupabase&&Number(u.dbUserId)===Number(a.doctor_id));
+  const service=String(a.service||'');
+  const status=a.status==='Confirmed'?'Scheduled':a.status;
+  return {
+    id:300000+Number(a.appointment_id),
+    dbAppointmentId:Number(a.appointment_id),
+    patientId:pt?.id??(200000+Number(a.patient_id)),
+    dbPatientId:Number(a.patient_id),
+    doctorId:doc?.id??(100000+Number(a.doctor_id)),
+    dbDoctorId:Number(a.doctor_id),
+    clinic:a.clinic||(service.toLowerCase().includes('dental')?'Dental Clinic':'Medical Clinic'),
+    service,
+    date:a.appointment_date,
+    time:String(a.appointment_time||'').slice(0,5),
+    reason:a.reason||'',
+    status:status||'Scheduled',
+    priority:a.priority||'',
+    college:pt?.college||'',
+    createdBy:a.created_by?100000+Number(a.created_by):null,
+    notes:a.notes||'',
+    createdAt:a.created_at||'',
+    cancelledAt:a.cancelled_at||'',
+    cancellationReason:a.cancellation_reason||'',
+    _realSupabase:true
+  };
+}
+
+async function syncRealAppointments(){
+  if(!currentUser?._realSupabase)return [];
+
+  const [apptRes,overrideRes,leaveRes]=await Promise.all([
+    supabaseClient.from('appointments')
+      .select('appointment_id,patient_id,doctor_id,clinic,service,appointment_date,appointment_time,status,priority,reason,notes,created_by,created_at,cancelled_at,cancellation_reason')
+      .order('appointment_date',{ascending:false})
+      .order('appointment_time',{ascending:false}),
+    supabaseClient.from('appointment_slot_overrides')
+      .select('doctor_id,override_date,slot_time,is_available,reason'),
+    supabaseClient.from('doctor_leaves')
+      .select('leave_id,doctor_id,leave_date,reason')
+  ]);
+
+  if(apptRes.error)throw apptRes.error;
+  if(overrideRes.error)throw overrideRes.error;
+  if(leaveRes.error)throw leaveRes.error;
+
+  DB.appointments=(DB.appointments||[]).filter(a=>!a._realSupabase);
+  DB.appointments.push(...(apptRes.data||[]).map(realAppointmentToUi));
+
+  const grouped=new Map();
+  for(const row of overrideRes.data||[]){
+    const doctorId=100000+Number(row.doctor_id);
+    const key=`${doctorId}|${row.override_date}`;
+    if(!grouped.has(key))grouped.set(key,{doctorId,date:row.override_date,blockedTimes:[],availableTimes:[],_realSupabase:true});
+    const entry=grouped.get(key);
+    const time=String(row.slot_time||'').slice(0,5);
+    if(row.is_available)entry.availableTimes.push(time);
+    else entry.blockedTimes.push(time);
+  }
+  DB.settings.slotOverrides=[...grouped.values()];
+
+  DB.doctorLeaves=(DB.doctorLeaves||[]).filter(l=>!l._realSupabase);
+  DB.doctorLeaves.push(...(leaveRes.data||[]).map(l=>({
+    id:400000+Number(l.leave_id),
+    dbLeaveId:Number(l.leave_id),
+    doctorId:100000+Number(l.doctor_id),
+    date:l.leave_date,
+    reason:l.reason||'',
+    _realSupabase:true
+  })));
+
+  return appointmentRecords();
+}
+
+async function syncAppointmentContext(){
+  if(!currentUser?._realSupabase)return;
+  if(['Administrator','Staff','Doctor'].includes(currentUser.role)){
+    await syncAdminDirectoryFromSupabase();
+  }else if(currentUser.role==='Patient'){
+    if(!currentPatient||!currentPatient._realSupabase)await syncCurrentPatientFromSupabase();
+    await syncRealDoctorDirectory();
+  }
+  await syncRealAppointments();
+}
+
 // ================================================================
 // PATIENT – MY APPOINTMENTS
 // ================================================================
-function renderMyAppointments(){
+async function renderMyAppointments(){
   const c=document.getElementById('app-content');
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('table');
+    try{await syncAppointmentContext();}
+    catch(e){
+      console.error('My appointments sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load appointments.')}</div><button class="btn btn-sm" onclick="renderMyAppointments()">Retry</button>`;
+      return;
+    }
+  }
   const pt=currentPatient;
   if(!pt){c.innerHTML='<div class="alert alert-warning show">No patient record linked. Contact admin.</div>';return;}
-  const appts=DB.appointments.filter(a=>a.patientId===pt.id);
+  const appts=appointmentRecords().filter(a=>a.patientId===pt.id);
   const sem=currentSemester();
   const dentalUsed=checkDentalQuota(pt.id);
 
@@ -5236,7 +5400,7 @@ function filterMyAppts(f,el){
   document.querySelectorAll('#app-content .tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   const pt=currentPatient;
-  const appts=DB.appointments.filter(a=>a.patientId===pt.id);
+  const appts=appointmentRecords().filter(a=>a.patientId===pt.id);
   renderMyApptsList(appts,f);
 }
 
@@ -5827,7 +5991,7 @@ function cancelPasswordChange(){
 // ================================================================
 function renderDoctorSchedule(){
   const c=document.getElementById('app-content');
-  const myAppts=DB.appointments.filter(a=>a.doctorId===currentUser.id&&a.status!=='Cancelled');
+  const myAppts=appointmentRecords().filter(a=>a.doctorId===currentUser.id&&a.status!=='Cancelled');
   const upcoming=myAppts.filter(a=>a.date>=TODAY).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
   const today=myAppts.filter(a=>a.date===TODAY);
   c.innerHTML=`
@@ -5969,7 +6133,7 @@ function removeDoctorLeave(id){
 // ================================================================
 function renderMyPatients(){
   const c=document.getElementById('app-content');
-  const myApptPatients=DB.appointments.filter(a=>a.doctorId===currentUser.id).map(a=>a.patientId);
+  const myApptPatients=appointmentRecords().filter(a=>a.doctorId===currentUser.id).map(a=>a.patientId);
   const uniqueIds=[...new Set(myApptPatients)];
   const myPts=uniqueIds.map(id=>getPatientById(id)).filter(Boolean);
   c.innerHTML=`
@@ -6169,8 +6333,17 @@ function viewFitnessAssessment(id){
 // ================================================================
 // APPOINTMENTS PAGE (Staff/Admin/Doctor)
 // ================================================================
-function renderAppointments(){
+async function renderAppointments(){
   const c=document.getElementById('app-content');
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('table');
+    try{await syncAppointmentContext();}
+    catch(e){
+      console.error('Appointments sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load appointments.')}</div><button class="btn btn-sm" onclick="renderAppointments()">Retry</button>`;
+      return;
+    }
+  }
   const role=currentUser.role;
   c.innerHTML=`
     <div class="toolbar">
@@ -6199,16 +6372,17 @@ function renderApptTable(){
   const stat=(document.getElementById('appt-status')||{}).value||'';
   const col=(document.getElementById('appt-college')||{}).value||'';
   const clinic=(document.getElementById('appt-clinic')||{}).value||'';
-  const date=(document.getElementById('appt-date')||{}).value||'';
+  const dateFrom=(document.getElementById('appt-date-from')||{}).value||'';
+  const dateTo=(document.getElementById('appt-date-to')||{}).value||'';
   const role=currentUser.role;
-  let appts=DB.appointments.filter(a=>{
+  let appts=appointmentRecords().filter(a=>{
     const pt=getPatientById(a.patientId);
     const name=pt?`${pt.fname} ${pt.lname}`.toLowerCase():'';
     const matchQ=!q||name.includes(q.toLowerCase())||a.clinic.toLowerCase().includes(q.toLowerCase());
     const matchS=!stat||a.status===stat;
     const matchC=!col||a.college===col;
     const matchCl=!clinic||a.clinic===clinic;
-    const matchD=!date||a.date===date;
+    const matchD=(!dateFrom||a.date>=dateFrom)&&(!dateTo||a.date<=dateTo);
     const matchDoc=role!=='Doctor'||a.doctorId===currentUser.id;
     return matchQ&&matchS&&matchC&&matchCl&&matchD&&matchDoc;
   });
@@ -6247,36 +6421,78 @@ function renderApptTable(){
 }
 
 function completeAppt(id){
-  const a=DB.appointments.find(x=>x.id===id);if(!a)return;
-  showConfirmDialog({title:'Complete Appointment',message:`Mark appointment #${id} as completed?`,confirmLabel:'Mark Completed',onConfirm:()=>{a.status='Completed';const pt=getPatientById(a.patientId);if(pt){const u=DB.users.find(x=>x.id===pt.userId);if(u)addNotif(u.id,'Appointment Completed',`Your ${a.clinic} appointment on ${fmtDate(a.date)} has been marked complete.`,'success');}auditLog('APPOINTMENT_COMPLETED',`Appointment #${id} marked completed.`,'Appointment',id);persistDB();toast('Appointment marked as completed.','success');renderApptTable();if(document.getElementById('my-appts-list'))filterMyAppts('all',document.querySelector('#app-content .tab'));}});
-}
-function noShowAppt(id){
-  const a=DB.appointments.find(x=>x.id===id);if(!a)return;
-  showConfirmDialog({title:'Mark as No-show',message:`Mark appointment #${id} as a no-show?`,confirmLabel:'Mark No-show',danger:true,onConfirm:()=>{a.status='No-show';auditLog('APPOINTMENT_NO_SHOW',`Appointment #${id} marked no-show.`,'Appointment',id);persistDB();toast('Marked as no-show.','warning');renderApptTable();}});
-}
-function cancelAppt(id,patient=false){
+  const a=appointmentRecords().find(x=>x.id===Number(id));if(!a)return;
   showConfirmDialog({
-    title:'Cancel Appointment',
-    message:'Are you sure you want to cancel this appointment?',
-    confirmLabel:'Cancel Appointment',danger:true,
-    onConfirm:()=>{
-      const a=DB.appointments.find(x=>x.id===id);
-      if(!a)return;
-      a.status='Cancelled';
-      const pt=getPatientById(a.patientId);
-      if(pt){
-        const u=DB.users.find(x=>x.id===pt.userId);
-        if(u)addNotif(u.id,'Appointment Cancelled',`Your ${a.clinic} appointment on ${fmtDate(a.date)} has been cancelled.`,'danger');
-      }
-      toast('Appointment cancelled.','warning');
-      if(patient)renderMyAppointments();
-      else renderApptTable();
+    title:'Complete Appointment',
+    message:`Mark appointment #${a.dbAppointmentId||id} as completed?`,
+    confirmLabel:'Mark Completed',
+    onConfirm:async()=>{
+      try{
+        if(a._realSupabase){
+          await appointmentAction({action:'status',appointment_id:a.dbAppointmentId,status:'Completed'});
+          await syncRealAppointments();
+        }else{
+          a.status='Completed';persistDB();
+        }
+        toast('Appointment marked as completed.','success');
+        if(currentUser.role==='Patient')await renderMyAppointments();else await renderAppointments();
+      }catch(e){toast(e?.message||'Unable to complete appointment.','error');}
     }
   });
 }
 
+function noShowAppt(id){
+  const a=appointmentRecords().find(x=>x.id===Number(id));if(!a)return;
+  showConfirmDialog({
+    title:'Mark as No-show',
+    message:`Mark appointment #${a.dbAppointmentId||id} as a no-show?`,
+    confirmLabel:'Mark No-show',danger:true,
+    onConfirm:async()=>{
+      try{
+        if(a._realSupabase){
+          await appointmentAction({action:'status',appointment_id:a.dbAppointmentId,status:'No-show'});
+          await syncRealAppointments();
+        }else{a.status='No-show';persistDB();}
+        toast('Marked as no-show.','warning');
+        await renderAppointments();
+      }catch(e){toast(e?.message||'Unable to update appointment.','error');}
+    }
+  });
+}
+
+function cancelAppt(id,patient=false){
+  const a=appointmentRecords().find(x=>x.id===Number(id));if(!a)return;
+  openModal(`<div class="modal modal-sm">
+    <div class="modal-header"><h3>Cancel Appointment</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:.86rem;margin-bottom:.7rem">Are you sure you want to cancel this appointment?</p>
+      <div class="form-group"><label>Reason (optional)</label><textarea id="cancel-appt-reason" rows="2" placeholder="Reason for cancellation"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Go Back</button>
+      <button class="btn btn-danger" onclick="confirmCancelAppt(${id},${patient?'true':'false'})">Cancel Appointment</button>
+    </div>
+  </div>`);
+}
+
+async function confirmCancelAppt(id,patient=false){
+  const a=appointmentRecords().find(x=>x.id===Number(id));if(!a)return;
+  const reason=(document.getElementById('cancel-appt-reason')?.value||'').trim();
+  closeAllModals();
+  try{
+    if(a._realSupabase){
+      await appointmentAction({action:'cancel',appointment_id:a.dbAppointmentId,reason});
+      await syncRealAppointments();
+    }else{
+      a.status='Cancelled';a.cancellationReason=reason;persistDB();
+    }
+    toast('Appointment cancelled.','warning');
+    if(patient||currentUser.role==='Patient')await renderMyAppointments();else await renderAppointments();
+  }catch(e){toast(e?.message||'Unable to cancel appointment.','error');}
+}
+
 function sendApptNotif(id){
-  const a=DB.appointments.find(x=>x.id===id);
+  const a=appointmentRecords().find(x=>x.id===id);
   if(!a)return;
   const pt=getPatientById(a.patientId);
   if(!pt)return;
@@ -7603,7 +7819,7 @@ function generateReport(){
   const el=document.getElementById('rpt-result');
 
   if(type==='appointments'){
-    let data=DB.appointments.filter(a=>a.date>=from&&a.date<=to&&(!college||a.college===college));
+    let data=appointmentRecords().filter(a=>a.date>=from&&a.date<=to&&(!college||a.college===college));
     lastReportRows=data.map(a=>{const pt=getPatientById(a.patientId);const doc=getUserById(a.doctorId);return{ID:a.id,Patient:pt?pt.fname+' '+pt.lname:'?',College:a.college,Clinic:a.clinic,Date:a.date,Time:a.time,Doctor:doc?'Dr. '+doc.fname+' '+doc.lname:'?',Status:a.status};});
     lastReportTitle=`Appointment Report ${from} to ${to}`;
     el.innerHTML=`<div class="card"><div class="card-header"><h3>Appointment Report – ${fmtDate(from)} to ${fmtDate(to)}</h3></div>
@@ -8784,12 +9000,13 @@ function openAssistedPatientCamera(kind){
 
 // ── Book Appointment ──
 function openBookApptModal(apptId=null){
-  const editing=apptId?DB.appointments.find(a=>a.id===apptId):null;
+  const editing=apptId?appointmentRecords().find(a=>a.id===apptId):null;
   const isPt=currentUser.role==='Patient';
   const pt=isPt?currentPatient:null;
   const patientOptions=isPt?`<option value="${pt?pt.id:''}">${pt?pt.fname+' '+pt.lname:'No record'}</option>`:
     DB.patients.map(p=>`<option value="${p.id}" ${editing&&editing.patientId===p.id?'selected':''}>${p.fname} ${p.lname} (${p.college})</option>`).join('');
-  const doctorOptions=getDoctors().map(d=>`<option value="${d.id}" data-specialty="${d.specialty||'General'}" ${editing&&editing.doctorId===d.id?'selected':''}>${docName(d)} – ${d.specialty||'General'}</option>`).join('');
+  const realDoctors=getDoctors();
+  const doctorOptions=realDoctors.map(d=>`<option value="${d.id}" data-specialty="${d.specialty||'General'}" ${editing&&editing.doctorId===d.id?'selected':''}>${docName(d)} – ${d.specialty||'General'}</option>`).join('');
   openModal(`<div class="modal">
     <div class="modal-header"><h3>${editing?'Reschedule':'Book'} Appointment</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
@@ -8819,7 +9036,7 @@ function openBookApptModal(apptId=null){
       </div>
       <div class="form-row">
         <div class="form-group"><label>Doctor <span class="required">*</span></label>
-          <select id="b-doc" onchange="loadTimeSlots()">${doctorOptions}</select>
+          <select id="b-doc" onchange="loadTimeSlots()">${doctorOptions||'<option value="">No active doctors available</option>'}</select>
         </div>
         <div class="form-group"><label>Selected Date <span class="required">*</span></label>
           <input type="hidden" id="b-date" value="${editing?editing.date:TODAY}">
@@ -8922,32 +9139,56 @@ function openManageDateSlots(){
     doctorId:String(docId),date,
     reason:(document.getElementById('b-reason')||{}).value||''
   };
-  const slots=appointmentSlotBaseTimes(doc),taken=new Set(DB.appointments.filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time));
+  const slots=appointmentSlotBaseTimes(doc),taken=new Set(appointmentRecords().filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time));
   const override=getSlotOverride(docId,date),blocked=new Set((override&&override.blockedTimes)||[]),available=new Set((override&&override.availableTimes)||[]);
   openModal(`<div class="modal modal-lg"><div class="modal-header"><div><h3>Manage Available Time Slots</h3><div class="text-muted">${escapeHtml(docName(doc))} · ${fmtDate(date)} · Lunch is ${fmtTime(DB.settings.lunchBreakStart||'12:00')}–${fmtTime(DB.settings.lunchBreakEnd||'13:00')}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div class="alert alert-info show">Checked slots are available for booking. Booked slots cannot be changed. You can reopen a lunch-break slot for a specific date if needed.</div><div class="slot-manager-grid">${slots.map(t=>{const isLunch=isDefaultLunchSlot(t,doc),isTaken=taken.has(t),checked=isTaken||(!blocked.has(t)&&(!isLunch||available.has(t)));return `<label class="slot-manager-item ${isTaken?'booked':''}"><input type="checkbox" class="slot-manager-check" value="${t}" ${checked?'checked':''} ${isTaken?'disabled':''}><span><strong>${fmtTime(t)}</strong><small style="display:block;color:var(--ink-muted)">${isTaken?'Booked':isLunch?'Lunch break':'Regular slot'}</small></span></label>`;}).join('')}</div></div><div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="saveManagedDateSlots(${docId},'${date}')">Save Availability</button></div></div>`);
 }
-function saveManagedDateSlots(docId,date){
-  const doc=getUserById(docId); if(!doc)return;
-  const slots=appointmentSlotBaseTimes(doc),checked=new Set(Array.from(document.querySelectorAll('.slot-manager-check:checked')).map(x=>x.value));
-  const taken=new Set(DB.appointments.filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time));
-  const blockedTimes=[],availableTimes=[];
-  slots.forEach(t=>{if(taken.has(t))return;const lunch=isDefaultLunchSlot(t,doc);if(!checked.has(t))blockedTimes.push(t);else if(lunch)availableTimes.push(t);});
-  DB.settings.slotOverrides=Array.isArray(DB.settings.slotOverrides)?DB.settings.slotOverrides:[];
-  DB.settings.slotOverrides=DB.settings.slotOverrides.filter(o=>!(o.doctorId===docId&&o.date===date));
-  DB.settings.slotOverrides.push({doctorId:docId,date,blockedTimes,availableTimes}); persistDB(); closeAllModals(); toast('Time-slot availability updated.','success');
-  const draft=bookingDraftForSlotManager; bookingDraftForSlotManager=null;
-  openBookApptModal();
-  setTimeout(()=>{
-    if(!draft)return;
-    const pt=document.getElementById('b-pt'),clinic=document.getElementById('b-clinic'),docEl=document.getElementById('b-doc'),reason=document.getElementById('b-reason');
-    if(pt&&!pt.disabled)pt.value=draft.patientId;
-    if(clinic){clinic.value=draft.clinic;onClinicChange();}
-    if(docEl)docEl.value=draft.doctorId;
-    chooseBookingDate(draft.date);
-    const svc=document.getElementById('b-service'); if(svc&&Array.from(svc.options).some(o=>o.value===draft.service||o.text===draft.service))svc.value=draft.service;
-    if(reason)reason.value=draft.reason;
-    loadTimeSlots();
-  },0);
+async function saveManagedDateSlots(docId,date){
+  const doc=getUserById(docId);if(!doc)return;
+  const slots=appointmentSlotBaseTimes(doc);
+  const checked=new Set(Array.from(document.querySelectorAll('.slot-manager-check:checked')).map(x=>x.value));
+  const taken=new Set(appointmentRecords().filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time));
+  const deviations=[];
+
+  slots.forEach(t=>{
+    if(taken.has(t))return;
+    const lunch=isDefaultLunchSlot(t,doc);
+    if(!checked.has(t))deviations.push({time:t,is_available:false,reason:lunch?'Lunch break':'Manually unavailable'});
+    else if(lunch)deviations.push({time:t,is_available:true,reason:'Lunch slot reopened'});
+  });
+
+  try{
+    if(currentUser?._realSupabase){
+      await appointmentAction({action:'manage_slots',doctor_id:doc.dbUserId,date,slots:deviations});
+      await syncRealAppointments();
+    }else{
+      const blockedTimes=deviations.filter(x=>!x.is_available).map(x=>x.time);
+      const availableTimes=deviations.filter(x=>x.is_available).map(x=>x.time);
+      DB.settings.slotOverrides=Array.isArray(DB.settings.slotOverrides)?DB.settings.slotOverrides:[];
+      DB.settings.slotOverrides=DB.settings.slotOverrides.filter(o=>!(o.doctorId===docId&&o.date===date));
+      DB.settings.slotOverrides.push({doctorId:docId,date,blockedTimes,availableTimes});
+      persistDB();
+    }
+    closeAllModals();
+    toast('Time-slot availability updated.','success');
+
+    const draft=bookingDraftForSlotManager;bookingDraftForSlotManager=null;
+    openBookApptModal();
+    setTimeout(()=>{
+      if(!draft)return;
+      const pt=document.getElementById('b-pt'),clinic=document.getElementById('b-clinic'),docEl=document.getElementById('b-doc'),reason=document.getElementById('b-reason');
+      if(pt&&!pt.disabled)pt.value=draft.patientId;
+      if(clinic){clinic.value=draft.clinic;onClinicChange();}
+      if(docEl)docEl.value=draft.doctorId;
+      chooseBookingDate(draft.date);
+      const svc=document.getElementById('b-service');
+      if(svc&&Array.from(svc.options).some(o=>o.value===draft.service||o.text===draft.service))svc.value=draft.service;
+      if(reason)reason.value=draft.reason;
+      loadTimeSlots();
+    },0);
+  }catch(e){
+    toast(e?.message||'Unable to update time slots.','error');
+  }
 }
 
 function loadTimeSlots(){
@@ -8962,7 +9203,7 @@ function loadTimeSlots(){
   const dayName=dayOfWeek(date),workDays=doc.workDays||['Mon','Tue','Wed','Thu','Fri'];
   if(!workDays.includes(dayName)){grid.innerHTML=`<span class="text-muted" style="font-size:.78rem">Dr. ${doc.lname} does not work on ${dayName}s.</span>`;return;}
   const slots=appointmentSlotBaseTimes(doc);
-  const takenSlots=new Set(DB.appointments.filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time));
+  const takenSlots=new Set(appointmentRecords().filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time));
   const selectedTime=(document.getElementById('b-time')||{}).value;
   grid.innerHTML=slots.map(t=>{
     const taken=takenSlots.has(t),state=slotAvailabilityState(doc,date,t),disabled=taken||state.blocked;
@@ -8979,7 +9220,7 @@ function selectSlot(t,ev){
   if(ev&&ev.currentTarget)ev.currentTarget.classList.add('selected');
 }
 
-function saveAppt(editId){
+async function saveAppt(editId){
   const ptId=parseInt(document.getElementById('b-pt').value);
   const clinic=document.getElementById('b-clinic').value;
   const svc=document.getElementById('b-service').value;
@@ -8989,42 +9230,67 @@ function saveAppt(editId){
   const reason=document.getElementById('b-reason').value.trim();
   const msg=document.getElementById('book-msg');
   hideAlert(msg);
+
   if(!ptId||!clinic||!svc||!docId||!date){showAlert(msg,'All required fields must be filled.');return;}
   if(!time){showAlert(msg,'Please select a time slot.');return;}
   if(date<TODAY){showAlert(msg,'Cannot book in the past.');return;}
-  const selectedDoc=getUserById(docId),slotState=selectedDoc?slotAvailabilityState(selectedDoc,date,time):null;
-  if(slotState&&slotState.blocked){showAlert(msg,`This slot is unavailable (${slotState.label}). Please choose another time.`);loadTimeSlots();return;}
-  if(clinic==='Dental Clinic'&&checkDentalQuota(ptId,editId)){
-    showAlert(msg,'Dental Clinic booking denied: Semester limit reached. Only 1 dental appointment per semester is allowed.');return;
-  }
-  const conflict=DB.appointments.find(a=>a.doctorId===docId&&a.date===date&&a.time===time&&a.status!=='Cancelled'&&a.id!==editId);
-  if(conflict){showAlert(msg,'This time slot is already taken. Please select another.');return;}
+
   const pt=getPatientById(ptId);
-  const priority=pt?pt.personType==='Student'?'Student':pt.personType==='Teaching Personnel'?'Teaching':'Non-Teaching':'Student';
-  if(editId){
-    const idx=DB.appointments.findIndex(a=>a.id===editId);
-    if(idx>=0){DB.appointments[idx]={...DB.appointments[idx],clinic,service:svc,doctorId:docId,date,time,reason};auditLog('APPOINTMENT_UPDATED',`Appointment #${editId} rescheduled to ${date} ${time}.`,'Appointment',editId);}
-    toast('Appointment rescheduled.','success');
-  }else{
-    const newId=DB.nextApptId++;
-    DB.appointments.push({id:newId,patientId:ptId,doctorId:docId,clinic,service:svc,date,time,reason,status:'Scheduled',priority,college:pt?pt.college:'',createdBy:currentUser.id,notes:'',createdAt:TODAY});
-    auditLog('APPOINTMENT_CREATED',`Appointment #${newId} booked for ${clinic} on ${date} ${time}.`,'Appointment',newId);
-    if(pt){
-      const u=DB.users.find(x=>x.id===pt.userId);
-      if(u){
-        const reminder=`Your ${clinic} appointment is confirmed for ${fmtDate(date)} at ${fmtTime(time)}. Please bring your COR (Certificate of Registration) when you arrive at the clinic.`;
-        addNotif(u.id,'Appointment Confirmed — Bring Your COR',reminder,'success');
-        const channels=[]; if(u.email)channels.push(`email (${maskEmail(u.email)})`); if(u.contact)channels.push(`SMS (${maskPhone(u.contact)})`);
-        toast(`Appointment booked. COR reminder sent${channels.length?' via '+channels.join(' and '):' in CampusCare'}.`,'success');
-      }else toast('Appointment booked!','success');
-    }else toast('Appointment booked!','success');
-    persistDB();
+  const doc=getUserById(docId);
+  if(currentUser?._realSupabase&&(!pt?._realSupabase||!doc?._realSupabase)){
+    showAlert(msg,'Please select a real CampusCare patient and doctor.');return;
   }
-  closeAllModals();
-  // refresh
-  if(currentUser.role==='Patient')renderMyAppointments();
-  else renderApptTable&&renderApptTable();
-  if(document.getElementById('appt-table'))renderApptTable();
+
+  const slotState=doc?slotAvailabilityState(doc,date,time):null;
+  if(slotState&&slotState.blocked){showAlert(msg,`This slot is unavailable (${slotState.label}). Please choose another time.`);loadTimeSlots();return;}
+
+  if(clinic==='Dental Clinic'&&checkDentalQuota(ptId,editId)){
+    showAlert(msg,'Dental Clinic booking denied: Semester limit reached.');return;
+  }
+
+  const priority=pt?pt.personType==='Student'?'Student':pt.personType==='Teaching Personnel'?'Teaching':'Non-Teaching':'Student';
+  const existing=editId?appointmentRecords().find(a=>a.id===Number(editId)):null;
+
+  const btn=document.querySelector('.modal-footer .btn-primary');
+  const oldText=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent=existing?'Rescheduling…':'Booking…';}
+
+  try{
+    if(currentUser?._realSupabase){
+      await appointmentAction({
+        action:existing?'reschedule':'create',
+        appointment_id:existing?.dbAppointmentId,
+        patient_id:pt.dbPatientId,
+        doctor_id:doc.dbUserId,
+        clinic,
+        service:svc,
+        appointment_date:date,
+        appointment_time:time,
+        reason,
+        priority
+      });
+      await syncRealAppointments();
+      toast(existing?'Appointment rescheduled.':'Appointment booked. Please bring your COR when you arrive.','success');
+    }else{
+      // Legacy demo fallback.
+      if(existing){
+        Object.assign(existing,{clinic,service:svc,doctorId:docId,date,time,reason});
+      }else{
+        const newId=DB.nextApptId++;
+        DB.appointments.push({id:newId,patientId:ptId,doctorId:docId,clinic,service:svc,date,time,reason,status:'Scheduled',priority,college:pt?pt.college:'',createdBy:currentUser.id,notes:'',createdAt:TODAY});
+        persistDB();
+      }
+      toast(existing?'Appointment rescheduled.':'Appointment booked.','success');
+    }
+
+    closeAllModals();
+    if(currentUser.role==='Patient')await renderMyAppointments();
+    else await renderAppointments();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to save appointment.');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm Booking';}
+  }
 }
 
 function openRescheduleModal(id){
@@ -9033,7 +9299,7 @@ function openRescheduleModal(id){
 
 // ── View Appointment ──
 function viewAppt(id){
-  const a=DB.appointments.find(x=>x.id===id);if(!a)return;
+  const a=appointmentRecords().find(x=>x.id===id);if(!a)return;
   const pt=getPatientById(a.patientId);
   const doc=getUserById(a.doctorId);
   openModal(`<div class="modal">
@@ -9139,7 +9405,7 @@ function savePatient(id){
 function viewPatient(id){
   const pt=DB.patients.find(p=>p.id===id);if(!pt)return;
   const treats=DB.treatments.filter(t=>t.patientId===id);
-  const appts=DB.appointments.filter(a=>a.patientId===id).slice(-5);
+  const appts=appointmentRecords().filter(a=>a.patientId===id).slice(-5);
   openModal(`<div class="modal modal-lg">
     <div class="modal-header"><h3 style="display:flex;align-items:center;gap:.6rem">${patientAvatarHtml(pt,32)} Patient: ${pt.fname} ${pt.lname}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
@@ -9204,7 +9470,7 @@ function restorePatient(id){
 
 // ── Treatment Modal ──
 function openAddTreatmentModal(apptId){
-  const a=DB.appointments.find(x=>x.id===apptId);
+  const a=appointmentRecords().find(x=>x.id===apptId);
   const ptId=a?a.patientId:null;
   openAddTreatmentModalPt(ptId,apptId);
 }
@@ -9285,7 +9551,7 @@ function saveTreatment(ptId,apptId){
   const treatmentId=DB.nextTreatId++;
   DB.treatments.push({id:treatmentId,patientId:ptIdVal,doctorId:docId,appointmentId:apptId,diagnosis:diag,prescription:presc,findings,notes,xray,vitals,date,followupDate:followup,createdAt:new Date().toLocaleString()});
   auditLog('TREATMENT_CREATED',`Treatment #${treatmentId} recorded with diagnosis: ${diag}.`,'Treatment',treatmentId);
-  if(apptId){const a=DB.appointments.find(x=>x.id===apptId);if(a)a.status='Completed';}
+  if(apptId){const a=appointmentRecords().find(x=>x.id===apptId);if(a)a.status='Completed';}
   const pt=getPatientById(ptIdVal);
   if(pt){const u=DB.users.find(x=>x.id===pt.userId);if(u)addNotif(u.id,'Treatment Record Added',`Dr. ${currentUser.lname} has added treatment notes for your visit on ${fmtDate(date)}.`,'info');}
   toast('Treatment record saved.','success');
