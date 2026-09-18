@@ -87,6 +87,7 @@ function normalizeSupabaseUser(profile){
     email: profile.email??'',
     role: profile.role??'Patient',
     status: profile.status??'Pending',
+    archived:String(profile.status||'').toLowerCase()==='archived',
     verified: profile.verified??false,
     contact: profile.contact_number??profile.contact??'',
     contactNo: profile.contact_number??profile.contactNo??'',
@@ -7482,6 +7483,24 @@ function generateReport(){
 // ================================================================
 // USERS
 // ================================================================
+
+async function adminUserAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your administrator session has expired.');
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/admin-users`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Unable to update user.');
+  return result;
+}
+
 function userAvatarHtml(u,size=34){
   const initials=((u.fname[0]||'')+(u.lname[0]||'')).toUpperCase();
   if(u.profilePhoto){
@@ -7635,212 +7654,109 @@ function renderUserTable(){
 }
 
 function suspendUser(id){
-  // Administrators must never be able to suspend their own active session/account.
-  if(currentUser?.role==='Administrator'&&id===currentUser.id){toast('You cannot suspend your own administrator account.','warning');return;}
-  const u=DB.users.find(x=>x.id===id);
-  if(!u)return;
+  const u=DB.users.find(x=>x.id===id);if(!u)return;
+  if(currentUser?.role==='Administrator'&&id===currentUser.id&&'Suspended'!=='Active'){
+    toast('You cannot suspend or archive your own administrator account.','warning');return;
+  }
   showConfirmDialog({
     title:'Suspend Account',
-    message:`Are you sure you want to suspend <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account? They won't be able to log in until reactivated.`,
+    message:`Are you sure you want to suspend <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account?`,
     confirmLabel:'Suspend',danger:true,
-    onConfirm:()=>{
+    onConfirm:async()=>{
+      if(u._realSupabase){
+        try{
+          await adminUserAction({action:'status',user_id:u.dbUserId,status:'Suspended'});
+          toast(`${u.fname} ${u.lname} suspended.`,'success');
+          await renderUsers();
+        }catch(e){toast(e?.message||'Unable to update account.','error');}
+        return;
+      }
       u.status='Suspended';
-      toastWithUndo(`${u.fname} ${u.lname} suspended.`,()=>{u.status='Active';renderUserTable();});
+      u.archived='Suspended'==='Archived';
+      toast(`${u.fname} ${u.lname} suspended.`,'success');
       renderUserTable();
     }
   });
 }
+
 function reactivateUser(id){
-  const u=DB.users.find(x=>x.id===id);
-  if(!u)return;
+  const u=DB.users.find(x=>x.id===id);if(!u)return;
+  if(currentUser?.role==='Administrator'&&id===currentUser.id&&'Active'!=='Active'){
+    toast('You cannot suspend or archive your own administrator account.','warning');return;
+  }
   showConfirmDialog({
     title:'Reactivate Account',
-    message:`Reactivate <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account? They will be able to log in again.`,
-    confirmLabel:'Reactivate',
-    onConfirm:()=>{u.status='Active';toast('User reactivated.','success');renderUserTable();}
-  });
-}
-function archiveUser(id){
-  const u=DB.users.find(x=>x.id===id);
-  if(!u)return;
-  showConfirmDialog({
-    title:'Archive Account',
-    message:`Are you sure you want to archive <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account? They'll be hidden from the active list and unable to log in, but their record is kept for future reference. You can restore it anytime.`,
-    confirmLabel:'Archive',danger:true,
-    onConfirm:()=>{
-      u.archived=true;u.archivedAt=new Date().toLocaleString();u.archivedBy=currentUser.id;
-      toastWithUndo(`${u.fname} ${u.lname}'s account archived.`,()=>{u.archived=false;u.archivedAt=null;renderUserTable();});
+    message:`Are you sure you want to reactivate <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account?`,
+    confirmLabel:'Reactivate',danger:false,
+    onConfirm:async()=>{
+      if(u._realSupabase){
+        try{
+          await adminUserAction({action:'status',user_id:u.dbUserId,status:'Active'});
+          toast(`${u.fname} ${u.lname} reactivated.`,'success');
+          await renderUsers();
+        }catch(e){toast(e?.message||'Unable to update account.','error');}
+        return;
+      }
+      u.status='Active';
+      u.archived='Active'==='Archived';
+      toast(`${u.fname} ${u.lname} reactivated.`,'success');
       renderUserTable();
     }
   });
 }
-function restoreUser(id){
-  const u=DB.users.find(x=>x.id===id);
-  if(!u)return;
+
+function archiveUser(id){
+  const u=DB.users.find(x=>x.id===id);if(!u)return;
+  if(currentUser?.role==='Administrator'&&id===currentUser.id&&'Archived'!=='Active'){
+    toast('You cannot suspend or archive your own administrator account.','warning');return;
+  }
   showConfirmDialog({
-    title:'Restore Account',
-    message:`Restore <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account?`,
-    confirmLabel:'Restore',
-    onConfirm:()=>{u.archived=false;u.archivedAt=null;toast('User account restored.','success');renderUserTable();}
-  });
-}
-
-
-function renderBackupListHtml(){
-  const bs=getDailyBackups();if(!bs.length)return '<div class="empty-state"><p>No backup snapshot yet.</p></div>';
-  return bs.map(b=>`<div class="backup-row"><div><strong style="font-size:.8rem">${escapeHtml(b.day)}</strong><div class="text-muted">${new Date(b.createdAt).toLocaleString('en-PH')}</div></div><div style="display:flex;gap:.35rem"><button class="btn btn-xs" onclick="downloadBackup('${b.id}')">Download</button><button class="btn btn-xs btn-warning" onclick="restoreBackup('${b.id}')">Restore</button></div></div>`).join('');
-}
-
-// ================================================================
-// SETTINGS
-// ================================================================
-function renderSettings(){
-  const s=DB.settings;
-  const c=document.getElementById('app-content');
-  c.innerHTML=`
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-header"><h3>Clinic Settings</h3></div>
-        <div id="set-msg"></div>
-        <div class="form-group"><label>Clinic Name</label><input id="set-name" value="${s.clinicName}"></div>
-        <div class="form-group"><label>Address</label><input id="set-addr" value="${s.address}"></div>
-        <div class="form-group"><label>Contact Email</label><input id="set-email" type="email" value="${s.contactEmail}"></div>
-        <div class="form-group"><label>Dental Visits Allowed Per Semester</label><input id="set-dental" type="number" min="1" max="5" value="${s.dentalLimitPerSemester}"></div>
-        <div class="form-group"><label>Appointment Reminder Days Before</label><input id="set-remind" type="number" min="1" max="14" value="${s.appointmentReminderDays}"></div>
-        <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button>
-      </div>
-      <div class="card">
-        <div class="card-header"><h3>Semester Configuration</h3></div>
-        <div class="form-group"><label>Semester 1 Start</label>${campusDateFieldHtml('set-s1s',s.semesterStart,'Semester 1 Start')}</div>
-        <div class="form-group"><label>Semester 1 End</label>${campusDateFieldHtml('set-s1e',s.semesterEnd,'Semester 1 End')}</div>
-        <div class="form-group"><label>Semester 2 Start</label>${campusDateFieldHtml('set-s2s',s.semester2Start,'Semester 2 Start')}</div>
-        <div class="form-group"><label>Semester 2 End</label>${campusDateFieldHtml('set-s2e',s.semester2End,'Semester 2 End')}</div>
-        <button class="btn btn-primary btn-sm" onclick="saveSemSettings()">Save Semester</button>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-header"><div><h3>Privacy & Data Protection</h3><div class="tech-note">Controls that support CTU privacy governance and RA 10173 accountability.</div></div><button class="btn btn-sm" onclick="openPrivacyNotice()">View Privacy Notice</button></div>
-      <div class="objective-grid"><div class="objective-card"><h4>Role-based access</h4><p>Users see functions appropriate to their role; production APIs must enforce the same authorization server-side.</p></div><div class="objective-card"><h4>Audit trail</h4><p>Important access and record-changing events are logged for accountability and review.</p></div><div class="objective-card"><h4>Consent record</h4><p>New patient registrations store the accepted privacy-notice version and timestamp.</p></div></div>
-    </div>
-    <div class="card">
-      <div class="card-header"><div><h3>Automated Daily Backups</h3><div class="tech-note">Browser prototype: one automatic local snapshot per day, retaining the most recent ${s.backupRetentionDays||7} days.</div></div><button class="btn btn-primary btn-sm" onclick="createDailyBackup(true);persistDB();renderSettings();toast('Backup snapshot created.','success')">Back Up Now</button></div>
-      <div id="backup-list">${renderBackupListHtml()}</div>
-      <div class="alert alert-warning show" style="margin-top:.7rem">For production, replace these local snapshots with encrypted server/database backups on AWS or Google Cloud. A browser cannot perform unattended cloud backups when the site is closed.</div>
-    </div>
-    <div class="card">
-      <div class="card-header"><h3>Data &amp; Storage</h3></div>
-      <p class="text-muted" style="margin-bottom:.8rem">All records save to this browser automatically, so your changes are still here next time you open CampusCare. Use this only if you want to erase everything and start over from the original demo data.</p>
-      <button class="btn btn-danger btn-sm" onclick="resetDemoData()">Reset to Demo Data</button>
-    </div>`;
-}
-
-function saveSettings(){
-  showConfirmDialog({
-    title:'Save Clinic Settings',
-    message:'Save these clinic-wide settings? They affect scheduling and messaging for every user.',
-    confirmLabel:'Save Settings',
-    onConfirm:()=>{
-      const s=DB.settings;
-      s.clinicName=document.getElementById('set-name').value;
-      s.address=document.getElementById('set-addr').value;
-      s.contactEmail=document.getElementById('set-email').value;
-      s.dentalLimitPerSemester=parseInt(document.getElementById('set-dental').value)||1;
-      s.appointmentReminderDays=parseInt(document.getElementById('set-remind').value)||2;
-      const msg=document.getElementById('set-msg');
-      showAlert(msg,'Settings saved.','success');setTimeout(()=>hideAlert(msg),3000);
-      toast('Settings saved.','success');
+    title:'Archive Account',
+    message:`Are you sure you want to archive <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account?`,
+    confirmLabel:'Archive',danger:true,
+    onConfirm:async()=>{
+      if(u._realSupabase){
+        try{
+          await adminUserAction({action:'status',user_id:u.dbUserId,status:'Archived'});
+          toast(`${u.fname} ${u.lname} archived.`,'success');
+          await renderUsers();
+        }catch(e){toast(e?.message||'Unable to update account.','error');}
+        return;
+      }
+      u.status='Archived';
+      u.archived='Archived'==='Archived';
+      toast(`${u.fname} ${u.lname} archived.`,'success');
+      renderUserTable();
     }
   });
 }
-function saveSemSettings(){
-  const s=DB.settings;
-  s.semesterStart=document.getElementById('set-s1s').value;
-  s.semesterEnd=document.getElementById('set-s1e').value;
-  s.semester2Start=document.getElementById('set-s2s').value;
-  s.semester2End=document.getElementById('set-s2e').value;
-  toast('Semester settings saved.','success');
-}
 
-// ================================================================
-// MEDICAL CERTIFICATES — patients request, staff issue, PDF via
-// jsPDF (loaded on demand) + email copy (simulated in-app)
-// ================================================================
-function loadJsPDF(){
-  return new Promise((resolve,reject)=>{
-    // Reuse jsPDF when it has already been loaded once.
-    if(window.jspdf&&window.jspdf.jsPDF){resolve(window.jspdf.jsPDF);return;}
-
-    // Try more than one trusted CDN so certificate downloads are less fragile.
-    const sources=[
-      'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
-      'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
-    ];
-    let index=0;
-
-    const tryNext=()=>{
-      if(index>=sources.length){reject(new Error('Could not load PDF library'));return;}
-      const script=document.createElement('script');
-      script.src=sources[index++];
-      script.async=true;
-      script.onload=()=>{
-        if(window.jspdf&&window.jspdf.jsPDF)resolve(window.jspdf.jsPDF);
-        else tryNext();
-      };
-      script.onerror=()=>tryNext();
-      document.head.appendChild(script);
-    };
-
-    tryNext();
+function restoreUser(id){
+  const u=DB.users.find(x=>x.id===id);if(!u)return;
+  if(currentUser?.role==='Administrator'&&id===currentUser.id&&'Active'!=='Active'){
+    toast('You cannot suspend or archive your own administrator account.','warning');return;
+  }
+  showConfirmDialog({
+    title:'Restore Account',
+    message:`Are you sure you want to restore <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account?`,
+    confirmLabel:'Restore',danger:false,
+    onConfirm:async()=>{
+      if(u._realSupabase){
+        try{
+          await adminUserAction({action:'status',user_id:u.dbUserId,status:'Active'});
+          toast(`${u.fname} ${u.lname} restored.`,'success');
+          await renderUsers();
+        }catch(e){toast(e?.message||'Unable to update account.','error');}
+        return;
+      }
+      u.status='Active';
+      u.archived='Active'==='Archived';
+      toast(`${u.fname} ${u.lname} restored.`,'success');
+      renderUserTable();
+    }
   });
 }
-const CERT_PURPOSES=['OJT / Internship Requirement','Excused Absence','Sports / Athletics Participation','Enrollment Requirement','Employment Requirement','Scholarship Requirement','Other'];
-function certStatusBadge(s){
-  const m={Pending:'badge-warning','Awaiting Signature':'badge-purple',Issued:'badge-success',Declined:'badge-danger'};
-  return `<span class="badge ${m[s]||'badge-gray'}">${s}</span>`;
-}
 
-// ---- PATIENT SIDE ----
-function renderMyCertificates(){
-  const c=document.getElementById('app-content');
-  const pt=currentPatient;
-  if(!pt){c.innerHTML='<div class="alert alert-warning show">No patient record linked. Contact admin.</div>';return;}
-  const reqs=DB.certRequests.filter(r=>r.patientId===pt.id).slice().sort((a,b)=>b.id-a.id);
-  c.innerHTML=`<div class="card">
-    <div class="card-header"><h3>Medical Certificates</h3>
-      <button class="btn btn-primary btn-sm" onclick="openCertRequestModal()">+ Request Certificate</button></div>
-    <p class="text-muted" style="font-size:.82rem;margin-bottom:.8rem">Staff prepares the certificate details, then the assigned doctor signs it before it becomes downloadable.</p>
-    ${reqs.length?`<div class="cert-swipe-hint"><i class="fa-solid fa-arrows-left-right"></i> Swipe horizontally to view the certificate number and download actions.</div><div class="table-wrap cert-table-wrap"><table><thead><tr><th>#</th><th>Purpose</th><th>Requested</th><th>Status</th><th>Certificate No.</th><th>Actions</th></tr></thead><tbody>${
-      reqs.map(r=>`<tr><td>#${r.id}</td><td>${escapeHtml(r.purpose)}</td><td>${fmtDate(r.requestedAt)}</td>
-        <td>${certStatusBadge(r.status)}</td><td>${r.certNo||'—'}</td>
-        <td><div class="td-actions">
-          ${r.status==='Issued'?`<button class="btn btn-xs btn-primary" onclick="downloadCertPdf(${r.id})">⬇ Download PDF</button>`:''}
-          ${r.status==='Pending'?`<button class="btn btn-xs btn-danger" onclick="cancelCertRequest(${r.id})">Cancel</button>`:''}
-          ${r.status==='Declined'&&r.declineReason?`<button class="btn btn-xs" onclick="viewCertDecline(${r.id})">Reason</button>`:''}
-        </div></td></tr>`).join('')
-    }</tbody></table></div>`:'<div class="empty-state"><p>No certificate requests yet.</p></div>'}
-  </div>`;
-}
-function openCertRequestModal(){
-  openModal(`<div class="modal">
-    <div class="modal-header"><h3>Request Medical Certificate</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
-    <div class="modal-body">
-      <div class="form-group"><label>Purpose</label><select id="cert-purpose">${CERT_PURPOSES.map(p=>`<option>${p}</option>`).join('')}</select></div>
-      <div class="form-group"><label>Details (optional)</label><textarea id="cert-details" rows="3" placeholder="e.g. dates of absence, requesting office"></textarea></div>
-      <div class="alert alert-info show" style="font-size:.78rem">The clinic may ask you to visit for a quick check-up before preparing the certificate.</div>
-      <button class="btn btn-primary" style="width:100%" onclick="submitCertRequest()">Submit Request</button>
-    </div></div>`);
-}
-function submitCertRequest(){
-  const purpose=document.getElementById('cert-purpose').value;
-  const details=document.getElementById('cert-details').value.trim().slice(0,300);
-  DB.certRequests.push({id:DB.nextCertId++,patientId:currentPatient.id,purpose,details,status:'Pending',requestedAt:TODAY,certNo:'',issuedAt:'',issuedById:null,doctorId:null,findings:'',recommendations:'',declineReason:'',preparedById:null,preparedAt:'',signedById:null,signedAt:''});
-  DB.users.filter(u=>(u.role==='Staff'||u.role==='Administrator')&&u.status==='Active')
-    .forEach(u=>addNotif(u.id,'New Certificate Request',`${currentUser.fname} ${currentUser.lname} requested a medical certificate (${purpose}).`,'info'));
-  persistDB();
-  closeAllModals();
-  toast('Certificate request submitted.','success');
-  renderMyCertificates();
-}
 function cancelCertRequest(id){
   const r=DB.certRequests.find(x=>x.id===id);
   if(!r||r.status!=='Pending')return;
@@ -9259,7 +9175,7 @@ function openAddUserModal(){
         <div class="form-group"><label>Contact</label><input id="au-contact"></div>
         <div class="form-group"><label>Role <span class="required">*</span></label>
           <select id="au-role" onchange="toggleUserFields()">
-            <option>Doctor</option><option>Staff</option><option>Administrator</option><option>Patient</option>
+            <option>Doctor</option><option>Staff</option><option>Administrator</option>
           </select>
         </div>
         <div class="form-group" id="au-spec-group"><label>Specialty (Doctor)</label>
@@ -9280,27 +9196,44 @@ function openAddUserModal(){
 function toggleUserFields(){
   const role=document.getElementById('au-role').value;
   document.getElementById('au-spec-group').style.display=role==='Doctor'?'':'none';
-  document.getElementById('au-college-group').style.display=role==='Patient'?'':'none';
+  const collegeGroup=document.getElementById('au-college-group');
+  if(collegeGroup)collegeGroup.style.display='none';
 }
 
-function saveNewUser(){
+async function saveNewUser(){
   const fname=document.getElementById('au-fname').value.trim();
   const lname=document.getElementById('au-lname').value.trim();
   const uname=document.getElementById('au-user').value.trim();
-  const email=document.getElementById('au-email').value.trim();
+  const email=document.getElementById('au-email').value.trim().toLowerCase();
   const pass=document.getElementById('au-pass').value;
   const role=document.getElementById('au-role').value;
+  const contact=document.getElementById('au-contact').value.trim();
   const msg=document.getElementById('adduser-msg');
+
   if(!fname||!lname||!uname||!email||!pass){showAlert(msg,'All required fields must be filled.');return;}
-  if(DB.users.find(u=>u.username===uname)){showAlert(msg,'Username already taken.');return;}
-  const uid=DB.nextUserId++;
-  const newUser={id:uid,fname,lname,username:uname,password:pass,role,email,contact:document.getElementById('au-contact').value,status:'Active',college:'',personType:'Staff',idNo:'',idFile:'',verified:true,createdAt:TODAY,lastLogin:'',
-    ...(role==='Doctor'?{specialty:document.getElementById('au-spec').value,workDays:['Mon','Tue','Wed','Thu','Fri'],startTime:'08:00',endTime:'17:00',slotDuration:60,maxPatients:20}:{})
-  };
-  DB.users.push(newUser);
-  toast(`${role} account created.`,'success');
-  closeAllModals();
-  if(document.getElementById('user-table'))renderUsers();
+  if(pass.length<8){showAlert(msg,'Password must be at least 8 characters.');return;}
+
+  const btn=document.querySelector('.modal-footer .btn-primary');
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Creating…';}
+
+  try{
+    await adminUserAction({
+      action:'create',
+      first_name:fname,last_name:lname,username:uname,email,password:pass,
+      contact_number:contact,role,
+      specialty:role==='Doctor'?document.getElementById('au-spec').value:null,
+      work_days:['Mon','Tue','Wed','Thu','Fri'],
+      start_time:'08:00',end_time:'17:00',slot_duration:60,max_patients:20
+    });
+    toast(`${role} account created in CampusCare.`,'success');
+    closeAllModals();
+    await renderUsers();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to create user.');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=old||'Create User';}
+  }
 }
 
 function openEditUserModal(id){
@@ -9329,17 +9262,31 @@ function openEditUserModal(id){
   </div>`);
 }
 
-function saveEditUser(id){
+async function saveEditUser(id){
   const u=DB.users.find(x=>x.id===id);if(!u)return;
-  u.fname=document.getElementById('eu-fname').value.trim()||u.fname;
-  u.lname=document.getElementById('eu-lname').value.trim()||u.lname;
-  u.email=document.getElementById('eu-email').value.trim()||u.email;
-  u.contact=document.getElementById('eu-contact').value;
-  u.status=document.getElementById('eu-status').value;
-  if(u.role==='Doctor')u.specialty=document.getElementById('eu-spec').value;
-  toast('User updated.','success');
-  closeAllModals();
-  if(document.getElementById('user-table'))renderUsers();
+  const msg=document.getElementById('edituser-msg');
+
+  if(!u._realSupabase){
+    showAlert(msg,'This demo account has not been migrated to Supabase yet.','warning');
+    return;
+  }
+
+  try{
+    await adminUserAction({
+      action:'update',
+      user_id:u.dbUserId,
+      first_name:document.getElementById('eu-fname').value.trim()||u.fname,
+      last_name:document.getElementById('eu-lname').value.trim()||u.lname,
+      email:document.getElementById('eu-email').value.trim().toLowerCase()||u.email,
+      contact_number:document.getElementById('eu-contact').value,
+      specialty:u.role==='Doctor'?document.getElementById('eu-spec').value:undefined
+    });
+    toast('User updated.','success');
+    closeAllModals();
+    await renderUsers();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to update user.');
+  }
 }
 
 function openDoctorScheduleEdit(docId){
@@ -9368,7 +9315,6 @@ function openDoctorScheduleEdit(docId){
 
 function saveDoctorSched(docId){
   const doc=DB.users.find(u=>u.id===docId);if(!doc)return;
-  // Capture the form values now, since the confirm dialog will replace this modal.
   const newVals={
     startTime:document.getElementById('ds-start').value,
     endTime:document.getElementById('ds-end').value,
@@ -9380,10 +9326,23 @@ function saveDoctorSched(docId){
     title:'Update Work Schedule',
     message:`Update <strong>${docName(doc)}</strong>'s work schedule? This changes their availability for new bookings immediately.`,
     confirmLabel:'Update Schedule',
-    onConfirm:()=>{
-      const prev={startTime:doc.startTime,endTime:doc.endTime,slotDuration:doc.slotDuration,maxPatients:doc.maxPatients,workDays:doc.workDays};
+    onConfirm:async()=>{
+      if(doc._realSupabase){
+        try{
+          await adminUserAction({
+            action:'schedule',
+            user_id:doc.dbUserId,
+            start_time:newVals.startTime,end_time:newVals.endTime,
+            slot_duration:newVals.slotDuration,max_patients:newVals.maxPatients,
+            work_days:newVals.workDays
+          });
+          toast('Schedule updated.','success');
+          await renderUsers();
+        }catch(e){toast(e?.message||'Unable to update schedule.','error');}
+        return;
+      }
       Object.assign(doc,newVals);
-      toastWithUndo('Schedule updated.',()=>{Object.assign(doc,prev);if(document.getElementById('user-table'))renderUsers();});
+      toast('Schedule updated.','success');
       if(document.getElementById('user-table'))renderUsers();
     }
   });
