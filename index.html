@@ -5,10 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CampusCare - Campus Health Management System</title>
 <script>
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_4R6yLx9j1l6M3JMlyjRITA_vEsSBGBu';
-
-const SUPABASE_URL = 'https://hgmvlklvobkqhyvjnzmx.supabase.co';
-
 (function(){
   try{
     var t=localStorage.getItem('campuscare_theme');
@@ -21,7 +17,7 @@ const SUPABASE_URL = 'https://hgmvlklvobkqhyvjnzmx.supabase.co';
 // Prevents the user from needing to refresh after a successful Supabase login.
 // It restores the signed-in profile and immediately switches from auth to the app.
 async function syncCampusCareSessionUI(){
-  if(!window.supabaseClient) return false;
+  if(!initializeSupabaseClient()) return false;
   try{
     const {data:{session}}=await supabaseClient.auth.getSession();
     if(!session?.user) return false;
@@ -1468,6 +1464,39 @@ tbody tr:hover td{background:var(--overlay)}
 <div id="modals"></div>
 
 <script>
+
+// === CAMPUSCARE SUPABASE CLIENT ===
+// Create one shared browser client used by login, registration, approvals, and session sync.
+const SUPABASE_URL = 'https://hgmvlklvobkqhyvjnzmx.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_4R6yLx9j1l6M3JMlyjRITA_vEsSBGBu';
+
+let supabaseClient = null;
+
+function initializeSupabaseClient(){
+  if(supabaseClient) return supabaseClient;
+
+  // supabase-js exposes createClient through window.supabase when loaded from the CDN.
+  if(!window.supabase || typeof window.supabase.createClient !== 'function'){
+    console.error('Supabase library failed to load.');
+    return null;
+  }
+
+  supabaseClient = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY,
+    {
+      auth:{
+        persistSession:true,
+        autoRefreshToken:true,
+        detectSessionInUrl:true
+      }
+    }
+  );
+  return supabaseClient;
+}
+
+initializeSupabaseClient();
+
 // ================================================================
 // DATABASE
 // ================================================================
@@ -3009,6 +3038,12 @@ function setLoginAttempts(data){
 }
 
 async function doLogin(){
+  // Ensure Supabase is ready before attempting authentication.
+  if(!initializeSupabaseClient()){
+    toast('Unable to connect to CampusCare right now. Please refresh and try again.','error');
+    return;
+  }
+
   // Supabase Auth signs in with email. For username login, the public Edge
   // Function resolves the CampusCare username to its associated email first.
   const identifier=document.getElementById('li-user').value.trim();
