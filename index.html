@@ -1332,11 +1332,81 @@ tbody tr:hover td{background:var(--overlay)}
     max-width:390px;
   }
 }
+
+/* === DATABASE LOADING SKELETONS ===
+   Used whenever a CampusCare screen is waiting for Supabase/database data. */
+.db-skeleton-wrap{display:flex;flex-direction:column;gap:1rem;animation:dbSkeletonFade .18s ease}
+.db-skeleton-toolbar{display:flex;gap:.55rem;flex-wrap:wrap}
+.db-skeleton-pill{height:34px;width:150px;border-radius:9px}
+.db-skeleton-pill.sm{width:105px}
+.db-skeleton-card{
+  background:var(--glass-surface);
+  border:1px solid var(--glass-border-soft);
+  border-radius:18px;
+  padding:1rem 1.15rem;
+  box-shadow:var(--glass-shadow-sm);
+}
+.db-skeleton-line{height:12px;border-radius:999px;margin:.42rem 0}
+.db-skeleton-line.xs{width:18%}.db-skeleton-line.sm{width:34%}.db-skeleton-line.md{width:58%}.db-skeleton-line.lg{width:82%}.db-skeleton-line.full{width:100%}
+.db-skeleton-row{display:grid;grid-template-columns:42px 1.2fr .9fr 1fr .7fr .8fr;gap:.8rem;align-items:center;padding:.72rem 0;border-bottom:1px solid var(--line-soft)}
+.db-skeleton-row:last-child{border-bottom:0}
+.db-skeleton-circle{width:34px;height:34px;border-radius:50%}
+.db-skeleton-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:.8rem}
+.db-skeleton-stat{height:145px;border-radius:16px}
+.db-skeleton-chart{height:300px;border-radius:18px}
+.db-skeleton-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+.db-skeleton-input{height:38px;border-radius:9px}
+.db-skeleton-shimmer{
+  position:relative;
+  overflow:hidden;
+  background:var(--glass-surface-soft);
+}
+.db-skeleton-shimmer::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);
+  transform:translateX(-100%);
+  animation:dbSkeletonShimmer 1.25s ease-in-out infinite;
+}
+[data-theme="dark"] .db-skeleton-shimmer::after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent)}
+@keyframes dbSkeletonShimmer{100%{transform:translateX(100%)}}
+@keyframes dbSkeletonFade{from{opacity:.55}to{opacity:1}}
+@media(max-width:900px){.db-skeleton-stat-grid{grid-template-columns:repeat(2,1fr)}.db-skeleton-row{grid-template-columns:36px 1.2fr 1fr .8fr}}
+@media(max-width:640px){
+  .db-skeleton-stat-grid{grid-template-columns:1fr 1fr}
+  .db-skeleton-row{grid-template-columns:34px 1fr .8fr}
+  .db-skeleton-row .db-hide-mobile{display:none}
+  .db-skeleton-form-grid{grid-template-columns:1fr}
+}
+
+
+#session-restore-skeleton{
+  position:fixed;inset:0;z-index:9998;
+  display:none;align-items:center;justify-content:center;
+  background:var(--page-base);
+}
+#session-restore-skeleton.show{display:flex}
+#session-restore-skeleton .restore-shell{width:min(820px,calc(100vw - 2rem));}
+
 </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+<div id="session-restore-skeleton">
+  <div class="restore-shell">
+    <div class="db-skeleton-wrap">
+      <div class="db-skeleton-stat-grid">
+        <div class="db-skeleton-shimmer db-skeleton-stat"></div>
+        <div class="db-skeleton-shimmer db-skeleton-stat"></div>
+        <div class="db-skeleton-shimmer db-skeleton-stat"></div>
+        <div class="db-skeleton-shimmer db-skeleton-stat"></div>
+      </div>
+      <div class="db-skeleton-shimmer db-skeleton-chart" style="margin-top:1rem"></div>
+    </div>
+  </div>
+</div>
 
 <!-- TOAST -->
 <div id="toast-wrap"></div>
@@ -3374,6 +3444,10 @@ async function doLogin(){
   const identifier=document.getElementById('li-user').value.trim();
   const password=document.getElementById('li-pass').value;
   if(!identifier||!password){toast('Enter your username/email and password.','error');return;}
+  const loginBtn=document.querySelector('#login-section button[onclick="doLogin()"],#login-section .btn-primary');
+  const loginBtnText=loginBtn?.textContent;
+  if(loginBtn){loginBtn.disabled=true;loginBtn.textContent='Signing in…';}
+
 
   try{
     let email=identifier;
@@ -3414,6 +3488,8 @@ try{ await supabaseClient.from('users').update({last_login_at:new Date().toISOSt
     }
   }catch(e){
     toast(e?.message||'Invalid username/email or password.','error');
+  }finally{
+    if(loginBtn){loginBtn.disabled=false;loginBtn.textContent=loginBtnText||'Login to CampusCare';}
   }
 }
 
@@ -4542,6 +4618,86 @@ function escapeHtml(str) {
 function getUserName(id) {
   const u = DB.users.find(u => u.id === id);
   return u ? `${u.fname} ${u.lname}` : 'System';
+}
+
+
+// ================================================================
+// DATABASE SKELETON LOADING
+// ================================================================
+function databaseSkeletonHtml(type='table',rows=6){
+  const shimmer=cls=>`<div class="db-skeleton-shimmer ${cls}"></div>`;
+
+  if(type==='dashboard'){
+    return `<div class="db-skeleton-wrap" aria-busy="true" aria-label="Loading dashboard data">
+      <div class="db-skeleton-toolbar">
+        ${shimmer('db-skeleton-pill')}
+        ${shimmer('db-skeleton-pill sm')}
+      </div>
+      <div class="db-skeleton-stat-grid">
+        ${Array.from({length:4},()=>shimmer('db-skeleton-stat')).join('')}
+      </div>
+      <div class="grid-2">
+        ${shimmer('db-skeleton-chart')}
+        ${shimmer('db-skeleton-chart')}
+      </div>
+    </div>`;
+  }
+
+  if(type==='form'){
+    return `<div class="db-skeleton-wrap" aria-busy="true" aria-label="Loading data">
+      <div class="db-skeleton-card">
+        ${shimmer('db-skeleton-line sm')}
+        <div class="db-skeleton-form-grid" style="margin-top:1rem">
+          ${Array.from({length:8},()=>shimmer('db-skeleton-input')).join('')}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if(type==='cards'){
+    return `<div class="db-skeleton-wrap" aria-busy="true" aria-label="Loading data">
+      <div class="stats-grid">
+        ${Array.from({length:4},()=>`<div class="db-skeleton-card">
+          ${shimmer('db-skeleton-line sm')}
+          ${shimmer('db-skeleton-line md')}
+          ${shimmer('db-skeleton-line full')}
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Default: table/list skeleton.
+  return `<div class="db-skeleton-wrap" aria-busy="true" aria-label="Loading records">
+    <div class="db-skeleton-toolbar">
+      ${shimmer('db-skeleton-pill')}
+      ${shimmer('db-skeleton-pill sm')}
+      ${shimmer('db-skeleton-pill sm')}
+    </div>
+    <div class="db-skeleton-card">
+      ${Array.from({length:rows},()=>`<div class="db-skeleton-row">
+        ${shimmer('db-skeleton-circle')}
+        ${shimmer('db-skeleton-line lg')}
+        ${shimmer('db-skeleton-line md')}
+        ${shimmer('db-skeleton-line lg db-hide-mobile')}
+        ${shimmer('db-skeleton-line sm db-hide-mobile')}
+        ${shimmer('db-skeleton-line md db-hide-mobile')}
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function showDatabaseSkeleton(type='table',targetId='app-content'){
+  const target=document.getElementById(targetId);
+  if(!target)return;
+  target.innerHTML=databaseSkeletonHtml(type);
+}
+
+// Helper for future database-backed modules.
+// Example: await withDatabaseSkeleton(()=>loadSomething(),'table');
+async function withDatabaseSkeleton(task,type='table',targetId='app-content'){
+  showDatabaseSkeleton(type,targetId);
+  try{return await task();}
+  catch(error){throw error;}
 }
 
 function renderPage(id){
@@ -5682,10 +5838,16 @@ function renderMyPatientsTable(){
 // PATIENTS PAGE (Staff/Admin)
 // ================================================================
 async function renderPatients(){
-  if(currentUser?.role==='Administrator'){
-    try{await syncAdminDirectoryFromSupabase();}catch(e){console.error(e);}
-  }
   const c=document.getElementById('app-content');
+  if(currentUser?.role==='Administrator'){
+    showDatabaseSkeleton('table');
+    try{await syncAdminDirectoryFromSupabase();}
+    catch(e){
+      console.error(e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load patient records.')}</div>`;
+      return;
+    }
+  }
   const canEdit=currentUser.role==='Administrator'||currentUser.role==='Staff';
   c.innerHTML=`
     <div class="toolbar">
@@ -6009,8 +6171,7 @@ async function renderApprovals(loadRemote=true) {
   if(!c)return;
 
   if(loadRemote){
-    c.innerHTML=`<div class="card"><div class="card-header"><h3>Pending Registration Approvals</h3></div>
-      <div class="empty-state"><p>Loading pending registrations…</p></div></div>`;
+    showDatabaseSkeleton('table');
     try{
       await refreshRealApprovalQueue(false);
     }catch(e){
@@ -7330,10 +7491,16 @@ function userAvatarHtml(u,size=34){
 }
 
 async function renderUsers(){
-  if(currentUser?.role==='Administrator'){
-    try{await syncAdminDirectoryFromSupabase();}catch(e){console.error(e);}
-  }
   const c=document.getElementById('app-content');
+  if(currentUser?.role==='Administrator'){
+    showDatabaseSkeleton('table');
+    try{await syncAdminDirectoryFromSupabase();}
+    catch(e){
+      console.error(e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load user management data.')}</div>`;
+      return;
+    }
+  }
   c.innerHTML=`
     <div class="toolbar">
       <input type="text" placeholder="Search users..." id="usr-search" oninput="renderUserTable()">
@@ -9250,9 +9417,15 @@ window.addEventListener('scroll',()=>{
 // session in browser storage, so refreshing the page should not log the user out.
 document.addEventListener('DOMContentLoaded',async()=>{
   initializeSupabaseClient();
+  const restoreSkeleton=document.getElementById('session-restore-skeleton');
+
+  // Only show the full-page skeleton when Supabase actually has a persisted session.
+  const {data:{session:existingSession}}=await supabaseClient.auth.getSession();
+  if(existingSession)restoreSkeleton?.classList.add('show');
 
   // First restore any already-persisted Supabase session.
   const restored=await syncCampusCareSessionUI();
+  restoreSkeleton?.classList.remove('show');
 
   // Then keep the UI synchronized with future auth changes.
   supabaseClient.auth.onAuthStateChange((event,session)=>{
