@@ -230,6 +230,17 @@ document.addEventListener('DOMContentLoaded',()=>{
   setTimeout(()=>{ if(currentUser?.role==='Administrator') refreshRealApprovalQueue(); },1200);
 });
 
+
+// Allow Enter to submit the login form without restricting username/email characters.
+document.addEventListener('DOMContentLoaded',()=>{
+  const loginIdentifier=document.getElementById('li-user');
+  if(loginIdentifier){
+    loginIdentifier.addEventListener('keydown',e=>{
+      if(e.key==='Enter') doLogin();
+    });
+  }
+});
+
 </script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1582,7 +1593,7 @@ tbody tr:hover td{background:var(--overlay)}
     <!-- LOGIN -->
     <div id="login-section">
       <div class="alert alert-danger" id="login-err"></div>
-      <div class="form-group"><label>Username or Email</label><input id="li-user" type="email" placeholder="Enter username or email" oninput="sanitizeInput(this,'username')" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="form-group"><label>Username or Email</label><input id="li-user" type="text" placeholder="Enter username or email" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
       <div class="form-group"><label>Password</label><input id="li-pass" type="password" placeholder="Enter password" oninput="sanitizeInput(this,'password')" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <p style="text-align:right;margin:-.2rem 0 .2rem"><a href="#" style="font-size:.78rem;color:var(--primary);text-decoration:none" onclick="openForgotPassword();return false;">Forgot password?</a></p>
       <button class="btn btn-primary" style="width:100%;margin-top:.3rem" onclick="doLogin()">Login to CampusCare</button>
