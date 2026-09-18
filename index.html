@@ -140,6 +140,7 @@ function normalizeSupabaseUser(profile){
     maxPatients: profile.max_patients??profile.maxPatients??20,
     createdAt: profile.created_at??profile.createdAt??'',
     lastLogin: profile.last_login_at??profile.lastLogin??'',
+    passwordChangedAt: profile.password_changed_at??profile.passwordChangedAt??'',
     _realSupabase:true
   };
 }
@@ -3389,7 +3390,7 @@ function getAssistantReply(raw){
     {keys:['cancel appointment'],ans:"Open Appointments, find the appointment, and click \"Cancel.\" You'll be asked to confirm since it notifies the patient."},
     {keys:['complete appointment','mark appointment done','finish appointment'],ans:"Doctors complete an appointment by clicking \"Add Notes & Complete\" and filling in the diagnosis — notes are required before it can be marked done."},
     {keys:['reset password','forgot password'],ans:"On the login screen, click \"Forgot password?\" and follow the steps — a verification code is sent to your email or phone."},
-    {keys:['change password','update password'],ans:"Go to Account Settings → Change Password. You'll set a new password, then verify it with a code sent to your email or phone before it takes effect."},
+    {keys:['change password','update password'],ans:"Go to Account Settings → Change Password. Enter your current password and a new password that meets the security checklist. Password changes are limited to once every 7 days."},
     {keys:['change name','update name','name change'],ans:role==='Administrator'?"As an administrator, you can update your own name directly from User Management by editing your account.":"For security, names can only be changed by an administrator. Go to Account Settings and use \"Request a name change.\""},
     {keys:['change email','update email','change my email'],ans:role==='Administrator'?"As an administrator, you can update your email directly on Account Settings — no verification code needed.":"Go to Account Settings, update your email, and save — you'll get a verification code sent to your current email or phone to confirm it's really you."},
     {keys:['change phone','update phone','change contact number','update contact'],ans:role==='Administrator'?"As an administrator, you can update your contact number directly on Account Settings — no verification code needed.":"Go to Account Settings, update your contact number, and save — you'll get a verification code sent to your current email or phone to confirm it's really you."},
@@ -5677,29 +5678,40 @@ function renderMyAccount(){
           <button class="btn btn-primary btn-sm" onclick="saveAccount()">Save Changes</button>
         </div>
         <div class="card">
-          <div class="card-header"><h3>Change Password</h3></div>
-          <div id="pw-step1">
-            <div id="pw-msg"></div>
-            <div class="form-group"><label>Current Password</label><input id="pw-cur" type="password" oninput="sanitizeInput(this,'password')"></div>
-            <div class="form-group"><label>New Password</label><input id="pw-new" type="password" oninput="sanitizeInput(this,'password')"></div>
-            <div class="form-group"><label>Confirm New Password</label><input id="pw-conf" type="password" oninput="sanitizeInput(this,'password')"></div>
-            <div class="form-group">
-              <label>Verify via</label>
-              <div style="display:flex;gap:1rem;margin-top:.2rem">
-                <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer"><input type="radio" name="pw-method" value="email" checked> Email</label>
-                <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer"><input type="radio" name="pw-method" value="sms"> SMS</label>
-              </div>
+          <div class="card-header">
+            <div>
+              <h3>Change Password</h3>
+              <div class="tech-note">For account security, a password can be changed only once every 7 days.</div>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="requestPasswordChangeCode()">Send Verification Code</button>
           </div>
-          <div id="pw-step2" style="display:none">
-            <div id="pw-msg2"></div>
-            <p style="font-size:.82rem;color:var(--ink-muted);margin-bottom:.6rem">We sent a 6-digit code to <strong id="pw-dest"></strong>.</p>
-            <div class="alert alert-info show" style="font-size:.76rem">📩 Demo mode — since there's no real email/SMS server connected, here's the code we would have sent: <strong id="pw-demo-code" style="font-size:.95rem;letter-spacing:1px"></strong></div>
-            <div class="form-group"><label>Enter Code</label><input id="pw-code" type="text" maxlength="6" placeholder="6-digit code" style="letter-spacing:2px" oninput="sanitizeInput(this,'code')"></div>
-            <button class="btn btn-primary btn-sm" onclick="confirmPasswordChange()">Confirm &amp; Update Password</button>
-            <button class="btn btn-sm" onclick="cancelPasswordChange()">Cancel</button>
+          <div id="pw-msg"></div>
+          <div id="pw-cooldown-note" class="alert alert-info show" style="font-size:.76rem"></div>
+          <div class="form-group">
+            <label>Current Password</label>
+            <input id="pw-cur" type="password" autocomplete="current-password"
+              oninput="sanitizeInput(this,'password')">
           </div>
+          <div class="form-group">
+            <label>New Password</label>
+            <input id="pw-new" type="password" autocomplete="new-password"
+              onfocus="showAccountPasswordChecklist()"
+              oninput="sanitizeInput(this,'password');updateAccountPasswordStrength()"
+              onblur="hideAccountPasswordChecklist()">
+          </div>
+          <div id="pw-strength" class="password-checklist" aria-live="polite">
+            <div id="pw-strength-label" class="password-strength-label weak">Weak password</div>
+            <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>At least 8 characters</span></div>
+            <div class="password-check" data-check="upper"><span class="pw-check-icon"></span><span>One uppercase letter</span></div>
+            <div class="password-check" data-check="lower"><span class="pw-check-icon"></span><span>One lowercase letter</span></div>
+            <div class="password-check" data-check="number"><span class="pw-check-icon"></span><span>One number</span></div>
+            <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
+          </div>
+          <div class="form-group">
+            <label>Confirm New Password</label>
+            <input id="pw-conf" type="password" autocomplete="new-password"
+              oninput="sanitizeInput(this,'password')">
+          </div>
+          <button class="btn btn-primary btn-sm" id="pw-change-btn" onclick="changeAccountPassword()">Change Password</button>
         </div>
       </div>
       <div>
@@ -5735,6 +5747,10 @@ function renderMyAccount(){
           <div style="margin-top:.8rem"><button class="btn btn-primary btn-sm" onclick="openScheduleChangeRequest()">Request Schedule Change</button></div>
         </div>`);
     }
+
+  // Initialize the live password-security UI after the account card is in the DOM.
+  renderPasswordCooldownNotice();
+  updateAccountPasswordStrength();
 }
 
 function openScheduleChangeRequest(){
@@ -6087,48 +6103,144 @@ async function changeProfilePhoto(input){
   }
 }
 
-function requestPasswordChangeCode(){
-  const u=currentUser;
-  const cur=document.getElementById('pw-cur').value;
-  const nw=document.getElementById('pw-new').value;
-  const conf=document.getElementById('pw-conf').value;
-  const method=document.querySelector('input[name="pw-method"]:checked').value;
+function accountPasswordCooldownState(){
+  const raw=currentUser?.passwordChangedAt||currentUser?.password_changed_at||'';
+  if(!raw)return {locked:false,next:null};
+  const changed=new Date(raw);
+  if(Number.isNaN(changed.getTime()))return {locked:false,next:null};
+  const next=new Date(changed.getTime()+7*24*60*60*1000);
+  return {locked:Date.now()<next.getTime(),next};
+}
+
+function renderPasswordCooldownNotice(){
+  const note=document.getElementById('pw-cooldown-note');
+  const btn=document.getElementById('pw-change-btn');
+  if(!note)return;
+
+  const state=accountPasswordCooldownState();
+  if(state.locked&&state.next){
+    note.className='alert alert-warning show';
+    note.innerHTML=`🔒 Your password was changed recently. You can change it again on <strong>${state.next.toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'})}</strong>.`;
+    if(btn)btn.disabled=true;
+  }else{
+    note.className='alert alert-info show';
+    note.textContent='🔐 Enter your current password, then choose a new password that meets the security requirements below.';
+    if(btn)btn.disabled=false;
+  }
+}
+
+function showAccountPasswordChecklist(){
+  const el=document.getElementById('pw-strength');
+  if(el)el.classList.add('show');
+  updateAccountPasswordStrength();
+}
+
+function hideAccountPasswordChecklist(){
+  const el=document.getElementById('pw-strength');
+  if(el)el.classList.remove('show');
+}
+
+function updateAccountPasswordStrength(){
+  const input=document.getElementById('pw-new');
+  const el=document.getElementById('pw-strength');
+  const label=document.getElementById('pw-strength-label');
+  if(!input||!el)return;
+
+  const {checks,score,valid}=checkPasswordStrength(input.value);
+  el.querySelectorAll('.password-check').forEach(item=>{
+    item.classList.toggle('met',Boolean(checks[item.dataset.check]));
+  });
+
+  if(label){
+    let strength='Weak password',cls='weak';
+    if(valid&&score>=5){strength='Strong password';cls='strong';}
+    else if(valid||score>=3){strength='Medium password';cls='medium';}
+    label.textContent=strength;
+    label.className='password-strength-label '+cls;
+  }
+}
+
+async function changeAccountPassword(){
+  const cur=document.getElementById('pw-cur')?.value||'';
+  const nw=document.getElementById('pw-new')?.value||'';
+  const conf=document.getElementById('pw-conf')?.value||'';
   const msg=document.getElementById('pw-msg');
+  const btn=document.getElementById('pw-change-btn');
   hideAlert(msg);
-  if(cur!==u.password){showAlert(msg,'Current password is incorrect.');return;}
-  if(!nw||!checkPasswordStrength(nw).valid){showAlert(msg,'New password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.');return;}
-  if(nw!==conf){showAlert(msg,'Passwords do not match.');return;}
-  if(method==='sms'&&!u.contact){showAlert(msg,'You have no phone number on file. Please choose Email instead.');return;}
-  pwChangeCode=String(Math.floor(100000+Math.random()*900000));
-  pwChangeNewPass=nw;
-  document.getElementById('pw-dest').textContent=method==='email'?maskEmail(u.email):maskPhone(u.contact);
-  document.getElementById('pw-demo-code').textContent=pwChangeCode;
-  document.getElementById('pw-code').value='';
-  hideAlert(document.getElementById('pw-msg2'));
-  document.getElementById('pw-step1').style.display='none';
-  document.getElementById('pw-step2').style.display='block';
-  toast(`Verification code sent via ${method==='email'?'email':'SMS'}.`,'success');
-}
 
-function confirmPasswordChange(){
-  const code=document.getElementById('pw-code').value.trim();
-  const msg=document.getElementById('pw-msg2');
-  hideAlert(msg);
-  if(!code){showAlert(msg,'Please enter the code.');return;}
-  if(code!==pwChangeCode){showAlert(msg,'Incorrect code. Please check and try again.');return;}
-  currentUser.password=pwChangeNewPass;
-  persistDB();
-  toast('Password updated successfully.','success');
-  cancelPasswordChange();
-}
+  const cooldown=accountPasswordCooldownState();
+  if(cooldown.locked&&cooldown.next){
+    showAlert(msg,`You can change your password again on ${cooldown.next.toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'})}.`,'warning');
+    return;
+  }
 
-function cancelPasswordChange(){
-  pwChangeCode=null; pwChangeNewPass=null;
-  ['pw-cur','pw-new','pw-conf','pw-code'].forEach(id=>{const el=document.getElementById(id); if(el)el.value='';});
-  hideAlert(document.getElementById('pw-msg'));
-  const step1=document.getElementById('pw-step1'), step2=document.getElementById('pw-step2');
-  if(step1)step1.style.display='block';
-  if(step2)step2.style.display='none';
+  if(!cur){
+    showAlert(msg,'Enter your current password.');
+    return;
+  }
+  if(!nw||!checkPasswordStrength(nw).valid){
+    showAlert(msg,'New password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.');
+    showAccountPasswordChecklist();
+    return;
+  }
+  if(nw!==conf){
+    showAlert(msg,'Passwords do not match.');
+    return;
+  }
+  if(cur===nw){
+    showAlert(msg,'Your new password must be different from your current password.');
+    return;
+  }
+
+  const oldText=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Changing…';}
+
+  try{
+    const {data:{session}}=await supabaseClient.auth.getSession();
+    if(!session)throw new Error('Your session has expired. Please log in again.');
+
+    const response=await fetch(`${SUPABASE_URL}/functions/v1/change-password`,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        apikey:SUPABASE_PUBLISHABLE_KEY,
+        Authorization:`Bearer ${session.access_token}`
+      },
+      body:JSON.stringify({
+        current_password:cur,
+        new_password:nw
+      })
+    });
+
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||!result.ok){
+      if(result.next_allowed_at){
+        currentUser.passwordChangedAt=result.next_allowed_at
+          ? new Date(new Date(result.next_allowed_at).getTime()-7*24*60*60*1000).toISOString()
+          : currentUser.passwordChangedAt;
+        renderPasswordCooldownNotice();
+      }
+      throw new Error(result.error||'Unable to change password.');
+    }
+
+    currentUser.passwordChangedAt=result.password_changed_at||new Date().toISOString();
+
+    // Sign out after a credential change so the new password is used for the next session.
+    await supabaseClient.auth.signOut();
+    currentUser=null;
+    currentPatient=null;
+    sessionStorage.removeItem(SESSION_KEY);
+
+    document.getElementById('app')?.classList.remove('visible');
+    const auth=document.getElementById('auth-wrap');
+    if(auth)auth.style.display='block';
+    authTab('login');
+
+    toast('Password changed successfully. Please log in again with your new password.','success',6500);
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to change password.');
+    if(btn){btn.disabled=false;btn.textContent=oldText||'Change Password';}
+  }
 }
 
 // ================================================================
@@ -10249,7 +10361,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v23 loaded.');
+console.log('CampusCare v24 loaded.');
 </script>
 </body>
 </html>
