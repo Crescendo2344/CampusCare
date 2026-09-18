@@ -95,10 +95,14 @@ async function syncCampusCareSessionUI(){
 document.addEventListener('DOMContentLoaded',()=>{
   if(window.supabaseClient?.auth){
     supabaseClient.auth.onAuthStateChange((event,session)=>{
-      if(event==='PASSWORD_RECOVERY'){
-        setTimeout(()=>{
+      if(event==='PASSWORD_RECOVERY' && new URLSearchParams(window.location.search).get('auth')==='recovery'){
+        setTimeout(async()=>{
           openForgotPassword(true);
-          updateRecoveryPasswordStrength();
+          const activeSession=session||await getRecoverySession();
+          const cooldownState=await getRecoveryCooldownState(activeSession);
+          if(!applyRecoveryCooldownUi(cooldownState)){
+            updateRecoveryPasswordStrength();
+          }
         },0);
         return;
       }
@@ -3881,10 +3885,56 @@ function openForgotPassword(recoveryMode=false){
   }
 }
 
-function closeForgotPassword(){
-  document.getElementById('forgot-section').style.display='none';
-  document.getElementById('auth-tabs').style.display='flex';
+
+function resetAuthUiToLogin(){
+  // Remove callback/query state left behind by email confirmation or recovery.
+  cleanAuthCallbackUrl();
+
+  // Always return to the normal Login view.
+  const landing=document.getElementById('landing-page');
+  const authPage=document.getElementById('auth-page');
+  const authWrap=document.getElementById('auth-wrap');
+  const app=document.getElementById('app');
+
+  if(app)app.classList.remove('visible');
+  if(landing)landing.style.display='none';
+  if(authPage)authPage.style.display='block';
+  if(authWrap)authWrap.style.display='block';
+
   authTab('login');
+
+  // Explicitly clear every recovery step so no previous recovery UI can
+  // become visible when the auth container is shown again.
+  const forgot=document.getElementById('forgot-section');
+  if(forgot)forgot.style.display='none';
+  [1,2,3].forEach(i=>{
+    const el=document.getElementById('forgot-step'+i);
+    if(el)el.style.display=i===1?'block':'none';
+  });
+
+  const fields=['fp-identifier','fp-newpass','fp-newpass2'];
+  fields.forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.value='';
+  });
+
+  const updateBtn=document.getElementById('fp-update-btn');
+  if(updateBtn)updateBtn.disabled=false;
+  const newLinkBtn=document.getElementById('fp-new-link-btn');
+  if(newLinkBtn)newLinkBtn.style.display='none';
+
+  hideAlert(document.getElementById('fp-err'));
+  hideAlert(document.getElementById('fp-err3'));
+  hideAlert(document.getElementById('login-err'));
+
+  const strength=document.getElementById('fp-strength');
+  if(strength)strength.classList.remove('show');
+
+  window.scrollTo(0,0);
+}
+
+function closeForgotPassword(){
+  resetAuthUiToLogin();
 }
 
 function showForgotStep(n){
@@ -3977,6 +4027,63 @@ async function getRecoverySession(){
   return null;
 }
 
+
+async function getRecoveryCooldownState(session){
+  if(!session?.user)return {locked:false,next:null,changedAt:null};
+
+  try{
+    const {data:profile,error}=await supabaseClient
+      .from('users')
+      .select('password_changed_at')
+      .eq('auth_user_id',session.user.id)
+      .maybeSingle();
+
+    if(error||!profile?.password_changed_at){
+      return {locked:false,next:null,changedAt:null};
+    }
+
+    const changedAt=new Date(profile.password_changed_at);
+    if(Number.isNaN(changedAt.getTime())){
+      return {locked:false,next:null,changedAt:null};
+    }
+
+    const next=new Date(changedAt.getTime()+7*24*60*60*1000);
+    return {
+      locked:Date.now()<next.getTime(),
+      next,
+      changedAt
+    };
+  }catch(err){
+    console.error('Recovery cooldown check:',err);
+    return {locked:false,next:null,changedAt:null};
+  }
+}
+
+function applyRecoveryCooldownUi(state){
+  const err=document.getElementById('fp-err3');
+  const updateBtn=document.getElementById('fp-update-btn');
+  const p1=document.getElementById('fp-newpass');
+  const p2=document.getElementById('fp-newpass2');
+
+  if(state?.locked&&state.next){
+    const when=state.next.toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'});
+    showAlert(
+      err,
+      `You recently changed your password. For account security, you can change or reset it again on ${when}.`,
+      'warning'
+    );
+    if(updateBtn)updateBtn.disabled=true;
+    if(p1)p1.disabled=true;
+    if(p2)p2.disabled=true;
+    return true;
+  }
+
+  if(updateBtn)updateBtn.disabled=false;
+  if(p1)p1.disabled=false;
+  if(p2)p2.disabled=false;
+  return false;
+}
+
 async function submitNewPassword(){
   const p1=document.getElementById('fp-newpass').value;
   const p2=document.getElementById('fp-newpass2').value;
@@ -4005,8 +4112,30 @@ async function submitNewPassword(){
       throw new Error('This password-reset link is invalid or has expired. Please request a new reset link.');
     }
 
-    const {error}=await supabaseClient.auth.updateUser({password:p1});
-    if(error)throw error;
+    // Enforce the 7-day password-change rule on the server as well.
+    // The backend also verifies that this access token came from a recovery link.
+    const response=await fetch(`${SUPABASE_URL}/functions/v1/complete-password-recovery`,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        apikey:SUPABASE_PUBLISHABLE_KEY,
+        Authorization:`Bearer ${recoverySession.access_token}`
+      },
+      body:JSON.stringify({new_password:p1})
+    });
+
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||!result.ok){
+      if(result.next_allowed_at){
+        const state={
+          locked:true,
+          next:new Date(result.next_allowed_at),
+          changedAt:result.password_changed_at?new Date(result.password_changed_at):null
+        };
+        applyRecoveryCooldownUi(state);
+      }
+      throw new Error(result.error||'Unable to reset your password.');
+    }
 
     // End the temporary recovery session so the user signs in normally afterward.
     await supabaseClient.auth.signOut();
@@ -4014,7 +4143,7 @@ async function submitNewPassword(){
 
     document.getElementById('fp-newpass').value='';
     document.getElementById('fp-newpass2').value='';
-    closeForgotPassword();
+    resetAuthUiToLogin();
     toast('Password updated successfully. You can now log in with your new password.','success');
   }catch(e){
     showAlert(err,e?.message||'Unable to update your password. Please request a new recovery link.');
@@ -4058,9 +4187,13 @@ async function handleCampusCareAuthCallback(){
     }else{
       hideAlert(err);
       if(newLinkBtn)newLinkBtn.style.display='none';
-      const updateBtn=document.getElementById('fp-update-btn');
-      if(updateBtn)updateBtn.disabled=false;
-      updateRecoveryPasswordStrength();
+
+      const cooldownState=await getRecoveryCooldownState(recoverySession);
+      const locked=applyRecoveryCooldownUi(cooldownState);
+
+      if(!locked){
+        updateRecoveryPasswordStrength();
+      }
     }
     return 'recovery';
   }
@@ -4119,17 +4252,15 @@ function logout(){
         currentPatient=null;
         sessionStorage.removeItem(SESSION_KEY);
 
-        const app=document.getElementById('app');
-        const auth=document.getElementById('auth-wrap');
-        if(app)app.classList.remove('visible');
-        if(auth)auth.style.display='block';
+        // Fully reset the auth UI so an earlier email-recovery screen cannot
+        // reappear after logout.
+        resetAuthUiToLogin();
 
         const userInput=document.getElementById('li-user');
         const passInput=document.getElementById('li-pass');
         if(userInput)userInput.value='';
         if(passInput)passInput.value='';
 
-        hideAlert(document.getElementById('login-err'));
         document.getElementById('back-to-top')?.classList.remove('show');
 
         toast('Logged out successfully.','success');
@@ -10426,7 +10557,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
     restoreSkeleton?.classList.remove('show');
 
     supabaseClient.auth.onAuthStateChange((event,session)=>{
-      if(event==='PASSWORD_RECOVERY'){
+      if(event==='PASSWORD_RECOVERY' && new URLSearchParams(window.location.search).get('auth')==='recovery'){
         document.getElementById('app')?.classList.remove('visible');
         const auth=document.getElementById('auth-wrap');
         if(auth)auth.style.display='block';
@@ -10441,9 +10572,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
         currentUser=null;
         currentPatient=null;
         sessionStorage.removeItem(SESSION_KEY);
-        document.getElementById('app')?.classList.remove('visible');
-        const auth=document.getElementById('auth-wrap');
-        if(auth)auth.style.display='block';
+        resetAuthUiToLogin();
       }
     });
 
@@ -10467,7 +10596,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v25 loaded.');
+console.log('CampusCare v27 loaded.');
 </script>
 </body>
 </html>
