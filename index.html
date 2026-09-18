@@ -1209,6 +1209,88 @@ tbody tr:hover td{background:var(--overlay)}
 #registration-toast-container .toast{pointer-events:auto}
 @media(max-width:600px){#registration-toast-container{bottom:14px}}
 
+
+/* === DOB YEAR + REGISTRATION TOAST REFINEMENT v2 === */
+
+/* Match the custom DOB year trigger to the calendar's native month select. */
+.cc-dob-year-button{
+  min-width:64px !important;
+  height:34px !important;
+  padding:0 26px 0 10px !important;
+  border:1px solid var(--glass-border) !important;
+  border-radius:9px !important;
+  background:var(--glass-surface) !important;
+  color:var(--ink) !important;
+  font:inherit !important;
+  font-size:.78rem !important;
+  font-weight:700 !important;
+  line-height:1 !important;
+  box-shadow:none !important;
+  appearance:none;
+  -webkit-appearance:none;
+}
+.cc-dob-year-button:hover,
+.cc-dob-year-button:focus-visible{
+  border-color:rgba(56,189,248,.55) !important;
+  background:var(--glass-surface) !important;
+  outline:none;
+}
+.cc-dob-year-button::after{
+  content:'⌄' !important;
+  right:9px !important;
+  color:var(--ink-muted) !important;
+  font-size:.72rem !important;
+}
+
+/* Make the opened year list use the same dark glass language as the month control. */
+.cc-dob-year-menu{
+  min-width:100% !important;
+  width:84px !important;
+  max-height:220px !important;
+  padding:3px !important;
+  border:1px solid var(--glass-border) !important;
+  border-radius:7px !important;
+  background:#1c2229 !important;
+  box-shadow:0 12px 28px rgba(0,0,0,.34) !important;
+}
+.cc-dob-year-menu button{
+  border-radius:3px !important;
+  padding:6px 8px !important;
+  background:transparent !important;
+  color:var(--ink) !important;
+  font-size:.78rem !important;
+  font-weight:500 !important;
+}
+.cc-dob-year-menu button:hover{
+  background:rgba(255,255,255,.09) !important;
+  color:var(--ink) !important;
+}
+.cc-dob-year-menu button[aria-selected="true"]{
+  background:rgba(255,255,255,.16) !important;
+  color:var(--ink) !important;
+}
+
+/* Registration feedback: lower-right on desktop. */
+#registration-toast-container{
+  left:auto !important;
+  right:24px !important;
+  bottom:22px !important;
+  transform:none !important;
+  width:min(360px,calc(100vw - 48px)) !important;
+}
+
+/* Registration feedback: centered at the bottom on mobile. */
+@media(max-width:600px){
+  #registration-toast-container{
+    left:50% !important;
+    right:auto !important;
+    bottom:14px !important;
+    transform:translateX(-50%) !important;
+    width:calc(100vw - 28px) !important;
+    max-width:390px !important;
+  }
+}
+
 </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
