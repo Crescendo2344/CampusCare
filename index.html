@@ -96,7 +96,10 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(window.supabaseClient?.auth){
     supabaseClient.auth.onAuthStateChange((event,session)=>{
       if(event==='PASSWORD_RECOVERY'){
-        setTimeout(()=>openForgotPassword(true),0);
+        setTimeout(()=>{
+          openForgotPassword(true);
+          updateRecoveryPasswordStrength();
+        },0);
         return;
       }
       if(event==='SIGNED_IN' && session) setTimeout(syncCampusCareSessionUI,0);
@@ -1831,9 +1834,28 @@ tbody tr:hover td{background:var(--overlay)}
         <div class="alert alert-info show" style="font-size:.76rem">
           🔐 Your recovery link was verified. Create a new CampusCare password.
         </div>
-        <div class="form-group"><label>New Password</label><input id="fp-newpass" type="password" placeholder="At least 8 characters" autocomplete="new-password"></div>
-        <div class="form-group"><label>Confirm New Password</label><input id="fp-newpass2" type="password" autocomplete="new-password"></div>
+        <div class="form-group">
+          <label>New Password</label>
+          <input id="fp-newpass" type="password" placeholder="At least 8 characters" autocomplete="new-password"
+            onfocus="showRecoveryPasswordChecklist()"
+            oninput="sanitizeInput(this,'password');updateRecoveryPasswordStrength()"
+            onblur="hideRecoveryPasswordChecklist()">
+        </div>
+        <div id="fp-strength" class="password-checklist" aria-live="polite">
+          <div id="fp-strength-label" class="password-strength-label weak">Weak password</div>
+          <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>At least 8 characters</span></div>
+          <div class="password-check" data-check="upper"><span class="pw-check-icon"></span><span>One uppercase letter</span></div>
+          <div class="password-check" data-check="lower"><span class="pw-check-icon"></span><span>One lowercase letter</span></div>
+          <div class="password-check" data-check="number"><span class="pw-check-icon"></span><span>One number</span></div>
+          <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
+        </div>
+        <div class="form-group">
+          <label>Confirm New Password</label>
+          <input id="fp-newpass2" type="password" autocomplete="new-password"
+            oninput="sanitizeInput(this,'password')">
+        </div>
         <button class="btn btn-primary" id="fp-update-btn" style="width:100%" onclick="submitNewPassword()">Update Password</button>
+        <button class="btn" id="fp-new-link-btn" style="width:100%;margin-top:.5rem;display:none" onclick="showForgotStep(1)">Request a New Reset Link</button>
       </div>
     </div>
   </div>
@@ -3827,6 +3849,14 @@ function closePendingPanel(){
 // FORGOT PASSWORD — real Supabase email recovery
 // ================================================================
 function openForgotPassword(recoveryMode=false){
+  // Recovery links arrive on the public landing URL. Explicitly switch from
+  // the landing page to the authentication card before showing the reset form.
+  const landing=document.getElementById('landing-page');
+  const authPage=document.getElementById('auth-page');
+  if(landing)landing.style.display='none';
+  if(authPage)authPage.style.display='block';
+  window.scrollTo(0,0);
+
   document.getElementById('login-section').style.display='none';
   document.getElementById('reg-section').style.display='none';
   document.getElementById('pending-section').style.display='none';
@@ -3906,6 +3936,47 @@ function cleanAuthCallbackUrl(){
   }catch(_){}
 }
 
+
+function showRecoveryPasswordChecklist(){
+  document.getElementById('fp-strength')?.classList.add('show');
+  updateRecoveryPasswordStrength();
+}
+function hideRecoveryPasswordChecklist(){
+  document.getElementById('fp-strength')?.classList.remove('show');
+}
+function updateRecoveryPasswordStrength(){
+  const input=document.getElementById('fp-newpass');
+  const el=document.getElementById('fp-strength');
+  const label=document.getElementById('fp-strength-label');
+  if(!input||!el)return;
+
+  const {checks,score,valid}=checkPasswordStrength(input.value);
+  el.querySelectorAll('.password-check').forEach(item=>{
+    item.classList.toggle('met',Boolean(checks[item.dataset.check]));
+  });
+
+  if(label){
+    let strength='Weak password',cls='weak';
+    if(valid&&score>=5){strength='Strong password';cls='strong';}
+    else if(valid||score>=3){strength='Medium password';cls='medium';}
+    label.textContent=strength;
+    label.className='password-strength-label '+cls;
+  }
+}
+
+async function getRecoverySession(){
+  if(!initializeSupabaseClient())return null;
+
+  // Supabase may still be consuming the URL hash when the page first loads,
+  // so retry briefly before declaring the recovery link invalid.
+  for(let attempt=0;attempt<5;attempt++){
+    const {data:{session}}=await supabaseClient.auth.getSession();
+    if(session?.user)return session;
+    await new Promise(resolve=>setTimeout(resolve,250));
+  }
+  return null;
+}
+
 async function submitNewPassword(){
   const p1=document.getElementById('fp-newpass').value;
   const p2=document.getElementById('fp-newpass2').value;
@@ -3927,6 +3998,13 @@ async function submitNewPassword(){
 
   try{
     if(!initializeSupabaseClient())throw new Error('Unable to connect to CampusCare.');
+    const recoverySession=await getRecoverySession();
+    if(!recoverySession){
+      const newLinkBtn=document.getElementById('fp-new-link-btn');
+      if(newLinkBtn)newLinkBtn.style.display='block';
+      throw new Error('This password-reset link is invalid or has expired. Please request a new reset link.');
+    }
+
     const {error}=await supabaseClient.auth.updateUser({password:p1});
     if(error)throw error;
 
@@ -3947,18 +4025,47 @@ async function submitNewPassword(){
 
 async function handleCampusCareAuthCallback(){
   const params=new URLSearchParams(window.location.search);
+  const hashParams=new URLSearchParams((window.location.hash||'').replace(/^#/,''));
   const mode=params.get('auth');
 
+  // Supabase can return callback errors in the query string or URL fragment.
+  const callbackError=
+    params.get('error_description')||
+    hashParams.get('error_description')||
+    params.get('error')||
+    hashParams.get('error');
+
+  if(callbackError){
+    showAuthPage('login');
+    cleanAuthCallbackUrl();
+    toast(decodeURIComponent(callbackError).replace(/\+/g,' '),'error',7000);
+    return 'auth-error';
+  }
+
   if(mode==='recovery'){
-    document.getElementById('app')?.classList.remove('visible');
-    const auth=document.getElementById('auth-wrap');
-    if(auth)auth.style.display='block';
+    // Always move from the public landing page to the authentication card.
     openForgotPassword(true);
+
+    const recoverySession=await getRecoverySession();
+    const err=document.getElementById('fp-err3');
+    const newLinkBtn=document.getElementById('fp-new-link-btn');
+
+    if(!recoverySession){
+      showAlert(err,'This password-reset link is invalid or has expired. Please request a new reset link.');
+      if(newLinkBtn)newLinkBtn.style.display='block';
+      const updateBtn=document.getElementById('fp-update-btn');
+      if(updateBtn)updateBtn.disabled=true;
+    }else{
+      hideAlert(err);
+      if(newLinkBtn)newLinkBtn.style.display='none';
+      const updateBtn=document.getElementById('fp-update-btn');
+      if(updateBtn)updateBtn.disabled=false;
+      updateRecoveryPasswordStrength();
+    }
     return 'recovery';
   }
 
   if(mode==='confirmed'){
-    // Supabase processes the confirmation token before redirecting here.
     const {data:{session}}=await supabaseClient.auth.getSession();
 
     if(session?.user){
@@ -3971,17 +4078,15 @@ async function handleCampusCareAuthCallback(){
       if(String(profile?.status||'').toLowerCase()==='pending'){
         await supabaseClient.auth.signOut();
         cleanAuthCallbackUrl();
-        document.getElementById('app')?.classList.remove('visible');
-        const auth=document.getElementById('auth-wrap');
-        if(auth)auth.style.display='block';
-        authTab('login');
+        showAuthPage('login');
         toast('Email confirmed successfully. Your registration is still pending administrator approval.','success',6500);
         return 'confirmed-pending';
       }
     }
 
     cleanAuthCallbackUrl();
-    toast('Email address confirmed successfully.','success');
+    showAuthPage('login');
+    toast('Email address confirmed successfully. You can now continue with CampusCare.','success',6500);
     return 'confirmed';
   }
 
@@ -10326,6 +10431,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
         const auth=document.getElementById('auth-wrap');
         if(auth)auth.style.display='block';
         openForgotPassword(true);
+        updateRecoveryPasswordStrength();
         return;
       }
       if(event==='SIGNED_IN'&&session&&!currentUser){
@@ -10361,7 +10467,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v24 loaded.');
+console.log('CampusCare v25 loaded.');
 </script>
 </body>
 </html>
