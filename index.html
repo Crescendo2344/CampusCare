@@ -45,24 +45,22 @@ async function syncCampusCareSessionUI(){
     initApp();
 
     if(currentUser.role==='Administrator'){
-      showDatabaseSkeleton('dashboard');
+      // Keep the already-rendered dashboard visible. Sync real database data in
+      // the background, then refresh the active page when the data arrives.
       syncAdminDirectoryFromSupabase()
-        .then(()=>{
-          if(typeof renderDashboard==='function')renderDashboard();
-          if(typeof refreshRealApprovalQueue==='function')
-            return refreshRealApprovalQueue(false);
-        })
-        .then(()=>{
-          if(typeof renderDashboard==='function')renderDashboard();
+        .then(async()=>{
+          if(typeof refreshRealApprovalQueue==='function'){
+            try{await refreshRealApprovalQueue(false);}catch(err){console.error('Approval sync:',err);}
+          }
+          refreshActivePageAfterSync();
         })
         .catch(err=>{
           console.error('Admin directory background sync:',err);
-          if(typeof renderDashboard==='function')renderDashboard();
-          toast('Some database data could not be refreshed. You can retry from the page.','warning');
+          toast('Some database data could not be refreshed. Open the page again to retry.','warning');
         });
     }else if(currentUser.role==='Patient'){
       syncCurrentPatientFromSupabase()
-        .then(()=>{if(typeof renderDashboard==='function')renderDashboard();})
+        .then(()=>refreshActivePageAfterSync())
         .catch(err=>console.error('Patient background sync:',err));
     }
 
@@ -131,17 +129,41 @@ function fetchWithTimeout(url,options={},timeoutMs=7000){
 
 async function fetchAdminDirectory(){
   if(currentUser?.role!=='Administrator')return [];
-  const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session)return [];
-  const response=await fetchWithTimeout(`${SUPABASE_URL}/functions/v1/admin-directory`,{
-    headers:{
-      apikey:SUPABASE_PUBLISHABLE_KEY,
-      Authorization:`Bearer ${session.access_token}`
+
+  // Administrator RLS policies already allow read access to users and patients,
+  // so load the directory directly from Supabase instead of waiting on an Edge Function.
+  const [{data:users,error:userErr},{data:patients,error:patientErr}]=await Promise.all([
+    supabaseClient.from('users')
+      .select('user_id,auth_user_id,first_name,last_name,username,email,contact_number,role,status,verified,person_type,college,id_number,profile_image_url,specialty,work_days,start_time,end_time,slot_duration,max_patients,created_at,last_login_at')
+      .order('user_id',{ascending:true}),
+    supabaseClient.from('patients')
+      .select('patient_id,user_id,birth_date,sex,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,medical_history,allergies,archived_at')
+      .order('patient_id',{ascending:true})
+  ]);
+
+  if(userErr)throw userErr;
+  if(patientErr)throw patientErr;
+
+  const patientByUser=new Map((patients||[]).map(p=>[Number(p.user_id),p]));
+  const rows=[];
+
+  for(const u of users||[]){
+    let profileSignedUrl=null;
+    if(u.profile_image_url){
+      try{
+        const {data:signed}=await supabaseClient.storage
+          .from('campuscare-profiles')
+          .createSignedUrl(u.profile_image_url,900);
+        profileSignedUrl=signed?.signedUrl||null;
+      }catch(_){}
     }
-  },7000);
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.ok)throw new Error(result.error||'Unable to load CampusCare directory.');
-  return result.users||[];
+    rows.push({
+      ...u,
+      patient:patientByUser.get(Number(u.user_id))||null,
+      profile_signed_url:profileSignedUrl
+    });
+  }
+  return rows;
 }
 
 function ageFromBirthDate(date){
@@ -186,6 +208,22 @@ function directoryRowToPatient(u){
     createdAt:uiUser.createdAt||'',
     _realSupabase:true
   };
+}
+
+
+function getActiveNavPageId(){
+  const active=document.querySelector('#sidebar nav [id^="nav-"].active');
+  return active?.id?.replace(/^nav-/,'')||'dashboard';
+}
+
+function refreshActivePageAfterSync(){
+  const pageId=getActiveNavPageId();
+  try{
+    if(pageId==='dashboard')renderDashboard();
+    else renderPage(pageId);
+  }catch(err){
+    console.error('Page refresh after database sync:',err);
+  }
 }
 
 async function syncAdminDirectoryFromSupabase(){
@@ -5874,7 +5912,8 @@ async function renderPatients(){
     try{await syncAdminDirectoryFromSupabase();}
     catch(e){
       console.error(e);
-      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load patient records.')}</div>`;
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load patient records.')}</div>
+        <button class="btn btn-sm" onclick="renderPatients()">Retry</button>`;
       return;
     }
   }
@@ -7545,7 +7584,8 @@ async function renderUsers(){
     try{await syncAdminDirectoryFromSupabase();}
     catch(e){
       console.error(e);
-      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load user management data.')}</div>`;
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load user management data.')}</div>
+        <button class="btn btn-sm" onclick="renderUsers()">Retry</button>`;
       return;
     }
   }
