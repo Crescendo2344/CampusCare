@@ -47,7 +47,7 @@ async function syncCampusCareSessionUI(){
     }
 
     if(currentUser.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
-      setTimeout(refreshRealApprovalQueue,250);
+      setTimeout(()=>refreshRealApprovalQueue(false).then(()=>{if(typeof renderDashboard==='function')renderDashboard();}).catch(console.error),250);
     }
     return true;
   }catch(err){
@@ -3336,106 +3336,149 @@ function openPrivacyNotice(){
   </div><div class="modal-footer"><button class="btn btn-primary" onclick="closeAllModals()">Close</button></div></div>`);
 }
 
+function dataUrlToRegistrationFile(dataUrl, filename='capture.jpg'){
+  const parts=String(dataUrl||'').split(',');
+  if(parts.length<2)throw new Error('Captured image is invalid.');
+  const mime=(parts[0].match(/data:(.*?);/)||[])[1]||'image/jpeg';
+  const binary=atob(parts[1]);
+  const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  return new File([bytes],filename,{type:mime});
+}
+
 async function doRegister() {
-  const dobInput = document.getElementById('r-dob');
-  if (dobInput && !dobInput.max) dobInput.max = TODAY;
-  const fname = document.getElementById('r-fname').value.trim();
-  const lname = document.getElementById('r-lname').value.trim();
-  const uname = document.getElementById('r-user').value.trim();
-  const email = document.getElementById('r-email').value.trim();
-  const pass = document.getElementById('r-pass').value;
-  const contact = document.getElementById('r-contact').value.trim();
-  const ptype = document.getElementById('r-ptype').value;
-  const college = ptype === 'Student' ? document.getElementById('r-college').value : '';
-  const idNo = document.getElementById('r-idno').value.trim();
-  const dob = document.getElementById('r-dob').value;
-  const sex = document.getElementById('r-sex').value;
-  const fileInput = document.getElementById('r-id-file');
-  const selfieInput = document.getElementById('r-selfie-file');
-  const err = document.getElementById('reg-err');
-  const ok = document.getElementById('reg-ok');
-  hideAlert(err); hideAlert(ok);
+  if(!initializeSupabaseClient()){
+    registrationToast('Unable to connect to CampusCare. Please try again.','error');
+    return;
+  }
+
+  const dobInput=document.getElementById('r-dob');
+  if(dobInput&&!dobInput.max)dobInput.max=TODAY;
+
+  const fname=document.getElementById('r-fname').value.trim();
+  const lname=document.getElementById('r-lname').value.trim();
+  const uname=document.getElementById('r-user').value.trim();
+  const email=document.getElementById('r-email').value.trim().toLowerCase();
+  const pass=document.getElementById('r-pass').value;
+  const contact=document.getElementById('r-contact').value.trim();
+  const ptype=document.getElementById('r-ptype').value;
+  const college=ptype==='Student'?document.getElementById('r-college').value:'';
+  const idNo=document.getElementById('r-idno').value.trim();
+  const dob=document.getElementById('r-dob').value;
+  const sex=document.getElementById('r-sex').value;
+  const fileInput=document.getElementById('r-id-file');
+  const selfieInput=document.getElementById('r-selfie-file');
   const privacyConsent=document.getElementById('r-privacy-consent');
-  if(!privacyConsent||!privacyConsent.checked){showAlert(err,'Please read and agree to the CampusCare Privacy Notice and Consent before registering.');return;}
 
-  if (!fname || !lname || !uname || !email || !pass) {
-    showAlert(err, 'Name, username, email and password are required.');
+  if(!privacyConsent?.checked){
+    registrationToast('Please read and agree to the CampusCare Privacy Notice and Consent before registering.','error');
     return;
   }
-  if (!dob) {
-    showAlert(err, 'Please enter your date of birth.');
+  if(!fname||!lname||!uname||!email||!pass){
+    registrationToast('Name, username, email and password are required.','error');
     return;
   }
-  if (dob > TODAY) {
-    showAlert(err, 'Date of birth cannot be in the future.');
+  if(!dob){
+    registrationToast('Please enter your date of birth.','error');
     return;
   }
-  const ageYears = Math.floor((new Date(TODAY) - new Date(dob)) / (365.25*24*60*60*1000));
-  if (ageYears < 10 || ageYears > 100) {
-    showAlert(err, 'Please double-check your date of birth.');
+  if(dob>TODAY){
+    registrationToast('Date of birth cannot be in the future.','error');
     return;
   }
-  if (!sex) {
-    showAlert(err, 'Please select your sex.');
+  const ageYears=Math.floor((new Date(TODAY)-new Date(dob))/(365.25*24*60*60*1000));
+  if(ageYears<10||ageYears>100){
+    registrationToast('Please double-check your date of birth.','error');
     return;
   }
-  if (!checkPasswordStrength(pass).valid) {
-    showAlert(err, 'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.');
+  if(!sex){
+    registrationToast('Please select your sex.','error');
     return;
   }
-  if (!selfieInput.files.length && !capturedSelfieDataUrl) {
-    showAlert(err, 'Please upload or capture a selfie photo for verification.');
+  if(!checkPasswordStrength(pass).valid){
+    registrationToast('Password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.','error');
     return;
   }
-  if (!fileInput.files.length && !capturedIdDataUrl) {
-    showAlert(err, 'Please upload or capture your School ID or COR.');
+  if(!selfieInput.files.length&&!capturedSelfieDataUrl){
+    registrationToast('Please upload or capture a selfie photo for verification.','error');
     return;
   }
-  if (DB.users.find(x => x.username === uname)) {
-    showAlert(err, 'Username already taken.');
-    return;
-  }
-  if (DB.users.find(x => x.email === email)) {
-    showAlert(err, 'Email already registered.');
+  if(!fileInput.files.length&&!capturedIdDataUrl){
+    registrationToast('Please upload or capture your School ID or COR.','error');
     return;
   }
 
-  const idFile = fileInput.files[0];
-  const selfieFile = selfieInput.files[0];
-  let idFileDataUrl, selfieDataUrl, idFileName;
+  let selfieFile,verificationFile;
   try{
-    idFileDataUrl = capturedIdDataUrl || await readFileAsDataURL(idFile);
-    selfieDataUrl = capturedSelfieDataUrl || await resizeImageDataUrl(await readFileAsDataURL(selfieFile));
-    idFileName = capturedIdDataUrl ? 'camera-capture.jpg' : idFile.name;
-    if(capturedIdDataUrl || idFile.type.startsWith('image/')) idFileDataUrl = await resizeImageDataUrl(idFileDataUrl, 700, 0.85);
+    selfieFile=selfieInput.files[0]||dataUrlToRegistrationFile(capturedSelfieDataUrl,'profile.jpg');
+    verificationFile=fileInput.files[0]||dataUrlToRegistrationFile(capturedIdDataUrl,'verification.jpg');
   }catch(e){
-    showAlert(err, 'Could not read the uploaded files. Please try again.');
+    registrationToast(e?.message||'Could not prepare the uploaded files.','error');
     return;
   }
-  const uid = DB.nextUserId++;
-  const newUser = {
-    id: uid, fname, lname, username: uname, password: pass, role: 'Patient',
-    email, contact, status: 'Pending', college, personType: ptype, idNo,
-    dob, sex,
-    idFile: idFileName,
-    idFileData: idFileDataUrl,
-    profilePhoto: selfieDataUrl,
-    verified: false, createdAt: TODAY, lastLogin: '',
-    privacyConsent:true, privacyConsentVersion:DB.settings.privacyPolicyVersion,
-    privacyConsentAt:new Date().toISOString()
+
+  const metadata={
+    first_name:fname,
+    last_name:lname,
+    username:uname,
+    contact_no:contact,
+    person_type:ptype,
+    college,
+    id_number:idNo,
+    date_of_birth:dob,
+    sex,
+    privacy_consent:true,
+    privacy_policy_version:DB.settings?.privacyPolicyVersion||'1.0',
+    privacy_consent_at:new Date().toISOString()
   };
-  DB.users.push(newUser);
-  auditLog('REGISTRATION_SUBMITTED',`${fname} ${lname} submitted registration and privacy consent v${DB.settings.privacyPolicyVersion}.`,'User',uid,newUser);
-  addNotif(1, 'New Registration Request', `${fname} ${lname} (${ptype}) has submitted a registration request.`, 'info');
-  persistDB();
-  showPendingPanel(newUser);
-  // Reset the form for next time, now that the pending panel has taken over the view.
-  ['r-fname','r-lname','r-user','r-email','r-pass','r-contact','r-idno','r-dob','r-sex'].forEach(id=>{const el=document.getElementById(id); if(el)el.value='';});
-  fileInput.value=''; selfieInput.value='';
-  document.getElementById('r-file-preview').textContent='';
-  resetSelfiePreview();
-  capturedSelfieDataUrl=null; capturedIdDataUrl=null; lastOcrCleanText='';
-  const idStatus=document.getElementById('id-analyze-status'); if(idStatus)idStatus.textContent='';
+
+  const form=new FormData();
+  form.append('email',email);
+  form.append('password',pass);
+  form.append('metadata',JSON.stringify(metadata));
+  form.append('selfie',selfieFile,selfieFile.name||'profile.jpg');
+  form.append('verification',verificationFile,verificationFile.name||'verification');
+
+  const submitBtn=document.querySelector('#reg-section button[onclick="doRegister()"]');
+  const oldText=submitBtn?.textContent;
+  if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Submitting securely…';}
+
+  try{
+    const response=await fetch(`${SUPABASE_URL}/functions/v1/register-patient`,{
+      method:'POST',
+      headers:{apikey:SUPABASE_PUBLISHABLE_KEY},
+      body:form
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||!result.ok){
+      throw new Error(result.error||'Registration failed. Please try again.');
+    }
+
+    registrationToast(
+      result.email_confirmation_required
+        ? 'Registration submitted. Check your email, then wait for administrator approval.'
+        : 'Registration submitted. Please wait for administrator approval.',
+      'success',
+      6500
+    );
+
+    // Show the existing pending-registration screen without storing the account locally.
+    showPendingPanel({
+      fname,lname,username:uname,email,personType:ptype,college,idNo,
+      dob,sex,status:'Pending'
+    });
+
+    ['r-fname','r-lname','r-user','r-email','r-pass','r-contact','r-idno','r-dob','r-sex']
+      .forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    fileInput.value='';selfieInput.value='';
+    const preview=document.getElementById('r-file-preview');if(preview)preview.textContent='';
+    const consent=document.getElementById('r-privacy-consent');if(consent)consent.checked=false;
+    capturedSelfieDataUrl=null;capturedIdDataUrl=null;
+  }catch(e){
+    registrationToast(e?.message||'Registration failed. Please try again.','error',6000);
+  }finally{
+    if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=oldText||'Submit Registration';}
+  }
 }
 
 function showPendingPanel(user){
@@ -5757,86 +5800,174 @@ function sendApptNotif(id){
 // ================================================================
 // APPROVALS
 // ================================================================
-function renderApprovals() {
-  const c = document.getElementById('app-content');
-  const pending = DB.users.filter(u => u.status === 'Pending');
-  c.innerHTML = `
+let realPendingApprovals=[];
+
+async function fetchRealPendingApprovals(){
+  if(currentUser?.role!=='Administrator')return [];
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your administrator session has expired.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/admin-approvals`,{
+    headers:{
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    }
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Unable to load pending registrations.');
+  return result.users||[];
+}
+
+function realApprovalUiUser(u){
+  return {
+    id:u.user_id,
+    authUserId:u.auth_user_id,
+    fname:u.first_name||'',
+    lname:u.last_name||'',
+    username:u.username||'',
+    email:u.email||'',
+    contact:u.contact_number||'',
+    personType:u.person_type||'',
+    college:u.college||'',
+    idNo:u.id_number||'',
+    dob:u.birth_date||'',
+    sex:u.sex||'',
+    profilePhoto:u.profile_signed_url||'',
+    idFileData:u.verification_signed_url||'',
+    idFile:u.id_file_url?u.id_file_url.split('/').pop():'Verification document',
+    createdAt:u.created_at,
+    role:'Patient',
+    status:'Pending',
+    verified:false,
+    _realSupabaseApproval:true
+  };
+}
+
+function syncRealPendingIntoDemoDB(rows){
+  // Dashboard cards still read DB.users for now. Keep only the authoritative
+  // Supabase pending registrations in that Pending Patient subset.
+  DB.users=(DB.users||[]).filter(u=>!(u.role==='Patient'&&u.status==='Pending'));
+  DB.users.push(...rows.map(realApprovalUiUser));
+}
+
+async function refreshRealApprovalQueue(renderPage=false){
+  if(currentUser?.role!=='Administrator')return [];
+  const rows=await fetchRealPendingApprovals();
+  realPendingApprovals=rows;
+  syncRealPendingIntoDemoDB(rows);
+  if(renderPage&&document.getElementById('app-content'))renderApprovals(false);
+  return rows;
+}
+
+async function renderApprovals(loadRemote=true) {
+  const c=document.getElementById('app-content');
+  if(!c)return;
+
+  if(loadRemote){
+    c.innerHTML=`<div class="card"><div class="card-header"><h3>Pending Registration Approvals</h3></div>
+      <div class="empty-state"><p>Loading pending registrations…</p></div></div>`;
+    try{
+      await refreshRealApprovalQueue(false);
+    }catch(e){
+      c.innerHTML=`<div class="card"><div class="card-header"><h3>Pending Registration Approvals</h3></div>
+        <div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load pending registrations.')}</div></div>`;
+      return;
+    }
+  }
+
+  const pending=realPendingApprovals.map(realApprovalUiUser);
+  c.innerHTML=`
     <div class="card">
-      <div class="card-header"><h3>Pending Registration Approvals</h3><span class="badge badge-warning">${pending.length} pending</span></div>
-      ${pending.length ? `<div class="table-wrap"><table><thead><tr>
-        <th>Selfie</th><th>Name</th><th>Username</th><th>Email</th><th>DOB</th><th>Type</th><th>College</th><th>ID No.</th><th>ID/COR File</th><th>Submitted</th><th>Actions</th>
+      <div class="card-header">
+        <h3>Pending Registration Approvals</h3>
+        <div style="display:flex;gap:.45rem;align-items:center">
+          <span class="badge badge-warning">${pending.length} pending</span>
+          <button class="btn btn-xs" onclick="renderApprovals(true)">↻ Refresh</button>
+        </div>
+      </div>
+      ${pending.length?`<div class="table-wrap"><table><thead><tr>
+        <th>Selfie</th><th>Name</th><th>Username</th><th>Email</th><th>DOB</th><th>Type</th><th>College</th><th>ID No.</th><th>ID/COR</th><th>Submitted</th><th>Actions</th>
       </tr></thead><tbody>${
-        pending.map(u => `
-          <tr>
-            <td>${u.profilePhoto?`<img src="${u.profilePhoto}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;display:block;cursor:pointer" onclick="showFilePreview('${jsAttrSafe(u.fname)} ${jsAttrSafe(u.lname)} - Selfie','${u.profilePhoto}')" title="Click to view full size">`:'<span class="text-muted">—</span>'}</td>
-            <td><strong>${u.fname} ${u.lname}</strong></td>
-            <td>${u.username}</td>
-            <td>${u.email}</td>
-            <td>${u.dob?fmtDate(u.dob):'<span class="text-muted">—</span>'}</td>
-            <td>${priorityBadge(u.personType)}</td>
-            <td>${collegeBadge(u.college)}</td>
-            <td>${u.idNo || '-'}</td>
-            <td>
-              <button class="btn btn-xs btn-info" onclick="showFilePreview('${jsAttrSafe(u.idFile)}', '${u.idFileData}')">
-                📄 View ${u.idFile}
-              </button>
-            </td>
-            <td>${fmtDate(u.createdAt)}</td>
-            <td><div class="td-actions">
-              <button class="btn btn-xs btn-success" onclick="approveUser(${u.id})">Approve</button>
-              <button class="btn btn-xs btn-danger" onclick="rejectUser(${u.id})">Reject</button>
-            </div></td>
-          </tr>
-        `).join('')
-      }</tbody></table></div>` : '<div class="empty-state"><p>No pending approvals.</p></div>'}
+        pending.map(u=>`<tr>
+          <td>${u.profilePhoto?`<img src="${u.profilePhoto}" style="width:34px;height:34px;border-radius:50%;object-fit:cover;display:block;cursor:pointer" onclick="showFilePreview('${jsAttrSafe(u.fname)} ${jsAttrSafe(u.lname)} - Selfie','${u.profilePhoto}')">`:'—'}</td>
+          <td><strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong></td>
+          <td>${escapeHtml(u.username)}</td>
+          <td>${escapeHtml(u.email)}</td>
+          <td>${u.dob?fmtDate(u.dob):'—'}</td>
+          <td>${priorityBadge(u.personType||'Patient')}</td>
+          <td>${collegeBadge(u.college)}</td>
+          <td>${escapeHtml(u.idNo||'-')}</td>
+          <td>${u.idFileData?`<button class="btn btn-xs btn-info" onclick="showFilePreview('${jsAttrSafe(u.idFile)}','${u.idFileData}')">📄 View document</button>`:'—'}</td>
+          <td>${u.createdAt?fmtDate(u.createdAt):'—'}</td>
+          <td><div class="td-actions">
+            <button class="btn btn-xs btn-success" onclick="approveUser(${u.id})">Approve</button>
+            <button class="btn btn-xs btn-danger" onclick="rejectUser(${u.id})">Reject</button>
+          </div></td>
+        </tr>`).join('')
+      }</tbody></table></div>`:'<div class="empty-state"><p>No pending approvals.</p></div>'}
     </div>`;
 }
 
+async function submitRealApprovalDecision(id,action,reason=''){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your administrator session has expired.');
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/admin-approvals`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify({user_id:Number(id),action,reason})
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Unable to update registration.');
+  return result;
+}
+
 function approveUser(id){
-  const u=DB.users.find(x=>x.id===id);
+  const u=realPendingApprovals.map(realApprovalUiUser).find(x=>x.id===Number(id));
   if(!u)return;
   showConfirmDialog({
     title:'Approve Registration',
-    message:`Approve <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s registration? They will be able to log in immediately.`,
+    message:`Approve <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s registration? They will be able to log in after approval.`,
     confirmLabel:'Approve',
-    onConfirm:()=>{
-      u.status='Active';u.verified=true;
-      if(u.role==='Patient'){
-        const exists=DB.patients.find(p=>p.userId===id);
-        if(!exists){
-          const age=u.dob?Math.floor((new Date(TODAY)-new Date(u.dob))/(365.25*24*60*60*1000)):0;
-          DB.patients.push({id:DB.nextPatientId++,userId:id,fname:u.fname,lname:u.lname,age,dob:u.dob||'',gender:u.sex||'Unknown',blood:'Unknown',address:'',college:u.college,personType:u.personType,idNo:u.idNo,height:'',weight:'',emergencyContact:'',emergencyName:'',medHistory:'',allergies:'',createdAt:TODAY});
-        }
-      }
-      addNotif(id,'Account Approved!','Your CampusCare account has been approved. You can now login.','success');
-      toast(`${u.fname} ${u.lname} approved.`,'success');
-      renderApprovals();
+    onConfirm:async()=>{
+      try{
+        await submitRealApprovalDecision(id,'approve');
+        toast(`${u.fname} ${u.lname} approved.`,'success');
+        await renderApprovals(true);
+      }catch(e){toast(e?.message||'Approval failed.','error');}
     }
   });
 }
 
 function rejectUser(id){
-  const u=DB.users.find(x=>x.id===id);
+  const u=realPendingApprovals.map(realApprovalUiUser).find(x=>x.id===Number(id));
   if(!u)return;
   openModal(`<div class="modal modal-sm">
     <div class="modal-header"><h3>⚠️ Reject Registration</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
-      <p style="font-size:.87rem;margin-bottom:.7rem">Are you sure you want to reject <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s registration?</p>
-      <div class="form-group"><label>Reason (optional)</label><textarea id="reject-reason-text" rows="2" placeholder="Let them know why, if you'd like"></textarea></div>
+      <p style="font-size:.87rem;margin-bottom:.7rem">Reject <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s registration?</p>
+      <div class="form-group"><label>Reason (optional)</label><textarea id="reject-reason-text" rows="2" placeholder="Reason for rejection"></textarea></div>
     </div>
-    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-danger" onclick="confirmRejectUser(${id})">Reject Registration</button></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmRejectUser(${id})">Reject Registration</button>
+    </div>
   </div>`);
 }
 
-function confirmRejectUser(id){
-  const u=DB.users.find(x=>x.id===id);
+async function confirmRejectUser(id){
+  const u=realPendingApprovals.map(realApprovalUiUser).find(x=>x.id===Number(id));
   if(!u)return;
-  const reason=(document.getElementById('reject-reason-text')||{}).value||'';
-  u.status='Suspended';
-  addNotif(id,'Registration Rejected',`Your registration was not approved. ${reason?'Reason: '+reason:'Please contact the clinic for details.'}` ,'danger');
-  toast(`${u.fname} ${u.lname} rejected.`,'warning');
+  const reason=(document.getElementById('reject-reason-text')?.value||'').trim();
   closeAllModals();
-  renderApprovals();
+  try{
+    await submitRealApprovalDecision(id,'reject',reason);
+    toast(`${u.fname} ${u.lname} rejected.`,'warning');
+    await renderApprovals(true);
+  }catch(e){toast(e?.message||'Rejection failed.','error');}
 }
 
 // ================================================================
