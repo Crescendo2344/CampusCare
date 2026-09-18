@@ -2557,13 +2557,19 @@ function captureCameraPhoto(target){
       toast('Selfie captured.','success');
     });
   }else if(target==='account'){
-    resizeImageDataUrl(dataUrl).then(resized=>{
-      currentUser.profilePhoto=resized;
-      const sbAvatarEl=document.getElementById('sb-avatar');
-      if(sbAvatarEl)sbAvatarEl.innerHTML=`<img src="${resized}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
-      persistDB();
-      toast('Profile photo updated.','success');
-      if(document.getElementById('acc-photo-wrap'))renderMyAccount();
+    resizeImageDataUrl(dataUrl,700,0.88).then(async resized=>{
+      try{
+        const uploadFile=dataUrlToProfileFile(resized,'profile.jpg');
+        await uploadCurrentUserProfilePhoto(uploadFile);
+        toast('Profile photo updated.','success');
+        if(document.getElementById('acc-photo-wrap'))renderMyAccount();
+        if(currentUser.role==='Administrator'&&typeof syncAdminDirectoryFromSupabase==='function'){
+          syncAdminDirectoryFromSupabase().catch(console.error);
+        }
+      }catch(e){
+        console.error('Camera profile upload:',e);
+        toast(e?.message||'Could not update your photo. Please try again.','error');
+      }
     });
   }else if(target==='invitem'){
     resizeImageDataUrl(dataUrl,320,0.82).then(resized=>{
@@ -5676,26 +5682,101 @@ function rejectNameChange(reqId){
   });
 }
 
+
+async function uploadCurrentUserProfilePhoto(file){
+  if(!file)throw new Error('Profile photo is required.');
+  if(!initializeSupabaseClient())throw new Error('Unable to connect to CampusCare.');
+
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const form=new FormData();
+  form.append('photo',file,file.name||'profile.jpg');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/account-profile-photo`,{
+    method:'POST',
+    headers:{
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:form
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Unable to update profile photo.');
+
+  // Update the currently logged-in UI immediately.
+  currentUser.profilePhoto=result.signed_url||'';
+  currentUser.profileImage=result.signed_url||'';
+
+  // Keep the synchronized real-user copy current too.
+  const synced=DB.users.find(u=>u._realSupabase&&u.dbUserId===currentUser.dbUserId);
+  if(synced){
+    synced.profilePhoto=currentUser.profilePhoto;
+    synced.profileImage=currentUser.profileImage;
+  }
+
+  // If this user also has a patient record, update its visible photo reference.
+  const patient=DB.patients.find(p=>p._realSupabase&&p.dbUserId===currentUser.dbUserId);
+  if(patient)patient.profilePhoto=currentUser.profilePhoto;
+
+  const sbAvatarEl=document.getElementById('sb-avatar');
+  if(sbAvatarEl){
+    sbAvatarEl.innerHTML=currentUser.profilePhoto
+      ? `<img src="${escapeHtml(currentUser.profilePhoto)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      : `${(currentUser.fname?.[0]||'')}${(currentUser.lname?.[0]||'')}`;
+  }
+
+  return result;
+}
+
+function dataUrlToProfileFile(dataUrl,filename='profile.jpg'){
+  const parts=String(dataUrl||'').split(',');
+  if(parts.length<2)throw new Error('Captured image is invalid.');
+  const mime=(parts[0].match(/data:(.*?);/)||[])[1]||'image/jpeg';
+  const binary=atob(parts[1]);
+  const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  return new File([bytes],filename,{type:mime});
+}
+
 async function changeProfilePhoto(input){
   const file=input.files&&input.files[0];
   if(!file)return;
-  if(!file.type.startsWith('image/')){toast('Please choose an image file.','error');return;}
+  if(!file.type.startsWith('image/')){
+    toast('Please choose an image file.','error');
+    input.value='';
+    return;
+  }
+
+  const btn=document.querySelector('button[onclick*="acc-photo-file"]');
+  const oldText=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Uploading…';}
+
   try{
+    // Resize before upload to keep Storage usage and load time reasonable.
     const raw=await readFileAsDataURL(file);
-    const resized=await resizeImageDataUrl(raw);
-    currentUser.profilePhoto=resized;
-    persistDB();
-    const sbAvatarEl=document.getElementById('sb-avatar');
-    if(sbAvatarEl)sbAvatarEl.innerHTML=`<img src="${resized}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    const resized=await resizeImageDataUrl(raw,700,0.88);
+    const uploadFile=dataUrlToProfileFile(resized,'profile.jpg');
+
+    await uploadCurrentUserProfilePhoto(uploadFile);
+
     toast('Profile photo updated.','success');
     renderMyAccount();
+
+    // If Administrator opens User Management next, the real Supabase image
+    // will also be refreshed from the database and signed Storage URL.
+    if(currentUser.role==='Administrator'&&typeof syncAdminDirectoryFromSupabase==='function'){
+      syncAdminDirectoryFromSupabase().catch(console.error);
+    }
   }catch(e){
-    toast('Could not update your photo. Please try a different image.','error');
+    console.error('Profile photo upload:',e);
+    toast(e?.message||'Could not update your photo. Please try a different image.','error');
+  }finally{
+    input.value='';
+    if(btn){btn.disabled=false;btn.textContent=oldText||'Upload Photo';}
   }
 }
-
-let pwChangeCode=null;
-let pwChangeNewPass=null;
 
 function requestPasswordChangeCode(){
   const u=currentUser;
