@@ -16,6 +16,26 @@
 // === LOGIN SESSION UI SYNC ===
 // Prevents the user from needing to refresh after a successful Supabase login.
 // It restores the signed-in profile and immediately switches from auth to the app.
+
+async function hydrateCurrentUserProfilePhoto(profile){
+  if(!profile?.profile_image_url)return profile;
+
+  try{
+    const {data,error}=await supabaseClient.storage
+      .from('campuscare-profiles')
+      .createSignedUrl(profile.profile_image_url,3600);
+
+    if(!error&&data?.signedUrl){
+      return {...profile,profile_signed_url:data.signedUrl};
+    }
+  }catch(err){
+    console.error('Current user profile photo:',err);
+  }
+
+  // Keep login/session usable even if the photo cannot be signed.
+  return profile;
+}
+
 async function syncCampusCareSessionUI(){
   if(!initializeSupabaseClient())return false;
   try{
@@ -32,7 +52,8 @@ async function syncCampusCareSessionUI(){
       return false;
     }
 
-    currentUser=normalizeSupabaseUser(profile);
+    const hydratedProfile=await hydrateCurrentUserProfilePhoto(profile);
+    currentUser=normalizeSupabaseUser(hydratedProfile);
 
     if(String(currentUser.status).toLowerCase()!=='active'){
       await supabaseClient.auth.signOut();
@@ -286,6 +307,9 @@ async function syncCurrentPatientFromSupabase(){
     DB.patients=(DB.patients||[]).filter(p=>!p._realSupabase||p.userId!==currentUser.id);
     DB.patients.push(realPatient);
     currentPatient=realPatient;
+    if(currentUser.profilePhoto){
+      currentPatient.profilePhoto=currentUser.profilePhoto;
+    }
   }catch(e){console.error('Patient sync:',e);}
 }
 
@@ -3949,10 +3973,18 @@ function initApp(){
   document.getElementById('app').classList.add('visible');
   document.getElementById('sb-name').textContent=`${currentUser.fname} ${currentUser.lname}`;
   document.getElementById('sb-email').textContent=currentUser.email;
-  const initials=(currentUser.fname[0]||'')+(currentUser.lname[0]||'');
+  const initials=((currentUser.fname?.[0]||'')+(currentUser.lname?.[0]||'')).toUpperCase()||'U';
   const sbAvatarEl=document.getElementById('sb-avatar');
-  if(currentUser.profilePhoto) sbAvatarEl.innerHTML=`<img src="${currentUser.profilePhoto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
-  else sbAvatarEl.textContent=initials.toUpperCase();
+  if(sbAvatarEl){
+    if(currentUser.profilePhoto){
+      sbAvatarEl.innerHTML=`<img src="${escapeHtml(currentUser.profilePhoto)}"
+        style="width:100%;height:100%;object-fit:cover;border-radius:50%"
+        alt="${escapeHtml(currentUser.fname||'User')} profile photo"
+        onerror="this.remove();this.parentElement.textContent='${initials}'">`;
+    }else{
+      sbAvatarEl.textContent=initials;
+    }
+  }
   const roleBadge=document.getElementById('sb-role-badge');
   roleBadge.textContent=currentUser.role;
   const rColors={Administrator:'badge-purple',Doctor:'badge-teal',Staff:'badge-warning',Patient:'badge-info'};
