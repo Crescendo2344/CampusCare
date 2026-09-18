@@ -3878,22 +3878,49 @@ function submitNewPassword(){
 }
 
 function logout(){
-  if(currentUser){auditLog('LOGOUT','User signed out of CampusCare.','Session',currentUser.id);persistDB();}
   showConfirmDialog({
     title:'Log Out',
     message:'Are you sure you want to logout?',
     confirmLabel:'Logout',
     bypassSecondStep:true,
-    onConfirm:()=>{
-      currentUser=null;currentPatient=null;
-      sessionStorage.removeItem(SESSION_KEY);
-      document.getElementById('app').classList.remove('visible');
-      document.getElementById('auth-wrap').style.display='block';
-      document.getElementById('li-user').value='';
-      document.getElementById('li-pass').value='';
-      hideAlert(document.getElementById('login-err'));
-      document.getElementById('back-to-top').classList.remove('show');
-      toast('Logged out successfully.','success');
+    onConfirm:async()=>{
+      try{
+        // Record the action before the authenticated session is destroyed.
+        if(currentUser){
+          auditLog('LOGOUT','User signed out of CampusCare.','Session',currentUser.id);
+          persistDB();
+        }
+
+        // IMPORTANT: CampusCare now uses Supabase Auth with a persisted browser
+        // session. Clearing only currentUser/sessionStorage is not enough because
+        // Supabase would restore that session on refresh or in another tab.
+        if(initializeSupabaseClient()){
+          const {error}=await supabaseClient.auth.signOut();
+          if(error)throw error;
+        }
+
+        currentUser=null;
+        currentPatient=null;
+        sessionStorage.removeItem(SESSION_KEY);
+
+        const app=document.getElementById('app');
+        const auth=document.getElementById('auth-wrap');
+        if(app)app.classList.remove('visible');
+        if(auth)auth.style.display='block';
+
+        const userInput=document.getElementById('li-user');
+        const passInput=document.getElementById('li-pass');
+        if(userInput)userInput.value='';
+        if(passInput)passInput.value='';
+
+        hideAlert(document.getElementById('login-err'));
+        document.getElementById('back-to-top')?.classList.remove('show');
+
+        toast('Logged out successfully.','success');
+      }catch(e){
+        console.error('Supabase logout:',e);
+        toast(e?.message||'Unable to log out. Please try again.','error');
+      }
     }
   });
 }
@@ -10063,6 +10090,10 @@ document.addEventListener('DOMContentLoaded',async()=>{
       if(event==='SIGNED_OUT'){
         currentUser=null;
         currentPatient=null;
+        sessionStorage.removeItem(SESSION_KEY);
+        document.getElementById('app')?.classList.remove('visible');
+        const auth=document.getElementById('auth-wrap');
+        if(auth)auth.style.display='block';
       }
     });
 
