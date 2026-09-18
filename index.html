@@ -105,8 +105,8 @@ function normalizeSupabaseUser(profile){
     personType: profile.person_type??profile.personType??'',
     college: profile.college??'',
     idNo: profile.id_number??profile.idNo??'',
-    profileImage: profile.profile_signed_url??profile.profile_image_url??profile.profileImage??'',
-    profilePhoto: profile.profile_signed_url??profile.profile_image_url??profile.profilePhoto??'',
+    profileImage: profile.profile_signed_url??profile.profileImage??'',
+    profilePhoto: profile.profile_signed_url??profile.profilePhoto??'',
     specialty: profile.specialty??'',
     workDays: profile.work_days??profile.workDays??[],
     startTime: profile.start_time??profile.startTime??'',
@@ -153,7 +153,7 @@ async function fetchAdminDirectory(){
       try{
         const {data:signed}=await supabaseClient.storage
           .from('campuscare-profiles')
-          .createSignedUrl(u.profile_image_url,900);
+          .createSignedUrl(u.profile_image_url,3600);
         profileSignedUrl=signed?.signedUrl||null;
       }catch(_){}
     }
@@ -3330,7 +3330,7 @@ function getAssistantReply(raw){
   // Patient count
   if(has('how many patient','total patient','number of patient')){
     if(!(role==='Administrator'||role==='Staff'||role==='Doctor'))return "Patient counts are only available to clinic staff.";
-    const count=DB.patients.filter(p=>!p.archived).length;
+    const count=(currentUser?.role==='Administrator'?DB.patients.filter(p=>p._realSupabase):DB.patients).filter(p=>!p.archived).length;
     return `There ${count===1?'is':'are'} currently ${count} active patient record${count===1?'':'s'} on file.`;
   }
 
@@ -5152,7 +5152,7 @@ function renderDashboard(){
 
   // ADMINISTRATOR DASHBOARD
   const scheduled=DB.appointments.filter(a=>a.status==='Scheduled');
-  const activePatients=DB.patients.filter(p=>!p.archived).length;
+  const activePatients=(currentUser?.role==='Administrator'?DB.patients.filter(p=>p._realSupabase):DB.patients).filter(p=>!p.archived).length;
   const completedToday=DB.appointments.filter(a=>dashboardInRange(a.date)&&a.status==='Completed').length;
   let attention='';
   if(pendingUsers.length)attention+=dashboardAttentionItem(`${pendingUsers.length} pending user approval${pendingUsers.length>1?'s':''}`,'Review new CampusCare registrations.','warn');
@@ -5968,13 +5968,21 @@ async function renderPatients(){
 }
 
 function patientAvatarHtml(pt,size=36){
-  const user = pt.userId ? getUserById(pt.userId) : null;
-  const photo = (user && user.profilePhoto) || pt.profilePhoto || '';
-  const initials = ((pt.fname[0]||'')+(pt.lname[0]||'')).toUpperCase();
+  const user=pt.userId?getUserById(pt.userId):null;
+  const photo=(user&&user.profilePhoto)||pt.profilePhoto||'';
+  const initials=((pt.fname?.[0]||'')+(pt.lname?.[0]||'')).toUpperCase()||'P';
   if(photo){
-    return `<img src="${photo}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;cursor:pointer;flex-shrink:0" onclick="event.stopPropagation();showFilePreview('${jsAttrSafe(pt.fname)} ${jsAttrSafe(pt.lname)} - Photo','${photo}')" title="Click to view full size">`;
+    return `<div style="width:${size}px;height:${size}px;position:relative;flex-shrink:0">
+      <img src="${escapeHtml(photo)}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;cursor:pointer;display:block"
+        onclick="event.stopPropagation();showFilePreview('${jsAttrSafe(pt.fname)} ${jsAttrSafe(pt.lname)} - Photo','${jsAttrSafe(photo)}')"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+        title="Click to view full size">
+      <div class="sb-avatar" style="display:none;width:${size}px;height:${size}px;font-size:${Math.round(size*0.34)}px;position:absolute;inset:0;cursor:pointer"
+        onclick="event.stopPropagation();viewPatient(${pt.id})">${initials}</div>
+    </div>`;
   }
-  return `<div class="sb-avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.34)}px;flex-shrink:0;cursor:pointer" onclick="event.stopPropagation();viewPatient(${pt.id})" title="No photo on file — click to view patient record">${initials}</div>`;
+  return `<div class="sb-avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.34)}px;flex-shrink:0;cursor:pointer"
+    onclick="event.stopPropagation();viewPatient(${pt.id})" title="No photo on file — click to view patient record">${initials}</div>`;
 }
 
 function renderPatientTable(){
@@ -5982,7 +5990,10 @@ function renderPatientTable(){
   const col=(document.getElementById('pt-college')||{}).value||'';
   const ptype=(document.getElementById('pt-ptype')||{}).value||'';
   const status=(document.getElementById('pt-status')||{}).value||'active';
-  let pts=DB.patients.filter(p=>{
+  const sourcePatients=currentUser?.role==='Administrator'
+    ? DB.patients.filter(p=>p._realSupabase)
+    : DB.patients;
+  let pts=sourcePatients.filter(p=>{
     const name=`${p.fname} ${p.lname} ${p.idNo}`.toLowerCase();
     const matchStatus=status==='all'||(status==='archived'?!!p.archived:!p.archived);
     return (!q||name.includes(q.toLowerCase()))&&(!col||p.college===col)&&(!ptype||p.personType===ptype)&&matchStatus;
@@ -7597,11 +7608,19 @@ async function adminUserAction(payload){
 }
 
 function userAvatarHtml(u,size=34){
-  const initials=((u.fname[0]||'')+(u.lname[0]||'')).toUpperCase();
+  const initials=((u.fname?.[0]||'')+(u.lname?.[0]||'')).toUpperCase()||'U';
+  const fallback=`<div class="sb-avatar avatar-fallback" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.34)}px;flex-shrink:0">${initials}</div>`;
   if(u.profilePhoto){
-    return `<img src="${u.profilePhoto}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;cursor:pointer;flex-shrink:0" onclick="event.stopPropagation();showFilePreview('${jsAttrSafe(u.fname)} ${jsAttrSafe(u.lname)} - Photo','${u.profilePhoto}')" title="Click to view full size">`;
+    const src=escapeHtml(u.profilePhoto);
+    return `<div style="width:${size}px;height:${size}px;position:relative;flex-shrink:0">
+      <img src="${src}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;cursor:pointer;display:block"
+        onclick="event.stopPropagation();showFilePreview('${jsAttrSafe(u.fname)} ${jsAttrSafe(u.lname)} - Photo','${jsAttrSafe(u.profilePhoto)}')"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+        title="Click to view full size">
+      <div class="sb-avatar" style="display:none;width:${size}px;height:${size}px;font-size:${Math.round(size*0.34)}px;position:absolute;inset:0">${initials}</div>
+    </div>`;
   }
-  return `<div class="sb-avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.34)}px;flex-shrink:0">${initials}</div>`;
+  return fallback;
 }
 
 async function renderUsers(){
@@ -7638,7 +7657,7 @@ async function renderUsers(){
     <div class="card">
       <div class="card-header"><h3>Doctor Work Schedules</h3></div>
       <div class="table-wrap"><table><thead><tr><th>Doctor</th><th>Specialty</th><th>Work Days</th><th>Hours</th><th>Max Patients</th><th>Actions</th></tr></thead><tbody>${
-        getDoctors().map(d=>`<tr>
+        (currentUser?.role==='Administrator'?getDoctors().filter(d=>d._realSupabase):getDoctors()).map(d=>`<tr>
           <td>${docName(d)}</td>
           <td>${d.specialty||'General'}</td>
           <td>${(d.workDays||[]).join(', ')}</td>
@@ -7721,7 +7740,10 @@ function renderUserTable(){
   const q=(document.getElementById('usr-search')||{}).value||'';
   const role=(document.getElementById('usr-role')||{}).value||'';
   const stat=(document.getElementById('usr-status')||{}).value||'';
-  let users=DB.users.filter(u=>{
+  const sourceUsers=currentUser?.role==='Administrator'
+    ? DB.users.filter(u=>u._realSupabase)
+    : DB.users;
+  let users=sourceUsers.filter(u=>{
     const name=`${u.fname} ${u.lname} ${u.username} ${u.email}`.toLowerCase();
     const matchStatus = stat ? (stat==='Archived'?!!u.archived:(u.status===stat&&!u.archived)) : !u.archived;
     return (!q||name.includes(q.toLowerCase()))&&(!role||u.role===role)&&matchStatus;
@@ -7731,7 +7753,7 @@ function renderUserTable(){
   el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>#</th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Type/Dept</th><th>Last Login</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
     users.map(u=>`<tr ${u.archived?'style="opacity:.6"':''}>
       <td>${userAvatarHtml(u,32)}</td>
-      <td>${u.id}</td>
+      <td>${u._realSupabase?(u.dbUserId??u.id):u.id}</td>
       <td><strong>${u.fname} ${u.lname}</strong><br><span class="text-muted">${u.idNo||''}</span>${u.archived?' <span class="badge badge-gray">Archived</span>':''}</td>
       <td>${u.username}</td><td style="font-size:.78rem">${u.email}</td>
       <td><span class="badge badge-info">${u.role}</span></td>
