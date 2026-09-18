@@ -26,31 +26,27 @@ async function syncCampusCareSessionUI(){
       .from('users').select('*')
       .eq('auth_user_id',session.user.id)
       .single();
-    if(error || !profile) return false;
 
-    currentUser=normalizeSupabaseUser(profile);
-    // Rebuild role-based navigation immediately after the real profile is known.
-    if(typeof renderSidebar==='function') renderSidebar();
-
-
-    // Use the website's existing app-entry renderer instead of waiting for reload.
-    if(typeof enterApp==='function'){
-      enterApp();
-      if(typeof renderSidebar==='function') renderSidebar();
-    }else{
-      const auth=document.getElementById('auth-wrap');
-      const app=document.getElementById('app');
-      if(auth) auth.style.display='none';
-      if(app){
-        app.style.display='flex';
-        app.classList.add('visible');
-      }
-      if(typeof renderSidebar==='function') renderSidebar();
-      if(typeof renderDashboard==='function') renderDashboard();
-      if(typeof navigate==='function') navigate('dashboard');
+    if(error || !profile){
+      console.error('CampusCare profile load failed:',error);
+      return false;
     }
 
-    if(profile.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
+    // Convert PostgreSQL snake_case fields to the properties expected by
+    // the existing CampusCare dashboard/sidebar code.
+    currentUser=normalizeSupabaseUser(profile);
+
+    // The original app initializer is authoritative: it fills sb-name,
+    // sb-email, role badge, avatar, builds NAV_CONFIG items, notifications,
+    // and opens the correct role dashboard.
+    if(typeof initApp==='function'){
+      initApp();
+    }else{
+      console.error('CampusCare initApp() is unavailable.');
+      return false;
+    }
+
+    if(currentUser.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
       setTimeout(refreshRealApprovalQueue,250);
     }
     return true;
@@ -88,7 +84,8 @@ function normalizeSupabaseUser(profile){
     contactNo: profile.contact_number ?? profile.contactNo ?? '',
     personType: profile.person_type ?? profile.personType ?? '',
     idNo: profile.id_number ?? profile.idNo ?? '',
-    profileImage: profile.profile_image_url ?? profile.profileImage ?? ''
+    profileImage: profile.profile_image_url ?? profile.profileImage ?? '',
+    profilePhoto: profile.profile_image_url ?? profile.profilePhoto ?? ''
   };
 }
 
@@ -3109,11 +3106,7 @@ async function doLogin(){
     }
 
     currentUser=normalizeSupabaseUser(profile);
-    // Rebuild role-based navigation immediately after the real profile is known.
-    if(typeof renderSidebar==='function') renderSidebar();
-
-    try{ await supabaseClient.from('users').update({last_login_at:new Date().toISOString()}).eq('user_id',profile.user_id); }catch(_){}
-    if(typeof enterApp==='function') enterApp();
+try{ await supabaseClient.from('users').update({last_login_at:new Date().toISOString()}).eq('user_id',profile.user_id); }catch(_){}
     await syncCampusCareSessionUI();
     if(profile.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
       setTimeout(refreshRealApprovalQueue,300);
