@@ -3364,8 +3364,8 @@ function setLoginAttempts(data){
 async function doLogin(){
   // Supabase Auth signs in with email. For username login, the public Edge
   // Function resolves the CampusCare username to its associated email first.
-  const identifier=document.getElementById('login-user').value.trim();
-  const password=document.getElementById('login-pass').value;
+  const identifier=document.getElementById('li-user').value.trim();
+  const password=document.getElementById('li-pass').value;
   if(!identifier||!password){toast('Enter your username/email and password.','error');return;}
 
   try{
