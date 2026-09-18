@@ -17,37 +17,41 @@
 // Prevents the user from needing to refresh after a successful Supabase login.
 // It restores the signed-in profile and immediately switches from auth to the app.
 async function syncCampusCareSessionUI(){
-  if(!initializeSupabaseClient()) return false;
+  if(!initializeSupabaseClient())return false;
   try{
     const {data:{session}}=await supabaseClient.auth.getSession();
-    if(!session?.user) return false;
+    if(!session?.user)return false;
 
     const {data:profile,error}=await supabaseClient
       .from('users').select('*')
       .eq('auth_user_id',session.user.id)
       .single();
 
-    if(error || !profile){
+    if(error||!profile){
       console.error('CampusCare profile load failed:',error);
       return false;
     }
 
-    // Convert PostgreSQL snake_case fields to the properties expected by
-    // the existing CampusCare dashboard/sidebar code.
     currentUser=normalizeSupabaseUser(profile);
 
-    // The original app initializer is authoritative: it fills sb-name,
-    // sb-email, role badge, avatar, builds NAV_CONFIG items, notifications,
-    // and opens the correct role dashboard.
-    if(typeof initApp==='function'){
-      initApp();
-    }else{
-      console.error('CampusCare initApp() is unavailable.');
+    if(String(currentUser.status).toLowerCase()!=='active'){
+      await supabaseClient.auth.signOut();
+      currentUser=null;currentPatient=null;
       return false;
     }
 
-    if(currentUser.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
-      setTimeout(()=>refreshRealApprovalQueue(false).then(()=>{if(typeof renderDashboard==='function')renderDashboard();}).catch(console.error),250);
+    if(currentUser.role==='Administrator'){
+      await syncAdminDirectoryFromSupabase();
+    }else if(currentUser.role==='Patient'){
+      await syncCurrentPatientFromSupabase();
+    }
+
+    initApp();
+
+    if(currentUser.role==='Administrator'&&typeof refreshRealApprovalQueue==='function'){
+      setTimeout(()=>refreshRealApprovalQueue(false).then(()=>{
+        if(typeof renderDashboard==='function'&&document.getElementById('app-content'))renderDashboard();
+      }).catch(console.error),250);
     }
     return true;
   }catch(err){
@@ -55,7 +59,6 @@ async function syncCampusCareSessionUI(){
     return false;
   }
 }
-
 // Keep UI synchronized when Supabase changes authentication state.
 document.addEventListener('DOMContentLoaded',()=>{
   if(window.supabaseClient?.auth){
@@ -69,25 +72,164 @@ document.addEventListener('DOMContentLoaded',()=>{
 // Normalize a real Supabase user so the existing CampusCare UI can display it
 // without showing generic "User / email / Role" placeholders.
 function normalizeSupabaseUser(profile){
-  if(!profile) return profile;
+  if(!profile)return profile;
+  const dbUserId=Number(profile.user_id??profile.dbUserId??profile.id);
   return {
     ...profile,
-    id: profile.user_id ?? profile.id,
-    authUserId: profile.auth_user_id ?? profile.authUserId,
-    fname: profile.first_name ?? profile.fname ?? '',
-    lname: profile.last_name ?? profile.lname ?? '',
-    username: profile.username ?? '',
-    email: profile.email ?? '',
-    role: profile.role ?? 'Patient',
-    status: profile.status ?? 'Pending',
-    verified: profile.verified ?? false,
-    contactNo: profile.contact_number ?? profile.contactNo ?? '',
-    personType: profile.person_type ?? profile.personType ?? '',
-    idNo: profile.id_number ?? profile.idNo ?? '',
-    profileImage: profile.profile_image_url ?? profile.profileImage ?? '',
-    profilePhoto: profile.profile_image_url ?? profile.profilePhoto ?? ''
+    // Keep real DB IDs separately; UI IDs are offset so they never collide
+    // with the old demo records while modules are being migrated.
+    id: Number.isFinite(dbUserId) ? 100000+dbUserId : profile.id,
+    dbUserId,
+    authUserId: profile.auth_user_id??profile.authUserId,
+    fname: profile.first_name??profile.fname??'',
+    lname: profile.last_name??profile.lname??'',
+    username: profile.username??'',
+    email: profile.email??'',
+    role: profile.role??'Patient',
+    status: profile.status??'Pending',
+    verified: profile.verified??false,
+    contact: profile.contact_number??profile.contact??'',
+    contactNo: profile.contact_number??profile.contactNo??'',
+    personType: profile.person_type??profile.personType??'',
+    college: profile.college??'',
+    idNo: profile.id_number??profile.idNo??'',
+    profileImage: profile.profile_signed_url??profile.profile_image_url??profile.profileImage??'',
+    profilePhoto: profile.profile_signed_url??profile.profile_image_url??profile.profilePhoto??'',
+    specialty: profile.specialty??'',
+    workDays: profile.work_days??profile.workDays??[],
+    startTime: profile.start_time??profile.startTime??'',
+    endTime: profile.end_time??profile.endTime??'',
+    slotDuration: profile.slot_duration??profile.slotDuration??60,
+    maxPatients: profile.max_patients??profile.maxPatients??20,
+    createdAt: profile.created_at??profile.createdAt??'',
+    lastLogin: profile.last_login_at??profile.lastLogin??'',
+    _realSupabase:true
   };
 }
+
+async function fetchAdminDirectory(){
+  if(currentUser?.role!=='Administrator')return [];
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)return [];
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/admin-directory`,{
+    headers:{
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    }
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Unable to load CampusCare directory.');
+  return result.users||[];
+}
+
+function ageFromBirthDate(date){
+  if(!date)return '';
+  const d=new Date(`${date}T00:00:00`);
+  if(Number.isNaN(d.getTime()))return '';
+  const now=new Date();
+  let age=now.getFullYear()-d.getFullYear();
+  const md=now.getMonth()-d.getMonth();
+  if(md<0||(md===0&&now.getDate()<d.getDate()))age--;
+  return age;
+}
+
+function directoryRowToPatient(u){
+  const p=u.patient;
+  if(!p)return null;
+  const uiUser=normalizeSupabaseUser(u);
+  return {
+    id:200000+Number(p.patient_id),
+    dbPatientId:Number(p.patient_id),
+    userId:uiUser.id,
+    dbUserId:uiUser.dbUserId,
+    fname:uiUser.fname,
+    lname:uiUser.lname,
+    age:ageFromBirthDate(p.birth_date),
+    birthDate:p.birth_date||'',
+    gender:p.sex||'',
+    blood:'',
+    address:p.address||'',
+    college:uiUser.college||'',
+    personType:uiUser.personType||'',
+    idNo:uiUser.idNo||'',
+    height:p.height_cm?`${p.height_cm}cm`:'',
+    weight:p.weight_kg?`${p.weight_kg}kg`:'',
+    contact:uiUser.contact||'',
+    emergencyName:p.emergency_contact_name||'',
+    emergencyContact:p.emergency_contact_number||'',
+    medHistory:p.medical_history||'',
+    allergies:p.allergies||'',
+    archived:!!p.archived_at,
+    profilePhoto:uiUser.profilePhoto||'',
+    createdAt:uiUser.createdAt||'',
+    _realSupabase:true
+  };
+}
+
+async function syncAdminDirectoryFromSupabase(){
+  if(currentUser?.role!=='Administrator')return;
+  const rows=await fetchAdminDirectory();
+
+  // Remove prior synced real records, then insert fresh authoritative copies.
+  DB.users=(DB.users||[]).filter(u=>!u._realSupabase);
+  DB.patients=(DB.patients||[]).filter(p=>!p._realSupabase);
+
+  for(const row of rows){
+    const user=normalizeSupabaseUser(row);
+    DB.users.push(user);
+    const patient=directoryRowToPatient(row);
+    if(patient)DB.patients.push(patient);
+
+    // Keep the signed profile URL on the currently logged-in administrator too.
+    if(row.auth_user_id===currentUser.authUserId){
+      Object.assign(currentUser,user);
+    }
+  }
+}
+
+async function syncCurrentPatientFromSupabase(){
+  if(currentUser?.role!=='Patient')return;
+  try{
+    const {data:row,error}=await supabaseClient
+      .from('patients')
+      .select('*')
+      .eq('user_id',currentUser.dbUserId)
+      .maybeSingle();
+    if(error||!row)return;
+
+    const realPatient={
+      id:200000+Number(row.patient_id),
+      dbPatientId:Number(row.patient_id),
+      userId:currentUser.id,
+      dbUserId:currentUser.dbUserId,
+      fname:currentUser.fname,
+      lname:currentUser.lname,
+      age:ageFromBirthDate(row.birth_date),
+      birthDate:row.birth_date||'',
+      gender:row.sex||'',
+      blood:'',
+      address:row.address||'',
+      college:currentUser.college||'',
+      personType:currentUser.personType||'',
+      idNo:currentUser.idNo||'',
+      height:row.height_cm?`${row.height_cm}cm`:'',
+      weight:row.weight_kg?`${row.weight_kg}kg`:'',
+      contact:currentUser.contact||'',
+      emergencyName:row.emergency_contact_name||'',
+      emergencyContact:row.emergency_contact_number||'',
+      medHistory:row.medical_history||'',
+      allergies:row.allergies||'',
+      archived:!!row.archived_at,
+      profilePhoto:currentUser.profilePhoto||'',
+      _realSupabase:true
+    };
+    DB.patients=(DB.patients||[]).filter(p=>!p._realSupabase||p.userId!==currentUser.id);
+    DB.patients.push(realPatient);
+    currentPatient=realPatient;
+  }catch(e){console.error('Patient sync:',e);}
+}
+
+
 
 
 // Registration has its own toast position so validation messages do not appear
@@ -5539,7 +5681,10 @@ function renderMyPatientsTable(){
 // ================================================================
 // PATIENTS PAGE (Staff/Admin)
 // ================================================================
-function renderPatients(){
+async function renderPatients(){
+  if(currentUser?.role==='Administrator'){
+    try{await syncAdminDirectoryFromSupabase();}catch(e){console.error(e);}
+  }
   const c=document.getElementById('app-content');
   const canEdit=currentUser.role==='Administrator'||currentUser.role==='Staff';
   c.innerHTML=`
@@ -5898,7 +6043,7 @@ async function renderApprovals(loadRemote=true) {
           <td>${collegeBadge(u.college)}</td>
           <td>${escapeHtml(u.idNo||'-')}</td>
           <td>${u.idFileData?`<button class="btn btn-xs btn-info" onclick="showFilePreview('${jsAttrSafe(u.idFile)}','${u.idFileData}')">📄 View document</button>`:'—'}</td>
-          <td>${u.createdAt?fmtDate(u.createdAt):'—'}</td>
+          <td>${u.createdAt?fmtDateTime(u.createdAt):'—'}</td>
           <td><div class="td-actions">
             <button class="btn btn-xs btn-success" onclick="approveUser(${u.id})">Approve</button>
             <button class="btn btn-xs btn-danger" onclick="rejectUser(${u.id})">Reject</button>
@@ -7184,7 +7329,10 @@ function userAvatarHtml(u,size=34){
   return `<div class="sb-avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.34)}px;flex-shrink:0">${initials}</div>`;
 }
 
-function renderUsers(){
+async function renderUsers(){
+  if(currentUser?.role==='Administrator'){
+    try{await syncAdminDirectoryFromSupabase();}catch(e){console.error(e);}
+  }
   const c=document.getElementById('app-content');
   c.innerHTML=`
     <div class="toolbar">
@@ -7848,18 +7996,40 @@ function closeAllModals(){
 }
 
 function showFilePreview(fileName, fileDataUrl) {
-  const isImage = fileDataUrl && fileDataUrl.startsWith('data:image');
-  const modalContent = `
+  // Supabase private files are shown through short-lived signed HTTPS URLs.
+  // Detect the underlying file type from the signed URL/path as well as data URLs.
+  const src=String(fileDataUrl||'');
+  const clean=src.split('?')[0].toLowerCase();
+  const decoded=(()=>{try{return decodeURIComponent(clean)}catch{return clean}})();
+  const isImage=src.startsWith('data:image/') ||
+    /\.(jpg|jpeg|png|webp|gif|bmp|svg)$/i.test(decoded);
+  const isPdf=src.startsWith('data:application/pdf') || /\.pdf$/i.test(decoded);
+
+  let preview='';
+  if(isImage){
+    preview=`<img id="preview-img" src="${escapeHtml(src)}"
+      style="max-width:100%;max-height:58vh;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.12);cursor:zoom-in;transition:width .15s"
+      onclick="toggleImageZoom(this)" alt="${escapeHtml(fileName)}">`;
+  }else if(isPdf){
+    preview=`<iframe src="${escapeHtml(src)}" title="${escapeHtml(fileName)}"
+      style="width:100%;height:58vh;border:0;border-radius:8px;background:#fff"></iframe>`;
+  }else{
+    preview=`<div class="alert alert-info show" style="display:block">
+      Preview is not available for this file type.
+      <div style="margin-top:.75rem">
+        <a href="${escapeHtml(src)}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">Open file</a>
+      </div>
+    </div>`;
+  }
+
+  openModal(`
     <div class="modal modal-lg">
       <div class="modal-header">
-        <h3>${fileName}</h3>
+        <h3>${escapeHtml(fileName)}</h3>
         <button class="close-btn" onclick="closeAllModals()">✕</button>
       </div>
-      <div class="modal-body" style="text-align:center;max-height:65vh;overflow:auto;background:rgba(0,0,0,.04);border-radius:10px" id="preview-img-wrap">
-        ${isImage
-          ? `<img id="preview-img" src="${fileDataUrl}" style="max-width:100%;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);cursor:zoom-in;transition:width .15s" onclick="toggleImageZoom(this)" alt="ID/COR">`
-          : `<div class="alert alert-info show">This file is not an image. <a href="${fileDataUrl}" download="${fileName}" target="_blank" class="btn btn-primary btn-sm" style="margin-top:1rem">Download file</a></div>`
-        }
+      <div class="modal-body" style="text-align:center;max-height:68vh;overflow:auto;background:rgba(0,0,0,.04);border-radius:10px" id="preview-img-wrap">
+        ${preview}
       </div>
       ${isImage?`<p class="form-note no-print" style="text-align:center;margin-top:.4rem">Click the photo to zoom in, click again to zoom out.</p>`:''}
       <div class="modal-footer">
@@ -7867,8 +8037,7 @@ function showFilePreview(fileName, fileDataUrl) {
         <button class="btn" onclick="closeAllModals()">Close</button>
       </div>
     </div>
-  `;
-  openModal(modalContent);
+  `);
 }
 
 function toggleImageZoom(img){
@@ -9077,11 +9246,31 @@ window.addEventListener('scroll',()=>{
   btn.classList.toggle('show',window.scrollY>400);
 });
 
-// If a session is already active (e.g. the page was refreshed) skip the
-// login screen and drop the person right back where they were.
-tryRestoreSession();
+// Restore the real Supabase session after refresh. Supabase persists the
+// session in browser storage, so refreshing the page should not log the user out.
+document.addEventListener('DOMContentLoaded',async()=>{
+  initializeSupabaseClient();
 
-console.log('CampusCare v2 loaded.');
+  // First restore any already-persisted Supabase session.
+  const restored=await syncCampusCareSessionUI();
+
+  // Then keep the UI synchronized with future auth changes.
+  supabaseClient.auth.onAuthStateChange((event,session)=>{
+    if(event==='SIGNED_IN'&&session&&!currentUser){
+      setTimeout(()=>syncCampusCareSessionUI(),0);
+    }
+    if(event==='SIGNED_OUT'){
+      currentUser=null;
+      currentPatient=null;
+    }
+  });
+
+  if(!restored){
+    document.getElementById('app')?.classList.remove('visible');
+  }
+});
+
+console.log('CampusCare v12 loaded.');
 </script>
 </body>
 </html>
