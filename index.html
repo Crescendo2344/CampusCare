@@ -1824,7 +1824,7 @@ tbody tr:hover td{background:var(--overlay)}
       <div id="forgot-step2" style="display:none">
         <div class="alert alert-success show" style="display:block">
           <strong>Check your email.</strong><br>
-          If a matching CampusCare account exists, a secure password-reset link has been sent.
+          <span id="fp-reset-destination">If a matching CampusCare account exists, a secure password-reset link has been sent.</span>
         </div>
         <p class="text-muted" style="font-size:.79rem;line-height:1.55">
           Open the email on this device or another device, then select <strong>Reset Password</strong>. The link will return you to CampusCare to create a new password.
@@ -3872,6 +3872,8 @@ function openForgotPassword(recoveryMode=false){
 
   hideAlert(document.getElementById('fp-err'));
   hideAlert(document.getElementById('fp-err3'));
+  const resetDest=document.getElementById('fp-reset-destination');
+  if(resetDest)resetDest.textContent='If a matching CampusCare account exists, a secure password-reset link has been sent.';
   showForgotStep(recoveryMode?3:1);
 
   const title=document.getElementById('forgot-title');
@@ -3944,6 +3946,38 @@ function showForgotStep(n){
   });
 }
 
+
+function maskPasswordResetEmail(identifier){
+  const value=String(identifier||'').trim().toLowerCase();
+  if(!value.includes('@'))return '';
+
+  const [local,domain]=value.split('@');
+  if(!local||!domain)return '';
+
+  // The user already entered this address, so we can safely reflect a masked
+  // version without revealing whether an account actually exists.
+  let visible;
+  if(local.length>=8)visible=local.slice(0,8);
+  else if(local.length>=4)visible=local.slice(0,2);
+  else visible=local.slice(0,1);
+
+  return `${visible}*****@${domain}`;
+}
+
+function updatePasswordResetDestination(identifier){
+  const el=document.getElementById('fp-reset-destination');
+  if(!el)return;
+
+  const masked=maskPasswordResetEmail(identifier);
+  if(masked){
+    el.innerHTML=`If a matching CampusCare account exists, a secure password-reset link has been sent to <strong>${escapeHtml(masked)}</strong>.`;
+  }else{
+    // Username-based requests stay generic to avoid exposing the email address
+    // connected to a CampusCare account.
+    el.textContent='If a matching CampusCare account exists, a secure password-reset link has been sent to the registered email address.';
+  }
+}
+
 async function sendPasswordResetEmail(){
   const identifier=document.getElementById('fp-identifier').value.trim();
   const err=document.getElementById('fp-err');
@@ -3970,7 +4004,9 @@ async function sendPasswordResetEmail(){
     const result=await response.json().catch(()=>({}));
     if(!response.ok||!result.ok)throw new Error(result.error||'Unable to send the reset email.');
 
-    // Use a generic success response to avoid revealing whether an account exists.
+    // Keep account existence private. If the user typed an email address,
+    // show only a masked reflection of what they entered.
+    updatePasswordResetDestination(identifier);
     showForgotStep(2);
   }catch(e){
     showAlert(err,e?.message||'Unable to send the reset email. Please try again.');
@@ -10865,7 +10901,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v28 loaded.');
+console.log('CampusCare v29 loaded.');
 </script>
 </body>
 </html>
