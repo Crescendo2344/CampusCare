@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CampusCare - Campus Health Management System</title>
 <script>
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_4R6yLx9j1l6M3JMlyjRITA_vEsSBGBu';
+
+const SUPABASE_URL = 'https://hgmvlklvobkqhyvjnzmx.supabase.co';
+
 (function(){
   try{
     var t=localStorage.getItem('campuscare_theme');
@@ -13,230 +17,54 @@
   }catch(e){}
 })();
 
-
-
-
-// Builds a DOB-specific year dropdown with a real scrollable menu.
-// It intentionally affects only the Date of Birth calendar.
-function installDobYearDropdown(){
-  const dobInput=document.getElementById('r-dob');
-  if(!dobInput) return;
-
-  const observer=new MutationObserver(()=>{
-    const modal=[...document.querySelectorAll('[role="dialog"],.modal,.calendar-modal')]
-      .find(el=>el.textContent.includes('Select Date of Birth'));
-    if(!modal) return;
-
-    const selects=[...modal.querySelectorAll('select')];
-    const yearSelect=selects.find(sel=>{
-      const years=[...sel.options].map(o=>parseInt(o.value||o.textContent,10)).filter(Number.isFinite);
-      return years.length>=3 && years.some(y=>y>=2000);
-    });
-    if(!yearSelect || yearSelect.dataset.dobCustom==='1') return;
-
-    // Ensure the underlying calendar can select every year from 1950 through today.
-    const currentYear=new Date().getFullYear();
-    const selected=parseInt(yearSelect.value,10)||currentYear;
-    const existing=[...yearSelect.options].map(o=>parseInt(o.value||o.textContent,10)).filter(Number.isFinite);
-    const minExisting=existing.length?Math.min(...existing):currentYear;
-    for(let y=minExisting-1;y>=1950;y--){
-      const option=document.createElement('option');
-      option.value=String(y);option.textContent=String(y);
-      yearSelect.appendChild(option);
-    }
-    yearSelect.value=String(selected);
-    yearSelect.dataset.dobCustom='1';
-
-    const wrap=document.createElement('span');wrap.className='cc-dob-year-wrap';
-    const button=document.createElement('button');
-    button.type='button';button.className='cc-dob-year-button';
-    button.textContent=yearSelect.value;
-    button.setAttribute('aria-haspopup','listbox');button.setAttribute('aria-expanded','false');
-
-    const menu=document.createElement('div');
-    menu.className='cc-dob-year-menu';menu.hidden=true;menu.setAttribute('role','listbox');
-
-    // Show newest years first, continuing down to 1950.
-    for(let y=currentYear;y>=1950;y--){
-      const item=document.createElement('button');
-      item.type='button';item.textContent=String(y);item.dataset.year=String(y);
-      item.setAttribute('role','option');
-      item.setAttribute('aria-selected',String(y===selected));
-      item.addEventListener('click',()=>{
-        yearSelect.value=String(y);
-        yearSelect.dispatchEvent(new Event('change',{bubbles:true}));
-        button.textContent=String(y);
-        menu.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',String(b===item)));
-        menu.hidden=true;button.setAttribute('aria-expanded','false');
-      });
-      menu.appendChild(item);
-    }
-
-    button.addEventListener('click',e=>{
-      e.stopPropagation();
-      menu.hidden=!menu.hidden;
-      button.setAttribute('aria-expanded',String(!menu.hidden));
-      if(!menu.hidden){
-        const active=menu.querySelector('[aria-selected="true"]');
-        active?.scrollIntoView({block:'center'});
-      }
-    });
-    document.addEventListener('click',()=>{menu.hidden=true;button.setAttribute('aria-expanded','false')});
-
-    yearSelect.style.display='none';
-    yearSelect.parentNode.insertBefore(wrap,yearSelect);
-    wrap.append(button,menu,yearSelect);
-  });
-  observer.observe(document.body,{childList:true,subtree:true});
-}
-
-// Registration-only toast. It appears at the lower center like the logout toast
-// and does not change notification positioning elsewhere in CampusCare.
-function registrationToast(msg,type='info'){
-  let container=document.getElementById('registration-toast-container');
-  if(!container){
-    container=document.createElement('div');
-    container.id='registration-toast-container';
-    container.setAttribute('aria-live','polite');
-    document.body.appendChild(container);
-  }
-  container.innerHTML='';
-  const el=document.createElement('div');
-  const tone=['success','error','warning','info'].includes(type)?type:'info';
-  el.className=`toast toast-${tone}`;
-  el.setAttribute('role',tone==='error'?'alert':'status');
-  const message=document.createElement('span');message.textContent=String(msg||'');
-  const close=document.createElement('button');
-  close.type='button';close.className='toast-close';close.textContent='×';
-  close.setAttribute('aria-label','Dismiss notification');close.onclick=()=>el.remove();
-  el.append(message,close);container.appendChild(el);
-  setTimeout(()=>{if(el.isConnected)el.remove()},tone==='error'?6000:4200);
-}
-document.addEventListener('DOMContentLoaded',installDobYearDropdown);
-
-
-// === REAL SUPABASE ADMIN APPROVAL QUEUE ===
-// Loads pending patient registrations from the protected Edge Function.
-// The function verifies that the current signed-in user is an active Administrator.
-async function loadRealPendingApprovals(){
-  if(!supabaseClient || currentUser?.role!=='Administrator') return [];
-  const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session) return [];
-  const res=await fetch(`${SUPABASE_URL}/functions/v1/admin-approvals`,{
-    headers:{
-      'apikey':SUPABASE_PUBLISHABLE_KEY,
-      'Authorization':`Bearer ${session.access_token}`
-    }
-  });
-  const body=await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(body.error||'Unable to load pending registrations.');
-  return body.users||[];
-}
-
-async function decideRealRegistration(userId,action){
-  // A second confirmation protects approval/rejection from accidental clicks.
-  const verb=action==='approve'?'approve':'reject';
-  if(!confirm(`Are you sure you want to ${verb} this registration?`)) return false;
-  const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session){toast('Your session has expired. Please sign in again.','error');return false;}
-  const res=await fetch(`${SUPABASE_URL}/functions/v1/admin-approvals`,{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'apikey':SUPABASE_PUBLISHABLE_KEY,
-      'Authorization':`Bearer ${session.access_token}`
-    },
-    body:JSON.stringify({user_id:Number(userId),action})
-  });
-  const body=await res.json().catch(()=>({}));
-  if(!res.ok){toast(body.error||`Unable to ${verb} registration.`,'error');return false;}
-  toast(action==='approve'?'Patient account approved.':'Registration rejected.','success');
-  return true;
-}
-
-// Converts a real Supabase pending account into the shape expected by the
-// existing CampusCare administrator registration-review UI.
-function realApprovalToLegacyShape(u){
-  return {
-    id:u.user_id,
-    authUserId:u.auth_user_id,
-    fname:u.first_name||'',
-    lname:u.last_name||'',
-    username:u.username||'',
-    email:u.email||'',
-    contactNo:u.contact_number||'',
-    personType:u.person_type||'',
-    college:u.college||'',
-    idNo:u.id_number||'',
-    role:'Patient',
-    status:'Pending',
-    verified:false,
-    createdAt:u.created_at,
-    // Signed links expire after a few minutes and never expose the private bucket itself.
-    profileImage:u.profile_signed_url||'',
-    selfieDataUrl:u.profile_signed_url||'',
-    idFileDataUrl:u.verification_signed_url||'',
-    idFileName:u.id_file_url?u.id_file_url.split('/').pop():'',
-    _realSupabaseApproval:true
-  };
-}
-
-// Patch the existing pending-registration data only while an Administrator is
-// using the approval screen, preserving the rest of the prototype UI for now.
-let realPendingApprovals=[];
-async function refreshRealApprovalQueue(){
-  if(currentUser?.role!=='Administrator') return;
+// === LOGIN SESSION UI SYNC ===
+// Prevents the user from needing to refresh after a successful Supabase login.
+// It restores the signed-in profile and immediately switches from auth to the app.
+async function syncCampusCareSessionUI(){
+  if(!window.supabaseClient) return false;
   try{
-    const rows=await loadRealPendingApprovals();
-    realPendingApprovals=rows.map(realApprovalToLegacyShape);
-    // Existing admin renderers read DB.users, so replace only Pending Patient
-    // prototype rows with the authoritative Supabase queue.
-    DB.users=(DB.users||[]).filter(u=>!(u.role==='Patient'&&u.status==='Pending'));
-    DB.users.push(...realPendingApprovals);
-    if(typeof renderAdmin==='function') renderAdmin();
-  }catch(e){
-    console.error('Approval queue:',e);
-    toast(e?.message||'Unable to load pending registrations.','error');
+    const {data:{session}}=await supabaseClient.auth.getSession();
+    if(!session?.user) return false;
+
+    const {data:profile,error}=await supabaseClient
+      .from('users').select('*')
+      .eq('auth_user_id',session.user.id)
+      .single();
+    if(error || !profile) return false;
+
+    currentUser=profile;
+
+    // Use the website's existing app-entry renderer instead of waiting for reload.
+    if(typeof enterApp==='function'){
+      enterApp();
+    }else{
+      const auth=document.getElementById('auth-wrap');
+      const app=document.getElementById('app');
+      if(auth) auth.style.display='none';
+      if(app){
+        app.style.display='flex';
+        app.classList.add('visible');
+      }
+      if(typeof renderSidebar==='function') renderSidebar();
+      if(typeof renderDashboard==='function') renderDashboard();
+      if(typeof navigate==='function') navigate('dashboard');
+    }
+
+    if(profile.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
+      setTimeout(refreshRealApprovalQueue,250);
+    }
+    return true;
+  }catch(err){
+    console.error('CampusCare session UI sync:',err);
+    return false;
   }
 }
 
-// Intercept existing approve/reject calls when they target a real Supabase row.
-// Prototype/demo rows continue to use the old behavior until their modules migrate.
-const _legacyApproveUser=typeof approveUser==='function'?approveUser:null;
-if(_legacyApproveUser){
-  approveUser=async function(id,...args){
-    const row=(DB.users||[]).find(u=>String(u.id)===String(id));
-    if(row?._realSupabaseApproval){
-      if(await decideRealRegistration(row.id,'approve')) await refreshRealApprovalQueue();
-      return;
-    }
-    return _legacyApproveUser(id,...args);
-  };
-}
-const _legacyRejectUser=typeof rejectUser==='function'?rejectUser:null;
-if(_legacyRejectUser){
-  rejectUser=async function(id,...args){
-    const row=(DB.users||[]).find(u=>String(u.id)===String(id));
-    if(row?._realSupabaseApproval){
-      if(await decideRealRegistration(row.id,'reject')) await refreshRealApprovalQueue();
-      return;
-    }
-    return _legacyRejectUser(id,...args);
-  };
-}
-
-// Refresh the queue whenever a real Administrator session is restored/logged in.
+// Keep UI synchronized when Supabase changes authentication state.
 document.addEventListener('DOMContentLoaded',()=>{
-  setTimeout(()=>{ if(currentUser?.role==='Administrator') refreshRealApprovalQueue(); },1200);
-});
-
-
-// Allow Enter to submit the login form without restricting username/email characters.
-document.addEventListener('DOMContentLoaded',()=>{
-  const loginIdentifier=document.getElementById('li-user');
-  if(loginIdentifier){
-    loginIdentifier.addEventListener('keydown',e=>{
-      if(e.key==='Enter') doLogin();
+  if(window.supabaseClient?.auth){
+    supabaseClient.auth.onAuthStateChange((event,session)=>{
+      if(event==='SIGNED_IN' && session) setTimeout(syncCampusCareSessionUI,0);
     });
   }
 });
@@ -1226,200 +1054,9 @@ tbody tr:hover td{background:var(--overlay)}
   .dashboard-progress-row{grid-template-columns:88px 1fr 36px}
 }
 
-
-/* === AUTH FEEDBACK + DOB YEAR UI FIX === */
-#toast-container{
-  position:fixed;
-  top:20px;
-  right:20px;
-  z-index:100000;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-  width:min(390px,calc(100vw - 28px));
-  pointer-events:none;
-}
-.toast{
-  position:relative;
-  width:100%;
-  min-height:58px;
-  padding:13px 42px 13px 46px;
-  border:1px solid var(--glass-border);
-  border-radius:14px;
-  background:var(--glass-surface-strong);
-  backdrop-filter:blur(18px) saturate(160%);
-  -webkit-backdrop-filter:blur(18px) saturate(160%);
-  box-shadow:var(--glass-shadow-lg);
-  color:var(--ink);
-  font-size:.82rem;
-  line-height:1.4;
-  display:flex;
-  align-items:center;
-  overflow:hidden;
-  pointer-events:auto;
-  animation:ccToastIn .24s ease-out;
-}
-.toast::before{
-  position:absolute;
-  left:14px;
-  top:50%;
-  transform:translateY(-50%);
-  width:22px;
-  height:22px;
-  border-radius:50%;
-  display:grid;
-  place-items:center;
-  font-size:.72rem;
-  font-weight:900;
-}
-.toast-success{border-color:rgba(52,211,153,.42)}
-.toast-success::before{content:'✓';background:rgba(52,211,153,.16);color:#34d399}
-.toast-error{border-color:rgba(248,113,113,.5)}
-.toast-error::before{content:'!';background:rgba(248,113,113,.16);color:#f87171}
-.toast-warning{border-color:rgba(251,191,36,.45)}
-.toast-warning::before{content:'!';background:rgba(251,191,36,.15);color:#fbbf24}
-.toast-info{border-color:rgba(56,189,248,.42)}
-.toast-info::before{content:'i';background:rgba(56,189,248,.15);color:#38bdf8}
-.toast-close{
-  position:absolute;right:10px;top:50%;transform:translateY(-50%);
-  border:0;background:transparent;color:var(--ink-muted);
-  cursor:pointer;font-size:1rem;padding:5px;border-radius:7px;
-}
-.toast-close:hover{background:rgba(255,255,255,.08);color:var(--ink)}
-@keyframes ccToastIn{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}
-@media(max-width:600px){
-  #toast-container{top:12px;right:14px;left:14px;width:auto}
-  .toast{font-size:.78rem}
-}
-
-
-/* === DOB YEAR DROPDOWN ===
-   Keeps the year picker visually consistent with the month dropdown while
-   allowing a long, explicitly scrollable list down to 1950. */
-.cc-dob-year-wrap{position:relative;display:inline-block}
-.cc-dob-year-button{
-  min-width:76px;height:34px;padding:0 28px 0 10px;
-  border:1px solid var(--glass-border);border-radius:9px;
-  background:var(--glass-surface);color:var(--ink);
-  font:inherit;font-size:.78rem;font-weight:700;text-align:left;
-  cursor:pointer;position:relative;
-}
-.cc-dob-year-button::after{
-  content:'⌄';position:absolute;right:9px;top:50%;transform:translateY(-55%);
-  color:var(--ink-muted);font-size:.8rem;
-}
-.cc-dob-year-menu{
-  position:absolute;top:calc(100% + 5px);left:0;z-index:10020;
-  width:100%;min-width:82px;max-height:220px;overflow-y:auto;
-  border:1px solid var(--glass-border);border-radius:9px;
-  background:var(--glass-surface-strong);box-shadow:var(--glass-shadow-lg);
-  padding:4px;overscroll-behavior:contain;scrollbar-width:thin;
-}
-.cc-dob-year-menu[hidden]{display:none}
-.cc-dob-year-menu button{
-  display:block;width:100%;border:0;border-radius:6px;background:transparent;
-  color:var(--ink);padding:7px 8px;text-align:left;font:inherit;font-size:.78rem;
-  cursor:pointer;
-}
-.cc-dob-year-menu button:hover,.cc-dob-year-menu button[aria-selected="true"]{
-  background:rgba(56,189,248,.16);color:var(--accent);
-}
-.cc-dob-year-menu::-webkit-scrollbar{width:7px}
-.cc-dob-year-menu::-webkit-scrollbar-thumb{background:rgba(148,163,184,.45);border-radius:999px}
-
-/* Registration feedback uses the same lower toast position as logout.
-   Other CampusCare toasts keep their existing behavior. */
-#registration-toast-container{
-  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
-  z-index:100050;width:min(430px,calc(100vw - 28px));pointer-events:none;
-}
-#registration-toast-container .toast{pointer-events:auto}
-@media(max-width:600px){#registration-toast-container{bottom:14px}}
-
-
-/* === DOB YEAR + REGISTRATION TOAST REFINEMENT v2 === */
-
-/* Match the custom DOB year trigger to the calendar's native month select. */
-.cc-dob-year-button{
-  min-width:64px !important;
-  height:34px !important;
-  padding:0 26px 0 10px !important;
-  border:1px solid var(--glass-border) !important;
-  border-radius:9px !important;
-  background:var(--glass-surface) !important;
-  color:var(--ink) !important;
-  font:inherit !important;
-  font-size:.78rem !important;
-  font-weight:700 !important;
-  line-height:1 !important;
-  box-shadow:none !important;
-  appearance:none;
-  -webkit-appearance:none;
-}
-.cc-dob-year-button:hover,
-.cc-dob-year-button:focus-visible{
-  border-color:rgba(56,189,248,.55) !important;
-  background:var(--glass-surface) !important;
-  outline:none;
-}
-.cc-dob-year-button::after{
-  content:'⌄' !important;
-  right:9px !important;
-  color:var(--ink-muted) !important;
-  font-size:.72rem !important;
-}
-
-/* Make the opened year list use the same dark glass language as the month control. */
-.cc-dob-year-menu{
-  min-width:100% !important;
-  width:84px !important;
-  max-height:220px !important;
-  padding:3px !important;
-  border:1px solid var(--glass-border) !important;
-  border-radius:7px !important;
-  background:#1c2229 !important;
-  box-shadow:0 12px 28px rgba(0,0,0,.34) !important;
-}
-.cc-dob-year-menu button{
-  border-radius:3px !important;
-  padding:6px 8px !important;
-  background:transparent !important;
-  color:var(--ink) !important;
-  font-size:.78rem !important;
-  font-weight:500 !important;
-}
-.cc-dob-year-menu button:hover{
-  background:rgba(255,255,255,.09) !important;
-  color:var(--ink) !important;
-}
-.cc-dob-year-menu button[aria-selected="true"]{
-  background:rgba(255,255,255,.16) !important;
-  color:var(--ink) !important;
-}
-
-/* Registration feedback: lower-right on desktop. */
-#registration-toast-container{
-  left:auto !important;
-  right:24px !important;
-  bottom:22px !important;
-  transform:none !important;
-  width:min(360px,calc(100vw - 48px)) !important;
-}
-
-/* Registration feedback: centered at the bottom on mobile. */
-@media(max-width:600px){
-  #registration-toast-container{
-    left:50% !important;
-    right:auto !important;
-    bottom:14px !important;
-    transform:translateX(-50%) !important;
-    width:calc(100vw - 28px) !important;
-    max-width:390px !important;
-  }
-}
-
 </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -1830,24 +1467,6 @@ tbody tr:hover td{background:var(--overlay)}
 <!-- MODALS CONTAINER -->
 <div id="modals"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-// ================================================================
-// SUPABASE CONFIGURATION
-// ================================================================
-// Project URL is safe to keep in the browser.
-const SUPABASE_URL = 'https://hgmvlklvobkqhyvjnzmx.supabase.co';
-
-// Paste the project's *publishable* key here (sb_publishable_...).
-// Never place a secret/service-role key in this frontend file.
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_4R6yLx9j1l6M3JMlyjRITA_vEsSBGBu';
-
-// Create one shared browser client. Supabase persists and refreshes the JWT session.
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-});
-</script>
-
 <script>
 // ================================================================
 // DATABASE
@@ -2200,24 +1819,41 @@ function toast(msg, type='info', dur=3000){
 // In-app confirmation dialog — replaces the native browser confirm()
 // popup with a styled modal that matches the rest of the app.
 function showConfirmDialog(opts){
-  const {title='Please Confirm',message,confirmLabel='Confirm',cancelLabel='Cancel',danger=false,onConfirm,onCancel,bypassSecondStep=false}=opts;
-  const renderStep=(step)=>{
-    const finalStep=step===2;
-    openModal(`<div class="modal modal-sm">
-      <div class="modal-header"><h3>${danger?'⚠️ ':''}${finalStep?'Final Confirmation':title}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
-      <div class="modal-body">
-        ${finalStep?`<div class="alert ${danger?'alert-warning':'alert-info'} show" style="margin-bottom:.7rem"><strong>Please confirm again.</strong></div>`:''}
-        <p style="font-size:.87rem;line-height:1.55;color:var(--ink)">${finalStep?'You are about to continue with this change. Please confirm that you really want to proceed.':message}</p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn" id="cc-confirm-cancel-btn">${finalStep?'Go Back':cancelLabel}</button>
-        <button class="btn ${danger?'btn-danger':'btn-primary'}" id="cc-confirm-ok-btn">${finalStep?'Yes, Continue':confirmLabel}</button>
-      </div>
-    </div>`);
-    document.getElementById('cc-confirm-ok-btn').onclick=()=>{closeAllModals();if(finalStep||bypassSecondStep){if(onConfirm)onConfirm();}else renderStep(2);};
-    document.getElementById('cc-confirm-cancel-btn').onclick=()=>{closeAllModals();if(finalStep)renderStep(1);else if(onCancel)onCancel();};
+  // One clear confirmation is enough. Sensitive actions still require the user
+  // to explicitly press the confirmation button, but there is no redundant
+  // second "Final Confirmation" screen.
+  const {
+    title='Please Confirm',
+    message,
+    confirmLabel='Confirm',
+    cancelLabel='Cancel',
+    danger=false,
+    onConfirm,
+    onCancel
+  }=opts;
+
+  openModal(`<div class="modal modal-sm">
+    <div class="modal-header">
+      <h3>${danger?'⚠️ ':''}${title}</h3>
+      <button class="close-btn" onclick="closeAllModals()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:.87rem;line-height:1.55;color:var(--ink)">${message}</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="cc-confirm-cancel-btn">${cancelLabel}</button>
+      <button class="btn ${danger?'btn-danger':'btn-primary'}" id="cc-confirm-ok-btn">${confirmLabel}</button>
+    </div>
+  </div>`);
+
+  document.getElementById('cc-confirm-ok-btn').onclick=()=>{
+    closeAllModals();
+    if(onConfirm) onConfirm();
   };
-  renderStep(1);
+  document.getElementById('cc-confirm-cancel-btn').onclick=()=>{
+    closeAllModals();
+    if(onCancel) onCancel();
+  };
 }
 
 function toastWithUndo(msg, undoFn, dur=6000){
@@ -3413,6 +3049,7 @@ async function doLogin(){
     currentUser=profile;
     try{ await supabaseClient.from('users').update({last_login_at:new Date().toISOString()}).eq('user_id',profile.user_id); }catch(_){}
     if(typeof enterApp==='function') enterApp();
+    await syncCampusCareSessionUI();
     if(profile.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
       setTimeout(refreshRealApprovalQueue,300);
     }
@@ -3482,99 +3119,106 @@ function openPrivacyNotice(){
   </div><div class="modal-footer"><button class="btn btn-primary" onclick="closeAllModals()">Close</button></div></div>`);
 }
 
-// Convert a camera-captured data URL into a File so it can be sent
-// to the same secure registration endpoint as a normal file upload.
-function dataUrlToFile(dataUrl, filename){
-  const parts=dataUrl.split(',');
-  const mime=(parts[0].match(/data:(.*?);/)||[])[1]||'image/jpeg';
-  const binary=atob(parts[1]);
-  const bytes=new Uint8Array(binary.length);
-  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
-  return new File([bytes],filename,{type:mime});
-}
+async function doRegister() {
+  const dobInput = document.getElementById('r-dob');
+  if (dobInput && !dobInput.max) dobInput.max = TODAY;
+  const fname = document.getElementById('r-fname').value.trim();
+  const lname = document.getElementById('r-lname').value.trim();
+  const uname = document.getElementById('r-user').value.trim();
+  const email = document.getElementById('r-email').value.trim();
+  const pass = document.getElementById('r-pass').value;
+  const contact = document.getElementById('r-contact').value.trim();
+  const ptype = document.getElementById('r-ptype').value;
+  const college = ptype === 'Student' ? document.getElementById('r-college').value : '';
+  const idNo = document.getElementById('r-idno').value.trim();
+  const dob = document.getElementById('r-dob').value;
+  const sex = document.getElementById('r-sex').value;
+  const fileInput = document.getElementById('r-id-file');
+  const selfieInput = document.getElementById('r-selfie-file');
+  const err = document.getElementById('reg-err');
+  const ok = document.getElementById('reg-ok');
+  hideAlert(err); hideAlert(ok);
+  const privacyConsent=document.getElementById('r-privacy-consent');
+  if(!privacyConsent||!privacyConsent.checked){showAlert(err,'Please read and agree to the CampusCare Privacy Notice and Consent before registering.');return;}
 
-async function doRegister(){
-  // Public registration is handled by a Supabase Edge Function so the
-  // private selfie and ID/COR can be stored securely even before email
-  // confirmation creates a browser session.
-  const fname=document.getElementById('r-fname').value.trim();
-  const lname=document.getElementById('r-lname').value.trim();
-  const uname=document.getElementById('r-user').value.trim();
-  const email=document.getElementById('r-email').value.trim().toLowerCase();
-  const pass=document.getElementById('r-pass').value;
-  const contact=document.getElementById('r-contact').value.trim();
-  const ptype=document.getElementById('r-ptype').value;
-  const college=ptype==='Student'?document.getElementById('r-college').value:'';
-  const idNo=document.getElementById('r-idno').value.trim();
-  const dob=document.getElementById('r-dob').value;
-  const sex=document.getElementById('r-sex').value;
-  const fileInput=document.getElementById('r-id-file');
-  const selfieInput=document.getElementById('r-selfie-file');
-  const err=document.getElementById('reg-err');
-  const ok=document.getElementById('reg-ok');
-  hideAlert(err);hideAlert(ok);
-
-  if(!fname||!lname||!uname||!email||!pass){registrationToast('Name, username, email and password are required.','error');return;}
-  if(!dob){registrationToast('Please enter your date of birth.','error');return;}
-  if(dob>TODAY){registrationToast('Date of birth cannot be in the future.','error');return;}
-  if(!sex){registrationToast('Please select your sex.','error');return;}
-  if(!checkPasswordStrength(pass).valid){
-    registrationToast('Password must be at least 8 characters and include uppercase, lowercase and a number.','error');return;
+  if (!fname || !lname || !uname || !email || !pass) {
+    showAlert(err, 'Name, username, email and password are required.');
+    return;
   }
-  if(!selfieInput.files.length&&!capturedSelfieDataUrl){registrationToast('Please upload or capture a selfie photo for verification.','error');return;}
-  if(!fileInput.files.length&&!capturedIdDataUrl){registrationToast('Please upload or capture your School ID or COR.','error');return;}
-  if(!document.getElementById('r-privacy-consent').checked){registrationToast('Please read and accept the CampusCare Privacy Notice and Consent.','error');return;}
+  if (!dob) {
+    showAlert(err, 'Please enter your date of birth.');
+    return;
+  }
+  if (dob > TODAY) {
+    showAlert(err, 'Date of birth cannot be in the future.');
+    return;
+  }
+  const ageYears = Math.floor((new Date(TODAY) - new Date(dob)) / (365.25*24*60*60*1000));
+  if (ageYears < 10 || ageYears > 100) {
+    showAlert(err, 'Please double-check your date of birth.');
+    return;
+  }
+  if (!sex) {
+    showAlert(err, 'Please select your sex.');
+    return;
+  }
+  if (!checkPasswordStrength(pass).valid) {
+    showAlert(err, 'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.');
+    return;
+  }
+  if (!selfieInput.files.length && !capturedSelfieDataUrl) {
+    showAlert(err, 'Please upload or capture a selfie photo for verification.');
+    return;
+  }
+  if (!fileInput.files.length && !capturedIdDataUrl) {
+    showAlert(err, 'Please upload or capture your School ID or COR.');
+    return;
+  }
+  if (DB.users.find(x => x.username === uname)) {
+    showAlert(err, 'Username already taken.');
+    return;
+  }
+  if (DB.users.find(x => x.email === email)) {
+    showAlert(err, 'Email already registered.');
+    return;
+  }
 
-  // Use either the selected files or the photos captured with the camera.
-  const selfieFile=selfieInput.files[0]||dataUrlToFile(capturedSelfieDataUrl,'profile.jpg');
-  const verificationFile=fileInput.files[0]||dataUrlToFile(capturedIdDataUrl,'verification.jpg');
-
-  const metadata={
-    first_name:fname,last_name:lname,username:uname,contact_no:contact,
-    person_type:ptype,college,id_number:idNo,date_of_birth:dob,sex,
-    privacy_consent:true,
-    privacy_policy_version:DB.settings?.privacyPolicyVersion||'1.0',
-    privacy_consent_at:new Date().toISOString()
-  };
-
-  // Multipart upload keeps binary ID/profile files out of localStorage and Auth metadata.
-  const form=new FormData();
-  form.append('email',email);
-  form.append('password',pass);
-  form.append('metadata',JSON.stringify(metadata));
-  form.append('selfie',selfieFile,selfieFile.name||'profile.jpg');
-  form.append('verification',verificationFile,verificationFile.name||'verification');
-
-  const submitBtn=document.querySelector('#reg-section button.btn-primary[onclick="doRegister()"]');
-  const oldLabel=submitBtn?.textContent;
-  if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Submitting securely…';}
-
+  const idFile = fileInput.files[0];
+  const selfieFile = selfieInput.files[0];
+  let idFileDataUrl, selfieDataUrl, idFileName;
   try{
-    const response=await fetch(`${SUPABASE_URL}/functions/v1/register-patient`,{
-      method:'POST',
-      headers:{'apikey':SUPABASE_PUBLISHABLE_KEY},
-      body:form
-    });
-    const result=await response.json().catch(()=>({}));
-    if(!response.ok||!result.ok)throw new Error(result.error||'Registration failed. Please try again.');
-
-    registrationToast(result.email_confirmation_required
-      ? 'Registration submitted. Check your email for confirmation, then wait for administrator approval.'
-      : 'Registration submitted. Your account is pending administrator approval.','success');
-
-    ['r-fname','r-lname','r-user','r-email','r-pass','r-contact','r-idno','r-dob','r-sex'].forEach(id=>{
-      const el=document.getElementById(id);if(el)el.value='';
-    });
-    document.getElementById('r-privacy-consent').checked=false;
-    fileInput.value='';selfieInput.value='';
-    const preview=document.getElementById('r-file-preview');if(preview)preview.textContent='';
-    if(typeof resetSelfiePreview==='function')resetSelfiePreview();
-    capturedSelfieDataUrl=null;capturedIdDataUrl=null;
+    idFileDataUrl = capturedIdDataUrl || await readFileAsDataURL(idFile);
+    selfieDataUrl = capturedSelfieDataUrl || await resizeImageDataUrl(await readFileAsDataURL(selfieFile));
+    idFileName = capturedIdDataUrl ? 'camera-capture.jpg' : idFile.name;
+    if(capturedIdDataUrl || idFile.type.startsWith('image/')) idFileDataUrl = await resizeImageDataUrl(idFileDataUrl, 700, 0.85);
   }catch(e){
-    registrationToast(e?.message||'Registration failed. Please try again.','error');
-  }finally{
-    if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=oldLabel||'Submit Registration';}
+    showAlert(err, 'Could not read the uploaded files. Please try again.');
+    return;
   }
+  const uid = DB.nextUserId++;
+  const newUser = {
+    id: uid, fname, lname, username: uname, password: pass, role: 'Patient',
+    email, contact, status: 'Pending', college, personType: ptype, idNo,
+    dob, sex,
+    idFile: idFileName,
+    idFileData: idFileDataUrl,
+    profilePhoto: selfieDataUrl,
+    verified: false, createdAt: TODAY, lastLogin: '',
+    privacyConsent:true, privacyConsentVersion:DB.settings.privacyPolicyVersion,
+    privacyConsentAt:new Date().toISOString()
+  };
+  DB.users.push(newUser);
+  auditLog('REGISTRATION_SUBMITTED',`${fname} ${lname} submitted registration and privacy consent v${DB.settings.privacyPolicyVersion}.`,'User',uid,newUser);
+  addNotif(1, 'New Registration Request', `${fname} ${lname} (${ptype}) has submitted a registration request.`, 'info');
+  persistDB();
+  showPendingPanel(newUser);
+  // Reset the form for next time, now that the pending panel has taken over the view.
+  ['r-fname','r-lname','r-user','r-email','r-pass','r-contact','r-idno','r-dob','r-sex'].forEach(id=>{const el=document.getElementById(id); if(el)el.value='';});
+  fileInput.value=''; selfieInput.value='';
+  document.getElementById('r-file-preview').textContent='';
+  resetSelfiePreview();
+  capturedSelfieDataUrl=null; capturedIdDataUrl=null; lastOcrCleanText='';
+  const idStatus=document.getElementById('id-analyze-status'); if(idStatus)idStatus.textContent='';
 }
 
 function showPendingPanel(user){
@@ -3682,34 +3326,36 @@ function submitNewPassword(){
 }
 
 function logout(){
+  if(currentUser){auditLog('LOGOUT','User signed out of CampusCare.','Session',currentUser.id);persistDB();}
   showConfirmDialog({
-    title:'Log Out',message:'Are you sure you want to logout?',confirmLabel:'Logout',
-    onConfirm:async()=>{
-      // Revoke the local Supabase session before returning to the login screen.
-      await supabaseClient.auth.signOut();
+    title:'Log Out',
+    message:'Are you sure you want to logout?',
+    confirmLabel:'Logout',
+    bypassSecondStep:true,
+    onConfirm:()=>{
       currentUser=null;currentPatient=null;
+      sessionStorage.removeItem(SESSION_KEY);
       document.getElementById('app').classList.remove('visible');
       document.getElementById('auth-wrap').style.display='block';
-      document.getElementById('li-user').value='';document.getElementById('li-pass').value='';
+      document.getElementById('li-user').value='';
+      document.getElementById('li-pass').value='';
       hideAlert(document.getElementById('login-err'));
-      document.getElementById('ai-fab').style.display='none';
-      document.getElementById('ai-panel').classList.remove('show');
-      const mbn=document.getElementById('mobile-bottom-nav');if(mbn)mbn.innerHTML='';
       document.getElementById('back-to-top').classList.remove('show');
       toast('Logged out successfully.','success');
     }
   });
 }
 
-async function tryRestoreSession(){
-  // Supabase restores the persisted JWT session after a refresh.
-  if(SUPABASE_PUBLISHABLE_KEY.includes('PASTE_YOUR_'))return false;
-  const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session?.user)return false;
-  const {data:profile}=await supabaseClient.from('users').select('*').eq('auth_user_id',session.user.id).single();
-  if(!profile||profile.status!=='Active'){await supabaseClient.auth.signOut();return false;}
-  currentUser={id:profile.user_id,authUserId:session.user.id,fname:profile.first_name||'',lname:profile.last_name||'',username:profile.username||'',email:profile.email||session.user.email||'',contact:profile.contact_no||profile.contact||'',role:profile.role||'Patient',status:profile.status,college:profile.college||'',personType:profile.person_type||'Student',idNo:profile.id_number||'',profilePhoto:profile.profile_photo_url||''};
-  if(currentUser.role==='Patient')currentPatient=getPatientByUserId(currentUser.id)||null;
+// Restore an active session (e.g. after a page refresh) so the person
+// isn't logged out just for reloading the tab.
+function tryRestoreSession(){
+  const savedId=sessionStorage.getItem(SESSION_KEY);
+  if(!savedId)return false;
+  const user=DB.users.find(u=>u.id===parseInt(savedId));
+  if(!user||user.status!=='Active'){sessionStorage.removeItem(SESSION_KEY);return false;}
+  currentUser=user;
+  if(user.role==='Patient')currentPatient=getPatientByUserId(user.id);
+  checkReminders();
   initApp();
   return true;
 }
@@ -5056,7 +4702,7 @@ function renderMyAccount(){
           </div>
           <p class="form-note" style="margin:-.2rem 0 .8rem">${u.role==='Administrator'?'As an administrator, you can update your name directly from User Management.':'For security, your name can only be changed by an administrator. <a href="#" onclick="openNameChangeRequest();return false;" style="color:var(--primary);text-decoration:none">Request a name change →</a>'}</p>
           <div class="divider"></div>
-          <div class="form-group"><label>Username or Email</label><input id="acc-email" value="${u.email}" type="email" oninput="sanitizeInput(this,'email')"></div>
+          <div class="form-group"><label>Email</label><input id="acc-email" value="${u.email}" type="email" oninput="sanitizeInput(this,'email')"></div>
           <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${u.contact||''}" inputmode="numeric" placeholder="09XXXXXXXXX" oninput="sanitizeInput(this,'phone')"></div>
           ${u.role==='Administrator'?'<p class="form-note">As an administrator, updating your email or contact applies immediately — no verification code needed.</p>':''}
           <p class="form-note">Changing your email or contact requires verifying it's you via your <em>current</em> email or phone.</p>
@@ -8969,7 +8615,7 @@ function openEditUserModal(id){
       <div class="form-row">
         <div class="form-group"><label>First Name</label><input id="eu-fname" value="${u.fname}"></div>
         <div class="form-group"><label>Last Name</label><input id="eu-lname" value="${u.lname}"></div>
-        <div class="form-group"><label>Username or Email</label><input id="eu-email" type="email" value="${u.email}"></div>
+        <div class="form-group"><label>Email</label><input id="eu-email" type="email" value="${u.email}"></div>
         <div class="form-group"><label>Contact</label><input id="eu-contact" value="${u.contact||''}"></div>
         <div class="form-group"><label>Status</label>
           <select id="eu-status"><option ${u.status==='Active'?'selected':''}>Active</option><option ${u.status==='Pending'?'selected':''}>Pending</option><option ${u.status==='Suspended'?'selected':''}>Suspended</option></select>
