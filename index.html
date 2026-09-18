@@ -12,6 +12,55 @@
     if(t==='dark') document.documentElement.setAttribute('data-theme','dark');
   }catch(e){}
 })();
+
+// Improves long year selectors in CampusCare calendars.
+// The browser's native select popup cannot be styled consistently, so on pointer
+// interaction we temporarily show a compact scrollable list and restore it after selection.
+function enhanceCalendarYearSelect(select){
+  if(!select || select.dataset.ccYearEnhanced==='1') return;
+  select.dataset.ccYearEnhanced='1';
+  select.classList.add('cc-year-select');
+
+  const openScrollableYearList=()=>{
+    if(window.innerWidth<=768) return; // Keep the mobile OS picker on phones/tablets.
+    select.dataset.originalSize=select.size||0;
+    select.size=Math.min(8,Math.max(2,select.options.length));
+    select.classList.add('cc-year-menu');
+  };
+  const closeScrollableYearList=()=>{
+    select.size=1;
+    select.classList.remove('cc-year-menu');
+  };
+
+  select.addEventListener('mousedown',e=>{
+    if(select.size<=1){
+      e.preventDefault();
+      openScrollableYearList();
+      select.focus();
+    }
+  });
+  select.addEventListener('change',closeScrollableYearList);
+  select.addEventListener('blur',()=>setTimeout(closeScrollableYearList,100));
+  select.addEventListener('keydown',e=>{
+    if(e.key==='Escape'||e.key==='Enter') closeScrollableYearList();
+  });
+}
+function enhanceAllCalendarYearSelects(root=document){
+  root.querySelectorAll('select').forEach(sel=>{
+    const id=(sel.id||'').toLowerCase(),cls=(sel.className||'').toString().toLowerCase();
+    const numeric=[...sel.options].filter(o=>/^\d{4}$/.test(o.value||o.textContent.trim()));
+    if((id.includes('year')||cls.includes('year')||numeric.length>=5) && numeric.length>=5){
+      enhanceCalendarYearSelect(sel);
+    }
+  });
+}
+// Observe dynamically created date-picker modals too.
+const ccYearObserver=new MutationObserver(()=>enhanceAllCalendarYearSelects());
+document.addEventListener('DOMContentLoaded',()=>{
+  enhanceAllCalendarYearSelects();
+  ccYearObserver.observe(document.body,{childList:true,subtree:true});
+});
+
 </script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -996,6 +1045,84 @@ tbody tr:hover td{background:var(--overlay)}
   .dashboard-a-head{align-items:flex-start}
   .dashboard-progress-row{grid-template-columns:88px 1fr 36px}
 }
+
+
+/* === AUTH FEEDBACK + DOB YEAR UI FIX === */
+#toast-container{
+  position:fixed;
+  top:20px;
+  right:20px;
+  z-index:100000;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  width:min(390px,calc(100vw - 28px));
+  pointer-events:none;
+}
+.toast{
+  position:relative;
+  width:100%;
+  min-height:58px;
+  padding:13px 42px 13px 46px;
+  border:1px solid var(--glass-border);
+  border-radius:14px;
+  background:var(--glass-surface-strong);
+  backdrop-filter:blur(18px) saturate(160%);
+  -webkit-backdrop-filter:blur(18px) saturate(160%);
+  box-shadow:var(--glass-shadow-lg);
+  color:var(--ink);
+  font-size:.82rem;
+  line-height:1.4;
+  display:flex;
+  align-items:center;
+  overflow:hidden;
+  pointer-events:auto;
+  animation:ccToastIn .24s ease-out;
+}
+.toast::before{
+  position:absolute;
+  left:14px;
+  top:50%;
+  transform:translateY(-50%);
+  width:22px;
+  height:22px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  font-size:.72rem;
+  font-weight:900;
+}
+.toast-success{border-color:rgba(52,211,153,.42)}
+.toast-success::before{content:'✓';background:rgba(52,211,153,.16);color:#34d399}
+.toast-error{border-color:rgba(248,113,113,.5)}
+.toast-error::before{content:'!';background:rgba(248,113,113,.16);color:#f87171}
+.toast-warning{border-color:rgba(251,191,36,.45)}
+.toast-warning::before{content:'!';background:rgba(251,191,36,.15);color:#fbbf24}
+.toast-info{border-color:rgba(56,189,248,.42)}
+.toast-info::before{content:'i';background:rgba(56,189,248,.15);color:#38bdf8}
+.toast-close{
+  position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  border:0;background:transparent;color:var(--ink-muted);
+  cursor:pointer;font-size:1rem;padding:5px;border-radius:7px;
+}
+.toast-close:hover{background:rgba(255,255,255,.08);color:var(--ink)}
+@keyframes ccToastIn{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}
+@media(max-width:600px){
+  #toast-container{top:12px;right:14px;left:14px;width:auto}
+  .toast{font-size:.78rem}
+}
+
+/* Custom year dropdown used by the CampusCare calendar.
+   A fixed max-height guarantees that long DOB year ranges can be scrolled. */
+.cc-year-menu{
+  max-height:240px !important;
+  overflow-y:auto !important;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.cc-year-menu::-webkit-scrollbar{width:7px}
+.cc-year-menu::-webkit-scrollbar-thumb{background:rgba(148,163,184,.42);border-radius:999px}
+.cc-year-menu::-webkit-scrollbar-track{background:transparent}
 
 </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
