@@ -95,6 +95,10 @@ async function syncCampusCareSessionUI(){
 document.addEventListener('DOMContentLoaded',()=>{
   if(window.supabaseClient?.auth){
     supabaseClient.auth.onAuthStateChange((event,session)=>{
+      if(event==='PASSWORD_RECOVERY'){
+        setTimeout(()=>openForgotPassword(true),0);
+        return;
+      }
       if(event==='SIGNED_IN' && session) setTimeout(syncCampusCareSessionUI,0);
     });
   }
@@ -1790,42 +1794,45 @@ tbody tr:hover td{background:var(--overlay)}
     <div id="forgot-section" style="display:none">
       <div style="text-align:center;padding:.2rem 0 .8rem">
         <div style="width:52px;height:52px;border-radius:50%;background:var(--info-bg);display:flex;align-items:center;justify-content:center;margin:0 auto .6rem;font-size:24px">🔑</div>
-        <h3 style="font-size:1rem">Reset Your Password</h3>
+        <h3 id="forgot-title" style="font-size:1rem">Reset Your Password</h3>
+        <p id="forgot-subtitle" class="text-muted" style="font-size:.78rem;margin-top:.25rem">CampusCare will send a secure reset link to your registered email.</p>
       </div>
 
-      <!-- Step 1: identify + method -->
+      <!-- Step 1: request reset email -->
       <div id="forgot-step1">
         <div class="alert alert-danger" id="fp-err"></div>
-        <div class="form-group"><label>Username or Email</label><input id="fp-identifier" type="text" placeholder="Enter your username or email" oninput="sanitizeInput(this,'identifier')"></div>
         <div class="form-group">
-          <label>Send code via</label>
-          <div style="display:flex;gap:1rem;margin-top:.2rem">
-            <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer"><input type="radio" name="fp-method" value="email" checked> Email</label>
-            <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer"><input type="radio" name="fp-method" value="sms"> SMS</label>
-          </div>
+          <label>Username or Email</label>
+          <input id="fp-identifier" type="text" placeholder="Enter your username or email" autocomplete="username" autocapitalize="none" spellcheck="false">
         </div>
-        <button class="btn btn-primary" style="width:100%;margin-top:.4rem" onclick="sendResetCode()">Send Code</button>
+        <div class="alert alert-info show" style="font-size:.76rem">
+          📧 A password-reset link will be sent to the email registered with your CampusCare account.
+        </div>
+        <button class="btn btn-primary" id="fp-send-btn" style="width:100%;margin-top:.4rem" onclick="sendPasswordResetEmail()">Send Reset Link</button>
         <button class="btn" style="width:100%;margin-top:.5rem" onclick="closeForgotPassword()">Back to Login</button>
       </div>
 
-      <!-- Step 2: verify code -->
+      <!-- Step 2: email sent -->
       <div id="forgot-step2" style="display:none">
-        <div class="alert alert-danger" id="fp-err2"></div>
-        <p style="font-size:.83rem;color:var(--ink-muted);margin-bottom:.6rem">We sent a 6-digit code to <strong id="fp-dest"></strong>.</p>
-        <div class="alert alert-info show" style="font-size:.76rem">
-          📩 Demo mode — since this app runs entirely in your browser with no email/SMS server connected, here's the code we would have sent: <strong id="fp-demo-code" style="font-size:.95rem;letter-spacing:1px"></strong>
+        <div class="alert alert-success show" style="display:block">
+          <strong>Check your email.</strong><br>
+          If a matching CampusCare account exists, a secure password-reset link has been sent.
         </div>
-        <div class="form-group"><label>Enter Code</label><input id="fp-code" type="text" maxlength="6" placeholder="6-digit code" style="letter-spacing:2px" oninput="sanitizeInput(this,'code')"></div>
-        <button class="btn btn-primary" style="width:100%" onclick="verifyResetCode()">Verify Code</button>
-        <button class="btn" style="width:100%;margin-top:.5rem" onclick="closeForgotPassword()">Cancel</button>
+        <p class="text-muted" style="font-size:.79rem;line-height:1.55">
+          Open the email on this device or another device, then select <strong>Reset Password</strong>. The link will return you to CampusCare to create a new password.
+        </p>
+        <button class="btn btn-primary" style="width:100%;margin-top:.75rem" onclick="closeForgotPassword()">Back to Login</button>
       </div>
 
-      <!-- Step 3: set new password -->
+      <!-- Step 3: reached from secure recovery link -->
       <div id="forgot-step3" style="display:none">
         <div class="alert alert-danger" id="fp-err3"></div>
-        <div class="form-group"><label>New Password</label><input id="fp-newpass" type="password" placeholder="At least 6 characters" oninput="sanitizeInput(this,'password')"></div>
-        <div class="form-group"><label>Confirm New Password</label><input id="fp-newpass2" type="password" oninput="sanitizeInput(this,'password')"></div>
-        <button class="btn btn-primary" style="width:100%" onclick="submitNewPassword()">Reset Password</button>
+        <div class="alert alert-info show" style="font-size:.76rem">
+          🔐 Your recovery link was verified. Create a new CampusCare password.
+        </div>
+        <div class="form-group"><label>New Password</label><input id="fp-newpass" type="password" placeholder="At least 8 characters" autocomplete="new-password"></div>
+        <div class="form-group"><label>Confirm New Password</label><input id="fp-newpass2" type="password" autocomplete="new-password"></div>
+        <button class="btn btn-primary" id="fp-update-btn" style="width:100%" onclick="submitNewPassword()">Update Password</button>
       </div>
     </div>
   </div>
@@ -1914,6 +1921,8 @@ tbody tr:hover td{background:var(--overlay)}
 // Create one shared browser client used by login, registration, approvals, and session sync.
 const SUPABASE_URL = 'https://hgmvlklvobkqhyvjnzmx.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_4R6yLx9j1l6M3JMlyjRITA_vEsSBGBu';
+// Production redirect target for email confirmation and password recovery.
+const CAMPUSCARE_APP_URL = 'https://crescendo2344.github.io/CampusCare/';
 
 let supabaseClient = null;
 
@@ -3814,27 +3823,36 @@ function closePendingPanel(){
 }
 
 // ================================================================
-// FORGOT PASSWORD — simulated email/SMS code flow (no real backend,
-// so the "sent" code is shown on-screen with a clear demo-mode label)
+// FORGOT PASSWORD — real Supabase email recovery
 // ================================================================
-let forgotUserId=null;
-let forgotCode=null;
-
-function openForgotPassword(){
+function openForgotPassword(recoveryMode=false){
   document.getElementById('login-section').style.display='none';
   document.getElementById('reg-section').style.display='none';
   document.getElementById('pending-section').style.display='none';
   document.getElementById('auth-tabs').style.display='none';
   document.getElementById('forgot-section').style.display='block';
-  document.getElementById('fp-identifier').value=document.getElementById('li-user').value||'';
+
+  const identifier=document.getElementById('fp-identifier');
+  if(identifier&&!recoveryMode)identifier.value=document.getElementById('li-user').value||'';
+
   hideAlert(document.getElementById('fp-err'));
-  showForgotStep(1);
+  hideAlert(document.getElementById('fp-err3'));
+  showForgotStep(recoveryMode?3:1);
+
+  const title=document.getElementById('forgot-title');
+  const subtitle=document.getElementById('forgot-subtitle');
+  if(recoveryMode){
+    if(title)title.textContent='Create a New Password';
+    if(subtitle)subtitle.textContent='Your secure recovery link has been verified.';
+  }else{
+    if(title)title.textContent='Reset Your Password';
+    if(subtitle)subtitle.textContent='CampusCare will send a secure reset link to your registered email.';
+  }
 }
 
 function closeForgotPassword(){
   document.getElementById('forgot-section').style.display='none';
   document.getElementById('auth-tabs').style.display='flex';
-  forgotUserId=null; forgotCode=null;
   authTab('login');
 }
 
@@ -3845,60 +3863,128 @@ function showForgotStep(n){
   });
 }
 
-function maskEmail(e){
-  if(!e||!e.includes('@'))return e||'—';
-  const [name,domain]=e.split('@');
-  return name.slice(0,2)+'***@'+domain;
-}
-function maskPhone(p){
-  if(!p||p.length<6)return p||'—';
-  return p.slice(0,4)+'****'+p.slice(-2);
-}
-
-function sendResetCode(){
-  const idVal=document.getElementById('fp-identifier').value.trim();
-  const method=document.querySelector('input[name="fp-method"]:checked').value;
+async function sendPasswordResetEmail(){
+  const identifier=document.getElementById('fp-identifier').value.trim();
   const err=document.getElementById('fp-err');
+  const btn=document.getElementById('fp-send-btn');
   hideAlert(err);
-  if(!idVal){showAlert(err,'Please enter your username or email.');return;}
-  const user=DB.users.find(u=>u.username===idVal||u.email.toLowerCase()===idVal.toLowerCase());
-  if(!user){showAlert(err,'No account found with that username or email.');return;}
-  if(method==='sms'&&!user.contact){showAlert(err,'This account has no phone number on file. Please choose Email instead.');return;}
-  forgotUserId=user.id;
-  forgotCode=String(Math.floor(100000+Math.random()*900000));
-  document.getElementById('fp-dest').textContent=method==='email'?maskEmail(user.email):maskPhone(user.contact);
-  document.getElementById('fp-demo-code').textContent=forgotCode;
-  document.getElementById('fp-code').value='';
-  hideAlert(document.getElementById('fp-err2'));
-  showForgotStep(2);
-  toast(`Verification code sent via ${method==='email'?'email':'SMS'}.`,'success');
+
+  if(!identifier){
+    showAlert(err,'Please enter your username or email.');
+    return;
+  }
+
+  const oldText=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Sending…';}
+
+  try{
+    const response=await fetch(`${SUPABASE_URL}/functions/v1/request-password-reset`,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        apikey:SUPABASE_PUBLISHABLE_KEY
+      },
+      body:JSON.stringify({identifier})
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||!result.ok)throw new Error(result.error||'Unable to send the reset email.');
+
+    // Use a generic success response to avoid revealing whether an account exists.
+    showForgotStep(2);
+  }catch(e){
+    showAlert(err,e?.message||'Unable to send the reset email. Please try again.');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=oldText||'Send Reset Link';}
+  }
 }
 
-function verifyResetCode(){
-  const code=document.getElementById('fp-code').value.trim();
-  const err=document.getElementById('fp-err2');
-  hideAlert(err);
-  if(!code){showAlert(err,'Please enter the code.');return;}
-  if(code!==forgotCode){showAlert(err,'Incorrect code. Please check and try again.');return;}
-  document.getElementById('fp-newpass').value='';
-  document.getElementById('fp-newpass2').value='';
-  hideAlert(document.getElementById('fp-err3'));
-  showForgotStep(3);
+function cleanAuthCallbackUrl(){
+  try{
+    const clean=window.location.origin+window.location.pathname;
+    window.history.replaceState({},document.title,clean);
+  }catch(_){}
 }
 
-function submitNewPassword(){
+async function submitNewPassword(){
   const p1=document.getElementById('fp-newpass').value;
   const p2=document.getElementById('fp-newpass2').value;
   const err=document.getElementById('fp-err3');
+  const btn=document.getElementById('fp-update-btn');
   hideAlert(err);
-  if(!p1||!checkPasswordStrength(p1).valid){showAlert(err,'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.');return;}
-  if(p1!==p2){showAlert(err,'Passwords do not match.');return;}
-  const user=DB.users.find(u=>u.id===forgotUserId);
-  if(!user){showAlert(err,'Something went wrong. Please start over.');return;}
-  user.password=p1;
-  persistDB();
-  toast('Password reset successfully. Please log in with your new password.','success');
-  closeForgotPassword();
+
+  if(!p1||!checkPasswordStrength(p1).valid){
+    showAlert(err,'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.');
+    return;
+  }
+  if(p1!==p2){
+    showAlert(err,'Passwords do not match.');
+    return;
+  }
+
+  const oldText=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Updating…';}
+
+  try{
+    if(!initializeSupabaseClient())throw new Error('Unable to connect to CampusCare.');
+    const {error}=await supabaseClient.auth.updateUser({password:p1});
+    if(error)throw error;
+
+    // End the temporary recovery session so the user signs in normally afterward.
+    await supabaseClient.auth.signOut();
+    cleanAuthCallbackUrl();
+
+    document.getElementById('fp-newpass').value='';
+    document.getElementById('fp-newpass2').value='';
+    closeForgotPassword();
+    toast('Password updated successfully. You can now log in with your new password.','success');
+  }catch(e){
+    showAlert(err,e?.message||'Unable to update your password. Please request a new recovery link.');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=oldText||'Update Password';}
+  }
+}
+
+async function handleCampusCareAuthCallback(){
+  const params=new URLSearchParams(window.location.search);
+  const mode=params.get('auth');
+
+  if(mode==='recovery'){
+    document.getElementById('app')?.classList.remove('visible');
+    const auth=document.getElementById('auth-wrap');
+    if(auth)auth.style.display='block';
+    openForgotPassword(true);
+    return 'recovery';
+  }
+
+  if(mode==='confirmed'){
+    // Supabase processes the confirmation token before redirecting here.
+    const {data:{session}}=await supabaseClient.auth.getSession();
+
+    if(session?.user){
+      const {data:profile}=await supabaseClient
+        .from('users')
+        .select('status')
+        .eq('auth_user_id',session.user.id)
+        .maybeSingle();
+
+      if(String(profile?.status||'').toLowerCase()==='pending'){
+        await supabaseClient.auth.signOut();
+        cleanAuthCallbackUrl();
+        document.getElementById('app')?.classList.remove('visible');
+        const auth=document.getElementById('auth-wrap');
+        if(auth)auth.style.display='block';
+        authTab('login');
+        toast('Email confirmed successfully. Your registration is still pending administrator approval.','success',6500);
+        return 'confirmed-pending';
+      }
+    }
+
+    cleanAuthCallbackUrl();
+    toast('Email address confirmed successfully.','success');
+    return 'confirmed';
+  }
+
+  return null;
 }
 
 function logout(){
@@ -10105,6 +10191,13 @@ document.addEventListener('DOMContentLoaded',async()=>{
   const safetyTimer=setTimeout(()=>restoreSkeleton?.classList.remove('show'),4000);
 
   try{
+    const callbackMode=await handleCampusCareAuthCallback();
+    if(callbackMode==='recovery'||callbackMode==='confirmed-pending'){
+      restoreSkeleton?.classList.remove('show');
+      clearTimeout(safetyTimer);
+      return;
+    }
+
     const {data:{session:existingSession}}=await supabaseClient.auth.getSession();
     if(existingSession)restoreSkeleton?.classList.add('show');
 
@@ -10116,6 +10209,13 @@ document.addEventListener('DOMContentLoaded',async()=>{
     restoreSkeleton?.classList.remove('show');
 
     supabaseClient.auth.onAuthStateChange((event,session)=>{
+      if(event==='PASSWORD_RECOVERY'){
+        document.getElementById('app')?.classList.remove('visible');
+        const auth=document.getElementById('auth-wrap');
+        if(auth)auth.style.display='block';
+        openForgotPassword(true);
+        return;
+      }
       if(event==='SIGNED_IN'&&session&&!currentUser){
         setTimeout(()=>syncCampusCareSessionUI(),0);
       }
@@ -10149,7 +10249,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v17 loaded.');
+console.log('CampusCare v23 loaded.');
 </script>
 </body>
 </html>
