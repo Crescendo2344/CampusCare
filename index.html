@@ -28,11 +28,15 @@ async function syncCampusCareSessionUI(){
       .single();
     if(error || !profile) return false;
 
-    currentUser=profile;
+    currentUser=normalizeSupabaseUser(profile);
+    // Rebuild role-based navigation immediately after the real profile is known.
+    if(typeof renderSidebar==='function') renderSidebar();
+
 
     // Use the website's existing app-entry renderer instead of waiting for reload.
     if(typeof enterApp==='function'){
       enterApp();
+      if(typeof renderSidebar==='function') renderSidebar();
     }else{
       const auth=document.getElementById('auth-wrap');
       const app=document.getElementById('app');
@@ -64,6 +68,29 @@ document.addEventListener('DOMContentLoaded',()=>{
     });
   }
 });
+
+
+// Normalize a real Supabase user so the existing CampusCare UI can display it
+// without showing generic "User / email / Role" placeholders.
+function normalizeSupabaseUser(profile){
+  if(!profile) return profile;
+  return {
+    ...profile,
+    id: profile.user_id ?? profile.id,
+    authUserId: profile.auth_user_id ?? profile.authUserId,
+    fname: profile.first_name ?? profile.fname ?? '',
+    lname: profile.last_name ?? profile.lname ?? '',
+    username: profile.username ?? '',
+    email: profile.email ?? '',
+    role: profile.role ?? 'Patient',
+    status: profile.status ?? 'Pending',
+    verified: profile.verified ?? false,
+    contactNo: profile.contact_number ?? profile.contactNo ?? '',
+    personType: profile.person_type ?? profile.personType ?? '',
+    idNo: profile.id_number ?? profile.idNo ?? '',
+    profileImage: profile.profile_image_url ?? profile.profileImage ?? ''
+  };
+}
 
 </script>
 <style>
@@ -3081,7 +3108,10 @@ async function doLogin(){
       throw new Error('This account is not currently active.');
     }
 
-    currentUser=profile;
+    currentUser=normalizeSupabaseUser(profile);
+    // Rebuild role-based navigation immediately after the real profile is known.
+    if(typeof renderSidebar==='function') renderSidebar();
+
     try{ await supabaseClient.from('users').update({last_login_at:new Date().toISOString()}).eq('user_id',profile.user_id); }catch(_){}
     if(typeof enterApp==='function') enterApp();
     await syncCampusCareSessionUI();
