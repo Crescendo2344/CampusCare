@@ -89,6 +89,53 @@ function normalizeSupabaseUser(profile){
   };
 }
 
+
+// Registration has its own toast position so validation messages do not appear
+// as large inline alerts inside the registration form.
+function registrationToast(msg,type='info'){
+  let container=document.getElementById('registration-toast-container');
+  if(!container){
+    container=document.createElement('div');
+    container.id='registration-toast-container';
+    container.setAttribute('aria-live','polite');
+    document.body.appendChild(container);
+  }
+  container.innerHTML='';
+  const tone=['success','error','warning','info'].includes(type)?type:'info';
+  const el=document.createElement('div');
+  el.className=`toast toast-${tone}`;
+  el.setAttribute('role',tone==='error'?'alert':'status');
+
+  const message=document.createElement('span');
+  message.textContent=String(msg||'');
+
+  const close=document.createElement('button');
+  close.type='button';
+  close.className='toast-close';
+  close.setAttribute('aria-label','Dismiss notification');
+  close.textContent='×';
+  close.onclick=()=>el.remove();
+
+  el.append(message,close);
+  container.appendChild(el);
+  setTimeout(()=>{ if(el.isConnected) el.remove(); },tone==='error'?6000:4200);
+}
+
+// Convert registration-specific inline alert calls to the dedicated toast.
+// This leaves login, logout, dashboard and other CampusCare toasts unchanged.
+function routeRegistrationFeedbackToToast(){
+  const reg=document.getElementById('reg-section');
+  if(!reg) return;
+  reg.querySelectorAll('.alert').forEach(a=>{
+    if(a.textContent.trim()){
+      const type=a.classList.contains('alert-error')?'error':
+                 a.classList.contains('alert-success')?'success':'info';
+      registrationToast(a.textContent.trim(),type);
+      a.style.display='none';
+    }
+  });
+}
+
 </script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1079,6 +1126,41 @@ tbody tr:hover td{background:var(--overlay)}
    Long year lists use the browser's native scrollable dropdown. */
 .modern-calendar-title .modern-calendar-year-select{
   max-width:82px;
+}
+
+
+/* === COMPACT CALENDAR YEAR DROPDOWN ===
+   Keep the year control the same size as Month while limiting the opened
+   native list to a compact scrollable height where supported. */
+.modern-calendar-title .modern-calendar-year-select{
+  width:68px !important;
+  max-width:68px !important;
+}
+
+/* === REGISTRATION-ONLY TOAST ===
+   Registration feedback is separated from inline form alerts.
+   Desktop: lower-right. Mobile: centered at the bottom. */
+#registration-toast-container{
+  position:fixed;
+  right:22px;
+  bottom:22px;
+  left:auto;
+  z-index:100100;
+  width:min(360px,calc(100vw - 44px));
+  pointer-events:none;
+}
+#registration-toast-container .toast{
+  pointer-events:auto;
+}
+@media(max-width:600px){
+  #registration-toast-container{
+    left:50%;
+    right:auto;
+    bottom:14px;
+    transform:translateX(-50%);
+    width:calc(100vw - 28px);
+    max-width:390px;
+  }
 }
 
 </style>
