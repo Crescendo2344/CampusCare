@@ -114,6 +114,122 @@ function registrationToast(msg,type='info'){
 }
 document.addEventListener('DOMContentLoaded',installDobYearDropdown);
 
+
+// === REAL SUPABASE ADMIN APPROVAL QUEUE ===
+// Loads pending patient registrations from the protected Edge Function.
+// The function verifies that the current signed-in user is an active Administrator.
+async function loadRealPendingApprovals(){
+  if(!supabaseClient || currentUser?.role!=='Administrator') return [];
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session) return [];
+  const res=await fetch(`${SUPABASE_URL}/functions/v1/admin-approvals`,{
+    headers:{
+      'apikey':SUPABASE_PUBLISHABLE_KEY,
+      'Authorization':`Bearer ${session.access_token}`
+    }
+  });
+  const body=await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(body.error||'Unable to load pending registrations.');
+  return body.users||[];
+}
+
+async function decideRealRegistration(userId,action){
+  // A second confirmation protects approval/rejection from accidental clicks.
+  const verb=action==='approve'?'approve':'reject';
+  if(!confirm(`Are you sure you want to ${verb} this registration?`)) return false;
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session){toast('Your session has expired. Please sign in again.','error');return false;}
+  const res=await fetch(`${SUPABASE_URL}/functions/v1/admin-approvals`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'apikey':SUPABASE_PUBLISHABLE_KEY,
+      'Authorization':`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify({user_id:Number(userId),action})
+  });
+  const body=await res.json().catch(()=>({}));
+  if(!res.ok){toast(body.error||`Unable to ${verb} registration.`,'error');return false;}
+  toast(action==='approve'?'Patient account approved.':'Registration rejected.','success');
+  return true;
+}
+
+// Converts a real Supabase pending account into the shape expected by the
+// existing CampusCare administrator registration-review UI.
+function realApprovalToLegacyShape(u){
+  return {
+    id:u.user_id,
+    authUserId:u.auth_user_id,
+    fname:u.first_name||'',
+    lname:u.last_name||'',
+    username:u.username||'',
+    email:u.email||'',
+    contactNo:u.contact_number||'',
+    personType:u.person_type||'',
+    college:u.college||'',
+    idNo:u.id_number||'',
+    role:'Patient',
+    status:'Pending',
+    verified:false,
+    createdAt:u.created_at,
+    // Signed links expire after a few minutes and never expose the private bucket itself.
+    profileImage:u.profile_signed_url||'',
+    selfieDataUrl:u.profile_signed_url||'',
+    idFileDataUrl:u.verification_signed_url||'',
+    idFileName:u.id_file_url?u.id_file_url.split('/').pop():'',
+    _realSupabaseApproval:true
+  };
+}
+
+// Patch the existing pending-registration data only while an Administrator is
+// using the approval screen, preserving the rest of the prototype UI for now.
+let realPendingApprovals=[];
+async function refreshRealApprovalQueue(){
+  if(currentUser?.role!=='Administrator') return;
+  try{
+    const rows=await loadRealPendingApprovals();
+    realPendingApprovals=rows.map(realApprovalToLegacyShape);
+    // Existing admin renderers read DB.users, so replace only Pending Patient
+    // prototype rows with the authoritative Supabase queue.
+    DB.users=(DB.users||[]).filter(u=>!(u.role==='Patient'&&u.status==='Pending'));
+    DB.users.push(...realPendingApprovals);
+    if(typeof renderAdmin==='function') renderAdmin();
+  }catch(e){
+    console.error('Approval queue:',e);
+    toast(e?.message||'Unable to load pending registrations.','error');
+  }
+}
+
+// Intercept existing approve/reject calls when they target a real Supabase row.
+// Prototype/demo rows continue to use the old behavior until their modules migrate.
+const _legacyApproveUser=typeof approveUser==='function'?approveUser:null;
+if(_legacyApproveUser){
+  approveUser=async function(id,...args){
+    const row=(DB.users||[]).find(u=>String(u.id)===String(id));
+    if(row?._realSupabaseApproval){
+      if(await decideRealRegistration(row.id,'approve')) await refreshRealApprovalQueue();
+      return;
+    }
+    return _legacyApproveUser(id,...args);
+  };
+}
+const _legacyRejectUser=typeof rejectUser==='function'?rejectUser:null;
+if(_legacyRejectUser){
+  rejectUser=async function(id,...args){
+    const row=(DB.users||[]).find(u=>String(u.id)===String(id));
+    if(row?._realSupabaseApproval){
+      if(await decideRealRegistration(row.id,'reject')) await refreshRealApprovalQueue();
+      return;
+    }
+    return _legacyRejectUser(id,...args);
+  };
+}
+
+// Refresh the queue whenever a real Administrator session is restored/logged in.
+document.addEventListener('DOMContentLoaded',()=>{
+  setTimeout(()=>{ if(currentUser?.role==='Administrator') refreshRealApprovalQueue(); },1200);
+});
+
 </script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
