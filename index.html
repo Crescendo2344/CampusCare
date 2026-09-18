@@ -3418,8 +3418,8 @@ function getAssistantReply(raw){
     {keys:['reset password','forgot password'],ans:"On the login screen, click \"Forgot password?\" and follow the steps — a verification code is sent to your email or phone."},
     {keys:['change password','update password'],ans:"Go to Account Settings → Change Password. Enter your current password and a new password that meets the security checklist. Password changes are limited to once every 7 days."},
     {keys:['change name','update name','name change'],ans:role==='Administrator'?"As an administrator, you can update your own name directly from User Management by editing your account.":"For security, names can only be changed by an administrator. Go to Account Settings and use \"Request a name change.\""},
-    {keys:['change email','update email','change my email'],ans:role==='Administrator'?"As an administrator, you can update your email directly on Account Settings — no verification code needed.":"Go to Account Settings, update your email, and save — you'll get a verification code sent to your current email or phone to confirm it's really you."},
-    {keys:['change phone','update phone','change contact number','update contact'],ans:role==='Administrator'?"As an administrator, you can update your contact number directly on Account Settings — no verification code needed.":"Go to Account Settings, update your contact number, and save — you'll get a verification code sent to your current email or phone to confirm it's really you."},
+    {keys:['change email','update email','change my email'],ans:role==='Administrator'?"As an administrator, you can update your email directly on Account Settings — no verification code needed.":"Go to Account Settings, enter the new email, and save. CampusCare sends a 6-digit reauthentication code to your current verified email or phone before starting the email-change verification."},
+    {keys:['change phone','update phone','change contact number','update contact'],ans:role==='Administrator'?"As an administrator, you can update your contact number directly on Account Settings — no verification code needed.":"Go to Account Settings, enter the new contact number, and save. CampusCare first sends a 6-digit reauthentication code to your current verified email or phone, then sends an SMS code to the new number before completing the change."},
     {keys:['change profile photo','update profile photo','change my picture','update picture'],ans:"Go to Account Settings → Profile Photo, then click \"Upload Photo\" or \"Use Camera\" to set a new one."},
     {keys:['dark mode','night mode','theme'],ans:"Click the moon/sun icon at the bottom of the sidebar (or on the login screen) to switch between light and dark mode."},
     {keys:['report issue','report bug','feedback','suggestion'],ans:"Use \"Report an Issue\" in the sidebar — you can describe the problem, attach a screenshot, and administrators can reply directly to you."},
@@ -5909,8 +5909,9 @@ function renderMyAccount(){
           <div class="divider"></div>
           <div class="form-group"><label>Email</label><input id="acc-email" value="${u.email}" type="email" oninput="sanitizeInput(this,'email')"></div>
           <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${u.contact||''}" inputmode="numeric" placeholder="09XXXXXXXXX" oninput="sanitizeInput(this,'phone')"></div>
-          ${u.role==='Administrator'?'<p class="form-note">As an administrator, updating your email or contact applies immediately — no verification code needed.</p>':''}
-          <p class="form-note">Changing your email or contact requires verifying it's you via your <em>current</em> email or phone.</p>
+          ${u.role==='Administrator'
+            ? '<p class="form-note">As an administrator, updating your email or contact applies immediately — no verification code needed.</p>'
+            : '<p class="form-note">Changing your email or contact requires a 6-digit verification code sent to your current verified email or phone. If you change your phone number, Supabase also sends an SMS code to the new number before the change is completed.</p>'}
           <button class="btn btn-primary btn-sm" onclick="saveAccount()">Save Changes</button>
         </div>
         <div class="card">
@@ -6098,78 +6099,346 @@ function rejectScheduleChange(reqId){
 }
 
 let pendingAccountUpdate=null;
-let accVerifyCode=null;
 
-function saveAccount(){
+function normalizePhilippinePhoneForAuth(localPhone){
+  const digits=String(localPhone||'').replace(/\D/g,'');
+  if(/^09\d{9}$/.test(digits))return '+63'+digits.slice(1);
+  if(/^639\d{9}$/.test(digits))return '+'+digits;
+  if(/^\+639\d{9}$/.test(String(localPhone||'')))return String(localPhone);
+  return '';
+}
+
+async function refreshCurrentProfileContact(){
+  if(!currentUser?._realSupabase)return;
+
+  try{
+    const {data:profile,error}=await supabaseClient
+      .from('users')
+      .select('email,contact_number')
+      .eq('auth_user_id',currentUser.authUserId)
+      .maybeSingle();
+
+    if(error||!profile)return;
+
+    currentUser.email=profile.email||currentUser.email;
+    currentUser.contact=profile.contact_number||'';
+    currentUser.contactNo=profile.contact_number||'';
+
+    const synced=DB.users.find(u=>u._realSupabase&&u.dbUserId===currentUser.dbUserId);
+    if(synced){
+      synced.email=currentUser.email;
+      synced.contact=currentUser.contact;
+      synced.contactNo=currentUser.contactNo;
+    }
+  }catch(err){
+    console.error('Profile contact refresh:',err);
+  }
+}
+
+async function saveAccount(){
   const u=currentUser;
   const msg=document.getElementById('acc-msg');
   hideAlert(msg);
 
   const email=document.getElementById('acc-email').value.trim().toLowerCase();
   const contact=document.getElementById('acc-contact').value.replace(/\D/g,'').slice(0,11);
-  if(!email||!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)){showAlert(msg,'Please enter a valid email address.');return;}
-  if(contact&&contact.length!==11){showAlert(msg,'Contact number must be exactly 11 digits (e.g. 09XXXXXXXXX).');return;}
-  const emailChanged=email!==u.email.toLowerCase();
-  const contactChanged=contact!==(u.contact||'');
+
+  if(!email||!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)){
+    showAlert(msg,'Please enter a valid email address.');
+    return;
+  }
+  if(contact&&contact.length!==11){
+    showAlert(msg,'Contact number must be exactly 11 digits (e.g. 09XXXXXXXXX).');
+    return;
+  }
+  if(contact&&!/^09\d{9}$/.test(contact)){
+    showAlert(msg,'Please enter a valid Philippine mobile number starting with 09.');
+    return;
+  }
+
+  const emailChanged=email!==String(u.email||'').toLowerCase();
+  const contactChanged=contact!==String(u.contact||'');
   if(!emailChanged&&!contactChanged){
     showAlert(msg,'No changes to save.','info');
     return;
   }
-  if(emailChanged&&DB.users.some(x=>x.id!==u.id&&x.email.toLowerCase()===email)){
-    showAlert(msg,'That email is already in use by another account.');
-    return;
-  }
 
-  // Administrators can update their own contact info immediately — no
-  // OTP verification needed since they're already the trusted account.
+  // Administrators are explicitly exempt from verification.
   if(u.role==='Administrator'){
-    const prevEmail=u.email,prevContact=u.contact;
-    if(emailChanged)u.email=email;
-    if(contactChanged)u.contact=contact;
-    toastWithUndo('Contact information updated.',()=>{u.email=prevEmail;u.contact=prevContact;renderMyAccount();});
-    showAlert(msg,'Profile updated successfully.','success');
+    const btn=document.querySelector('button[onclick="saveAccount()"]');
+    const oldText=btn?.textContent;
+    if(btn){btn.disabled=true;btn.textContent='Saving…';}
+
+    try{
+      if(u._realSupabase){
+        await adminUserAction({
+          action:'update',
+          user_id:u.dbUserId,
+          email,
+          contact_number:contact
+        });
+        await syncAdminDirectoryFromSupabase();
+        const fresh=DB.users.find(x=>x._realSupabase&&x.dbUserId===u.dbUserId);
+        if(fresh){
+          currentUser.email=fresh.email;
+          currentUser.contact=fresh.contact||fresh.contactNo||contact;
+          currentUser.contactNo=currentUser.contact;
+        }else{
+          currentUser.email=email;
+          currentUser.contact=contact;
+          currentUser.contactNo=contact;
+        }
+      }else{
+        u.email=email;
+        u.contact=contact;
+        persistDB();
+      }
+
+      showAlert(msg,'Profile updated successfully.','success');
+      toast('Contact information updated.','success');
+      renderMyAccount();
+    }catch(e){
+      showAlert(msg,e?.message||'Unable to update your profile.');
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent=oldText||'Save Changes';}
+    }
     return;
   }
 
-  pendingAccountUpdate={email:emailChanged?email:null,contact:contactChanged?contact:null};
-  openAccountUpdateVerification();
+  pendingAccountUpdate={
+    email:emailChanged?email:null,
+    contact:contactChanged?contact:null,
+    authPhone:contactChanged?normalizePhilippinePhoneForAuth(contact):null,
+    emailChanged,
+    contactChanged
+  };
+
+  if(contactChanged&&!pendingAccountUpdate.authPhone){
+    showAlert(msg,'Please enter a valid Philippine mobile number.');
+    pendingAccountUpdate=null;
+    return;
+  }
+
+  await openAccountUpdateVerification();
 }
 
-function openAccountUpdateVerification(){
+async function openAccountUpdateVerification(){
   const u=currentUser;
-  accVerifyCode=String(Math.floor(100000+Math.random()*900000));
-  const method=u.email?'email':'sms';
-  const dest=method==='email'?maskEmail(u.email):maskPhone(u.contact);
+  const msg=document.getElementById('acc-msg');
+  hideAlert(msg);
+
+  if(!pendingAccountUpdate)return;
+
+  try{
+    if(!initializeSupabaseClient())throw new Error('Unable to connect to CampusCare.');
+
+    // Supabase sends a real 6-digit reauthentication nonce to the user's
+    // currently verified email address or Auth phone number.
+    const {error}=await supabaseClient.auth.reauthenticate();
+    if(error)throw error;
+
+    const {data:{user}}=await supabaseClient.auth.getUser();
+    const channel=user?.email?'email':'phone';
+    const destination=user?.email?maskEmail(user.email):maskPhone(user?.phone||currentUser.contact);
+
+    openModal(`<div class="modal modal-sm">
+      <div class="modal-header">
+        <h3>Verify It's You</h3>
+        <button class="close-btn" onclick="cancelAccountUpdate()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="acc-verify-msg"></div>
+        <div class="alert alert-info show" style="font-size:.78rem">
+          🔐 We sent a 6-digit verification code to your current verified ${channel}: <strong>${escapeHtml(destination)}</strong>.
+        </div>
+        <p class="form-note" style="margin:.65rem 0">
+          Enter that code before CampusCare starts changing your account information.
+        </p>
+        <div class="form-group">
+          <label>Verification Code</label>
+          <input id="acc-verify-code" type="text" maxlength="6" inputmode="numeric"
+            placeholder="6-digit code" style="letter-spacing:2px"
+            oninput="sanitizeInput(this,'code')">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="cancelAccountUpdate()">Cancel</button>
+        <button class="btn" onclick="resendAccountVerificationCode()">Resend Code</button>
+        <button class="btn btn-primary" id="acc-verify-btn" onclick="confirmAccountUpdate()">Verify & Continue</button>
+      </div>
+    </div>`);
+  }catch(e){
+    pendingAccountUpdate=null;
+    showAlert(msg,e?.message||'Unable to send the verification code.');
+  }
+}
+
+async function resendAccountVerificationCode(){
+  const msg=document.getElementById('acc-verify-msg');
+  hideAlert(msg);
+  try{
+    const {error}=await supabaseClient.auth.reauthenticate();
+    if(error)throw error;
+    showAlert(msg,'A new verification code was sent.','success');
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to resend the code.');
+  }
+}
+
+async function confirmAccountUpdate(){
+  const code=document.getElementById('acc-verify-code')?.value.trim()||'';
+  const msg=document.getElementById('acc-verify-msg');
+  const btn=document.getElementById('acc-verify-btn');
+  hideAlert(msg);
+
+  if(!/^\d{6}$/.test(code)){
+    showAlert(msg,'Enter the 6-digit verification code.');
+    return;
+  }
+  if(!pendingAccountUpdate){
+    showAlert(msg,'This profile change request has expired. Please start again.');
+    return;
+  }
+
+  const oldText=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Verifying…';}
+
+  try{
+    const changes={nonce:code};
+
+    // Supabase validates the reauthentication nonce before processing these
+    // sensitive account changes. Email/phone ownership verification then
+    // follows Supabase Auth's normal secure change flow.
+    if(pendingAccountUpdate.emailChanged)changes.email=pendingAccountUpdate.email;
+    if(pendingAccountUpdate.contactChanged)changes.phone=pendingAccountUpdate.authPhone;
+
+    const {data,error}=await supabaseClient.auth.updateUser(changes);
+    if(error)throw error;
+
+    if(pendingAccountUpdate.contactChanged){
+      openPhoneChangeVerification();
+      return;
+    }
+
+    // Email-only change: Supabase sends its email-change verification message.
+    // The database remains on the old email until the change is confirmed.
+    const newEmail=pendingAccountUpdate.email;
+    pendingAccountUpdate=null;
+    closeAllModals();
+    toast(`Identity verified. Confirm the email-change message sent by Supabase to ${newEmail} to finish updating your email.`,'success',7000);
+    renderMyAccount();
+  }catch(e){
+    const message=String(e?.message||'Verification failed.');
+    if(/nonce|reauth|otp|token/i.test(message)){
+      showAlert(msg,'The verification code is incorrect or expired. Request a new code and try again.');
+    }else if(/phone|sms|provider/i.test(message)){
+      showAlert(msg,'CampusCare could not send the SMS verification. A Supabase SMS provider must be configured before phone-number changes can be completed.');
+    }else{
+      showAlert(msg,message);
+    }
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;
+      btn.textContent=oldText||'Verify & Continue';
+    }
+  }
+}
+
+function openPhoneChangeVerification(){
+  const phone=pendingAccountUpdate?.contact||'';
   openModal(`<div class="modal modal-sm">
-    <div class="modal-header"><h3>Verify It's You</h3><button class="close-btn" onclick="cancelAccountUpdate()">✕</button></div>
-    <div class="modal-body">
-      <div id="acc-verify-msg"></div>
-      <p style="font-size:.83rem;color:var(--ink-muted);margin-bottom:.6rem">To protect your account, we sent a 6-digit code to your <strong>current</strong> ${method==='email'?'email':'phone number'} on file: <strong>${dest}</strong>.</p>
-      <div class="alert alert-info show" style="font-size:.76rem">📩 Demo mode — since there's no real email/SMS server connected, here's the code: <strong style="font-size:.95rem;letter-spacing:1px">${accVerifyCode}</strong></div>
-      <div class="form-group"><label>Enter Code</label><input id="acc-verify-code" type="text" maxlength="6" style="letter-spacing:2px" oninput="sanitizeInput(this,'code')"></div>
+    <div class="modal-header">
+      <h3>Verify New Contact Number</h3>
+      <button class="close-btn" onclick="cancelAccountUpdate()">✕</button>
     </div>
-    <div class="modal-footer"><button class="btn" onclick="cancelAccountUpdate()">Cancel</button><button class="btn btn-primary" onclick="confirmAccountUpdate()">Verify &amp; Save</button></div>
+    <div class="modal-body">
+      <div id="phone-change-msg"></div>
+      <div class="alert alert-info show" style="font-size:.78rem">
+        📱 Supabase sent a 6-digit SMS code to <strong>${escapeHtml(maskPhone(phone))}</strong>.
+      </div>
+      ${pendingAccountUpdate?.emailChanged
+        ? `<p class="form-note">Your email change was also started. Check the verification message sent to <strong>${escapeHtml(pendingAccountUpdate.email)}</strong> to complete that change.</p>`
+        : ''}
+      <div class="form-group">
+        <label>SMS Verification Code</label>
+        <input id="phone-change-code" type="text" maxlength="6" inputmode="numeric"
+          placeholder="6-digit code" style="letter-spacing:2px"
+          oninput="sanitizeInput(this,'code')">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="cancelAccountUpdate()">Cancel</button>
+      <button class="btn" onclick="resendPhoneChangeCode()">Resend SMS</button>
+      <button class="btn btn-primary" id="phone-change-btn" onclick="confirmPhoneChangeCode()">Verify Number</button>
+    </div>
   </div>`);
 }
 
-function confirmAccountUpdate(){
-  const code=document.getElementById('acc-verify-code').value.trim();
-  const msg=document.getElementById('acc-verify-msg');
+async function resendPhoneChangeCode(){
+  const msg=document.getElementById('phone-change-msg');
   hideAlert(msg);
-  if(!code){showAlert(msg,'Please enter the code.');return;}
-  if(code!==accVerifyCode){showAlert(msg,'Incorrect code. Please check and try again.');return;}
-  const u=currentUser;
-  if(pendingAccountUpdate.email)u.email=pendingAccountUpdate.email;
-  if(pendingAccountUpdate.contact)u.contact=pendingAccountUpdate.contact;
-  pendingAccountUpdate=null;accVerifyCode=null;
-  persistDB();
-  closeAllModals();
-  toast('Contact information updated successfully.','success');
-  renderMyAccount();
+  try{
+    const {error}=await supabaseClient.auth.resend({
+      type:'phone_change',
+      phone:pendingAccountUpdate.authPhone
+    });
+    if(error)throw error;
+    showAlert(msg,'A new SMS verification code was sent.','success');
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to resend the SMS code.');
+  }
+}
+
+async function confirmPhoneChangeCode(){
+  const code=document.getElementById('phone-change-code')?.value.trim()||'';
+  const msg=document.getElementById('phone-change-msg');
+  const btn=document.getElementById('phone-change-btn');
+  hideAlert(msg);
+
+  if(!/^\d{6}$/.test(code)){
+    showAlert(msg,'Enter the 6-digit SMS code.');
+    return;
+  }
+
+  const oldText=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Verifying…';}
+
+  try{
+    const {error}=await supabaseClient.auth.verifyOtp({
+      phone:pendingAccountUpdate.authPhone,
+      token:code,
+      type:'phone_change'
+    });
+    if(error)throw error;
+
+    const emailWasChanged=Boolean(pendingAccountUpdate.emailChanged);
+    const pendingEmail=pendingAccountUpdate.email;
+    pendingAccountUpdate=null;
+
+    // auth.users -> public.users is synchronized by the database trigger.
+    await new Promise(resolve=>setTimeout(resolve,350));
+    await refreshCurrentProfileContact();
+
+    closeAllModals();
+    renderMyAccount();
+
+    if(emailWasChanged){
+      toast(`Contact number verified and updated. Complete the email verification sent to ${pendingEmail} to finish the email change.`,'success',7500);
+    }else{
+      toast('Contact number verified and updated successfully.','success');
+    }
+  }catch(e){
+    showAlert(msg,e?.message||'The SMS verification code is incorrect or expired.');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;
+      btn.textContent=oldText||'Verify Number';
+    }
+  }
 }
 
 function cancelAccountUpdate(){
-  pendingAccountUpdate=null;accVerifyCode=null;
+  pendingAccountUpdate=null;
   closeAllModals();
 }
 
@@ -10596,7 +10865,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v27 loaded.');
+console.log('CampusCare v28 loaded.');
 </script>
 </body>
 </html>
