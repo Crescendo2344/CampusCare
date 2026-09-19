@@ -79,6 +79,9 @@ async function syncCampusCareSessionUI(){
           if(typeof syncRealMessages==='function'){
             try{await syncRealMessages();}catch(err){console.error('Message sync:',err);}
           }
+          if(typeof syncRealHealthResources==='function'){
+            try{await syncRealHealthResources();}catch(err){console.error('Health Education sync:',err);}
+          }
           if(typeof syncRealCertificates==='function'){
             try{await syncRealCertificates();}catch(err){console.error('Certificate sync:',err);}
           }
@@ -102,6 +105,7 @@ async function syncCampusCareSessionUI(){
         .then(()=>syncPublicSystemSettings())
         .then(()=>syncRealDoctorDirectory())
         .then(()=>syncRealMessages())
+        .then(()=>syncRealHealthResources())
         .then(()=>syncRealMedicationReminders())
         .then(()=>syncRealCertificates())
         .then(()=>syncRealFitnessAssessments())
@@ -2684,7 +2688,7 @@ async function syncPublicSystemSettings(){
 
   const {data,error}=await supabaseClient
     .from('system_settings')
-    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days')
+    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days,privacy_policy_version,privacy_policy_updated')
     .order('settings_id',{ascending:true})
     .limit(1)
     .maybeSingle();
@@ -2702,7 +2706,9 @@ async function syncPublicSystemSettings(){
     semester2Start:data.semester2_start||DB.settings.semester2Start||'',
     semester2End:data.semester2_end||DB.settings.semester2End||'',
     dentalLimitPerSemester:Number(data.dental_visit_limit_per_semester||1),
-    appointmentReminderDays:Number(data.appointment_reminder_days??1)
+    appointmentReminderDays:Number(data.appointment_reminder_days??1),
+    privacyPolicyVersion:data.privacy_policy_version||DB.settings.privacyPolicyVersion||'1.0',
+    privacyPolicyUpdated:data.privacy_policy_updated||DB.settings.privacyPolicyUpdated||TODAY
   });
   return DB.settings;
 }
@@ -2724,7 +2730,9 @@ async function syncRealSystemSettings(){
     semester2Start:s.semester2_start||DB.settings.semester2Start||'',
     semester2End:s.semester2_end||DB.settings.semester2End||'',
     dentalLimitPerSemester:Number(s.dental_visit_limit_per_semester||1),
-    appointmentReminderDays:Number(s.appointment_reminder_days??1)
+    appointmentReminderDays:Number(s.appointment_reminder_days??1),
+    privacyPolicyVersion:s.privacy_policy_version||DB.settings.privacyPolicyVersion||'1.0',
+    privacyPolicyUpdated:s.privacy_policy_updated||DB.settings.privacyPolicyUpdated||TODAY
   });
 
   return DB.settings;
@@ -2743,7 +2751,9 @@ async function saveRealSystemSettings(){
     semester2_start:s.semester2Start||null,
     semester2_end:s.semester2End||null,
     dental_visit_limit_per_semester:Number(s.dentalLimitPerSemester||1),
-    appointment_reminder_days:Number(s.appointmentReminderDays??1)
+    appointment_reminder_days:Number(s.appointmentReminderDays??1),
+    privacy_policy_version:s.privacyPolicyVersion||'1.0',
+    privacy_policy_updated:s.privacyPolicyUpdated||TODAY
   });
 
   if(result.settings)await syncRealSystemSettings();
@@ -4950,17 +4960,91 @@ function updatePasswordStrength(){
 }
 
 
-function openPrivacyNotice(){
+
+async function syncRegistrationPrivacyVersion(){
+  try{
+    const response=await fetch(`${SUPABASE_URL}/functions/v1/privacy-public`,{
+      method:'GET',
+      headers:{apikey:SUPABASE_PUBLISHABLE_KEY}
+    });
+    const result=await response.json().catch(()=>({}));
+    if(response.ok&&result.ok){
+      DB.settings.privacyPolicyVersion=result.privacy_policy_version||DB.settings.privacyPolicyVersion||'1.0';
+      DB.settings.privacyPolicyUpdated=result.privacy_policy_updated||DB.settings.privacyPolicyUpdated||TODAY;
+    }
+  }catch(e){
+    console.error('Public privacy version:',e);
+  }
+  return DB.settings.privacyPolicyVersion||'1.0';
+}
+
+async function privacyAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/privacy-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Privacy action failed.');
+  return result;
+}
+
+async function syncPrivacyStatus(){
+  if(!currentUser?._realSupabase)return null;
+  const result=await privacyAction({action:'status'});
+  DB.privacyStatus=result;
+  DB.settings.privacyPolicyVersion=result.current_version||DB.settings.privacyPolicyVersion||'1.0';
+  DB.settings.privacyPolicyUpdated=result.policy_updated||DB.settings.privacyPolicyUpdated||TODAY;
+  return result;
+}
+
+async function syncPrivacyAdminSummary(){
+  if(!currentUser?._realSupabase||currentUser.role!=='Administrator')return null;
+  const result=await privacyAction({action:'admin_summary'});
+  DB.privacyAdminSummary=result;
+  return result;
+}
+
+async function openPrivacyNotice(){
+  if(!currentUser){
+    await syncRegistrationPrivacyVersion();
+  }else if(currentUser?._realSupabase){
+    try{await syncPublicSystemSettings();}catch(_){}
+  }
+
   const v=DB.settings?.privacyPolicyVersion||'1.0';
-  openModal(`<div class="modal modal-lg"><div class="modal-header"><h3>CampusCare Privacy Notice & Consent</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body" style="font-size:.8rem;line-height:1.65">
-    <div class="alert alert-info show">Designed to support responsible processing of health information under the Data Privacy Act of 2012 (RA 10173). Actual legal compliance also depends on CTU policies, infrastructure, personnel, and deployment controls.</div>
-    <h4 style="margin:.7rem 0 .25rem">Information collected</h4><p>Identity and contact details, school/employee information, profile/verification images, appointment information, medical and dental records, consultation findings, diagnoses, prescriptions, procedures, certificates, messages, and system activity relevant to clinic operations.</p>
-    <h4 style="margin:.7rem 0 .25rem">Purpose of processing</h4><p>Patient identification, clinic registration, appointment scheduling, medical/dental care, treatment documentation, certificate processing, authorized communication, operational reporting, safety, audit/accountability, inventory planning, and service improvement.</p>
-    <h4 style="margin:.7rem 0 .25rem">Access and protection</h4><p>Access is role-based and should follow the minimum-necessary principle. Sensitive data should be transmitted over HTTPS and stored in secured server-side databases in production. Access and important changes are recorded in an audit trail.</p>
-    <h4 style="margin:.7rem 0 .25rem">Retention and rights</h4><p>Records should be retained according to applicable CTU clinic and legal retention requirements. Data subjects may request appropriate access or correction through the clinic, subject to lawful medical-record and institutional requirements.</p>
-    <h4 style="margin:.7rem 0 .25rem">Consent</h4><p>By registering, the user acknowledges this notice and consents to processing necessary for the stated clinic purposes. Consent does not waive rights provided by applicable privacy law.</p>
-    <div class="tech-note" style="margin-top:.7rem">Privacy Notice version ${escapeHtml(v)} · Updated ${fmtDate(DB.settings?.privacyPolicyUpdated||TODAY)}</div>
-  </div><div class="modal-footer"><button class="btn btn-primary" onclick="closeAllModals()">Close</button></div></div>`);
+  openModal(`<div class="modal modal-lg">
+    <div class="modal-header"><h3>CampusCare Privacy Notice &amp; Consent</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body" style="font-size:.8rem;line-height:1.65">
+      <div class="alert alert-info show">CampusCare is designed to support responsible processing of personal and health information under the Data Privacy Act of 2012 (RA 10173). Actual institutional compliance also depends on CTU policies, personnel, security controls, and lawful records-management procedures.</div>
+
+      <h4 style="margin:.7rem 0 .25rem">Information collected</h4>
+      <p>Identity and contact information, school or employee information, profile and verification images, appointment information, medical and dental records, consultation findings, diagnoses, prescriptions, procedures, certificates, secure clinic messages, consent records, and security or audit events relevant to clinic operations.</p>
+
+      <h4 style="margin:.7rem 0 .25rem">Purpose of processing</h4>
+      <p>Patient identification and verification, clinic registration, appointment scheduling, medical and dental care, treatment documentation, certificate processing, authorized clinic communication, operational reporting, patient safety, audit and accountability, inventory planning, system security, and service improvement.</p>
+
+      <h4 style="margin:.7rem 0 .25rem">Access and protection</h4>
+      <p>Access is role-based and should follow the minimum-necessary principle. CampusCare uses authenticated accounts, row-level access controls, private file storage for sensitive uploads, server-side audit logs, and protected database backups. Users should not send unnecessary confidential information through channels outside CampusCare.</p>
+
+      <h4 style="margin:.7rem 0 .25rem">Retention and data-subject requests</h4>
+      <p>Records may need to be retained according to applicable CTU clinic, medical-record, contractual, safety, or legal requirements. A request to withdraw consent does not automatically erase clinical records when another lawful basis or retention requirement applies. Appropriate access, correction, objection, or privacy requests should be reviewed by authorized CTU personnel.</p>
+
+      <h4 style="margin:.7rem 0 .25rem">Consent and acknowledgement</h4>
+      <p>By acknowledging the current notice, the user confirms that this information has been presented and agrees to processing that relies on consent. This acknowledgement does not waive rights provided by applicable privacy law.</p>
+
+      <div class="tech-note" style="margin-top:.7rem">Privacy Notice version ${escapeHtml(v)} · Updated ${fmtDate(DB.settings?.privacyPolicyUpdated||TODAY)}</div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="closeAllModals()">Close</button></div>
+  </div>`);
 }
 
 function dataUrlToRegistrationFile(dataUrl, filename='capture.jpg'){
@@ -5043,6 +5127,8 @@ async function doRegister() {
     registrationToast(e?.message||'Could not prepare the uploaded files.','error');
     return;
   }
+
+  await syncRegistrationPrivacyVersion();
 
   const metadata={
     first_name:fname,
@@ -5772,6 +5858,7 @@ const NAV_ICONS={
   'feedback-issues':'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2zM9 10h.01M13 10h.01M17 10h.01',
   fitness:'M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78zM3.8 12h4l1.3-3 2.2 6 1.7-3h7.2',
   'activity-log':'M12 6v6l4 2M12 3a9 9 0 100 18 9 9 0 000-18z',
+  'privacy-center':'M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3zM9 12l2 2 4-4',
 };
 
 const NAV_CONFIG={
@@ -5786,6 +5873,7 @@ const NAV_CONFIG={
     { id: 'messages', label: 'Ask a Doctor' },
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
+    {id:'privacy-center',label:'Privacy & Consent'},
     {id:'report-issue',label:'Report an Issue'},
   ],
   Doctor:[
@@ -5802,6 +5890,7 @@ const NAV_CONFIG={
     {id:'reports',label:'Reports'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
+    {id:'privacy-center',label:'Privacy & Consent'},
     {id:'report-issue',label:'Report an Issue'},
   ],
   Staff:[
@@ -5819,6 +5908,7 @@ const NAV_CONFIG={
     {id:'reports',label:'Reports'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
+    {id:'privacy-center',label:'Privacy & Consent'},
     {id:'report-issue',label:'Report an Issue'},
   ],
   Administrator:[
@@ -5841,6 +5931,7 @@ const NAV_CONFIG={
     {id:'activity-log',label:'Activity Log'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
+    {id:'privacy-center',label:'Privacy & Consent'},
   ],
 };
 
@@ -5906,11 +5997,67 @@ function navTo(id){
     approvals:'Approval Queue',certificates:'Medical Certificates','cert-requests':'Certificate Requests',treatments:'Treatments',inventory:'Inventory Management',
     reports:'Reports & Analytics',users:'User Management',settings:'System Settings',
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',
-    'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log',
+    'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log','privacy-center':'Privacy & Consent',
     messages:currentUser.role==='Patient'?'Ask a Doctor':'Messages'
   }[id]||id;
   renderPage(id);
   window.scrollTo({top:0,behavior:'smooth'});
+}
+
+
+function healthResourceRecords(){
+  if(currentUser?._realSupabase)return (DB.healthResources||[]).filter(r=>r._realSupabase);
+  return DB.healthResources||[];
+}
+
+async function healthResourceAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/health-resource-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Health Education action failed.');
+  return result;
+}
+
+function realHealthResourceToUi(r){
+  return {
+    id:1300000+Number(r.resource_id),
+    dbResourceId:Number(r.resource_id),
+    title:r.title||'',
+    category:r.category||'Health',
+    content:r.content||'',
+    teaser:r.teaser||'',
+    sourceName:r.source_name||'',
+    sourceUrl:r.source_url||'',
+    icon:r.icon||'📰',
+    photo:r.image_url||'',
+    imagePath:r.image_path||'',
+    authorId:r.author_id?100000+Number(r.author_id):null,
+    published:Boolean(r.published),
+    publishedAt:r.published_at||'',
+    createdAt:r.created_at||'',
+    updatedAt:r.updated_at||'',
+    _realSupabase:true
+  };
+}
+
+async function syncRealHealthResources(){
+  if(!currentUser?._realSupabase)return healthResourceRecords();
+
+  const result=await healthResourceAction({action:'list'});
+  DB.healthResources=(DB.healthResources||[]).filter(r=>!r._realSupabase);
+  DB.healthResources.push(...(result.resources||[]).map(realHealthResourceToUi));
+  return healthResourceRecords();
 }
 
 function articleCategoryColor(cat){
@@ -5944,104 +6091,362 @@ function articleBannerHtml(art,height=140){
   </div>`;
 }
 
-function renderHealthEducation() {
-  const c = document.getElementById('app-content');
-  const role = currentUser.role;
-  const isEditor = role === 'Administrator' || role === 'Staff';
-  c.innerHTML = `
+async function renderHealthEducation() {
+  const c=document.getElementById('app-content');if(!c)return;
+  const role=currentUser.role;
+  const isEditor=role==='Administrator'||role==='Staff';
+  const pageToken=captureCampusPageToken();
+
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('cards');
+    try{await syncRealHealthResources();}
+    catch(e){
+      if(!isCampusPageCurrent('health_education',pageToken))return;
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load Health Education resources.')}</div>
+        <button class="btn btn-sm" onclick="renderHealthEducation()">Retry</button>`;
+      return;
+    }
+    if(!isCampusPageCurrent('health_education',pageToken))return;
+  }
+
+  const records=healthResourceRecords();
+  const categories=[...new Set(records.filter(r=>r.published).map(r=>r.category).filter(Boolean))].sort();
+
+  c.innerHTML=`
     <div class="card" style="background:linear-gradient(135deg,rgba(10,126,168,.14),rgba(91,79,214,.1));border:none">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
         <div>
           <h2 style="font-size:1.15rem;margin-bottom:.25rem">📚 Health &amp; Wellness Library</h2>
-          <p class="text-muted" style="max-width:520px">Practical, evidence-based health tips for campus life — curated from trusted public health sources, with links to read the full guidance.</p>
+          <p class="text-muted" style="max-width:560px">Clinic-curated educational resources with source links. Articles are general information and do not replace individualized medical or dental advice.</p>
         </div>
-        ${isEditor ? `<button class="btn btn-primary btn-sm" onclick="openArticleModal()">+ Add Article</button>` : ''}
+        ${isEditor?`<button class="btn btn-primary btn-sm" onclick="openArticleModal()">+ Add Article</button>`:''}
       </div>
     </div>
+
     <div class="toolbar">
       <input type="text" id="article-search" placeholder="Search articles..." oninput="renderArticlesList()">
       <select id="article-category" onchange="renderArticlesList()">
         <option value="">All Categories</option>
-        ${[...new Set(DB.healthResources.filter(r=>r.published).map(r=>r.category).filter(Boolean))].sort().map(c=>`<option>${escapeHtml(c)}</option>`).join('')}
+        ${categories.map(cat=>`<option>${escapeHtml(cat)}</option>`).join('')}
       </select>
+      ${isEditor?`<select id="article-status" onchange="renderArticlesList()">
+        <option value="">All Statuses</option>
+        <option value="published">Published</option>
+        <option value="draft">Draft / Unpublished</option>
+      </select>`:''}
     </div>
     <div id="articles-list"></div>
   `;
+
   renderArticlesList();
 }
 
 function renderArticlesList() {
-  const search = (document.getElementById('article-search')?.value || '').toLowerCase();
-  const category = document.getElementById('article-category')?.value || '';
-  let articles = DB.healthResources.filter(r => r.published && r.title.toLowerCase().includes(search));
-  if (category) articles = articles.filter(r => r.category === category);
-  articles = articles.sort((a,b)=>b.id-a.id);
+  const search=(document.getElementById('article-search')?.value||'').toLowerCase();
+  const category=document.getElementById('article-category')?.value||'';
+  const status=document.getElementById('article-status')?.value||'';
+  const isEditor=currentUser.role==='Administrator'||currentUser.role==='Staff';
 
-  const container = document.getElementById('articles-list');
-  if (!container) return;
-  if (!articles.length) {
-    container.innerHTML = '<div class="empty-state"><p>No articles found.</p></div>';
+  let articles=healthResourceRecords().filter(r=>{
+    const haystack=`${r.title} ${r.teaser||''} ${r.content||''}`.toLowerCase();
+    return haystack.includes(search);
+  });
+
+  if(!isEditor)articles=articles.filter(r=>r.published);
+  if(category)articles=articles.filter(r=>r.category===category);
+  if(status==='published')articles=articles.filter(r=>r.published);
+  if(status==='draft')articles=articles.filter(r=>!r.published);
+
+  articles=articles.sort((a,b)=>String(b.publishedAt||b.createdAt).localeCompare(String(a.publishedAt||a.createdAt))||b.id-a.id);
+
+  const container=document.getElementById('articles-list');
+  if(!container)return;
+
+  if(!articles.length){
+    container.innerHTML='<div class="empty-state"><p>No articles found.</p></div>';
     return;
   }
-  container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:1rem">${articles.map(art => `
+
+  container.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:1rem">${articles.map(art=>`
     <div class="card" style="margin-bottom:0;padding:0;overflow:hidden;cursor:pointer;display:flex;flex-direction:column" onclick="viewArticle(${art.id})">
       ${articleBannerHtml(art)}
       <div style="padding:1rem;display:flex;flex-direction:column;gap:.4rem;flex:1">
-        <span class="badge badge-info" style="align-self:flex-start">${art.category}</span>
+        <div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap">
+          <span class="badge badge-info">${escapeHtml(art.category)}</span>
+          ${isEditor?`<span class="badge ${art.published?'badge-success':'badge-warning'}">${art.published?'Published':'Draft'}</span>`:''}
+        </div>
         <h4 style="font-size:.92rem;line-height:1.3;margin:0">${escapeHtml(art.title)}</h4>
-        <p style="font-size:.79rem;color:var(--ink-muted);flex:1">${escapeHtml((art.teaser||art.content).substring(0, 110))}${(art.teaser||art.content).length>110?'…':''}</p>
+        <p style="font-size:.79rem;color:var(--ink-muted);flex:1">${escapeHtml((art.teaser||art.content).substring(0,110))}${(art.teaser||art.content).length>110?'…':''}</p>
         <div style="font-size:.7rem;color:var(--ink-muted);display:flex;justify-content:space-between;align-items:center;padding-top:.4rem;border-top:1px solid var(--line-soft)">
-          <span>${fmtDate(art.createdAt)}</span>
+          <span>${fmtDate(art.publishedAt||art.createdAt)}</span>
           ${art.sourceName?`<span>📎 ${escapeHtml(art.sourceName)}</span>`:''}
         </div>
       </div>
-    </div>
-  `).join('')}</div>`;
+    </div>`).join('')}</div>`;
 }
 
 function viewArticle(id) {
-  const art = DB.healthResources.find(r => r.id === id);
-  if (!art) return;
-  const isEditor = currentUser.role === 'Administrator' || currentUser.role === 'Staff';
+  const art=healthResourceRecords().find(r=>r.id===Number(id));
+  if(!art)return;
+
+  const isEditor=currentUser.role==='Administrator'||currentUser.role==='Staff';
   openModal(`
     <div class="modal modal-lg">
       <div class="modal-header no-print">
-        <h3>Article</h3>
+        <h3>Health Education Article</h3>
         <button class="close-btn" onclick="closeAllModals()">✕</button>
       </div>
       <div class="modal-body" style="padding:0">
         ${articleBannerHtml(art,170)}
         <div style="padding:1.25rem">
-          <span class="badge badge-info">${art.category}</span>
-          <span class="text-muted" style="font-size:.78rem"> · ${fmtDate(art.createdAt)}</span>
+          <span class="badge badge-info">${escapeHtml(art.category)}</span>
+          ${isEditor?` <span class="badge ${art.published?'badge-success':'badge-warning'}">${art.published?'Published':'Draft'}</span>`:''}
+          <span class="text-muted" style="font-size:.78rem"> · ${fmtDate(art.publishedAt||art.createdAt)}</span>
+
           <h2 style="font-size:1.2rem;margin:.6rem 0">${escapeHtml(art.title)}</h2>
           <div style="white-space:pre-wrap;line-height:1.65;font-size:.88rem;color:var(--ink)">${escapeHtml(art.content)}</div>
+
           ${art.sourceName&&art.sourceUrl?`
-          <div class="card" style="background:var(--overlay);margin-top:1.1rem;padding:.9rem 1rem">
-            <div style="font-size:.78rem;color:var(--ink-muted);margin-bottom:.4rem">Based on guidance from</div>
-            <a href="${art.sourceUrl}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">📎 Read full guidance from ${escapeHtml(art.sourceName)} →</a>
+            <div class="card" style="background:var(--overlay);margin-top:1.1rem;padding:.9rem 1rem">
+              <div style="font-size:.78rem;color:var(--ink-muted);margin-bottom:.4rem">Source / further reading</div>
+              <a href="${escapeHtml(art.sourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">📎 Open ${escapeHtml(art.sourceName)} →</a>
+            </div>`:''}
+
+          <div class="alert alert-info show" style="font-size:.73rem;margin-top:1rem">
+            This article is for health education only and is not a diagnosis or individualized treatment recommendation.
+          </div>
+
+          ${isEditor?`<div class="divider"></div><div class="td-actions">
+            <button class="btn btn-xs btn-info" onclick="openArticleModal(${art.id})">Edit Article</button>
+            ${art.published
+              ? `<button class="btn btn-xs btn-warning" onclick="deleteArticle(${art.id})">Unpublish</button>`
+              : `<button class="btn btn-xs btn-success" onclick="publishArticle(${art.id})">Publish</button>`}
+            ${currentUser.role==='Administrator'?`<button class="btn btn-xs btn-danger" onclick="archiveArticle(${art.id})">Archive</button>`:''}
           </div>`:''}
-          ${isEditor ? `<div class="divider"></div><div class="td-actions"><button class="btn btn-xs btn-info" onclick="openArticleModal(${art.id})">Edit Article</button><button class="btn btn-xs btn-danger" onclick="deleteArticle(${art.id})">Unpublish</button></div>` : ''}
         </div>
       </div>
-      <div class="modal-footer no-print"><button class="btn" onclick="closeAllModals()">Close</button><button class="btn btn-info" onclick="window.print()">🖨️ Print</button></div>
-    </div>
-  `);
+      <div class="modal-footer no-print">
+        <button class="btn" onclick="closeAllModals()">Close</button>
+        <button class="btn btn-info" onclick="window.print()">🖨️ Print</button>
+      </div>
+    </div>`);
 }
 
 function deleteArticle(id){
+  const art=healthResourceRecords().find(r=>r.id===Number(id));if(!art)return;
+
   showConfirmDialog({
     title:'Unpublish Article',
-    message:'Unpublish this article? It will be hidden from the library but kept on file.',
-    confirmLabel:'Unpublish',danger:true,
-    onConfirm:()=>{
-      const art=DB.healthResources.find(r=>r.id===id);
-      if(art)art.published=false;
-      toast('Article unpublished.','warning');
-      closeAllModals();
-      renderArticlesList();
+    message:`Unpublish <strong>${escapeHtml(art.title)}</strong>? It will be hidden from normal Health Education views but kept in the database.`,
+    confirmLabel:'Unpublish',
+    danger:true,
+    onConfirm:async()=>{
+      try{
+        if(art._realSupabase){
+          await healthResourceAction({action:'unpublish',resource_id:art.dbResourceId});
+          await syncRealHealthResources();
+        }else{
+          art.published=false;
+          persistDB();
+        }
+        closeAllModals();
+        toast('Article unpublished.','warning');
+        renderArticlesList();
+      }catch(e){toast(e?.message||'Unable to unpublish the article.','error');}
     }
   });
+}
+
+async function publishArticle(id){
+  const art=healthResourceRecords().find(r=>r.id===Number(id));if(!art)return;
+  try{
+    if(art._realSupabase){
+      await healthResourceAction({action:'publish',resource_id:art.dbResourceId});
+      await syncRealHealthResources();
+    }else{
+      art.published=true;
+      persistDB();
+    }
+    closeAllModals();
+    toast('Article published.','success');
+    renderArticlesList();
+  }catch(e){toast(e?.message||'Unable to publish the article.','error');}
+}
+
+function archiveArticle(id){
+  const art=healthResourceRecords().find(r=>r.id===Number(id));if(!art)return;
+  showConfirmDialog({
+    title:'Archive Health Article',
+    message:`Archive <strong>${escapeHtml(art.title)}</strong>? It will be preserved in the database and removed from the active library.`,
+    confirmLabel:'Archive',
+    danger:true,
+    onConfirm:async()=>{
+      try{
+        if(art._realSupabase){
+          await healthResourceAction({action:'archive',resource_id:art.dbResourceId});
+          await syncRealHealthResources();
+        }
+        closeAllModals();
+        toast('Article archived.','success');
+        renderArticlesList();
+      }catch(e){toast(e?.message||'Unable to archive the article.','error');}
+    }
+  });
+}
+
+
+// ================================================================
+// PRIVACY CENTER — AUDITABLE CONSENT HISTORY
+// ================================================================
+function privacyEventBadge(row){
+  const good=row.consented===true;
+  const cls=good?'badge-success':row.event_type==='Withdrawal Request'?'badge-warning':'badge-gray';
+  return `<span class="badge ${cls}">${escapeHtml(row.event_type||(good?'Acknowledgement':'Request'))}</span>`;
+}
+
+async function renderPrivacyCenter(){
+  const c=document.getElementById('app-content');if(!c)return;
+  const pageToken=captureCampusPageToken();
+
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('table');
+    try{
+      await Promise.all([syncPublicSystemSettings(),syncPrivacyStatus()]);
+    }catch(e){
+      if(!isCampusPageCurrent('privacy-center',pageToken))return;
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load your privacy record.')}</div>
+        <button class="btn btn-sm" onclick="renderPrivacyCenter()">Retry</button>`;
+      return;
+    }
+    if(!isCampusPageCurrent('privacy-center',pageToken))return;
+  }
+
+  const state=DB.privacyStatus||{};
+  const history=state.history||[];
+  const latest=state.latest||null;
+  const currentVersion=state.current_version||DB.settings.privacyPolicyVersion||'1.0';
+  const currentAck=currentUser?._realSupabase?Boolean(state.current_acknowledged):true;
+  const withdrawalPending=latest?.event_type==='Withdrawal Request'&&latest?.consented===false;
+
+  c.innerHTML=`
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h3>Privacy &amp; Consent Center</h3>
+          <div class="tech-note">Review the current CampusCare privacy notice and your recorded acknowledgement history.</div>
+        </div>
+        <button class="btn btn-sm" onclick="openPrivacyNotice()">View Privacy Notice</button>
+      </div>
+
+      <div class="grid-3">
+        <div class="stat-card">
+          <div class="stat-val" style="font-size:1rem">v${escapeHtml(currentVersion)}</div>
+          <div class="stat-lbl">Current Privacy Notice</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${currentAck?'✓':'!'}</div>
+          <div class="stat-lbl">${currentAck?'Current Notice Acknowledged':'Acknowledgement Needed'}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${history.length}</div>
+          <div class="stat-lbl">Recorded Privacy Event${history.length===1?'':'s'}</div>
+        </div>
+      </div>
+
+      ${withdrawalPending?`
+        <div class="alert alert-warning show">
+          <strong>Privacy request submitted.</strong> Your latest record is a withdrawal/privacy-processing request awaiting administrative review.
+          This does not automatically erase medical or dental records that CTU may be required or otherwise lawfully permitted to retain.
+        </div>
+      `:!currentAck?`
+        <div class="alert alert-warning show">
+          CampusCare has a privacy notice version you have not yet acknowledged. Review the current notice before acknowledging it.
+        </div>
+      `:`
+        <div class="alert alert-success show">Your acknowledgement is current for Privacy Notice version ${escapeHtml(currentVersion)}.</div>
+      `}
+
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.8rem">
+        ${!currentAck&&!withdrawalPending?`<button class="btn btn-primary btn-sm" onclick="acknowledgeCurrentPrivacy()">Acknowledge Current Notice</button>`:''}
+        ${!withdrawalPending?`<button class="btn btn-sm btn-warning" onclick="openPrivacyRequestModal()">Submit Privacy / Withdrawal Request</button>`:''}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3>Your Consent History</h3></div>
+      ${history.length?`<div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Version</th><th>Event</th><th>Consent</th><th>Notes</th></tr></thead>
+        <tbody>${history.map(row=>`<tr>
+          <td>${new Date(row.consented_at).toLocaleString('en-PH')}</td>
+          <td>v${escapeHtml(row.privacy_version||'')}</td>
+          <td>${privacyEventBadge(row)}</td>
+          <td>${row.consented?'<span class="badge badge-success">Yes</span>':'<span class="badge badge-warning">Request / No</span>'}</td>
+          <td style="max-width:380px;white-space:normal">${escapeHtml(row.notes||'—')}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>`:'<div class="empty-state"><p>No server-side privacy acknowledgement has been recorded for this account yet.</p></div>'}
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3>Important</h3></div>
+      <p class="text-muted" style="font-size:.8rem;line-height:1.6">
+        CampusCare's consent history is an audit trail, not an automatic deletion system. Requests involving access, correction, objection,
+        withdrawal, or deletion should be reviewed by authorized CTU personnel together with applicable medical-record and institutional retention requirements.
+      </p>
+    </div>`;
+}
+
+function acknowledgeCurrentPrivacy(){
+  showConfirmDialog({
+    title:'Acknowledge Privacy Notice',
+    message:`Confirm that you have reviewed Privacy Notice <strong>version ${escapeHtml(DB.settings.privacyPolicyVersion||'1.0')}</strong> and acknowledge the processing described in it?`,
+    confirmLabel:'Acknowledge',
+    onConfirm:async()=>{
+      try{
+        await privacyAction({action:'acknowledge'});
+        await syncPrivacyStatus();
+        toast('Privacy acknowledgement recorded.','success');
+        await renderPrivacyCenter();
+      }catch(e){
+        toast(e?.message||'Unable to record privacy acknowledgement.','error');
+      }
+    }
+  });
+}
+
+function openPrivacyRequestModal(){
+  openModal(`<div class="modal modal-sm">
+    <div class="modal-header"><h3>Privacy / Consent Request</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div id="privacy-request-msg"></div>
+      <div class="alert alert-info show" style="font-size:.76rem">
+        This submits a request for authorized CTU review. It does not immediately delete or disable medical records.
+      </div>
+      <div class="form-group">
+        <label>Request details <span class="required">*</span></label>
+        <textarea id="privacy-request-notes" rows="4" maxlength="1200" placeholder="Briefly describe the consent or privacy-processing request you want the clinic to review."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-warning" onclick="submitPrivacyRequest()">Submit Request</button>
+    </div>
+  </div>`);
+}
+
+async function submitPrivacyRequest(){
+  const notes=document.getElementById('privacy-request-notes')?.value.trim()||'';
+  const msg=document.getElementById('privacy-request-msg');
+  if(!notes){showAlert(msg,'Please describe your privacy request.');return;}
+
+  try{
+    await privacyAction({action:'withdraw_request',notes});
+    await syncPrivacyStatus();
+    closeAllModals();
+    toast('Privacy request submitted for administrative review.','success');
+    await renderPrivacyCenter();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to submit the privacy request.');
+  }
 }
 
 // ================================================================
@@ -6287,63 +6692,83 @@ function confirmIssueDecision(id,decision){
 }
 
 let articlePhotoData=null;
+let articlePhotoRemove=false;
+let articlePhotoExistingUrl='';
 
-function openArticleModal(id = null) {
-  const art = id ? DB.healthResources.find(r => r.id === id) : null;
-  articlePhotoData = art ? (art.photo || null) : null;
-  const existingCategories=[...new Set(DB.healthResources.map(r=>r.category).filter(Boolean))];
+function openArticleModal(id=null) {
+  const art=id?healthResourceRecords().find(r=>r.id===Number(id)):null;
+  articlePhotoData=null;
+  articlePhotoRemove=false;
+  articlePhotoExistingUrl=art?.photo||'';
+
+  const existingCategories=[...new Set(healthResourceRecords().map(r=>r.category).filter(Boolean))].sort();
+
   openModal(`
     <div class="modal modal-lg">
-      <div class="modal-header"><h3>${art ? 'Edit' : 'Add'} Health Article</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+      <div class="modal-header"><h3>${art?'Edit':'Add'} Health Article</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
       <div class="modal-body">
         <div id="art-msg"></div>
-        <div class="form-group"><label>Title</label><input id="art-title" value="${art ? escapeHtml(art.title) : ''}" placeholder="A clear, headline-style title"></div>
+
+        <div class="form-group"><label>Title <span class="required">*</span></label><input id="art-title" maxlength="255" value="${art?escapeHtml(art.title):''}" placeholder="A clear, headline-style title"></div>
+
         <div class="form-row">
           <div class="form-group">
-            <label>Category</label>
-            <input id="art-category" list="art-category-list" value="${art?escapeHtml(art.category||''):''}" placeholder="Type or pick a category">
-            <datalist id="art-category-list">${existingCategories.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist>
+            <label>Category <span class="required">*</span></label>
+            <input id="art-category" maxlength="120" list="art-category-list" value="${art?escapeHtml(art.category||''):''}" placeholder="Type or pick a category">
+            <datalist id="art-category-list">${existingCategories.map(cat=>`<option value="${escapeHtml(cat)}">`).join('')}</datalist>
           </div>
-          <div class="form-group"><label>Icon (used only if no photo)</label>
-            <select id="art-icon">${['📰','🧘','🥗','💧','🩹','💉','😴','🛡️','🏃','❤️','🧠','🦷'].map(i=>`<option ${art&&art.icon===i?'selected':''}>${i}</option>`).join('')}</select>
+          <div class="form-group"><label>Icon (used if no photo)</label>
+            <select id="art-icon">${['📰','🧘','🥗','💧','🩹','💉','😴','🛡️','🏃','❤️','🧠','🦷'].map(icon=>`<option ${art&&art.icon===icon?'selected':''}>${icon}</option>`).join('')}</select>
           </div>
         </div>
+
         <div class="form-group">
           <label>Banner Photo</label>
           <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
             <div id="art-photo-preview" style="width:120px;height:70px;border-radius:8px;overflow:hidden;background:var(--overlay);border:1px solid var(--glass-border-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-              ${articlePhotoData?`<img src="${articlePhotoData}" style="width:100%;height:100%;object-fit:cover">`:'<span class="text-muted" style="font-size:.7rem">No photo</span>'}
+              ${articlePhotoExistingUrl?`<img src="${articlePhotoExistingUrl}" style="width:100%;height:100%;object-fit:cover">`:'<span class="text-muted" style="font-size:.7rem">No photo</span>'}
             </div>
             <button type="button" class="btn btn-sm" onclick="document.getElementById('art-photo-file').click()">Upload Photo</button>
             <button type="button" class="btn btn-sm btn-info" onclick="openCamera('article')">📷 Use Camera</button>
-            ${articlePhotoData?`<button type="button" class="btn btn-sm btn-danger" onclick="clearArticlePhoto()">Remove</button>`:''}
-            <input type="file" id="art-photo-file" accept="image/*" style="display:none" onchange="handleArticlePhotoChange(this)">
+            ${(articlePhotoExistingUrl||articlePhotoData)?`<button type="button" class="btn btn-sm btn-danger" onclick="clearArticlePhoto()">Remove</button>`:''}
+            <input type="file" id="art-photo-file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleArticlePhotoChange(this)">
           </div>
-          <p class="form-note">Optional — if left blank, a colored icon banner is used instead.</p>
+          <p class="form-note">Optional. Article images are stored in private CampusCare Storage and displayed through temporary signed links.</p>
         </div>
-        <div class="form-group"><label>Teaser (shown on the card, ~1 sentence)</label><input id="art-teaser" value="${art?escapeHtml(art.teaser||''):''}" placeholder="A short hook to draw readers in"></div>
-        <div class="form-group"><label>Full Content</label><textarea id="art-content" rows="7">${art ? escapeHtml(art.content) : ''}</textarea></div>
+
+        <div class="form-group"><label>Teaser</label><input id="art-teaser" maxlength="1200" value="${art?escapeHtml(art.teaser||''):''}" placeholder="A short summary shown on the article card"></div>
+        <div class="form-group"><label>Full Content <span class="required">*</span></label><textarea id="art-content" maxlength="20000" rows="8">${art?escapeHtml(art.content):''}</textarea></div>
+
         <div class="form-row">
-          <div class="form-group"><label>Source Name (optional)</label><input id="art-source-name" value="${art?escapeHtml(art.sourceName||''):''}" placeholder="e.g. U.S. CDC, WHO, Mayo Clinic"></div>
-          <div class="form-group"><label>Source URL (optional)</label><input id="art-source-url" value="${art?escapeHtml(art.sourceUrl||''):''}" placeholder="https://..."></div>
+          <div class="form-group"><label>Source Name (optional)</label><input id="art-source-name" maxlength="255" value="${art?escapeHtml(art.sourceName||''):''}" placeholder="e.g. WHO, DOH, U.S. CDC"></div>
+          <div class="form-group"><label>Source URL (optional)</label><input id="art-source-url" maxlength="1500" value="${art?escapeHtml(art.sourceUrl||''):''}" placeholder="https://..."></div>
         </div>
-        <div class="form-group"><label><input type="checkbox" id="art-published" ${art && art.published ? 'checked' : 'checked'}> Publish immediately</label></div>
+
+        <div class="form-group"><label><input type="checkbox" id="art-published" ${art?(art.published?'checked':''):'checked'}> Publish immediately</label></div>
       </div>
+
       <div class="modal-footer">
         <button class="btn" onclick="closeAllModals()">Cancel</button>
-        <button class="btn btn-primary" onclick="saveArticle(${id || 'null'})">Save Article</button>
+        <button class="btn btn-primary" id="art-save-btn" onclick="saveArticle(${id||'null'})">Save Article</button>
       </div>
-    </div>
-  `);
+    </div>`);
 }
 
 async function handleArticlePhotoChange(input){
-  const file=input.files&&input.files[0];
-  if(!file)return;
-  if(!file.type.startsWith('image/')){toast('Please choose an image file.','error');return;}
+  const file=input.files?.[0];if(!file)return;
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){
+    toast('Article photo must be JPG, PNG, or WebP.','error');
+    return;
+  }
+  if(file.size>5*1024*1024){
+    toast('Article photo must be 5 MB or smaller.','error');
+    return;
+  }
+
   try{
     const raw=await readFileAsDataURL(file);
-    articlePhotoData=await resizeImageDataUrl(raw,900,0.82);
+    articlePhotoData=await resizeImageDataUrl(raw,1200,0.82);
+    articlePhotoRemove=false;
     const preview=document.getElementById('art-photo-preview');
     if(preview)preview.innerHTML=`<img src="${articlePhotoData}" style="width:100%;height:100%;object-fit:cover">`;
   }catch(e){
@@ -6353,43 +6778,77 @@ async function handleArticlePhotoChange(input){
 
 function clearArticlePhoto(){
   articlePhotoData=null;
+  articlePhotoExistingUrl='';
+  articlePhotoRemove=true;
   const preview=document.getElementById('art-photo-preview');
   if(preview)preview.innerHTML='<span class="text-muted" style="font-size:.7rem">No photo</span>';
 }
 
-function saveArticle(id) {
-  const title = document.getElementById('art-title').value.trim();
-  const category = document.getElementById('art-category').value.trim();
-  const icon = document.getElementById('art-icon').value;
-  const photo = articlePhotoData;
-  const teaser = document.getElementById('art-teaser').value.trim();
-  const content = document.getElementById('art-content').value.trim();
-  const sourceName = document.getElementById('art-source-name').value.trim();
-  let sourceUrl = document.getElementById('art-source-url').value.trim();
-  const published = document.getElementById('art-published').checked;
+async function saveArticle(id){
+  const title=document.getElementById('art-title').value.trim();
+  const category=document.getElementById('art-category').value.trim();
+  const icon=document.getElementById('art-icon').value;
+  const teaser=document.getElementById('art-teaser').value.trim();
+  const content=document.getElementById('art-content').value.trim();
+  const sourceName=document.getElementById('art-source-name').value.trim();
+  let sourceUrl=document.getElementById('art-source-url').value.trim();
+  const published=document.getElementById('art-published').checked;
   const msg=document.getElementById('art-msg');
-  if (!title || !content) { showAlert(msg,'Title and content are required.'); return; }
-  if (!category) { showAlert(msg,'Please enter a category.'); return; }
-  if (sourceUrl && !/^https?:\/\//i.test(sourceUrl)) sourceUrl = 'https://' + sourceUrl;
-  if (id) {
-    const idx = DB.healthResources.findIndex(r => r.id === id);
-    if (idx !== -1) {
-      DB.healthResources[idx] = { ...DB.healthResources[idx], title, category, icon, photo, teaser, content, sourceName, sourceUrl, published };
-      toast('Article updated.', 'success');
+  const btn=document.getElementById('art-save-btn');
+
+  hideAlert(msg);
+  if(!title||!content){showAlert(msg,'Title and content are required.');return;}
+  if(!category){showAlert(msg,'Please enter a category.');return;}
+  if(sourceUrl&&!/^https?:\/\//i.test(sourceUrl))sourceUrl='https://'+sourceUrl;
+
+  const art=id?healthResourceRecords().find(r=>r.id===Number(id)):null;
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Saving securely…';}
+
+  try{
+    if(currentUser?._realSupabase){
+      const result=await healthResourceAction({
+        action:art?'update':'create',
+        resource_id:art?.dbResourceId||null,
+        title,category,icon,teaser,content,
+        source_name:sourceName,
+        source_url:sourceUrl,
+        published,
+        image_data_url:articlePhotoData||null,
+        remove_image:articlePhotoRemove
+      });
+
+      await syncRealHealthResources();
+    }else if(art){
+      Object.assign(art,{
+        title,category,icon,teaser,content,sourceName,sourceUrl,published,
+        photo:articlePhotoRemove?'':(articlePhotoData||art.photo||'')
+      });
+      persistDB();
+    }else{
+      DB.healthResources.push({
+        id:DB.nextResourceId++,
+        title,category,icon,teaser,content,sourceName,sourceUrl,
+        photo:articlePhotoData||'',
+        authorId:currentUser.id,
+        createdAt:TODAY,
+        published
+      });
+      persistDB();
     }
-  } else {
-    DB.healthResources.push({
-      id: DB.nextResourceId++,
-      title, category, icon, photo, teaser, content, sourceName, sourceUrl,
-      authorId: currentUser.id,
-      createdAt: TODAY,
-      published
-    });
-    toast('Article added.', 'success');
+
+    closeAllModals();
+    toast(art?'Article updated.':'Article added.','success');
+    await renderHealthEducation();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to save the article.');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;btn.textContent=old||'Save Article';
+    }
   }
-  closeAllModals();
-  renderHealthEducation();
 }
+
 
 // Helper to escape HTML (prevent XSS)
 // Safely embed user-supplied text as a single-quoted JS string literal
@@ -6532,7 +6991,8 @@ function renderPage(id){
     'report-issue':()=>renderReportIssue(),
     'feedback-issues':()=>renderFeedbackIssues(),
     fitness:()=>renderFitnessAssessments(),
-    'activity-log':()=>renderActivityLog()
+    'activity-log':()=>renderActivityLog(),
+    'privacy-center':()=>renderPrivacyCenter()
   };
 
   c.innerHTML='';
@@ -11562,7 +12022,8 @@ async function renderSettings(){
       await Promise.all([
         syncRealSystemSettings(),
         syncRealBackupStatus(),
-        syncEmailDeliveryStatus()
+        syncEmailDeliveryStatus(),
+        syncPrivacyAdminSummary()
       ]);
     }
     catch(e){
@@ -11598,11 +12059,35 @@ async function renderSettings(){
     </div>
     <div class="card">
       <div class="card-header">
-        <div><h3>Privacy & Data Protection</h3>
-          <div class="tech-note">Controls that support CTU privacy governance and RA 10173 accountability.</div>
+        <div>
+          <h3>Privacy &amp; Data Protection</h3>
+          <div class="tech-note">Server-managed privacy notice versioning and auditable user acknowledgement history.</div>
         </div>
         <button class="btn btn-sm" onclick="openPrivacyNotice()">View Privacy Notice</button>
       </div>
+
+      <div class="grid-3" style="margin-bottom:1rem">
+        <div class="stat-card"><div class="stat-val">${Number(DB.privacyAdminSummary?.current_acknowledged||0)}</div><div class="stat-lbl">Current Acknowledgements</div></div>
+        <div class="stat-card"><div class="stat-val text-warning">${Number(DB.privacyAdminSummary?.outdated||0)}</div><div class="stat-lbl">Outdated Versions</div></div>
+        <div class="stat-card"><div class="stat-val text-danger">${Number(DB.privacyAdminSummary?.withdrawal_requests||0)}</div><div class="stat-lbl">Privacy Requests</div></div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Current Privacy Notice Version</label>
+          <input id="set-privacy-version" maxlength="40" value="${escapeHtml(s.privacyPolicyVersion||'1.0')}">
+        </div>
+        <div class="form-group">
+          <label>Notice Updated Date</label>
+          ${campusDateFieldHtml('set-privacy-updated',s.privacyPolicyUpdated||TODAY,'Privacy Notice Updated')}
+        </div>
+      </div>
+
+      <div class="alert alert-info show" style="font-size:.76rem">
+        Changing the privacy version causes accounts without an acknowledgement for the new version to appear as needing acknowledgement in their Privacy &amp; Consent Center.
+      </div>
+
+      <button class="btn btn-primary btn-sm" onclick="savePrivacySettings()">Save Privacy Version</button>
     </div>
     ${currentUser?._realSupabase?`<div class="card">
       <div class="card-header">
@@ -11730,6 +12215,34 @@ function saveSettings(){
         toast('Settings saved.','success');
       }catch(e){
         toast(e?.message||'Unable to save settings.','error');
+      }
+    }
+  });
+}
+
+async function savePrivacySettings(){
+  const version=document.getElementById('set-privacy-version')?.value.trim()||'';
+  const updated=document.getElementById('set-privacy-updated')?.value||TODAY;
+
+  if(!version){
+    toast('Privacy notice version is required.','warning');
+    return;
+  }
+
+  showConfirmDialog({
+    title:'Update Privacy Notice Version',
+    message:`Set the current CampusCare privacy notice to <strong>version ${escapeHtml(version)}</strong>? Users who have not acknowledged this version will see an acknowledgement reminder in their Privacy Center.`,
+    confirmLabel:'Update Version',
+    onConfirm:async()=>{
+      try{
+        DB.settings.privacyPolicyVersion=version;
+        DB.settings.privacyPolicyUpdated=updated;
+        await saveRealSystemSettings();
+        await syncPrivacyAdminSummary();
+        toast('Privacy notice version updated.','success');
+        await renderSettings();
+      }catch(e){
+        toast(e?.message||'Unable to update the privacy notice version.','error');
       }
     }
   });
@@ -14311,7 +14824,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v42 loaded.');
+console.log('CampusCare v43 loaded.');
 </script>
 </body>
 </html>
