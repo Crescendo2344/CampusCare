@@ -70,8 +70,14 @@ async function syncCampusCareSessionUI(){
       // certificate data synchronize in the background.
       syncAdminDirectoryFromSupabase()
         .then(async()=>{
+          if(typeof syncPublicSystemSettings==='function'){
+            try{await syncPublicSystemSettings();}catch(err){console.error('Settings sync:',err);}
+          }
           if(typeof syncRealTreatments==='function'){
             try{await syncRealTreatments();}catch(err){console.error('Treatment sync:',err);}
+          }
+          if(typeof syncRealMessages==='function'){
+            try{await syncRealMessages();}catch(err){console.error('Message sync:',err);}
           }
           if(typeof syncRealCertificates==='function'){
             try{await syncRealCertificates();}catch(err){console.error('Certificate sync:',err);}
@@ -93,6 +99,9 @@ async function syncCampusCareSessionUI(){
         });
     }else if(currentUser.role==='Patient'){
       syncCurrentPatientFromSupabase()
+        .then(()=>syncPublicSystemSettings())
+        .then(()=>syncRealDoctorDirectory())
+        .then(()=>syncRealMessages())
         .then(()=>syncRealMedicationReminders())
         .then(()=>syncRealCertificates())
         .then(()=>syncRealFitnessAssessments())
@@ -715,7 +724,7 @@ nav svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
   .top-search-input{height:32px;font-size:.72rem;padding-left:.6rem}
   .top-bar-actions{gap:.35rem;flex:1;justify-content:flex-end}
   #top-date{font-size:.65rem}
-  .notif-btn{padding:.3rem}
+  .notif-btn{position:relative;padding:.3rem}
 }
 @media(max-width:430px){
   .top-bar h2{max-width:70px;font-size:.7rem}
@@ -1181,8 +1190,79 @@ tbody tr:hover td{background:var(--overlay)}
 .msgr-send-btn:hover{transform:scale(1.12) rotate(8deg);box-shadow:0 4px 14px rgba(10,126,168,.4)}
 .msgr-send-btn:active{transform:scale(.92)}
 .msgr-pending-attach{padding:.4rem .8rem;display:flex;align-items:center;gap:.5rem;font-size:.78rem;color:var(--ink-muted);border-top:1px solid var(--line)}
-/* Mobile Messenger uses a two-screen flow: chat lobby first, conversation second. */
+/* Tablet + Mobile Messenger uses a two-screen flow.
+   The main CampusCare sidebar remains available on tablets, while Messenger
+   itself switches to one pane so the chat list and conversation never compete
+   for the same narrow content width. */
 .msgr-mobile-back{display:none}
+@media(max-width:1100px){
+  .msgr-shell{
+    display:block;
+    width:100%;
+    max-width:100%;
+    height:calc(100dvh - var(--header-h) - 3rem);
+    min-height:500px;
+    position:relative;
+    overflow:hidden;
+  }
+  .msgr-sidebar{
+    width:100%;
+    max-width:100%;
+    height:100%;
+    min-width:0;
+    max-height:none;
+    border-right:none;
+  }
+  .msgr-chat{
+    display:none;
+    width:100%;
+    max-width:100%;
+    height:100%;
+    min-width:0;
+    min-height:0;
+  }
+  .msgr-shell.mobile-chat-open .msgr-sidebar{display:none}
+  .msgr-shell.mobile-chat-open .msgr-chat{display:flex}
+  .msgr-mobile-back{display:flex;width:34px;height:34px}
+
+  .msgr-people-wrap,
+  .msgr-contacts,
+  .msgr-sidebar-header{min-width:0;max-width:100%}
+
+  .msgr-people-carousel{
+    max-width:100%;
+    overflow-x:auto;
+    overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .msgr-people-carousel::-webkit-scrollbar{display:none}
+
+  .msgr-input-bar{
+    width:100%;
+    max-width:100%;
+    flex-wrap:nowrap;
+    padding:.55rem .6rem;
+    gap:.3rem;
+  }
+  .msgr-input-bar input[type=text]{
+    flex:1 1 0;
+    width:0;
+    min-width:0;
+    padding:.48rem .75rem;
+  }
+  .msgr-input-bar .msgr-icon-btn{
+    width:31px;
+    height:31px;
+    font-size:13px;
+  }
+  .msgr-send-btn{width:34px;height:34px}
+  .msgr-messages{min-width:0;padding:.85rem}
+  .msgr-bubble-row{max-width:min(86%,620px)}
+  .msgr-bubble{max-width:100%;overflow-wrap:anywhere;word-break:break-word}
+  .msgr-file-chip{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+}
+
 @media(max-width:768px){
   #auth-page .auth-section{padding:5.6rem .8rem 2.5rem}
   #auth-page-back{top:4.2rem;left:.8rem;padding:.4rem .9rem}
@@ -1558,6 +1638,15 @@ tbody tr:hover td{background:var(--overlay)}
 @media(max-width:760px){
   .official-clinic-grid{grid-template-columns:1fr}
   .official-hours-row{align-items:flex-start;flex-direction:column;gap:.1rem}
+}
+
+
+/* v42 tablet overflow guard */
+#app-content{min-width:0;max-width:100%}
+@media(max-width:1100px){
+  #app-content{overflow-x:hidden}
+  #app-content > .alert + .msgr-shell,
+  #app-content > .msgr-shell{box-sizing:border-box}
 }
 
 </style>
@@ -2045,6 +2134,7 @@ tbody tr:hover td{background:var(--overlay)}
           <div class="top-search-results" id="top-search-results"></div>
         </div>
         <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notifications">
+          <span id="notif-count" style="display:none;position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:var(--danger);color:#fff;font-size:10px;font-weight:800;line-height:17px;text-align:center"></span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
           <span class="notif-dot" id="notif-dot" style="display:none"></span>
         </button>
@@ -2348,7 +2438,7 @@ function loadDB(){
 }
 
 // ================================================================
-// ACTIVITY LOGGING + AUTOMATED DAILY BACKUP (prototype)
+// ACTIVITY LOGGING + LOCAL BACKUP FALLBACK (demo/offline only)
 // ================================================================
 const BACKUP_STORAGE_KEY='campuscare_daily_backups_v1';
 
@@ -2399,25 +2489,610 @@ function restoreBackup(id){
   }});
 }
 
-function renderActivityLog(){
+
+// ================================================================
+// REAL AUTOMATED BACKUPS — SUPABASE DATABASE SNAPSHOTS
+// ================================================================
+async function backupAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/backup-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Backup action failed.');
+  return result;
+}
+
+function formatBackupSize(bytes){
+  const n=Number(bytes||0);
+  if(!n)return '—';
+  const units=['B','KB','MB','GB'];
+  let value=n,idx=0;
+  while(value>=1024&&idx<units.length-1){value/=1024;idx++;}
+  return `${value.toFixed(idx===0?0:1)} ${units[idx]}`;
+}
+
+async function syncRealBackupStatus(){
+  if(!currentUser?._realSupabase||currentUser.role!=='Administrator')return null;
+
+  const result=await backupAction({action:'list'});
+  DB.realBackupLogs=(result.backups||[]).map(b=>({
+    id:Number(b.backup_id),
+    type:b.backup_type||'Backup',
+    location:b.storage_location||'',
+    status:b.status||'Unknown',
+    startedAt:b.started_at||'',
+    completedAt:b.completed_at||'',
+    fileSize:Number(b.file_size||0),
+    errorMessage:b.error_message||''
+  }));
+  DB.realBackupRetentionDays=Number(result.retention_days||30);
+  DB.realBackupSchedule=result.schedule||null;
+  return result;
+}
+
+async function runRealBackupNow(){
+  const btn=document.getElementById('backup-now-btn');
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Creating backup…';}
+
+  try{
+    await backupAction({action:'run'});
+    await syncRealBackupStatus();
+    toast('Manual database backup completed successfully.','success');
+    if(document.getElementById('backup-list'))renderBackupPanel();
+  }catch(e){
+    toast(e?.message||'Unable to create the backup.','error');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;
+      btn.textContent=old||'Back Up Now';
+    }
+  }
+}
+
+async function downloadServerBackup(backupId){
+  try{
+    const result=await backupAction({action:'download',backup_id:Number(backupId)});
+    if(!result.url)throw new Error('Backup download link was not created.');
+
+    // Open the short-lived signed URL. It expires automatically after 5 minutes.
+    window.open(result.url,'_blank','noopener');
+    toast('Secure backup download link created.','success');
+    await syncRealBackupStatus();
+    if(document.getElementById('backup-list'))renderBackupPanel();
+  }catch(e){
+    toast(e?.message||'Unable to download the backup.','error');
+  }
+}
+
+function changeBackupRetention(){
+  const select=document.getElementById('backup-retention');
+  if(!select)return;
+  const days=parseInt(select.value,10)||30;
+
+  showConfirmDialog({
+    title:'Change Backup Retention',
+    message:`Keep CampusCare database snapshots for <strong>${days} days</strong>? Older snapshots will be removed automatically.`,
+    confirmLabel:'Update Retention',
+    onConfirm:async()=>{
+      try{
+        await backupAction({action:'set_retention',days});
+        DB.realBackupRetentionDays=days;
+        toast(`Backup retention updated to ${days} days.`,'success');
+        await syncRealBackupStatus();
+        renderBackupPanel();
+      }catch(e){
+        toast(e?.message||'Unable to update backup retention.','error');
+      }
+    }
+  });
+}
+
+function renderBackupListHtml(){
+  if(currentUser?._realSupabase){
+    const bs=DB.realBackupLogs||[];
+    if(!bs.length)return '<div class="empty-state"><p>No server backup has been created yet.</p></div>';
+
+    return bs.map(b=>{
+      const completed=b.completedAt?new Date(b.completedAt).toLocaleString('en-PH'):'—';
+      const started=b.startedAt?new Date(b.startedAt).toLocaleString('en-PH'):'—';
+      const statusClass=b.status==='Completed'?'badge-success':b.status==='Failed'?'badge-danger':'badge-warning';
+
+      return `<div class="backup-row">
+        <div style="min-width:0">
+          <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap">
+            <strong style="font-size:.82rem">${escapeHtml(b.type)}</strong>
+            <span class="badge ${statusClass}">${escapeHtml(b.status)}</span>
+          </div>
+          <div class="text-muted">Backup #${b.id} · Started ${escapeHtml(started)}</div>
+          <div class="text-muted">Completed ${escapeHtml(completed)} · ${formatBackupSize(b.fileSize)}</div>
+          ${b.errorMessage?`<div class="text-danger" style="font-size:.72rem">${escapeHtml(b.errorMessage)}</div>`:''}
+        </div>
+        <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+          ${b.status==='Completed'?`<button class="btn btn-xs" onclick="downloadServerBackup(${b.id})">Download JSON</button>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Demo/local fallback.
+  const bs=getDailyBackups();
+  if(!bs.length)return '<div class="empty-state"><p>No local backup snapshot yet.</p></div>';
+  return bs.map(b=>`<div class="backup-row">
+    <div><strong style="font-size:.8rem">${escapeHtml(b.day)}</strong>
+      <div class="text-muted">${new Date(b.createdAt).toLocaleString('en-PH')}</div>
+    </div>
+    <div style="display:flex;gap:.35rem">
+      <button class="btn btn-xs" onclick="downloadBackup('${b.id}')">Download</button>
+      <button class="btn btn-xs btn-warning" onclick="restoreBackup('${b.id}')">Restore</button>
+    </div>
+  </div>`).join('');
+}
+
+function renderBackupPanel(){
+  const list=document.getElementById('backup-list');
+  if(list)list.innerHTML=renderBackupListHtml();
+
+  const schedule=document.getElementById('backup-schedule-text');
+  if(schedule){
+    schedule.textContent=currentUser?._realSupabase
+      ? 'Automatic database snapshot: every day at 2:00 AM (Asia/Manila)'
+      : 'Local demo backup';
+  }
+
+  const retention=document.getElementById('backup-retention');
+  if(retention&&DB.realBackupRetentionDays){
+    retention.value=String(DB.realBackupRetentionDays);
+  }
+}
+
+
+// ================================================================
+// REAL SYSTEM SETTINGS
+// ================================================================
+async function settingsAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/settings-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Settings action failed.');
+  return result;
+}
+
+async function syncPublicSystemSettings(){
+  if(!currentUser?._realSupabase)return DB.settings;
+
+  const {data,error}=await supabaseClient
+    .from('system_settings')
+    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days')
+    .order('settings_id',{ascending:true})
+    .limit(1)
+    .maybeSingle();
+
+  if(error)throw error;
+  if(!data)return DB.settings;
+
+  Object.assign(DB.settings,{
+    clinicName:data.clinic_name||CTU_CLINIC_INFO.name,
+    address:data.address||CTU_CLINIC_INFO.address,
+    contactEmail:data.contact_email||CTU_CLINIC_INFO.email,
+    contactPhone:data.contact_number||CTU_CLINIC_INFO.phone,
+    semesterStart:data.semester_start||DB.settings.semesterStart||'',
+    semesterEnd:data.semester_end||DB.settings.semesterEnd||'',
+    semester2Start:data.semester2_start||DB.settings.semester2Start||'',
+    semester2End:data.semester2_end||DB.settings.semester2End||'',
+    dentalLimitPerSemester:Number(data.dental_visit_limit_per_semester||1),
+    appointmentReminderDays:Number(data.appointment_reminder_days??1)
+  });
+  return DB.settings;
+}
+
+async function syncRealSystemSettings(){
+  if(!currentUser?._realSupabase||currentUser.role!=='Administrator')return DB.settings;
+
+  const result=await settingsAction({action:'get'});
+  const s=result.settings;
+  if(!s)return DB.settings;
+
+  Object.assign(DB.settings,{
+    clinicName:s.clinic_name||CTU_CLINIC_INFO.name,
+    address:s.address||CTU_CLINIC_INFO.address,
+    contactEmail:s.contact_email||CTU_CLINIC_INFO.email,
+    contactPhone:s.contact_number||CTU_CLINIC_INFO.phone,
+    semesterStart:s.semester_start||DB.settings.semesterStart||'',
+    semesterEnd:s.semester_end||DB.settings.semesterEnd||'',
+    semester2Start:s.semester2_start||DB.settings.semester2Start||'',
+    semester2End:s.semester2_end||DB.settings.semester2End||'',
+    dentalLimitPerSemester:Number(s.dental_visit_limit_per_semester||1),
+    appointmentReminderDays:Number(s.appointment_reminder_days??1)
+  });
+
+  return DB.settings;
+}
+
+async function saveRealSystemSettings(){
+  const s=DB.settings;
+  const result=await settingsAction({
+    action:'update',
+    clinic_name:s.clinicName,
+    address:s.address,
+    contact_email:s.contactEmail,
+    contact_number:s.contactPhone,
+    semester_start:s.semesterStart||null,
+    semester_end:s.semesterEnd||null,
+    semester2_start:s.semester2Start||null,
+    semester2_end:s.semester2End||null,
+    dental_visit_limit_per_semester:Number(s.dentalLimitPerSemester||1),
+    appointment_reminder_days:Number(s.appointmentReminderDays??1)
+  });
+
+  if(result.settings)await syncRealSystemSettings();
+  return result;
+}
+
+// ================================================================
+// OPERATIONAL EMAIL DELIVERY
+// ================================================================
+async function emailDeliveryAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/email-dispatch`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Email delivery action failed.');
+  return result;
+}
+
+async function syncEmailDeliveryStatus(){
+  if(!currentUser?._realSupabase||currentUser.role!=='Administrator')return null;
+
+  const result=await emailDeliveryAction({action:'list'});
+  DB.emailDeliveryStatus={
+    configured:Boolean(result.configured),
+    provider:result.provider||'Not configured',
+    fromAddress:result.from_address||'',
+    counts:result.counts||{pending:0,failed:0,sent:0},
+    emails:(result.emails||[]).map(e=>({
+      id:Number(e.email_id),
+      userId:e.user_id?Number(e.user_id):null,
+      notificationId:e.notification_id?Number(e.notification_id):null,
+      recipient:e.recipient_email||'',
+      subject:e.subject||'',
+      template:e.template_key||'Operational',
+      status:e.status||'Pending',
+      attempts:Number(e.attempt_count||0),
+      lastError:e.last_error||'',
+      providerId:e.provider_message_id||'',
+      scheduledAt:e.scheduled_at||'',
+      sentAt:e.sent_at||'',
+      createdAt:e.created_at||''
+    }))
+  };
+  return DB.emailDeliveryStatus;
+}
+
+function emailStatusBadge(status){
+  const cls=status==='Sent'?'badge-success':status==='Failed'?'badge-danger':status==='Sending'?'badge-info':'badge-warning';
+  return `<span class="badge ${cls}">${escapeHtml(status||'Pending')}</span>`;
+}
+
+function renderEmailQueueHtml(){
+  const state=DB.emailDeliveryStatus||{};
+  const rows=state.emails||[];
+
+  if(!rows.length){
+    return '<div class="empty-state"><p>No operational emails are queued yet. New appointment, certificate, fitness, treatment, and inventory notifications will appear here automatically.</p></div>';
+  }
+
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Created</th><th>Recipient</th><th>Template</th><th>Subject</th><th>Status</th><th>Attempts</th><th>Action</th></tr></thead>
+    <tbody>${rows.slice(0,50).map(e=>`<tr>
+      <td>${e.createdAt?new Date(e.createdAt).toLocaleString('en-PH'):'—'}</td>
+      <td>${escapeHtml(e.recipient)}</td>
+      <td><span class="badge badge-gray">${escapeHtml(e.template||'Operational')}</span></td>
+      <td style="max-width:260px;white-space:normal">${escapeHtml(e.subject)}</td>
+      <td>${emailStatusBadge(e.status)}${e.lastError?`<div class="text-danger" style="font-size:.68rem;max-width:260px;white-space:normal;margin-top:.25rem">${escapeHtml(e.lastError)}</div>`:''}</td>
+      <td>${e.attempts}</td>
+      <td>${e.status==='Failed'?`<button class="btn btn-xs" onclick="retryOperationalEmail(${e.id})">Retry</button>`:'—'}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function renderEmailDeliveryPanel(){
+  const state=DB.emailDeliveryStatus||{};
+  const status=document.getElementById('email-provider-status');
+  if(status){
+    status.innerHTML=state.configured
+      ? `<span class="badge badge-success">Configured</span> ${escapeHtml(state.provider||'Provider')} · ${escapeHtml(state.fromAddress||'')}`
+      : `<span class="badge badge-warning">Provider setup required</span>`;
+  }
+
+  const counts=state.counts||{};
+  const sent=document.getElementById('email-count-sent');
+  const pending=document.getElementById('email-count-pending');
+  const failed=document.getElementById('email-count-failed');
+  if(sent)sent.textContent=String(counts.sent||0);
+  if(pending)pending.textContent=String(counts.pending||0);
+  if(failed)failed.textContent=String(counts.failed||0);
+
+  const queue=document.getElementById('email-queue-list');
+  if(queue)queue.innerHTML=renderEmailQueueHtml();
+}
+
+async function dispatchOperationalEmails(){
+  const btn=document.getElementById('email-dispatch-btn');
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Processing…';}
+
+  try{
+    const result=await emailDeliveryAction({action:'dispatch'});
+    await syncEmailDeliveryStatus();
+    renderEmailDeliveryPanel();
+
+    if(!result.configured){
+      toast('Emails are safely queued, but the external email provider is not configured yet.','warning',6500);
+    }else{
+      toast(`Email queue processed: ${Number(result.sent||0)} sent, ${Number(result.failed||0)} failed.`,'success');
+    }
+  }catch(e){
+    toast(e?.message||'Unable to process the email queue.','error');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;
+      btn.textContent=old||'Process Queue Now';
+    }
+  }
+}
+
+async function sendTestOperationalEmail(){
+  const input=document.getElementById('email-test-recipient');
+  const recipient=input?.value.trim()||currentUser?.email||'';
+  if(!recipient||!recipient.includes('@')){
+    toast('Enter a valid test recipient email address.','warning');
+    return;
+  }
+
+  const btn=document.getElementById('email-test-btn');
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Testing…';}
+
+  try{
+    const result=await emailDeliveryAction({action:'test',recipient_email:recipient});
+    await syncEmailDeliveryStatus();
+    renderEmailDeliveryPanel();
+
+    if(result.configured){
+      toast(`Test email processed for ${recipient}.`,'success');
+    }else{
+      toast('Test email queued. Add the provider secrets in Supabase to enable external delivery.','warning',7000);
+    }
+  }catch(e){
+    toast(e?.message||'Unable to queue the test email.','error');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;
+      btn.textContent=old||'Send Test';
+    }
+  }
+}
+
+async function retryOperationalEmail(emailId){
+  try{
+    await emailDeliveryAction({action:'retry',email_id:Number(emailId)});
+    const result=await emailDeliveryAction({action:'dispatch'});
+    await syncEmailDeliveryStatus();
+    renderEmailDeliveryPanel();
+
+    if(result.configured)toast('Email retry processed.','success');
+    else toast('Email returned to the queue and will send after provider setup.','warning');
+  }catch(e){
+    toast(e?.message||'Unable to retry the email.','error');
+  }
+}
+
+async function auditAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/audit-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Audit action failed.');
+  return result;
+}
+
+function auditDetailsText(details){
+  if(details==null)return '';
+  if(typeof details==='string')return details;
+  try{
+    return Object.entries(details)
+      .map(([k,v])=>`${k.replace(/_/g,' ')}: ${typeof v==='object'?JSON.stringify(v):v}`)
+      .join(' · ');
+  }catch(_){
+    return String(details);
+  }
+}
+
+async function syncRealActivityLogs(){
+  if(!currentUser?._realSupabase||currentUser.role!=='Administrator')return [];
+
+  await syncAdminDirectoryFromSupabase();
+
+  const {data,error}=await supabaseClient
+    .from('audit_logs')
+    .select('audit_id,user_id,action,entity_type,entity_id,details,ip_address,user_agent,created_at')
+    .order('created_at',{ascending:false})
+    .limit(1000);
+
+  if(error)throw error;
+
+  DB.activityLogs=(data||[]).map(row=>{
+    const actor=(DB.users||[]).find(u=>u._realSupabase&&Number(u.dbUserId)===Number(row.user_id));
+    return {
+      id:1000000+Number(row.audit_id),
+      dbAuditId:Number(row.audit_id),
+      timestamp:row.created_at,
+      userId:actor?.id||null,
+      dbUserId:row.user_id?Number(row.user_id):null,
+      userName:actor?`${actor.fname} ${actor.lname}`:'System / Unknown',
+      role:actor?.role||'System',
+      action:row.action||'',
+      details:auditDetailsText(row.details),
+      rawDetails:row.details||{},
+      targetType:row.entity_type||'',
+      targetId:row.entity_id||null,
+      ipAddress:row.ip_address||'',
+      userAgent:row.user_agent||'',
+      _realSupabase:true
+    };
+  });
+
+  return DB.activityLogs;
+}
+
+async function renderActivityLog(){
   const c=document.getElementById('app-content');
-  if(currentUser.role!=='Administrator'){c.innerHTML='<div class="alert alert-danger show">Administrator access required.</div>';return;}
-  const roles=[...new Set((DB.activityLogs||[]).map(x=>x.role))].filter(Boolean);
-  c.innerHTML=`<div class="card"><div class="card-header"><div><h3>Activity & Audit Log</h3><div class="tech-note">Tracks important access and record-changing events for accountability.</div></div><button class="btn btn-sm" onclick="exportActivityLog()">Export CSV</button></div>
-    <div class="audit-toolbar"><input id="audit-q" type="search" placeholder="Search user, action, details..." oninput="renderActivityLogTable()"><select id="audit-role" onchange="renderActivityLogTable()"><option value="">All roles</option>${roles.map(r=>`<option>${escapeHtml(r)}</option>`).join('')}</select></div><div id="audit-table"></div></div>`;
+  if(currentUser.role!=='Administrator'){
+    c.innerHTML='<div class="alert alert-danger show">Administrator access required.</div>';
+    return;
+  }
+
+  const pageToken=captureCampusPageToken();
+
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('table');
+    try{await syncRealActivityLogs();}
+    catch(e){
+      if(!isCampusPageCurrent('activity-log',pageToken))return;
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load activity logs.')}</div>
+        <button class="btn btn-sm" onclick="renderActivityLog()">Retry</button>`;
+      return;
+    }
+    if(!isCampusPageCurrent('activity-log',pageToken))return;
+  }
+
+  const roles=[...new Set((DB.activityLogs||[]).map(x=>x.role))].filter(Boolean).sort();
+  c.innerHTML=`<div class="card">
+    <div class="card-header">
+      <div>
+        <h3>Activity &amp; Audit Log</h3>
+        <div class="tech-note">Real server-side audit events for accountability, security review, and Data Privacy Act compliance.</div>
+      </div>
+      <button class="btn btn-sm" onclick="exportActivityLog()">Export CSV</button>
+    </div>
+
+    <div class="audit-toolbar">
+      <input id="audit-q" type="search" placeholder="Search user, action, details..." oninput="renderActivityLogTable()">
+      <select id="audit-role" onchange="renderActivityLogTable()">
+        <option value="">All roles</option>
+        ${roles.map(r=>`<option>${escapeHtml(r)}</option>`).join('')}
+      </select>
+      <select id="audit-action" onchange="renderActivityLogTable()">
+        <option value="">All actions</option>
+        ${[...new Set((DB.activityLogs||[]).map(x=>x.action))].filter(Boolean).sort().map(a=>`<option>${escapeHtml(a)}</option>`).join('')}
+      </select>
+    </div>
+    <div id="audit-table"></div>
+  </div>`;
   renderActivityLogTable();
 }
+
 function renderActivityLogTable(){
   const el=document.getElementById('audit-table');if(!el)return;
-  const q=(document.getElementById('audit-q')?.value||'').toLowerCase(),role=document.getElementById('audit-role')?.value||'';
-  const rows=(DB.activityLogs||[]).slice().reverse().filter(x=>(!role||x.role===role)&&(!q||`${x.userName} ${x.action} ${x.details} ${x.targetType}`.toLowerCase().includes(q))).slice(0,500);
-  el.innerHTML=rows.length?`<div class="table-wrap"><table><thead><tr><th>Date / Time</th><th>User</th><th>Role</th><th>Action</th><th>Details</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${new Date(x.timestamp).toLocaleString('en-PH')}</td><td>${escapeHtml(x.userName)}</td><td>${escapeHtml(x.role)}</td><td><span class="badge badge-info">${escapeHtml(x.action)}</span></td><td>${escapeHtml(x.details||'-')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No activity has been logged yet.</p></div>';
+
+  const q=(document.getElementById('audit-q')?.value||'').toLowerCase();
+  const role=document.getElementById('audit-role')?.value||'';
+  const action=document.getElementById('audit-action')?.value||'';
+
+  const rows=(DB.activityLogs||[])
+    .filter(x=>
+      (!role||x.role===role)&&
+      (!action||x.action===action)&&
+      (!q||`${x.userName} ${x.action} ${x.details} ${x.targetType} ${x.targetId||''}`.toLowerCase().includes(q))
+    )
+    .slice(0,500);
+
+  el.innerHTML=rows.length?`<div class="table-wrap"><table>
+    <thead><tr><th>Date / Time</th><th>User</th><th>Role</th><th>Action</th><th>Target</th><th>Details</th><th>IP</th></tr></thead>
+    <tbody>${rows.map(x=>`<tr>
+      <td>${new Date(x.timestamp).toLocaleString('en-PH')}</td>
+      <td>${escapeHtml(x.userName)}</td>
+      <td>${escapeHtml(x.role)}</td>
+      <td><span class="badge badge-info">${escapeHtml(x.action)}</span></td>
+      <td>${escapeHtml(x.targetType||'—')}${x.targetId!=null?` #${escapeHtml(String(x.targetId))}`:''}</td>
+      <td style="max-width:360px;white-space:normal">${escapeHtml(x.details||'—')}</td>
+      <td>${escapeHtml(x.ipAddress||'—')}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`:'<div class="empty-state"><p>No activity matches the selected filters.</p></div>';
 }
-function exportActivityLog(){
-  const rows=[['Timestamp','User','Role','Action','Details'],...(DB.activityLogs||[]).map(x=>[x.timestamp,x.userName,x.role,x.action,x.details])];
+
+async function exportActivityLog(){
+  const rows=[['Timestamp','User','Role','Action','Target Type','Target ID','Details','IP Address'],
+    ...(DB.activityLogs||[]).map(x=>[
+      x.timestamp,x.userName,x.role,x.action,x.targetType||'',x.targetId??'',x.details||'',x.ipAddress||''
+    ])];
+
   const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`CampusCare_Activity_Log_${TODAY}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-  auditLog('AUDIT_LOG_EXPORTED','Administrator exported activity log.','Audit',null);persistDB();
+  const a=document.createElement('a');
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.href=url;
+  a.download=`CampusCare_Activity_Log_${TODAY}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+
+  if(currentUser?._realSupabase){
+    try{
+      await auditAction({action:'record_export'});
+      await syncRealActivityLogs();
+      renderActivityLogTable();
+    }catch(e){
+      console.error('Audit export logging:',e);
+    }
+  }else{
+    auditLog('AUDIT_LOG_EXPORTED','Administrator exported activity log.','Audit',null);
+    persistDB();
+  }
+
+  toast('Activity log exported as CSV.','success');
 }
 
 function resetDemoData(){
@@ -2458,7 +3133,7 @@ loadDB();
   persistDB();
 })();
 
-runAutomatedDailyBackup();
+/* Real deployments use the server-side scheduled backup. */
 
 // ================================================================
 // THEME (light / dark)
@@ -3662,17 +4337,111 @@ function downloadPatientFHIR(patientId){
 
 
 // ================================================================
-// NOTIFICATIONS
+// NOTIFICATIONS — REAL SUPABASE CENTER
 // ================================================================
+function notificationRecords(){
+  if(currentUser?._realSupabase)return (DB.notifications||[]).filter(n=>n._realSupabase);
+  return DB.notifications||[];
+}
+
+function realNotificationToUi(n){
+  return {
+    id:1100000+Number(n.notification_id),
+    dbNotificationId:Number(n.notification_id),
+    userId:currentUser?.id||null,
+    dbUserId:Number(n.user_id),
+    title:n.title||'Notification',
+    body:n.message||'',
+    type:n.type||'info',
+    channel:n.channel||'In-app',
+    read:Boolean(n.is_read),
+    scheduledAt:n.scheduled_at||'',
+    sentAt:n.sent_at||'',
+    deliveryStatus:n.delivery_status||'',
+    referenceType:n.reference_type||'',
+    referenceId:n.reference_id==null?null:Number(n.reference_id),
+    actionPage:n.action_page||'',
+    notificationKey:n.notification_key||'',
+    createdAt:n.created_at||'',
+    _realSupabase:true
+  };
+}
+
+async function notificationCenterAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/notification-center`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Notification action failed.');
+  return result;
+}
+
+async function syncRealNotifications(){
+  if(!currentUser?._realSupabase)return notificationRecords();
+
+  const result=await notificationCenterAction({action:'list'});
+  DB.notifications=(DB.notifications||[]).filter(n=>!n._realSupabase);
+  DB.notifications.push(...(result.notifications||[]).map(realNotificationToUi));
+  return notificationRecords();
+}
+
+function notificationPageFor(n){
+  if(n.actionPage)return n.actionPage;
+
+  const type=String(n.type||'').toLowerCase();
+  if(type.includes('appointment'))return currentUser.role==='Patient'?'my-appointments':'appointments';
+  if(type.includes('treatment'))return currentUser.role==='Patient'?'my-records':'treatments';
+  if(type.includes('certificate'))return currentUser.role==='Patient'?'my-certificates':'cert-requests';
+  if(type.includes('fitness'))return 'fitness';
+  if(type.includes('inventory'))return 'inventory';
+  return '';
+}
+
+function notificationTone(n){
+  const type=String(n.type||'').toLowerCase();
+  const title=String(n.title||'').toLowerCase();
+  if(type.includes('inventory')||title.includes('low stock')||title.includes('declined'))return 'warning';
+  if(title.includes('ready')||title.includes('issued')||title.includes('completed')||title.includes('confirmed'))return 'success';
+  if(title.includes('cancelled')||title.includes('suspended'))return 'danger';
+  return 'info';
+}
+
 function addNotif(userId,title,body,type='info'){
+  // Legacy/demo fallback only. Real Supabase workflows create their
+  // notifications on the server so they cannot be forged by the browser.
+  if(currentUser?._realSupabase)return;
   DB.notifications.push({id:DB.nextNotifId++,userId,title,body,type,read:false,createdAt:new Date().toLocaleString()});
   if(currentUser&&currentUser.id===userId)updateNotifUI();
 }
 
-function updateNotifUI(){
-  const unread=DB.notifications.filter(n=>n.userId===currentUser.id&&!n.read);
+async function updateNotifUI(){
+  if(!currentUser)return;
+
+  if(currentUser._realSupabase){
+    try{await syncRealNotifications();}
+    catch(e){console.error('Notification sync:',e);}
+  }
+
+  const unread=notificationRecords().filter(n=>n.userId===currentUser.id&&!n.read);
   const dot=document.getElementById('notif-dot');
   if(dot)dot.style.display=unread.length?'':'none';
+
+  const count=document.getElementById('notif-count');
+  if(count){
+    count.textContent=String(unread.length);
+    count.style.display=unread.length?'':'none';
+  }
+
   renderNotifList();
 }
 
@@ -3830,7 +4599,7 @@ function getAssistantReply(raw){
 
   // Messages / unread
   if(has('unread message','new message','messages')){
-    const unread=DB.messages.filter(m=>m.toUserId===u.id&&!m.isRead&&!(m.deletedFor&&m.deletedFor.includes(u.id))).length;
+    const unread=messageRecords().filter(m=>m.toUserId===u.id&&!m.isRead&&!m.deleted).length;
     return unread?`You have ${unread} unread message${unread===1?'':'s'}. Check the Messages page.`:"You're all caught up — no unread messages.";
   }
 
@@ -3896,53 +4665,116 @@ function getAssistantReply(raw){
 
 function renderNotifList(){
   const list=document.getElementById('notif-list');
-  if(!list)return;
-  const notifs=DB.notifications.filter(n=>n.userId===currentUser.id).slice().reverse();
-  if(!notifs.length){list.innerHTML='<div class="empty-state" style="padding:1rem"><p>No notifications</p></div>';return;}
-  list.innerHTML=notifs.map(n=>`
-    <div class="notif-item ${n.read?'':'unread'}" onclick="readNotif(${n.id})">
+  if(!list||!currentUser)return;
+
+  const notifs=notificationRecords()
+    .filter(n=>n.userId===currentUser.id)
+    .slice()
+    .sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+
+  if(!notifs.length){
+    list.innerHTML='<div class="empty-state" style="padding:1rem"><p>No notifications</p></div>';
+    return;
+  }
+
+  list.innerHTML=notifs.map(n=>{
+    const tone=notificationTone(n);
+    const color=tone==='danger'?'var(--danger)':tone==='success'?'#639922':tone==='warning'?'#EF9F27':'var(--primary)';
+    const when=n.createdAt?new Date(n.createdAt).toLocaleString('en-PH'):'';
+    const page=notificationPageFor(n);
+
+    return `<div class="notif-item ${n.read?'':'unread'}" onclick="readNotif(${n.id},${page?`'${jsAttrSafe(page)}'`:'null'})">
       <div style="display:flex;gap:.5rem;align-items:flex-start">
-        <div class="notif-type-dot" style="background:${n.type==='danger'?'var(--danger)':n.type==='success'?'#639922':n.type==='warning'?'#EF9F27':'var(--primary)'}"></div>
-        <div style="flex:1">
-          <div class="notif-item-title">${n.title}</div>
-          <div style="color:#666;margin-bottom:2px">${n.body}</div>
-          <div class="notif-item-time">${n.createdAt}</div>
+        <div class="notif-type-dot" style="background:${color}"></div>
+        <div style="flex:1;min-width:0">
+          <div class="notif-item-title">${escapeHtml(n.title)}</div>
+          <div style="color:var(--ink-muted);margin-bottom:2px;line-height:1.4">${escapeHtml(n.body)}</div>
+          <div class="notif-item-time">${escapeHtml(when)}</div>
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
-function readNotif(id){
-  const n=DB.notifications.find(x=>x.id===id);
-  if(n){n.read=true;}
-  updateNotifUI();
+async function readNotif(id,page=null){
+  const n=notificationRecords().find(x=>x.id===Number(id));
+  if(!n)return;
+
+  if(n._realSupabase&&!n.read){
+    try{
+      await notificationCenterAction({action:'read',notification_id:n.dbNotificationId});
+      n.read=true;
+    }catch(e){
+      console.error('Read notification:',e);
+    }
+  }else{
+    n.read=true;
+  }
+
+  await updateNotifUI();
+
+  const panel=document.getElementById('notif-panel');
+  if(panel)panel.classList.remove('show');
+
+  if(page&&typeof navTo==='function')navTo(page);
 }
-function markAllRead(){
-  DB.notifications.filter(n=>n.userId===currentUser.id).forEach(n=>n.read=true);
-  updateNotifUI();
+
+async function markAllRead(){
+  if(!currentUser)return;
+
+  if(currentUser._realSupabase){
+    try{
+      await notificationCenterAction({action:'read_all'});
+      notificationRecords().filter(n=>n.userId===currentUser.id).forEach(n=>n.read=true);
+    }catch(e){
+      toast(e?.message||'Unable to mark notifications as read.','error');
+      return;
+    }
+  }else{
+    notificationRecords().filter(n=>n.userId===currentUser.id).forEach(n=>n.read=true);
+  }
+
+  await updateNotifUI();
 }
+
 function toggleNotifPanel(){
   const p=document.getElementById('notif-panel');
+  if(!p)return;
   p.classList.toggle('show');
-  if(p.classList.contains('show'))renderNotifList();
+  if(p.classList.contains('show'))updateNotifUI();
 }
+
 document.addEventListener('click',e=>{
   const p=document.getElementById('notif-panel');
   const btn=document.getElementById('notif-btn');
   if(p&&btn&&!p.contains(e.target)&&!btn.contains(e.target))p.classList.remove('show');
 });
 
-// Check appointment reminders on login
-function checkReminders(){
-  if(!currentUser||currentUser.role!=='Patient')return;
+// Appointment reminders are generated on the server and deduplicated by
+// appointment/date/time. For real users this runs whenever CampusCare opens.
+async function checkReminders(){
+  if(!currentUser)return;
+
+  if(currentUser._realSupabase){
+    try{
+      await notificationCenterAction({action:'refresh_reminders'});
+      await updateNotifUI();
+    }catch(e){
+      console.error('Reminder refresh:',e);
+    }
+    return;
+  }
+
+  if(currentUser.role!=='Patient')return;
   const pt=getPatientByUserId(currentUser.id);
   if(!pt)return;
   const reminderDays=DB.settings.appointmentReminderDays;
+
   appointmentRecords().forEach(a=>{
     if(a.patientId!==pt.id||a.status!=='Scheduled')return;
     const diff=(new Date(a.date)-new Date(TODAY))/(1000*60*60*24);
     if(diff>=0&&diff<=reminderDays){
-      const existing=DB.notifications.find(n=>n.userId===currentUser.id&&n.title.includes(a.date)&&!n.read);
+      const existing=notificationRecords().find(n=>n.userId===currentUser.id&&n.title.includes(a.date)&&!n.read);
       if(!existing){
         addNotif(currentUser.id,'Upcoming Appointment Reminder',
           `You have a ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}. Please bring your COR (Certificate of Registration) when you come to the clinic.`,'warning');
@@ -4058,6 +4890,7 @@ async function doLogin(){
 
     currentUser=normalizeSupabaseUser(profile);
 try{ await supabaseClient.from('users').update({last_login_at:new Date().toISOString()}).eq('user_id',profile.user_id); }catch(_){}
+    try{await auditAction({action:'record_session',event:'LOGIN'});}catch(e){console.error('Login audit:',e);}
     await syncCampusCareSessionUI();
     if(profile.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
       setTimeout(refreshRealApprovalQueue,300);
@@ -4714,8 +5547,12 @@ function logout(){
       try{
         // Record the action before the authenticated session is destroyed.
         if(currentUser){
-          auditLog('LOGOUT','User signed out of CampusCare.','Session',currentUser.id);
-          persistDB();
+          if(currentUser._realSupabase){
+            try{await auditAction({action:'record_session',event:'LOGOUT'});}catch(e){console.error('Logout audit:',e);}
+          }else{
+            auditLog('LOGOUT','User signed out of CampusCare.','Session',currentUser.id);
+            persistDB();
+          }
         }
 
         // IMPORTANT: CampusCare now uses Supabase Auth with a persisted browser
@@ -4768,7 +5605,7 @@ function tryRestoreSession(){
 // APP INIT
 // ================================================================
 function initApp(){
-  runAutomatedDailyBackup();
+  /* Real deployments use the server-side scheduled backup. */
   applyDueScheduleChanges();
   document.getElementById('auth-wrap').style.display='none';
   document.getElementById('app').classList.add('visible');
@@ -5069,7 +5906,8 @@ function navTo(id){
     approvals:'Approval Queue',certificates:'Medical Certificates','cert-requests':'Certificate Requests',treatments:'Treatments',inventory:'Inventory Management',
     reports:'Reports & Analytics',users:'User Management',settings:'System Settings',
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',
-    'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log'
+    'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log',
+    messages:currentUser.role==='Patient'?'Ask a Doctor':'Messages'
   }[id]||id;
   renderPage(id);
   window.scrollTo({top:0,behavior:'smooth'});
@@ -5948,7 +6786,7 @@ function renderDashboard(){
   const lowStock=getLowStock();
   const pendingUsers=DB.users.filter(u=>u.status==='Pending');
   const pendingCerts=(DB.certRequests||[]).filter(r=>r.status==='Pending');
-  const unreadMessages=DB.messages.filter(m=>m.toUserId===currentUser.id&&!m.isRead&&!m.deleted).length;
+  const unreadMessages=messageRecords().filter(m=>m.toUserId===currentUser.id&&!m.isRead&&!m.deleted).length;
   const hour=new Date().getHours();
   const greeting=hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
 
@@ -8773,83 +9611,228 @@ function renderTreatTable(){
   </table></div>`;
 }
 // ================================================================
-// MODERN MESSENGER
+// SECURE CAMPUSCARE MESSAGING — REAL SUPABASE WORKFLOW
 // ================================================================
-let presenceMap={};
 let activeConversationId=null;
 let pendingAttachment=null;
 let voiceRecorder=null;
 let voiceChunks=[];
-let presenceIntervalStarted=false;
-
-function getPresence(userId){
-  if(userId===currentUser.id)return 'online';
-  if(!presenceMap[userId]){
-    const opts=['online','online','away','offline'];
-    presenceMap[userId]=opts[Math.floor(Math.random()*opts.length)];
-  }
-  return presenceMap[userId];
-}
-function presenceColor(status){
-  return status==='online'?'#2ecc71':status==='away'?'#f0b429':'#9aa5ab';
-}
-function presenceLabel(status){
-  return status==='online'?'Online':status==='away'?'Away':'Offline';
-}
-function startPresenceSimulation(){
-  if(presenceIntervalStarted)return;
-  presenceIntervalStarted=true;
-  setInterval(()=>{
-    const ids=Object.keys(presenceMap);
-    if(!ids.length)return;
-    const pick=ids[Math.floor(Math.random()*ids.length)];
-    const opts=['online','online','away','offline'];
-    presenceMap[pick]=opts[Math.floor(Math.random()*opts.length)];
-    if(document.getElementById('msgr-contacts'))renderContactList();
-    if(activeConversationId&&parseInt(pick)===activeConversationId){
-      const dot=document.getElementById('msgr-header-dot');
-      const lbl=document.getElementById('msgr-header-status');
-      if(dot){dot.style.background=presenceColor(presenceMap[pick]);}
-      if(lbl){lbl.textContent=presenceLabel(presenceMap[pick]);}
-    }
-  },15000);
-}
+let messagePollTimer=null;
 
 function docName(user){
   if(!user)return '';
   return (user.role==='Doctor'?'Dr. ':'')+user.fname+' '+user.lname;
 }
 
+function messageRecords(){
+  if(currentUser?._realSupabase)return (DB.messages||[]).filter(m=>m._realSupabase);
+  return DB.messages||[];
+}
+
+function realMessageToUi(m){
+  return {
+    id:1200000+Number(m.message_id),
+    dbMessageId:Number(m.message_id),
+    fromUserId:100000+Number(m.from_user_id),
+    dbFromUserId:Number(m.from_user_id),
+    toUserId:100000+Number(m.to_user_id),
+    dbToUserId:Number(m.to_user_id),
+    subject:m.subject||'',
+    message:m.body||'',
+    replyToId:m.reply_to_id?1200000+Number(m.reply_to_id):null,
+    dbReplyToId:m.reply_to_id?Number(m.reply_to_id):null,
+    isRead:Boolean(m.is_read),
+    createdAt:m.created_at||'',
+    edited:Boolean(m.edited_at),
+    editedAt:m.edited_at||'',
+    deleted:Boolean(m.deleted_for_everyone),
+    deletedAt:m.deleted_at||'',
+    forwarded:Boolean(m.forwarded_from_id),
+    dbForwardedFromId:m.forwarded_from_id?Number(m.forwarded_from_id):null,
+    attachment:m.attachment_url&&!m.deleted_for_everyone?{
+      type:m.attachment_type||'file',
+      name:m.attachment_name||'Attachment',
+      dataUrl:m.attachment_url,
+      mime:m.attachment_mime||'',
+      size:Number(m.attachment_size||0),
+      path:m.attachment_path||''
+    }:null,
+    _realSupabase:true
+  };
+}
+
+async function messageAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/message-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Messaging action failed.');
+  return result;
+}
+
+async function syncRealMessages(){
+  if(!currentUser?._realSupabase)return messageRecords();
+
+  const result=await messageAction({action:'list'});
+  DB.messages=(DB.messages||[]).filter(m=>!m._realSupabase);
+  DB.messages.push(...(result.messages||[]).map(realMessageToUi));
+  return messageRecords();
+}
+
+async function syncMessagingContext(){
+  if(!currentUser?._realSupabase)return;
+
+  if(currentUser.role==='Patient'){
+    await syncRealDoctorDirectory();
+  }else{
+    await syncAdminDirectoryFromSupabase();
+    if(currentUser.role==='Doctor'){
+      // Doctor-to-patient chat is limited to patients linked to the doctor's
+      // appointment/treatment history. Keep these relationships current.
+      await syncRealAppointments();
+      await syncRealTreatments();
+    }
+  }
+
+  await syncRealMessages();
+}
+
+function isCompactMessenger(){
+  // Tablets can have a wide viewport but a much narrower CampusCare content
+  // area because the application sidebar is still visible. Use both viewport
+  // and actual content width so portrait/landscape tablets behave correctly.
+  const content=document.getElementById('app-content');
+  return window.innerWidth<=1100 || Boolean(content&&content.clientWidth<760);
+}
+
+function startMessagePolling(){
+  if(messagePollTimer)clearInterval(messagePollTimer);
+
+  if(!currentUser?._realSupabase)return;
+
+  messagePollTimer=setInterval(async()=>{
+    if(campusActivePageId!=='messages'||!currentUser?._realSupabase)return;
+    try{
+      await syncRealMessages();
+      renderContactList();
+      renderPeopleCarousel();
+      if(activeConversationId)renderChatMessages(activeConversationId);
+    }catch(e){
+      console.error('Secure message refresh:',e);
+    }
+  },7000);
+}
+
+function getPresence(_userId){
+  return currentUser?._realSupabase?'secure':'online';
+}
+function presenceColor(status){
+  return status==='secure'?'#0a7ea8':status==='online'?'#2ecc71':status==='away'?'#f0b429':'#9aa5ab';
+}
+function presenceLabel(status){
+  return status==='secure'?'Secure messaging':status==='online'?'Online':status==='away'?'Away':'Offline';
+}
+function startPresenceSimulation(){
+  // Production CampusCare deliberately does not invent or expose live presence.
+}
+
 function msgrAvatarHtml(user,size=42){
-  const initials=user?((user.fname[0]||'')+(user.lname[0]||'')).toUpperCase():'?';
+  const initials=user?((user.fname?.[0]||'')+(user.lname?.[0]||'')).toUpperCase():'?';
   const inner=user&&user.profilePhoto
     ?`<img src="${user.profilePhoto}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover">`
     :`<div class="sb-avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.34)}px">${initials}</div>`;
   const dotSize=Math.max(9,Math.round(size*0.26));
-  const status=user?getPresence(user.id):'offline';
+  const status=getPresence(user?.id);
   return `<div class="msgr-avatar-wrap">${inner}<span class="msgr-presence-dot" style="width:${dotSize}px;height:${dotSize}px;background:${presenceColor(status)}"></span></div>`;
+}
+
+function fmtShortTime(d){
+  try{
+    const dt=new Date(d),now=new Date();
+    if(dt.toDateString()===now.toDateString())return dt.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
+    return dt.toLocaleDateString('en-PH',{month:'short',day:'numeric'});
+  }catch(_){return '';}
+}
+
+function attachmentPreviewLabel(att){
+  if(!att)return '';
+  if(att.type==='image')return '📷 Photo';
+  if(att.type==='audio')return '🎤 Voice message';
+  return `📎 ${att.name||'File'}`;
 }
 
 function getMessageContacts(){
   const myId=currentUser.id;
   const partnerIds=new Set();
-  DB.messages.forEach(m=>{
-    if(m.deletedFor&&m.deletedFor.includes(myId))return;
+
+  messageRecords().forEach(m=>{
     if(m.fromUserId===myId)partnerIds.add(m.toUserId);
     if(m.toUserId===myId)partnerIds.add(m.fromUserId);
   });
-  const contacts=[...partnerIds].map(pid=>{
-    const msgs=DB.messages.filter(m=>((m.fromUserId===myId&&m.toUserId===pid)||(m.fromUserId===pid&&m.toUserId===myId))&&!(m.deletedFor&&m.deletedFor.includes(myId)))
+
+  return [...partnerIds].map(pid=>{
+    const msgs=messageRecords()
+      .filter(m=>(m.fromUserId===myId&&m.toUserId===pid)||(m.fromUserId===pid&&m.toUserId===myId))
       .sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+
     const last=msgs[msgs.length-1];
-    const unread=msgs.filter(m=>m.toUserId===myId&&!m.isRead).length;
+    const unread=msgs.filter(m=>m.toUserId===myId&&!m.isRead&&!m.deleted).length;
     return {id:pid,user:getUserById(pid),last,unread};
-  }).filter(c=>c.user&&c.last).sort((a,b)=>new Date(b.last.createdAt)-new Date(a.last.createdAt));
-  return contacts;
+  }).filter(c=>c.user&&c.last)
+    .sort((a,b)=>new Date(b.last.createdAt)-new Date(a.last.createdAt));
+}
+
+function getAllMessagePeople(){
+  const real=currentUser?._realSupabase;
+  const users=(DB.users||[]).filter(u=>
+    u.id!==currentUser.id&&
+    u.status==='Active'&&
+    (!real||u._realSupabase)
+  );
+
+  if(currentUser.role==='Patient'){
+    // "Ask a Doctor" is intentionally Doctor-only for Patient accounts.
+    return users.filter(u=>u.role==='Doctor').map(user=>({id:user.id,user}));
+  }
+
+  if(currentUser.role==='Doctor'){
+    const linkedPatientIds=new Set([
+      ...appointmentRecords().filter(a=>a.doctorId===currentUser.id).map(a=>a.patientId),
+      ...treatmentRecords().filter(t=>t.doctorId===currentUser.id).map(t=>t.patientId)
+    ]);
+    const linkedUserIds=new Set(
+      (DB.patients||[])
+        .filter(p=>(!real||p._realSupabase)&&linkedPatientIds.has(p.id))
+        .map(p=>p.userId)
+    );
+
+    return users
+      .filter(u=>u.role!=='Patient'||linkedUserIds.has(u.id))
+      .map(user=>({id:user.id,user}));
+  }
+
+  // Staff and Administrators can coordinate with all active CampusCare users.
+  return users.map(user=>({id:user.id,user}));
 }
 
 function contactItemHtml(ct){
-  const preview=ct.last?(ct.last.attachment?attachmentPreviewLabel(ct.last.attachment):ct.last.message.substring(0,42)+(ct.last.message.length>42?'…':'')):'';
+  let preview='No message';
+  if(ct.last){
+    if(ct.last.deleted)preview='Message deleted';
+    else if(ct.last.attachment)preview=attachmentPreviewLabel(ct.last.attachment);
+    else preview=(ct.last.message||'').substring(0,42)+((ct.last.message||'').length>42?'…':'');
+  }
+
   return `<div class="msgr-contact-item ${activeConversationId===ct.id?'active':''}" onclick="openConversation(${ct.id})">
     ${msgrAvatarHtml(ct.user,40)}
     <div class="msgr-contact-info">
@@ -8863,36 +9846,10 @@ function contactItemHtml(ct){
   </div>`;
 }
 
-function attachmentPreviewLabel(att){
-  if(att.type==='image')return '📷 Photo';
-  if(att.type==='audio')return '🎤 Voice message';
-  return `📎 ${att.name}`;
-}
-
-function fmtShortTime(d){
-  try{
-    const dt=new Date(d);
-    const now=new Date();
-    if(dt.toDateString()===now.toDateString())return dt.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
-    return dt.toLocaleDateString('en-PH',{month:'short',day:'numeric'});
-  }catch(e){return '';}
-}
-
-function getAllMessagePeople(){
-  if(currentUser.role==='Patient'){
-    return DB.users.filter(u=>(u.role==='Doctor'||u.role==='Staff')&&u.status==='Active'&&u.id!==currentUser.id).map(u=>({id:u.id,user:u}));
-  }
-  const staffDocAdmin=DB.users.filter(u=>u.role!=='Patient'&&u.status==='Active'&&u.id!==currentUser.id).map(u=>({id:u.id,user:u}));
-  const patientList=DB.patients.filter(p=>p.userId&&!p.archived).map(p=>({id:p.userId,user:getUserById(p.userId)})).filter(p=>p.user);
-  return [...staffDocAdmin,...patientList];
-}
-
 function renderPeopleCarousel(){
-  const el=document.getElementById('msgr-people-carousel');
-  if(!el)return;
-
-  // Show every user this account is allowed to message in a compact horizontal row.
+  const el=document.getElementById('msgr-people-carousel');if(!el)return;
   const people=getAllMessagePeople();
+
   el.innerHTML=people.length?people.map(p=>`<button class="msgr-person-card" onclick="openConversation(${p.id})" title="Message ${escapeHtml(docName(p.user))}">
     ${msgrAvatarHtml(p.user,46)}
     <span class="msgr-person-name">${escapeHtml(p.user.fname)}</span>
@@ -8901,46 +9858,69 @@ function renderPeopleCarousel(){
 }
 
 function renderContactList(){
-  const el=document.getElementById('msgr-contacts');
-  if(!el)return;
+  const el=document.getElementById('msgr-contacts');if(!el)return;
   const q=((document.getElementById('msgr-search')||{}).value||'').trim().toLowerCase();
   const contacts=getMessageContacts();
+
   if(!q){
-    el.innerHTML=contacts.length?contacts.map(contactItemHtml).join(''):'<div class="empty-state"><p>No conversations yet.<br>Start one with the ✏️ button.</p></div>';
+    el.innerHTML=contacts.length
+      ?contacts.map(contactItemHtml).join('')
+      :'<div class="empty-state"><p>No conversations yet.<br>Start one with the ✏️ button.</p></div>';
     return;
   }
-  const matchedConvos=contacts.filter(c=>`${c.user.fname} ${c.user.lname}`.toLowerCase().includes(q));
+
+  const matched=contacts.filter(c=>`${c.user.fname} ${c.user.lname}`.toLowerCase().includes(q));
   const existingIds=new Set(contacts.map(c=>c.id));
-  const extraPeople=getAllMessagePeople().filter(p=>!existingIds.has(p.id)&&`${p.user.fname} ${p.user.lname}`.toLowerCase().includes(q));
-  let html='';
-  if(matchedConvos.length)html+=matchedConvos.map(contactItemHtml).join('');
-  if(extraPeople.length){
+  const extra=getAllMessagePeople()
+    .filter(p=>!existingIds.has(p.id)&&`${p.user.fname} ${p.user.lname}`.toLowerCase().includes(q));
+
+  let html=matched.map(contactItemHtml).join('');
+  if(extra.length){
     html+=`<div class="section-label" style="padding:.6rem .9rem .3rem">People</div>`;
-    html+=extraPeople.map(p=>`<div class="msgr-contact-item" onclick="document.getElementById('msgr-search').value='';openConversation(${p.id})">
+    html+=extra.map(p=>`<div class="msgr-contact-item" onclick="document.getElementById('msgr-search').value='';openConversation(${p.id})">
       ${msgrAvatarHtml(p.user,40)}
       <div class="msgr-contact-info">
         <div class="msgr-contact-name">${escapeHtml(docName(p.user))}</div>
-        <div class="msgr-contact-preview">${p.user.role}${p.user.role==='Doctor'&&p.user.specialty?' · '+escapeHtml(p.user.specialty):''}</div>
+        <div class="msgr-contact-preview">${escapeHtml(p.user.role)}${p.user.role==='Doctor'&&p.user.specialty?' · '+escapeHtml(p.user.specialty):''}</div>
       </div>
     </div>`).join('');
   }
   el.innerHTML=html||'<div class="empty-state"><p>No people match your search.</p></div>';
 }
 
-function renderMessages(){
+async function renderMessages(){
+  const c=document.getElementById('app-content');if(!c)return;
+  const pageToken=captureCampusPageToken();
+
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('table');
+    try{await syncMessagingContext();}
+    catch(e){
+      if(!isCampusPageCurrent('messages',pageToken))return;
+      console.error('Messaging sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load secure messages.')}</div>
+        <button class="btn btn-sm" onclick="renderMessages()">Retry</button>`;
+      return;
+    }
+    if(!isCampusPageCurrent('messages',pageToken))return;
+  }
+
   startPresenceSimulation();
-  const c=document.getElementById('app-content');
   const contacts=getMessageContacts();
 
-  // On phones, always open Messages at the chat lobby instead of jumping
-  // directly into the first conversation like the desktop split view does.
-  if(window.matchMedia('(max-width:768px)').matches)activeConversationId=null;
+  if(isCompactMessenger())activeConversationId=null;
 
   c.innerHTML=`
+    <div class="alert alert-info show" style="font-size:.76rem">
+      🔒 <strong>Secure CampusCare messaging.</strong>
+      ${currentUser.role==='Patient'
+        ? 'Use Ask a Doctor for non-emergency health questions. For urgent or emergency symptoms, seek immediate in-person or emergency care.'
+        : 'Messages may contain health-related information. Use only what is necessary for clinic coordination and patient care.'}
+    </div>
     <div class="msgr-shell" id="msgr-shell">
       <div class="msgr-sidebar">
         <div class="msgr-sidebar-header">
-          <h3>💬 Chats</h3>
+          <h3>💬 ${currentUser.role==='Patient'?'Ask a Doctor':'Messages'}</h3>
           <div style="display:flex;gap:.35rem">
             <button class="msgr-icon-btn" onclick="openMessageSettings()" title="Message settings">⚙️</button>
             <button class="msgr-icon-btn" onclick="openNewMessageModal()" title="New message">✏️</button>
@@ -8957,119 +9937,178 @@ function renderMessages(){
           ${contacts.length?contacts.map(contactItemHtml).join(''):'<div class="empty-state"><p>No conversations yet.<br>Start one with the ✏️ button.</p></div>'}
         </div>
       </div>
+
       <div class="msgr-chat" id="msgr-chat">
         <div class="empty-state" style="margin-top:4rem"><p>👋 Select a conversation, or start a new one.</p></div>
       </div>
     </div>`;
-  // Fill the lobby's people carousel after its HTML has been added to the page.
-  renderPeopleCarousel();
-  // Desktop users get a visible horizontal scrollbar; phones keep touch/swipe navigation.
-  const browseHint=document.getElementById('msgr-browse-hint');
-  if(browseHint)browseHint.textContent=window.matchMedia('(max-width:768px)').matches?'Swipe to browse':'Scroll to browse';
 
-  // Desktop keeps the convenient split-view behavior; mobile stays on the lobby.
-  if(contacts.length&&!window.matchMedia('(max-width:768px)').matches)openConversation(contacts[0].id);
+  renderPeopleCarousel();
+  const hint=document.getElementById('msgr-browse-hint');
+  if(hint)hint.textContent=isCompactMessenger()?'Swipe to browse':'Scroll to browse';
+
+  if(contacts.length&&!isCompactMessenger()){
+    await openConversation(contacts[0].id);
+  }
+
+  startMessagePolling();
 }
 
-function openConversation(userId){
-  activeConversationId=userId;
+async function openConversation(userId){
+  activeConversationId=Number(userId);
   const shell=document.getElementById('msgr-shell');
+  if(shell&&isCompactMessenger()) shell.classList.add('mobile-chat-open');
 
-  // On mobile, opening a conversation swaps the lobby for the chat screen.
-  if(shell&&window.matchMedia('(max-width:768px)').matches) shell.classList.add('mobile-chat-open');
-  const user=getUserById(userId);
+  const user=getUserById(activeConversationId);
   if(!user)return;
-  DB.messages.forEach(m=>{if(m.fromUserId===userId&&m.toUserId===currentUser.id)m.isRead=true;});
+
+  if(currentUser?._realSupabase){
+    try{
+      await messageAction({action:'read_conversation',partner_user_id:user.dbUserId});
+      messageRecords().forEach(m=>{
+        if(m.fromUserId===activeConversationId&&m.toUserId===currentUser.id)m.isRead=true;
+      });
+    }catch(e){console.error('Read secure conversation:',e);}
+  }else{
+    messageRecords().forEach(m=>{
+      if(m.fromUserId===activeConversationId&&m.toUserId===currentUser.id)m.isRead=true;
+    });
+  }
+
   updateNotifUI&&updateNotifUI();
   renderContactList();
-  const chat=document.getElementById('msgr-chat');
-  const status=getPresence(userId);
+
+  const chat=document.getElementById('msgr-chat');if(!chat)return;
+  const status=getPresence(activeConversationId);
+
   chat.innerHTML=`
     <div class="msgr-chat-header">
-      <!-- Mobile-only back button returns to the Messenger-style chat lobby. -->
       <button class="msgr-icon-btn msgr-mobile-back" onclick="backToMessageLobby()" title="Back to chats">←</button>
-      <div style="cursor:pointer;display:flex;align-items:center;gap:.65rem;min-width:0" onclick="openContactInfo(${userId})" title="View contact info">
+      <div style="cursor:pointer;display:flex;align-items:center;gap:.65rem;min-width:0" onclick="openContactInfo(${activeConversationId})" title="View contact info">
         ${msgrAvatarHtml(user,38)}
         <div>
           <div class="msgr-chat-header-name">${escapeHtml(docName(user))}</div>
-          <div class="msgr-chat-header-status"><span id="msgr-header-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${presenceColor(status)};margin-right:4px"></span><span id="msgr-header-status">${presenceLabel(status)}</span></div>
+          <div class="msgr-chat-header-status"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${presenceColor(status)};margin-right:4px"></span>${presenceLabel(status)}</div>
         </div>
       </div>
-      <button class="msgr-icon-btn" style="margin-left:auto" onclick="openContactInfo(${userId})" title="Conversation info">ℹ️</button>
+      <button class="msgr-icon-btn" style="margin-left:auto" onclick="openContactInfo(${activeConversationId})" title="Conversation info">ℹ️</button>
     </div>
     <div class="msgr-messages" id="msgr-messages"></div>
     <div id="msgr-pending-attach"></div>
     <div class="msgr-input-bar">
-      <input type="file" id="msgr-photo-input" accept="image/*" style="display:none" onchange="attachPhoto(this)">
-      <input type="file" id="msgr-file-input" style="display:none" onchange="attachFileGeneric(this)">
+      <input type="file" id="msgr-photo-input" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="attachPhoto(this)">
+      <input type="file" id="msgr-file-input" accept=".pdf,.txt,.docx,.xlsx" style="display:none" onchange="attachFileGeneric(this)">
       <button class="msgr-icon-btn" title="Send a photo" onclick="document.getElementById('msgr-photo-input').click()">📷</button>
       <button class="msgr-icon-btn" title="Send a file" onclick="document.getElementById('msgr-file-input').click()">📎</button>
-      <button class="msgr-icon-btn" id="msgr-voice-btn" title="Record a voice message" onclick="toggleVoiceRecording(${userId})">🎤</button>
-      <input type="text" id="msgr-text-input" placeholder="Type a message..." onkeydown="handleMsgrKeydown(event,${userId})">
-      <button class="msgr-send-btn" onclick="sendChatMessage(${userId})" title="Send">➤</button>
+      <button class="msgr-icon-btn" id="msgr-voice-btn" title="Record a voice message" onclick="toggleVoiceRecording(${activeConversationId})">🎤</button>
+      <input type="text" id="msgr-text-input" maxlength="4000" placeholder="Type a secure message..." onkeydown="handleMsgrKeydown(event,${activeConversationId})">
+      <button class="msgr-send-btn" id="msgr-send-btn" onclick="sendChatMessage(${activeConversationId})" title="Send">➤</button>
     </div>`;
-  renderChatMessages(userId);
+
+  renderChatMessages(activeConversationId);
 }
 
-// Return to the mobile chat lobby without leaving the Messages page.
 function backToMessageLobby(){
-  const shell=document.getElementById('msgr-shell');
-  if(!shell)return;
+  const shell=document.getElementById('msgr-shell');if(!shell)return;
   shell.classList.remove('mobile-chat-open');
   activeConversationId=null;
   renderContactList();
-  const contacts=document.getElementById('msgr-contacts');
-  if(contacts)contacts.scrollTop=0;
 }
 
-// Keep the correct Messenger layout if the browser is resized or rotated.
 function syncMessengerMobileLayout(){
-  const shell=document.getElementById('msgr-shell');
-  if(!shell)return;
-  if(window.matchMedia('(max-width:768px)').matches){
+  const shell=document.getElementById('msgr-shell');if(!shell)return;
+
+  if(isCompactMessenger()){
     shell.classList.toggle('mobile-chat-open',!!activeConversationId);
   }else{
+    // Desktop returns to the normal split view.
     shell.classList.remove('mobile-chat-open');
   }
 }
 window.addEventListener('resize',syncMessengerMobileLayout);
+window.addEventListener('orientationchange',()=>{
+  setTimeout(syncMessengerMobileLayout,120);
+});
 
-// ================================================================
-// CONTACT INFO — profile + shared media/files/links history
-// ================================================================
+function renderChatMessages(userId){
+  const wrap=document.getElementById('msgr-messages');if(!wrap)return;
+
+  const msgs=messageRecords()
+    .filter(m=>(m.fromUserId===currentUser.id&&m.toUserId===userId)||(m.fromUserId===userId&&m.toUserId===currentUser.id))
+    .sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+
+  wrap.innerHTML=msgs.map(m=>{
+    const sent=m.fromUserId===currentUser.id;
+
+    if(m.deleted){
+      return `<div class="msgr-bubble-row ${sent?'sent':'received'}">
+        <div class="msgr-bubble deleted">🚫 This message was deleted</div>
+      </div>`;
+    }
+
+    let bodyHtml='';
+    if(m.forwarded)bodyHtml+='<div style="font-size:.67rem;opacity:.65;margin-bottom:.2rem">Forwarded</div>';
+
+    if(m.message)bodyHtml+=`<div${m.attachment?' style="margin-bottom:.3rem"':''}>${escapeHtml(m.message)}</div>`;
+
+    if(m.attachment){
+      if(m.attachment.type==='image'){
+        bodyHtml+=`<img src="${m.attachment.dataUrl}" onclick="showFilePreview('Photo','${m.attachment.dataUrl}')" style="cursor:pointer">`;
+      }else if(m.attachment.type==='audio'){
+        bodyHtml+=`<audio controls preload="none" src="${m.attachment.dataUrl}"></audio>`;
+      }else{
+        bodyHtml+=`<a href="${m.attachment.dataUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">
+          <div class="msgr-file-chip">📎 ${escapeHtml(m.attachment.name)}</div></a>`;
+      }
+    }
+
+    const canEdit=sent&&!m.attachment;
+    return `<div class="msgr-bubble-row ${sent?'sent':'received'}" data-msg-id="${m.id}">
+      <div class="msgr-bubble" id="msgr-bubble-${m.id}">
+        ${bodyHtml||' '}
+        <span class="msgr-bubble-time">${fmtShortTime(m.createdAt)}${m.edited?' · edited':''}${sent?` · ${m.isRead?'read':'sent'}`:''}</span>
+      </div>
+      <button class="msgr-msg-actions-btn" onclick="toggleMsgMenu(event,${m.id},${canEdit},true)" title="More">⋯</button>
+    </div>`;
+  }).join('');
+
+  wrap.scrollTop=wrap.scrollHeight;
+}
+
 function openContactInfo(userId){
-  const user=getUserById(userId);
-  if(!user)return;
-  const msgs=DB.messages.filter(m=>!m.deleted&&((m.fromUserId===currentUser.id&&m.toUserId===userId)||(m.fromUserId===userId&&m.toUserId===currentUser.id)));
-  const photos=msgs.filter(m=>m.attachment&&m.attachment.type==='image');
-  const files=msgs.filter(m=>m.attachment&&m.attachment.type==='file');
+  const user=getUserById(userId);if(!user)return;
+  const msgs=messageRecords().filter(m=>!m.deleted&&(
+    (m.fromUserId===currentUser.id&&m.toUserId===userId)||
+    (m.fromUserId===userId&&m.toUserId===currentUser.id)
+  ));
+  const photos=msgs.filter(m=>m.attachment?.type==='image');
+  const files=msgs.filter(m=>m.attachment&&m.attachment.type!=='image'&&m.attachment.type!=='audio');
   const urlRegex=/(https?:\/\/[^\s]+)/g;
   const links=[];
-  msgs.forEach(m=>{ if(m.message){ const found=m.message.match(urlRegex); if(found)found.forEach(u=>links.push({url:u,date:m.createdAt})); } });
-  const status=getPresence(userId);
+  msgs.forEach(m=>{
+    if(m.message){
+      const found=m.message.match(urlRegex);
+      if(found)found.forEach(url=>links.push({url,date:m.createdAt}));
+    }
+  });
+
   openModal(`<div class="modal modal-sm">
     <div class="modal-header"><h3>Contact Info</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
       <div style="display:flex;flex-direction:column;align-items:center;gap:.5rem;margin-bottom:1rem">
-        <div style="position:relative">${user.profilePhoto?`<img src="${user.profilePhoto}" style="width:76px;height:76px;border-radius:50%;object-fit:cover;cursor:pointer" onclick="showFilePreview('${jsAttrSafe(docName(user))} - Photo','${user.profilePhoto}')">`:`<div class="sb-avatar" style="width:76px;height:76px;font-size:1.6rem">${(user.fname[0]||'')}${(user.lname[0]||'')}</div>`}</div>
+        ${user.profilePhoto?`<img src="${user.profilePhoto}" style="width:76px;height:76px;border-radius:50%;object-fit:cover">`:`<div class="sb-avatar" style="width:76px;height:76px;font-size:1.6rem">${escapeHtml((user.fname?.[0]||'')+(user.lname?.[0]||''))}</div>`}
         <strong style="font-size:1.05rem">${escapeHtml(docName(user))}</strong>
-        <span class="badge badge-info">${user.role}</span>
-        <span class="text-muted" style="font-size:.78rem"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${presenceColor(status)};margin-right:4px"></span>${presenceLabel(status)}</span>
+        <span class="badge badge-info">${escapeHtml(user.role)}</span>
+        <span class="text-muted" style="font-size:.76rem">🔒 Secure CampusCare conversation</span>
       </div>
       <div class="tabs" style="margin-bottom:.8rem">
         <button class="tab active" onclick="switchContactInfoTab(this,'ci-media')">Media (${photos.length})</button>
         <button class="tab" onclick="switchContactInfoTab(this,'ci-files')">Files (${files.length})</button>
         <button class="tab" onclick="switchContactInfoTab(this,'ci-links')">Links (${links.length})</button>
       </div>
-      <div id="ci-media">
-        ${photos.length?`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem">${photos.map(m=>`<img src="${m.attachment.dataUrl}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer" onclick="showFilePreview('Shared photo','${m.attachment.dataUrl}')">`).join('')}</div>`:'<p class="text-muted" style="text-align:center;padding:1rem 0">No photos shared yet.</p>'}
-      </div>
-      <div id="ci-files" style="display:none">
-        ${files.length?files.map(m=>`<a href="${m.attachment.dataUrl}" download="${jsAttrSafe(m.attachment.name)}" style="text-decoration:none;color:inherit"><div class="msgr-file-chip" style="margin-bottom:.4rem">📎 ${escapeHtml(m.attachment.name)}</div></a>`).join(''):'<p class="text-muted" style="text-align:center;padding:1rem 0">No files shared yet.</p>'}
-      </div>
-      <div id="ci-links" style="display:none">
-        ${links.length?links.map(l=>`<a href="${l.url}" target="_blank" rel="noopener" style="display:block;font-size:.82rem;color:var(--primary);margin-bottom:.5rem;word-break:break-all">${escapeHtml(l.url)}</a>`).join(''):'<p class="text-muted" style="text-align:center;padding:1rem 0">No links shared yet.</p>'}
-      </div>
+      <div id="ci-media">${photos.length?`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem">${photos.map(m=>`<img src="${m.attachment.dataUrl}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer" onclick="showFilePreview('Shared photo','${m.attachment.dataUrl}')">`).join('')}</div>`:'<p class="text-muted" style="text-align:center;padding:1rem 0">No photos shared.</p>'}</div>
+      <div id="ci-files" style="display:none">${files.length?files.map(m=>`<a href="${m.attachment.dataUrl}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><div class="msgr-file-chip" style="margin-bottom:.4rem">📎 ${escapeHtml(m.attachment.name)}</div></a>`).join(''):'<p class="text-muted" style="text-align:center;padding:1rem 0">No files shared.</p>'}</div>
+      <div id="ci-links" style="display:none">${links.length?links.map(l=>`<a href="${l.url}" target="_blank" rel="noopener" style="display:block;font-size:.82rem;color:var(--primary);margin-bottom:.5rem;word-break:break-all">${escapeHtml(l.url)}</a>`).join(''):'<p class="text-muted" style="text-align:center;padding:1rem 0">No links shared.</p>'}</div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Close</button></div>
   </div>`);
@@ -9078,7 +10117,10 @@ function openContactInfo(userId){
 function switchContactInfoTab(btn,paneId){
   btn.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');
-  ['ci-media','ci-files','ci-links'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=id===paneId?'block':'none';});
+  ['ci-media','ci-files','ci-links'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.style.display=id===paneId?'block':'none';
+  });
 }
 
 function handleMsgrKeydown(ev,userId){
@@ -9089,44 +10131,6 @@ function handleMsgrKeydown(ev,userId){
   }
 }
 
-function renderChatMessages(userId){
-  const wrap=document.getElementById('msgr-messages');
-  if(!wrap)return;
-  const msgs=DB.messages.filter(m=>((m.fromUserId===currentUser.id&&m.toUserId===userId)||(m.fromUserId===userId&&m.toUserId===currentUser.id))&&!(m.deletedFor&&m.deletedFor.includes(currentUser.id)))
-    .sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
-  wrap.innerHTML=msgs.map(m=>{
-    const sent=m.fromUserId===currentUser.id;
-    if(m.deleted){
-      return `<div class="msgr-bubble-row ${sent?'sent':'received'}" data-msg-id="${m.id}">
-        <div class="msgr-bubble deleted">🚫 This message was deleted</div>
-      </div>`;
-    }
-    let bodyHtml='';
-    if(m.attachment){
-      if(m.attachment.type==='image'){
-        bodyHtml=`<img src="${m.attachment.dataUrl}" onclick="showFilePreview('Photo','${m.attachment.dataUrl}')" style="cursor:pointer">`;
-      }else if(m.attachment.type==='audio'){
-        bodyHtml=`<audio controls src="${m.attachment.dataUrl}"></audio>`;
-      }else{
-        bodyHtml=`<a href="${m.attachment.dataUrl}" download="${jsAttrSafe(m.attachment.name)}" style="color:inherit;text-decoration:none"><div class="msgr-file-chip">📎 ${escapeHtml(m.attachment.name)}</div></a>`;
-      }
-      if(m.message)bodyHtml=`<div style="margin-bottom:.3rem">${escapeHtml(m.message)}</div>`+bodyHtml;
-    }else{
-      bodyHtml=escapeHtml(m.message);
-    }
-    const canEdit=sent&&!m.attachment;
-    return `<div class="msgr-bubble-row ${sent?'sent':'received'}" data-msg-id="${m.id}">
-      <div class="msgr-bubble" id="msgr-bubble-${m.id}">${bodyHtml}<span class="msgr-bubble-time">${fmtShortTime(m.createdAt)}${m.edited?' · edited':''}</span></div>
-      <button class="msgr-msg-actions-btn" onclick="toggleMsgMenu(event,${m.id},${canEdit},true)" title="More">⋯</button>
-    </div>`;
-  }).join('');
-  wrap.insertAdjacentHTML('beforeend','<div id="msgr-typing-indicator"></div>');
-  wrap.scrollTop=wrap.scrollHeight;
-}
-
-// ================================================================
-// MESSAGE ACTIONS — edit, delete, forward, share
-// ================================================================
 function closeMsgMenus(){
   document.querySelectorAll('.msgr-msg-menu').forEach(m=>m.remove());
   document.removeEventListener('click',closeMsgMenus);
@@ -9135,8 +10139,8 @@ function closeMsgMenus(){
 function toggleMsgMenu(evt,msgId,canEdit,canDelete){
   evt.stopPropagation();
   closeMsgMenus();
-  const btn=evt.currentTarget;
-  const rect=btn.getBoundingClientRect();
+
+  const rect=evt.currentTarget.getBoundingClientRect();
   const menu=document.createElement('div');
   menu.className='msgr-msg-menu';
   menu.style.top=(rect.bottom+window.scrollY+4)+'px';
@@ -9152,308 +10156,380 @@ function toggleMsgMenu(evt,msgId,canEdit,canDelete){
 }
 
 function startEditMessage(msgId){
-  const m=DB.messages.find(x=>x.id===msgId);
-  if(!m)return;
-  const bubble=document.getElementById(`msgr-bubble-${msgId}`);
-  if(!bubble)return;
+  const m=messageRecords().find(x=>x.id===Number(msgId));if(!m)return;
+  const bubble=document.getElementById(`msgr-bubble-${msgId}`);if(!bubble)return;
+
   bubble.innerHTML=`<div class="msgr-bubble-edit-area">
-    <textarea id="msgr-edit-input-${msgId}" rows="2">${escapeHtml(m.message)}</textarea>
+    <textarea id="msgr-edit-input-${msgId}" rows="2" maxlength="4000">${escapeHtml(m.message)}</textarea>
     <div class="msgr-edit-btns">
       <button class="btn btn-xs" onclick="cancelEditMessage(${msgId})">Cancel</button>
       <button class="btn btn-xs btn-primary" onclick="saveEditedMessage(${msgId})">Save</button>
     </div>
   </div>`;
-  document.getElementById(`msgr-edit-input-${msgId}`).focus();
+  document.getElementById(`msgr-edit-input-${msgId}`)?.focus();
 }
 
-function cancelEditMessage(msgId){
-  renderChatMessages(activeConversationId);
-}
+function cancelEditMessage(_msgId){renderChatMessages(activeConversationId);}
 
-function saveEditedMessage(msgId){
-  const m=DB.messages.find(x=>x.id===msgId);
+async function saveEditedMessage(msgId){
+  const m=messageRecords().find(x=>x.id===Number(msgId));
   const input=document.getElementById(`msgr-edit-input-${msgId}`);
   if(!m||!input)return;
-  const newText=input.value.trim();
-  if(!newText){toast('Message cannot be empty.','error');return;}
-  m.message=newText;
-  m.edited=true;
-  persistDB();
-  renderChatMessages(activeConversationId);
-  renderContactList();
-  toast('Message edited.','success');
+
+  const next=input.value.trim();
+  if(!next){toast('Message cannot be empty.','error');return;}
+
+  try{
+    if(m._realSupabase){
+      await messageAction({action:'edit',message_id:m.dbMessageId,body:next});
+      await syncRealMessages();
+    }else{
+      m.message=next;m.edited=true;persistDB();
+    }
+    renderChatMessages(activeConversationId);
+    renderContactList();
+    toast('Message edited.','success');
+  }catch(e){toast(e?.message||'Unable to edit the message.','error');}
 }
 
 function deleteMessage(msgId){
-  const m=DB.messages.find(x=>x.id===msgId);
-  if(!m)return;
-  const isOwn=m.fromUserId===currentUser.id;
+  const m=messageRecords().find(x=>x.id===Number(msgId));if(!m)return;
+  const own=m.fromUserId===currentUser.id;
+
   openModal(`<div class="modal modal-sm">
     <div class="modal-header"><h3>Delete Message</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
-    <div class="modal-body">
-      <p style="font-size:.85rem;color:var(--ink-muted)">${isOwn?"You can remove it for everyone, or just hide it from your own view.":"This will only hide it from your own view — the other person will still see it."}</p>
-    </div>
+    <div class="modal-body"><p style="font-size:.85rem;color:var(--ink-muted)">${own?'You can remove it for everyone, or hide it only from your own view.':'This will hide the message only from your own view.'}</p></div>
     <div class="modal-footer" style="flex-direction:column;align-items:stretch;gap:.5rem">
-      ${isOwn?`<button class="btn btn-danger" style="width:100%" onclick="confirmDeleteMessage(${msgId},'everyone')">Delete for Everyone</button>`:''}
+      ${own?`<button class="btn btn-danger" style="width:100%" onclick="confirmDeleteMessage(${msgId},'everyone')">Delete for Everyone</button>`:''}
       <button class="btn" style="width:100%" onclick="confirmDeleteMessage(${msgId},'me')">Delete for Me</button>
       <button class="btn" style="width:100%" onclick="closeAllModals()">Cancel</button>
     </div>
   </div>`);
 }
 
-function confirmDeleteMessage(msgId,mode){
-  const m=DB.messages.find(x=>x.id===msgId);
-  if(!m)return;
-  if(mode==='everyone'){
-    m.deleted=true;
-    m.message='';
-    m.attachment=null;
-  }else{
-    m.deletedFor=m.deletedFor||[];
-    if(!m.deletedFor.includes(currentUser.id))m.deletedFor.push(currentUser.id);
-  }
-  persistDB();
-  closeAllModals();
-  renderChatMessages(activeConversationId);
-  renderContactList();
-  toast(mode==='everyone'?'Message deleted for everyone.':'Message deleted for you.','warning');
+async function confirmDeleteMessage(msgId,mode){
+  const m=messageRecords().find(x=>x.id===Number(msgId));if(!m)return;
+
+  try{
+    if(m._realSupabase){
+      await messageAction({
+        action:mode==='everyone'?'delete_everyone':'hide',
+        message_id:m.dbMessageId
+      });
+      await syncRealMessages();
+    }else if(mode==='everyone'){
+      m.deleted=true;m.message='';m.attachment=null;persistDB();
+    }else{
+      m.deletedFor=m.deletedFor||[];
+      if(!m.deletedFor.includes(currentUser.id))m.deletedFor.push(currentUser.id);
+      persistDB();
+    }
+
+    closeAllModals();
+    renderChatMessages(activeConversationId);
+    renderContactList();
+    toast(mode==='everyone'?'Message deleted for everyone.':'Message hidden from your view.','warning');
+  }catch(e){toast(e?.message||'Unable to delete the message.','error');}
 }
 
 function forwardMessage(msgId){
-  const m=DB.messages.find(x=>x.id===msgId);
-  if(!m||m.deleted)return;
+  const m=messageRecords().find(x=>x.id===Number(msgId));if(!m||m.deleted)return;
   const people=getAllMessagePeople();
+
+  if(!people.length){toast('No available recipient for forwarding.','warning');return;}
+
   openModal(`<div class="modal modal-sm">
     <div class="modal-header"><h3>Forward Message</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
       <div class="form-group"><label>Forward to</label>
-        <select id="fwd-to">${people.map(p=>`<option value="${p.id}">${escapeHtml(docName(p.user))} (${p.user.role})</option>`).join('')}</select>
+        <select id="fwd-to">${people.map(p=>`<option value="${p.id}">${escapeHtml(docName(p.user))} (${escapeHtml(p.user.role)})</option>`).join('')}</select>
       </div>
       <div class="card" style="margin:0;padding:.6rem .8rem;font-size:.82rem;background:var(--overlay)">
-        ${m.attachment?attachmentPreviewLabel(m.attachment):escapeHtml(m.message)}
+        ${m.attachment?escapeHtml(attachmentPreviewLabel(m.attachment)):escapeHtml(m.message)}
       </div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="confirmForwardMessage(${msgId})">Forward</button></div>
   </div>`);
 }
 
-function confirmForwardMessage(msgId){
-  const m=DB.messages.find(x=>x.id===msgId);
-  const toId=parseInt(document.getElementById('fwd-to').value);
-  if(!m||!toId)return;
-  DB.messages.push({
-    id:DB.nextMessageId++,fromUserId:currentUser.id,toUserId:toId,subject:'',
-    message:m.message,attachment:m.attachment?{...m.attachment}:null,
-    createdAt:new Date().toISOString(),isRead:false,replyToId:null,forwarded:true
-  });
-  addNotif(toId,'New Message',`${currentUser.fname} ${currentUser.lname} forwarded you a message.`,'info');
-  persistDB();
-  closeAllModals();
-  toast('Message forwarded.','success');
-  if(activeConversationId===toId)renderChatMessages(toId);
-  renderContactList();
+async function confirmForwardMessage(msgId){
+  const m=messageRecords().find(x=>x.id===Number(msgId));
+  const toId=parseInt(document.getElementById('fwd-to')?.value||'0',10);
+  const recipient=getUserById(toId);
+  if(!m||!recipient)return;
+
+  try{
+    if(m._realSupabase){
+      await messageAction({
+        action:'forward',
+        message_id:m.dbMessageId,
+        to_user_id:recipient.dbUserId
+      });
+      await syncRealMessages();
+    }else{
+      DB.messages.push({
+        id:DB.nextMessageId++,fromUserId:currentUser.id,toUserId:toId,
+        subject:'',message:m.message,attachment:m.attachment?{...m.attachment}:null,
+        createdAt:new Date().toISOString(),isRead:false,replyToId:null,forwarded:true
+      });
+      persistDB();
+    }
+
+    closeAllModals();
+    toast('Message forwarded.','success');
+    renderContactList();
+    if(activeConversationId===toId)renderChatMessages(toId);
+  }catch(e){toast(e?.message||'Unable to forward the message.','error');}
 }
 
 function shareMessage(msgId){
-  const m=DB.messages.find(x=>x.id===msgId);
-  if(!m||m.deleted)return;
-  const text=m.attachment?`${attachmentPreviewLabel(m.attachment)} (shared from CampusCare)`:m.message;
+  const m=messageRecords().find(x=>x.id===Number(msgId));if(!m||m.deleted)return;
+  const shareText=m.attachment?`${attachmentPreviewLabel(m.attachment)} (shared from CampusCare)`:m.message;
+
   if(navigator.share){
-    navigator.share({title:'CampusCare Message',text}).catch(()=>{});
+    navigator.share({title:'CampusCare Message',text:shareText}).catch(()=>{});
   }else if(navigator.clipboard){
-    navigator.clipboard.writeText(text).then(()=>toast('Copied to clipboard.','success')).catch(()=>toast('Could not copy message.','error'));
-  }else{
-    toast('Sharing is not supported on this browser.','warning');
+    navigator.clipboard.writeText(shareText)
+      .then(()=>toast('Copied to clipboard.','success'))
+      .catch(()=>toast('Could not copy message.','error'));
+  }else toast('Sharing is not supported on this browser.','warning');
+}
+
+async function sendChatMessage(toId){
+  const input=document.getElementById('msgr-text-input');
+  const btn=document.getElementById('msgr-send-btn');
+  const message=input?.value.trim()||'';
+  if(!message&&!pendingAttachment)return;
+
+  const recipient=getUserById(Number(toId));
+  if(!recipient){toast('Recipient is unavailable.','error');return;}
+
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='…';}
+
+  try{
+    if(currentUser?._realSupabase){
+      await messageAction({
+        action:'send',
+        to_user_id:recipient.dbUserId,
+        body:message,
+        attachment_data_url:pendingAttachment?.dataUrl||null,
+        attachment_name:pendingAttachment?.name||null,
+        attachment_type:pendingAttachment?.type||null
+      });
+      await syncRealMessages();
+    }else{
+      DB.messages.push({
+        id:DB.nextMessageId++,fromUserId:currentUser.id,toUserId:Number(toId),
+        subject:'',message,attachment:pendingAttachment,
+        createdAt:new Date().toISOString(),isRead:false,replyToId:null
+      });
+      persistDB();
+    }
+
+    const prefs=getMsgPrefs();
+    if(prefs.sound)playMsgSendSound();
+
+    if(input)input.value='';
+    pendingAttachment=null;
+    const pa=document.getElementById('msgr-pending-attach');if(pa)pa.innerHTML='';
+    const photo=document.getElementById('msgr-photo-input');if(photo)photo.value='';
+    const file=document.getElementById('msgr-file-input');if(file)file.value='';
+
+    toast('Secure message sent.','success');
+    renderChatMessages(Number(toId));
+    renderContactList();
+    if(!currentUser?._realSupabase)simulateReplyTyping(Number(toId));
+  }catch(e){
+    toast(e?.message||'Unable to send the message.','error');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;btn.textContent=old||'➤';
+    }
   }
 }
 
-function sendChatMessage(toId){
-  const input=document.getElementById('msgr-text-input');
-  const text=input.value.trim();
-  if(!text&&!pendingAttachment){return;}
-  DB.messages.push({
-    id:DB.nextMessageId++,
-    fromUserId:currentUser.id,
-    toUserId:toId,
-    subject:'',
-    message:text,
-    attachment:pendingAttachment,
-    createdAt:new Date().toISOString(),
-    isRead:false,
-    replyToId:null
-  });
-  const label=pendingAttachment?attachmentPreviewLabel(pendingAttachment):text.substring(0,60);
-  addNotif(toId,'New Message',`${currentUser.fname} ${currentUser.lname}: ${label}`,'info');
-  const prefs=getMsgPrefs();
-  if(prefs.sound)playMsgSendSound();
-  input.value='';
-  pendingAttachment=null;
-  document.getElementById('msgr-pending-attach').innerHTML='';
-  document.getElementById('msgr-photo-input').value='';
-  document.getElementById('msgr-file-input').value='';
-  toast('Message sent.','success');
-  renderChatMessages(toId);
-  renderContactList();
-  simulateReplyTyping(toId);
-}
-
-// Lightweight visual touch: briefly shows a "typing…" bubble for the
-// other person after you send a message. This is a cosmetic simulation —
-// there's no real second person or backend on the other end in this demo.
 let _typingTimer=null;
 function showTypingIndicator(){
-  const el=document.getElementById('msgr-typing-indicator');
-  if(!el)return;
-  el.innerHTML=`<div class="msgr-bubble-row received"><div class="msgr-typing-bubble"><span></span><span></span><span></span></div></div>`;
-  const wrap=document.getElementById('msgr-messages');
-  if(wrap)wrap.scrollTop=wrap.scrollHeight;
+  const el=document.getElementById('msgr-typing-indicator');if(!el)return;
+  el.innerHTML='<div class="msgr-bubble-row received"><div class="msgr-typing-bubble"><span></span><span></span><span></span></div></div>';
 }
 function hideTypingIndicator(){
-  const el=document.getElementById('msgr-typing-indicator');
-  if(el)el.innerHTML='';
+  const el=document.getElementById('msgr-typing-indicator');if(el)el.innerHTML='';
 }
 function simulateReplyTyping(toId){
+  if(currentUser?._realSupabase)return;
   if(_typingTimer)clearTimeout(_typingTimer);
-  const delay=500+Math.random()*700;
   _typingTimer=setTimeout(()=>{
     if(activeConversationId!==toId)return;
     showTypingIndicator();
-    const dur=1200+Math.random()*1500;
-    setTimeout(()=>{ if(activeConversationId===toId)hideTypingIndicator(); },dur);
-  },delay);
+    setTimeout(()=>{if(activeConversationId===toId)hideTypingIndicator();},1500);
+  },600);
 }
 
 function playMsgSendSound(){
   try{
     const ctx=new (window.AudioContext||window.webkitAudioContext)();
-    const osc=ctx.createOscillator();
-    const gain=ctx.createGain();
+    const osc=ctx.createOscillator(),gain=ctx.createGain();
     osc.frequency.value=700;
     gain.gain.setValueAtTime(.08,ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.15);
     osc.connect(gain);gain.connect(ctx.destination);
     osc.start();osc.stop(ctx.currentTime+.15);
-  }catch(e){}
+  }catch(_){}
 }
 
 async function attachPhoto(input){
-  const file=input.files&&input.files[0];
-  if(!file)return;
+  const file=input.files?.[0];if(!file)return;
+  if(file.size>5*1024*1024){toast('Photo is too large. Maximum attachment size is 5 MB.','error');return;}
+
   try{
     const raw=await readFileAsDataURL(file);
-    const resized=await resizeImageDataUrl(raw,600,0.8);
-    pendingAttachment={type:'image',name:file.name,dataUrl:resized};
+    const resized=await resizeImageDataUrl(raw,1200,0.82);
+    pendingAttachment={type:'image',name:file.name,dataUrl:resized,size:file.size};
     showPendingAttachPreview();
-  }catch(e){toast('Could not attach that photo.','error');}
+  }catch(_){toast('Could not attach that photo.','error');}
 }
 
 async function attachFileGeneric(input){
-  const file=input.files&&input.files[0];
-  if(!file)return;
-  if(file.size>3*1024*1024){toast('File is too large (max 3MB for this demo).','error');return;}
+  const file=input.files?.[0];if(!file)return;
+  if(file.size>5*1024*1024){toast('File is too large. Maximum attachment size is 5 MB.','error');return;}
+
+  const allowed=[
+    'application/pdf','text/plain',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ];
+  if(!allowed.includes(file.type)){
+    toast('Allowed files: PDF, TXT, DOCX, and XLSX.','warning');
+    input.value='';
+    return;
+  }
+
   try{
     const raw=await readFileAsDataURL(file);
-    pendingAttachment={type:'file',name:file.name,dataUrl:raw,size:file.size};
+    pendingAttachment={type:'file',name:file.name,dataUrl:raw,size:file.size,mime:file.type};
     showPendingAttachPreview();
-  }catch(e){toast('Could not attach that file.','error');}
+  }catch(_){toast('Could not attach that file.','error');}
 }
 
 function showPendingAttachPreview(){
   const el=document.getElementById('msgr-pending-attach');
   if(!el||!pendingAttachment)return;
-  el.innerHTML=`<div class="msgr-pending-attach">${attachmentPreviewLabel(pendingAttachment)}: <strong>${escapeHtml(pendingAttachment.name)}</strong> <button class="btn btn-xs" onclick="clearPendingAttachment()">✕ Remove</button></div>`;
-}
-function clearPendingAttachment(){
-  pendingAttachment=null;
-  document.getElementById('msgr-pending-attach').innerHTML='';
-  document.getElementById('msgr-photo-input').value='';
-  document.getElementById('msgr-file-input').value='';
+  el.innerHTML=`<div class="msgr-pending-attach">${escapeHtml(attachmentPreviewLabel(pendingAttachment))}: <strong>${escapeHtml(pendingAttachment.name)}</strong> <button class="btn btn-xs" onclick="clearPendingAttachment()">✕ Remove</button></div>`;
 }
 
-async function toggleVoiceRecording(toId){
+function clearPendingAttachment(){
+  pendingAttachment=null;
+  const el=document.getElementById('msgr-pending-attach');if(el)el.innerHTML='';
+  const photo=document.getElementById('msgr-photo-input');if(photo)photo.value='';
+  const file=document.getElementById('msgr-file-input');if(file)file.value='';
+}
+
+async function toggleVoiceRecording(_toId){
   const btn=document.getElementById('msgr-voice-btn');
+
   if(voiceRecorder&&voiceRecorder.state==='recording'){
     voiceRecorder.stop();
     return;
   }
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+  if(!navigator.mediaDevices?.getUserMedia){
     toast('Your browser does not support voice recording.','error');
     return;
   }
+
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
     voiceChunks=[];
     voiceRecorder=new MediaRecorder(stream);
+
     voiceRecorder.ondataavailable=e=>voiceChunks.push(e.data);
     voiceRecorder.onstop=async()=>{
       stream.getTracks().forEach(t=>t.stop());
-      btn.classList.remove('recording');
+      btn?.classList.remove('recording');
       const blob=new Blob(voiceChunks,{type:'audio/webm'});
       if(blob.size<500){toast('Recording was too short.','warning');return;}
-      const dataUrl=await readFileAsDataURL(blob);
-      pendingAttachment={type:'audio',name:'Voice message',dataUrl};
+      if(blob.size>5*1024*1024){toast('Voice message is too large. Maximum size is 5 MB.','error');return;}
+      pendingAttachment={type:'audio',name:'Voice message.webm',dataUrl:await readFileAsDataURL(blob),size:blob.size,mime:'audio/webm'};
       toast('Voice message ready — press send.','success');
       showPendingAttachPreview();
     };
+
     voiceRecorder.start();
-    btn.classList.add('recording');
-    toast('Recording... click the mic again to stop.','info');
-  }catch(e){
+    btn?.classList.add('recording');
+    toast('Recording… click the microphone again to stop.','info');
+  }catch(_){
     toast('Microphone access was denied or unavailable.','error');
   }
 }
 
-function openNewMessageModal(){
-  let recipients;
-  if(currentUser.role==='Patient'){
-    recipients=DB.users.filter(u=>(u.role==='Doctor'||u.role==='Staff')&&u.status==='Active'&&u.id!==currentUser.id)
-      .map(u=>({id:u.id,name:(u.role==='Doctor'?'Dr. ':'')+u.fname+' '+u.lname+' ('+u.role+')'}));
-  }else{
-    const staffDocAdmin=DB.users.filter(u=>u.role!=='Patient'&&u.status==='Active'&&u.id!==currentUser.id)
-      .map(u=>({id:u.id,name:(u.role==='Doctor'?'Dr. ':'')+u.fname+' '+u.lname+' ('+u.role+')'}));
-    const patientList=DB.patients.filter(p=>p.userId&&!p.archived).map(p=>({id:p.userId,name:p.fname+' '+p.lname+' (Patient)'}));
-    recipients=[...staffDocAdmin,...patientList];
-  }
+async function openNewMessageModal(){
+  const recipients=getAllMessagePeople();
   openModal(`<div class="modal">
-    <div class="modal-header"><h3>New Message</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-header"><h3>${currentUser.role==='Patient'?'Ask a Doctor':'New Secure Message'}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
       <div id="msg-err"></div>
       <div class="form-group"><label>To</label>
-        <select id="msg-to">${recipients.length?recipients.map(r=>`<option value="${r.id}">${escapeHtml(r.name)}</option>`).join(''):'<option value="">No available recipients</option>'}</select>
+        <select id="msg-to">${recipients.length?recipients.map(r=>`<option value="${r.id}">${escapeHtml(docName(r.user))} (${escapeHtml(r.user.role)})</option>`).join(''):'<option value="">No available recipients</option>'}</select>
       </div>
-      <div class="form-group"><label>Message</label><textarea id="msg-body" rows="3" placeholder="Type your message..."></textarea></div>
+      <div class="form-group"><label>Message</label><textarea id="msg-body" maxlength="4000" rows="4" placeholder="Type your secure message..."></textarea></div>
+      ${currentUser.role==='Patient'?'<div class="alert alert-warning show" style="font-size:.74rem">This messaging feature is not for emergencies. Seek immediate care for urgent symptoms.</div>':''}
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeAllModals()">Cancel</button>
-      <button class="btn btn-primary" onclick="startNewConversation()">Start Chat</button>
+      <button class="btn btn-primary" id="new-msg-btn" onclick="startNewConversation()">Send</button>
     </div>
   </div>`);
 }
 
-function startNewConversation(){
-  const toId=parseInt(document.getElementById('msg-to').value);
-  const body=document.getElementById('msg-body').value.trim();
+async function startNewConversation(){
+  const toId=parseInt(document.getElementById('msg-to')?.value||'0',10);
+  const body=document.getElementById('msg-body')?.value.trim()||'';
   const err=document.getElementById('msg-err');
-  if(!toId){showAlert(err,'Please choose a recipient.');return;}
+  const btn=document.getElementById('new-msg-btn');
+  const recipient=getUserById(toId);
+
+  if(!recipient){showAlert(err,'Please choose a recipient.');return;}
   if(!body){showAlert(err,'Message cannot be empty.');return;}
-  DB.messages.push({id:DB.nextMessageId++,fromUserId:currentUser.id,toUserId:toId,subject:'',message:body,attachment:null,createdAt:new Date().toISOString(),isRead:false,replyToId:null});
-  addNotif(toId,'New Message',`${currentUser.fname} ${currentUser.lname}: ${body.substring(0,60)}`,'info');
-  closeAllModals();
-  toast('Message sent.','success');
-  renderMessages();
+
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Sending…';}
+
+  try{
+    if(currentUser?._realSupabase){
+      await messageAction({action:'send',to_user_id:recipient.dbUserId,body});
+      await syncRealMessages();
+    }else{
+      DB.messages.push({
+        id:DB.nextMessageId++,fromUserId:currentUser.id,toUserId:toId,
+        subject:'',message:body,attachment:null,
+        createdAt:new Date().toISOString(),isRead:false,replyToId:null
+      });
+      persistDB();
+    }
+
+    closeAllModals();
+    toast('Secure message sent.','success');
+    await renderMessages();
+    await openConversation(toId);
+  }catch(e){
+    showAlert(err,e?.message||'Unable to send the message.');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;btn.textContent=old||'Send';
+    }
+  }
 }
 
-// ================================================================
-// MESSAGE PREFERENCES
-// ================================================================
 function getMsgPrefs(){
   try{
     const raw=localStorage.getItem('campuscare_msg_prefs');
-    return raw?{sound:true,enterToSend:true,showOnlineStatus:true,...JSON.parse(raw)}:{sound:true,enterToSend:true,showOnlineStatus:true};
-  }catch(e){return {sound:true,enterToSend:true,showOnlineStatus:true};}
+    return raw?{sound:true,enterToSend:true,...JSON.parse(raw)}:{sound:true,enterToSend:true};
+  }catch(_){return {sound:true,enterToSend:true};}
 }
+
 function saveMsgPrefs(p){
-  try{localStorage.setItem('campuscare_msg_prefs',JSON.stringify(p));}catch(e){}
+  try{localStorage.setItem('campuscare_msg_prefs',JSON.stringify(p));}catch(_){}
 }
 
 function openMessageSettings(){
@@ -9469,11 +10545,7 @@ function openMessageSettings(){
         <label style="margin:0">Enter key sends message</label>
         <input type="checkbox" id="mp-enter" ${prefs.enterToSend?'checked':''} style="width:18px;height:18px">
       </div>
-      <div class="form-group" style="flex-direction:row;align-items:center;justify-content:space-between">
-        <label style="margin:0">Show my online status to others</label>
-        <input type="checkbox" id="mp-status" ${prefs.showOnlineStatus?'checked':''} style="width:18px;height:18px">
-      </div>
-      <p class="form-note">Online/away/offline indicators are simulated for this demo since there's no live server connection.</p>
+      <p class="form-note">${currentUser?._realSupabase?'CampusCare does not expose simulated online/offline presence in the real messaging system.':'Presence indicators are simulated in demo mode.'}</p>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeAllModals()">Cancel</button>
@@ -9481,11 +10553,11 @@ function openMessageSettings(){
     </div>
   </div>`);
 }
+
 function saveMessageSettings(){
   saveMsgPrefs({
     sound:document.getElementById('mp-sound').checked,
-    enterToSend:document.getElementById('mp-enter').checked,
-    showOnlineStatus:document.getElementById('mp-status').checked
+    enterToSend:document.getElementById('mp-enter').checked
   });
   toast('Message settings saved.','success');
   closeAllModals();
@@ -10478,24 +11550,30 @@ function restoreUser(id){
 // accidentally removed during the Supabase merge.
 // ================================================================
 
-function renderBackupListHtml(){
-  const bs=getDailyBackups();
-  if(!bs.length)return '<div class="empty-state"><p>No backup snapshot yet.</p></div>';
-  return bs.map(b=>`<div class="backup-row">
-    <div><strong style="font-size:.8rem">${escapeHtml(b.day)}</strong>
-      <div class="text-muted">${new Date(b.createdAt).toLocaleString('en-PH')}</div>
-    </div>
-    <div style="display:flex;gap:.35rem">
-      <button class="btn btn-xs" onclick="downloadBackup('${b.id}')">Download</button>
-      <button class="btn btn-xs btn-warning" onclick="restoreBackup('${b.id}')">Restore</button>
-    </div>
-  </div>`).join('');
-}
-
-function renderSettings(){
+async function renderSettings(){
   const s=DB.settings;
   const c=document.getElementById('app-content');
   if(!c)return;
+  const pageToken=captureCampusPageToken();
+
+  if(currentUser?._realSupabase&&currentUser.role==='Administrator'){
+    showDatabaseSkeleton('table');
+    try{
+      await Promise.all([
+        syncRealSystemSettings(),
+        syncRealBackupStatus(),
+        syncEmailDeliveryStatus()
+      ]);
+    }
+    catch(e){
+      if(!isCampusPageCurrent('settings',pageToken))return;
+      console.error('Settings sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load system settings.')}</div>
+        <button class="btn btn-sm" onclick="renderSettings()">Retry</button>`;
+      return;
+    }
+    if(!isCampusPageCurrent('settings',pageToken))return;
+  }
   c.innerHTML=`
     <div class="grid-2">
       <div class="card">
@@ -10506,7 +11584,7 @@ function renderSettings(){
         <div class="form-group"><label>Contact Email</label><input id="set-email" type="email" value="${escapeHtml(s.contactEmail||'')}"></div>
         <div class="form-group"><label>Contact Phone</label><input id="set-phone" value="${escapeHtml(s.contactPhone||CTU_CLINIC_INFO.phone)}"></div>
         <div class="form-group"><label>Dental Visits Allowed Per Semester</label><input id="set-dental" type="number" min="1" max="5" value="${Number(s.dentalLimitPerSemester||1)}"></div>
-        <div class="form-group"><label>Appointment Reminder Days Before</label><input id="set-remind" type="number" min="1" max="14" value="${Number(s.appointmentReminderDays||2)}"></div>
+        <div class="form-group"><label>Appointment Reminder Days Before</label><input id="set-remind" type="number" min="0" max="14" value="${Number(s.appointmentReminderDays??1)}"><div class="form-note">0 = same-day reminder only. Server reminders are generated automatically every hour.</div></div>
         <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button>
       </div>
       <div class="card">
@@ -10526,44 +11604,154 @@ function renderSettings(){
         <button class="btn btn-sm" onclick="openPrivacyNotice()">View Privacy Notice</button>
       </div>
     </div>
+    ${currentUser?._realSupabase?`<div class="card">
+      <div class="card-header">
+        <div>
+          <h3>Operational Email Delivery</h3>
+          <div class="tech-note">In-app notifications are automatically mirrored into a secure email queue for appointments, reminders, certificates, fitness assessments, treatments, and inventory alerts.</div>
+        </div>
+        <button class="btn btn-sm" id="email-dispatch-btn" onclick="dispatchOperationalEmails()">Process Queue Now</button>
+      </div>
+
+      <div class="grid-3" style="margin-bottom:1rem">
+        <div class="stat-card"><div class="stat-val" id="email-count-sent">${Number(DB.emailDeliveryStatus?.counts?.sent||0)}</div><div class="stat-lbl">Sent</div></div>
+        <div class="stat-card"><div class="stat-val text-warning" id="email-count-pending">${Number(DB.emailDeliveryStatus?.counts?.pending||0)}</div><div class="stat-lbl">Pending</div></div>
+        <div class="stat-card"><div class="stat-val text-danger" id="email-count-failed">${Number(DB.emailDeliveryStatus?.counts?.failed||0)}</div><div class="stat-lbl">Failed</div></div>
+      </div>
+
+      <div class="official-info-card" style="margin-bottom:1rem">
+        <h4>Email Provider</h4>
+        <p id="email-provider-status">
+          ${DB.emailDeliveryStatus?.configured
+            ? `<span class="badge badge-success">Configured</span> ${escapeHtml(DB.emailDeliveryStatus.provider||'Provider')} · ${escapeHtml(DB.emailDeliveryStatus.fromAddress||'')}`
+            : `<span class="badge badge-warning">Provider setup required</span>`}
+        </p>
+        ${!DB.emailDeliveryStatus?.configured?`
+          <div class="alert alert-warning show" style="font-size:.76rem;margin-top:.6rem">
+            The CampusCare queue and automatic scheduler are active, but external email sending requires two protected
+            <strong>Supabase Edge Function secrets</strong>: <code>RESEND_API_KEY</code> and <code>CAMPUSCARE_EMAIL_FROM</code>.
+            Do not place these credentials in this HTML file or in GitHub.
+          </div>
+          <div class="tech-note">
+            This Supabase build uses a Resend delivery adapter. When CampusCare is later moved to the planned Vercel/Node.js architecture,
+            the same <code>email_outbox</code> queue can be consumed by Nodemailer without changing the patient-facing workflow.
+          </div>
+        `:''}
+      </div>
+
+      <div class="form-row" style="align-items:end;margin-bottom:1rem">
+        <div class="form-group full">
+          <label>Send Test Email</label>
+          <input id="email-test-recipient" type="email" value="${escapeHtml(currentUser?.email||'')}" placeholder="recipient@example.com">
+        </div>
+        <div class="form-group">
+          <button class="btn btn-primary btn-sm" id="email-test-btn" onclick="sendTestOperationalEmail()">Send Test</button>
+        </div>
+      </div>
+
+      <div class="alert alert-info show" style="font-size:.76rem">
+        <strong>Automatic workflow:</strong> operational notification → secure email queue → scheduled dispatcher every 5 minutes.
+        Appointment reminders are generated server-side every hour, so the Patient does not need to keep CampusCare open.
+      </div>
+
+      <div id="email-queue-list">${renderEmailQueueHtml()}</div>
+    </div>`:''}
+
     <div class="card">
       <div class="card-header">
-        <div><h3>Automated Daily Backups</h3>
-          <div class="tech-note">Local prototype snapshots are retained while production backup integration is completed.</div>
+        <div>
+          <h3>Automated Daily Backups</h3>
+          <div class="tech-note">Server-side CampusCare database snapshots are created automatically and recorded in Supabase backup logs.</div>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="createDailyBackup(true);persistDB();renderSettings();toast('Backup snapshot created.','success')">Back Up Now</button>
+        ${currentUser?._realSupabase
+          ? `<button class="btn btn-primary btn-sm" id="backup-now-btn" onclick="runRealBackupNow()">Back Up Now</button>`
+          : `<button class="btn btn-primary btn-sm" onclick="createDailyBackup(true);persistDB();renderSettings();toast('Local backup snapshot created.','success')">Back Up Now</button>`}
       </div>
+
+      ${currentUser?._realSupabase?`
+        <div class="grid-2" style="margin-bottom:1rem">
+          <div class="official-info-card">
+            <h4>Backup Schedule</h4>
+            <p id="backup-schedule-text">Automatic database snapshot: every day at 2:00 AM (Asia/Manila)</p>
+            <p><strong>Status:</strong> <span class="badge badge-success">Scheduled</span></p>
+          </div>
+          <div class="official-info-card">
+            <h4>Retention Policy</h4>
+            <div class="form-group" style="margin-bottom:.4rem">
+              <label>Keep snapshots for</label>
+              <select id="backup-retention" onchange="changeBackupRetention()">
+                ${[7,14,30,60,90,180,365].map(d=>`<option value="${d}" ${Number(DB.realBackupRetentionDays||30)===d?'selected':''}>${d} days</option>`).join('')}
+              </select>
+            </div>
+            <p>Expired database snapshots are removed automatically.</p>
+          </div>
+        </div>
+
+        <div class="alert alert-info show" style="font-size:.78rem">
+          <strong>Backup scope:</strong> CampusCare application database records, audit history, notifications, clinical records, appointments,
+          inventory, certificates, fitness assessments, privacy consents, settings, and a manifest of uploaded profile/verification files.
+          Supabase Auth password secrets are intentionally not copied into application backup files.
+        </div>
+
+        <div class="alert alert-warning show" style="font-size:.76rem">
+          Restore is intentionally not exposed as a one-click browser action. A production restore should be performed through an authorized
+          database recovery procedure to avoid accidentally overwriting live clinical records.
+        </div>
+      `:''}
+
       <div id="backup-list">${renderBackupListHtml()}</div>
     </div>`;
+  if(currentUser?._realSupabase){
+    renderEmailDeliveryPanel();
+    renderBackupPanel();
+  }
 }
 
 function saveSettings(){
   showConfirmDialog({
     title:'Save Clinic Settings',
-    message:'Save these clinic-wide settings?',
+    message:'Save these clinic-wide settings and reminder rules?',
     confirmLabel:'Save Settings',
-    onConfirm:()=>{
+    onConfirm:async()=>{
       const s=DB.settings;
-      s.clinicName=document.getElementById('set-name').value;
-      s.address=document.getElementById('set-addr').value;
-      s.contactEmail=document.getElementById('set-email').value;
-      s.contactPhone=document.getElementById('set-phone')?.value||CTU_CLINIC_INFO.phone;
-      s.dentalLimitPerSemester=parseInt(document.getElementById('set-dental').value)||1;
-      s.appointmentReminderDays=parseInt(document.getElementById('set-remind').value)||2;
-      persistDB();
-      toast('Settings saved.','success');
+      s.clinicName=document.getElementById('set-name').value.trim();
+      s.address=document.getElementById('set-addr').value.trim();
+      s.contactEmail=document.getElementById('set-email').value.trim();
+      s.contactPhone=document.getElementById('set-phone')?.value.trim()||CTU_CLINIC_INFO.phone;
+      s.dentalLimitPerSemester=Math.max(1,Math.min(5,parseInt(document.getElementById('set-dental').value,10)||1));
+      s.appointmentReminderDays=Math.max(0,Math.min(14,parseInt(document.getElementById('set-remind').value,10)||0));
+
+      try{
+        if(currentUser?._realSupabase){
+          await saveRealSystemSettings();
+        }else{
+          persistDB();
+        }
+        toast('Settings saved.','success');
+      }catch(e){
+        toast(e?.message||'Unable to save settings.','error');
+      }
     }
   });
 }
 
-function saveSemSettings(){
+async function saveSemSettings(){
   const s=DB.settings;
   s.semesterStart=document.getElementById('set-s1s').value;
   s.semesterEnd=document.getElementById('set-s1e').value;
   s.semester2Start=document.getElementById('set-s2s').value;
   s.semester2End=document.getElementById('set-s2e').value;
-  persistDB();
-  toast('Semester settings saved.','success');
+
+  try{
+    if(currentUser?._realSupabase){
+      await saveRealSystemSettings();
+    }else{
+      persistDB();
+    }
+    toast('Semester settings saved.','success');
+  }catch(e){
+    toast(e?.message||'Unable to save semester settings.','error');
+  }
 }
 
 function loadJsPDF(){
@@ -13123,7 +14311,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v37 loaded.');
+console.log('CampusCare v42 loaded.');
 </script>
 </body>
 </html>
