@@ -76,6 +76,9 @@ async function syncCampusCareSessionUI(){
           if(typeof syncRealFitnessAssessments==='function'){
             try{await syncRealFitnessAssessments();}catch(err){console.error('Fitness sync:',err);}
           }
+          if(['Staff','Administrator'].includes(currentUser.role)&&typeof syncRealInventory==='function'){
+            try{await syncRealInventory(true);}catch(err){console.error('Inventory sync:',err);}
+          }
           if(currentUser.role==='Administrator'&&typeof refreshRealApprovalQueue==='function'){
             try{await refreshRealApprovalQueue(false);}catch(err){console.error('Approval sync:',err);}
           }
@@ -2952,7 +2955,7 @@ function checkDentalQuota(patientId,excludeId=null){
   ).length>=DB.settings.dentalLimitPerSemester;
 }
 
-function getLowStock(){return DB.inventory.filter(i=>i.qty<=i.threshold);}
+function getLowStock(){return inventoryRecords().filter(i=>!i.archived&&i.qty<=i.threshold);}
 
 function getPatientByUserId(uid){return DB.patients.find(p=>p.userId===uid)||null;}
 function getUserById(id){return DB.users.find(u=>u.id===id);}
@@ -3098,28 +3101,248 @@ function refreshHealthIntelligence(){
   const el=document.getElementById('health-intelligence-wrap');if(el)el.innerHTML=renderHealthIntelligenceCard(from,to);
 }
 
+
+// ================================================================
+// REAL SUPABASE INVENTORY
+// ================================================================
+function inventoryRecords(){
+  if(currentUser?._realSupabase)return (DB.inventory||[]).filter(i=>i._realSupabase);
+  return DB.inventory||[];
+}
+
+function inventoryTransactionRecords(){
+  if(currentUser?._realSupabase)return (DB.inventoryTransactions||[]).filter(t=>t._realSupabase);
+  return (DB.disbursements||[]).map(d=>({
+    id:d.id,itemId:d.itemId,type:'Disbursement',qty:d.qty,date:d.date,
+    dateTime:d.date,notes:d.notes||'',userId:d.userId,_realSupabase:false
+  }));
+}
+
+function inventoryForecastRecords(){
+  return currentUser?._realSupabase?(DB.inventoryForecasts||[]):[];
+}
+
+function inventoryDisplayId(i){
+  const id=Number(i?.dbItemId??i?.id??0);
+  return String(id).padStart(6,'0');
+}
+
+async function inventoryAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/inventory-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Inventory action failed.');
+  return result;
+}
+
+function realInventoryToUi(i){
+  return {
+    id:900000+Number(i.item_id),
+    dbItemId:Number(i.item_id),
+    name:i.item_name||'',
+    category:i.category||'Supplies',
+    qty:Number(i.quantity||0),
+    threshold:Number(i.threshold||0),
+    unit:i.unit||'pcs',
+    expiryDate:i.expiry_date||'',
+    supplier:i.supplier||'',
+    unitCost:Number(i.unit_cost||0),
+    disbursementDate:i.target_disbursement_date||'',
+    photo:i.photo_data||'',
+    archived:Boolean(i.archived),
+    archivedAt:i.archived_at||'',
+    archivedBy:i.archived_by?100000+Number(i.archived_by):null,
+    createdAt:i.created_at||'',
+    updatedAt:i.updated_at||'',
+    _realSupabase:true
+  };
+}
+
+function realInventoryTransactionToUi(t){
+  return {
+    id:910000+Number(t.transaction_id),
+    dbTransactionId:Number(t.transaction_id),
+    itemId:900000+Number(t.item_id),
+    dbItemId:Number(t.item_id),
+    type:t.transaction_type||'Adjustment',
+    qty:Number(t.quantity||0),
+    date:String(t.transaction_date||'').slice(0,10),
+    dateTime:t.transaction_date||'',
+    notes:t.notes||'',
+    userId:t.created_by?100000+Number(t.created_by):null,
+    dbCreatedBy:t.created_by?Number(t.created_by):null,
+    _realSupabase:true
+  };
+}
+
+function realInventoryForecastToUi(f){
+  return {
+    id:920000+Number(f.forecast_id),
+    dbForecastId:Number(f.forecast_id),
+    itemId:900000+Number(f.item_id),
+    dbItemId:Number(f.item_id),
+    forecastMonth:f.forecast_month||'',
+    predictedUsage:Number(f.predicted_usage||0),
+    predictedRemainingStock:f.predicted_remaining_stock==null?null:Number(f.predicted_remaining_stock),
+    predictedStockoutDate:f.predicted_stockout_date||'',
+    recommendedReorderQty:Number(f.recommended_reorder_qty||0),
+    generatedAt:f.generated_at||'',
+    _realSupabase:true
+  };
+}
+
+async function syncRealInventory(generateForecasts=false){
+  if(!currentUser?._realSupabase)return inventoryRecords();
+  if(!['Staff','Administrator'].includes(currentUser.role))return [];
+
+  if(generateForecasts){
+    try{
+      await inventoryAction({action:'generate_forecasts'});
+    }catch(err){
+      // Forecast generation should never prevent the inventory itself from loading.
+      console.error('Inventory forecast generation:',err);
+    }
+  }
+
+  const [itemsRes,txRes,forecastRes]=await Promise.all([
+    supabaseClient.from('inventory_items')
+      .select('item_id,item_name,category,quantity,threshold,unit,expiry_date,supplier,unit_cost,photo_data,target_disbursement_date,archived,archived_at,archived_by,created_at,updated_at')
+      .order('item_name',{ascending:true}),
+    supabaseClient.from('inventory_transactions')
+      .select('transaction_id,item_id,transaction_type,quantity,transaction_date,notes,created_by')
+      .order('transaction_date',{ascending:false}),
+    supabaseClient.from('inventory_forecasts')
+      .select('forecast_id,item_id,forecast_month,predicted_usage,predicted_remaining_stock,predicted_stockout_date,recommended_reorder_qty,generated_at')
+      .order('forecast_month',{ascending:true})
+  ]);
+
+  if(itemsRes.error)throw itemsRes.error;
+  if(txRes.error)throw txRes.error;
+  if(forecastRes.error)throw forecastRes.error;
+
+  DB.inventory=(DB.inventory||[]).filter(i=>!i._realSupabase);
+  DB.inventory.push(...(itemsRes.data||[]).map(realInventoryToUi));
+
+  DB.inventoryTransactions=(txRes.data||[]).map(realInventoryTransactionToUi);
+
+  // Preserve the older UI abstraction for features that still expect
+  // DB.disbursements, but feed it only real Disbursement transactions.
+  DB.disbursements=(DB.disbursements||[]).filter(d=>!d._realSupabase);
+  DB.disbursements.push(...DB.inventoryTransactions
+    .filter(t=>t.type==='Disbursement')
+    .map(t=>({...t,_realSupabase:true})));
+
+  DB.inventoryForecasts=(forecastRes.data||[]).map(realInventoryForecastToUi);
+  return inventoryRecords();
+}
+
+function inventoryMonthlyUsageHtml(){
+  const tx=inventoryTransactionRecords().filter(t=>t.type==='Disbursement');
+  const items=inventoryRecords().filter(i=>!i.archived&&i.category!=='Equipment');
+
+  if(!tx.length||!items.length){
+    return '<div class="tech-note">Monthly usage analytics will appear after inventory disbursements are recorded.</div>';
+  }
+
+  const base=new Date(TODAY+'T12:00:00');
+  const months=[];
+  for(let offset=5;offset>=0;offset--){
+    const d=new Date(base.getFullYear(),base.getMonth()-offset,1,12);
+    months.push({
+      key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,
+      label:d.toLocaleDateString('en-PH',{month:'short',year:'2-digit'})
+    });
+  }
+
+  const active=items.map(item=>{
+    const values=months.map(m=>tx
+      .filter(t=>t.itemId===item.id&&String(t.date||'').startsWith(m.key))
+      .reduce((s,t)=>s+Number(t.qty||0),0));
+    return {item,values,total:values.reduce((a,b)=>a+b,0)};
+  }).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
+
+  if(!active.length){
+    return '<div class="tech-note">No disbursement activity was recorded during the last six months.</div>';
+  }
+
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Item</th>${months.map(m=>`<th>${escapeHtml(m.label)}</th>`).join('')}<th>6-Month Total</th></tr></thead>
+    <tbody>${active.map(x=>`<tr>
+      <td>${escapeHtml(x.item.name)}<div class="text-muted">${escapeHtml(x.item.unit)}</div></td>
+      ${x.values.map(v=>`<td>${v}</td>`).join('')}
+      <td><strong>${x.total}</strong></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
 // ---------- Predictive Inventory ----------
-function inventoryUsageRecords(itemId,lookbackDays=60){
+function inventoryUsageRecords(itemId,lookbackDays=90){
   const anchor=healthAnalyticsAnchorDate().date;
   const from=isoDateOffset(anchor,-lookbackDays);
-  return DB.disbursements.filter(d=>d.itemId===itemId&&d.date>=from&&d.date<=anchor).sort((a,b)=>a.date.localeCompare(b.date));
+  return inventoryTransactionRecords()
+    .filter(d=>d.type==='Disbursement'&&d.itemId===itemId&&d.date>=from&&d.date<=anchor)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date)));
 }
 
 function getInventoryForecast(item){
-  const usage=inventoryUsageRecords(item.id,60);
-  const a=computeCampusHealthAnalytics(14);
   const consumable=!['Equipment'].includes(item.category);
+  const usage=inventoryUsageRecords(item.id,90);
+
+  if(currentUser?._realSupabase&&item._realSupabase){
+    const rows=inventoryForecastRecords()
+      .filter(f=>f.itemId===item.id)
+      .slice()
+      .sort((a,b)=>String(a.forecastMonth).localeCompare(String(b.forecastMonth)));
+
+    const hasUsage=usage.length>0&&rows.some(r=>r.predictedUsage>0);
+    if(!consumable||!hasUsage){
+      return {hasData:false,avgDaily:0,adjustedDaily:0,daysRemaining:null,stockoutDate:'',reorderQty:0,risk:'unknown',usageCount:usage.length,demandMultiplier:1,source:'database'};
+    }
+
+    const first=rows[0];
+    const fm=new Date((first.forecastMonth||TODAY)+'T12:00:00');
+    const days=new Date(fm.getFullYear(),fm.getMonth()+1,0).getDate();
+    const adjustedDaily=days?Number(first.predictedUsage||0)/days:0;
+    const daysRemaining=adjustedDaily>0?Math.floor(Number(item.qty||0)/adjustedDaily):null;
+    const stockoutDate=first.predictedStockoutDate||(daysRemaining!==null?isoDateOffset(TODAY,daysRemaining):'');
+    const reorderQty=Math.max(...rows.map(r=>Number(r.recommendedReorderQty||0)),0);
+    const risk=daysRemaining!==null&&daysRemaining<=7?'high':daysRemaining!==null&&daysRemaining<=14?'medium':'low';
+
+    return {
+      hasData:true,
+      avgDaily:adjustedDaily,
+      adjustedDaily,
+      daysRemaining,
+      stockoutDate,
+      reorderQty,
+      risk,
+      usageCount:usage.length,
+      demandMultiplier:1,
+      source:'database'
+    };
+  }
+
+  // Legacy/demo forecast fallback.
+  const a=computeCampusHealthAnalytics(14);
   if(!usage.length||!consumable){
     return {hasData:false,avgDaily:0,adjustedDaily:0,daysRemaining:null,stockoutDate:'',reorderQty:0,risk:'unknown',usageCount:usage.length,demandMultiplier:1};
   }
 
   const totalUsed=usage.reduce((s,d)=>s+Number(d.qty||0),0);
   const first=usage[0].date,last=usage[usage.length-1].date;
-  const observedDays=Math.max(14,Math.min(60,Math.round((new Date(last+'T12:00:00')-new Date(first+'T12:00:00'))/86400000)+7));
+  const observedDays=Math.max(14,Math.min(90,Math.round((new Date(last+'T12:00:00')-new Date(first+'T12:00:00'))/86400000)+7));
   const avgDaily=totalUsed/observedDays;
-
-  // Link campus-wide activity to inventory demand, capped so one noisy period
-  // cannot produce an extreme forecast.
   const demandMultiplier=Math.max(.85,Math.min(1.35,1+(a.visitGrowth/100)*.25));
   const adjustedDaily=avgDaily*demandMultiplier;
   const daysRemaining=adjustedDaily>0?Math.floor(item.qty/adjustedDaily):null;
@@ -3127,6 +3350,7 @@ function getInventoryForecast(item){
   const target30=Math.ceil(adjustedDaily*30+item.threshold);
   const reorderQty=Math.max(0,target30-item.qty);
   const risk=daysRemaining!==null&&daysRemaining<=7?'high':daysRemaining!==null&&daysRemaining<=14?'medium':'low';
+
   return {hasData:true,avgDaily,adjustedDaily,daysRemaining,stockoutDate,reorderQty,risk,usageCount:usage.length,demandMultiplier};
 }
 
@@ -3136,44 +3360,78 @@ function inventoryForecastBadge(f){
   return `<span class="badge ${cls}">${f.risk==='high'?'High risk':f.risk==='medium'?'Watch':'Stable'}</span>`;
 }
 
-
 function getThreeMonthForecast(item){
+  if(currentUser?._realSupabase&&item._realSupabase){
+    return inventoryForecastRecords()
+      .filter(f=>f.itemId===item.id)
+      .slice()
+      .sort((a,b)=>String(a.forecastMonth).localeCompare(String(b.forecastMonth)))
+      .slice(0,3)
+      .map(f=>{
+        const d=new Date((f.forecastMonth||TODAY)+'T12:00:00');
+        return {
+          label:d.toLocaleDateString('en-PH',{month:'long',year:'numeric'}),
+          projected:Number(f.predictedUsage||0),
+          remaining:f.predictedRemainingStock,
+          reorder:Number(f.recommendedReorderQty||0)
+        };
+      });
+  }
+
   const f=getInventoryForecast(item);if(!f.hasData)return [];
   const base=new Date((healthAnalyticsAnchorDate().date||TODAY)+'T12:00:00');
   const rows=[];
   for(let i=1;i<=3;i++){
-    const d=new Date(base.getFullYear(),base.getMonth()+i,1,12);const year=d.getFullYear(),month=d.getMonth();const days=new Date(year,month+1,0).getDate();
-    // Very lightweight trend projection: recent clinic activity influences the base
-    // demand, while a small 2% monthly smoothing factor avoids a flat forecast.
+    const d=new Date(base.getFullYear(),base.getMonth()+i,1,12);
+    const year=d.getFullYear(),month=d.getMonth();
+    const days=new Date(year,month+1,0).getDate();
     const projected=Math.max(0,Math.round(f.adjustedDaily*days*Math.pow(1.02,i-1)));
-    rows.push({label:d.toLocaleDateString('en-PH',{month:'long',year:'numeric'}),days,projected});
+    rows.push({label:d.toLocaleDateString('en-PH',{month:'long',year:'numeric'}),projected,remaining:null,reorder:f.reorderQty});
   }
   return rows;
 }
+
 function threeMonthForecastTableHtml(){
-  const items=DB.inventory.map(i=>({i,rows:getThreeMonthForecast(i)})).filter(x=>x.rows.length&&x.i.category!=='Equipment');
-  if(!items.length)return '<div class="tech-note">Record more inventory disbursements to generate the 3-month forecast.</div>';
-  return `<div class="table-wrap"><table class="forecast-table"><thead><tr><th>Item</th>${items[0].rows.map(r=>`<th>${escapeHtml(r.label)}</th>`).join('')}</tr></thead><tbody>${items.map(x=>`<tr><td>${escapeHtml(x.i.name)}<div class="text-muted">${escapeHtml(x.i.unit)}</div></td>${x.rows.map(r=>`<td>${r.projected}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  const items=inventoryRecords()
+    .filter(i=>!i.archived&&i.category!=='Equipment')
+    .map(i=>({i,rows:getThreeMonthForecast(i)}))
+    .filter(x=>x.rows.length);
+
+  if(!items.length)return '<div class="tech-note">Add inventory items and record disbursements to generate the 3-month forecast.</div>';
+
+  return `<div class="table-wrap"><table class="forecast-table">
+    <thead><tr><th>Item</th>${items[0].rows.map(r=>`<th>${escapeHtml(r.label)}</th>`).join('')}</tr></thead>
+    <tbody>${items.map(x=>`<tr>
+      <td>${escapeHtml(x.i.name)}<div class="text-muted">${escapeHtml(x.i.unit)}</div></td>
+      ${x.rows.map(r=>`<td><strong>${r.projected}</strong><div class="text-muted">projected use${r.remaining!=null?` · ${r.remaining} left`:''}${r.reorder?` · reorder ${r.reorder}`:''}</div></td>`).join('')}
+    </tr>`).join('')}</tbody>
+  </table></div>`;
 }
 
 function predictiveInventorySummaryHtml(){
-  const forecasts=DB.inventory.map(item=>({item,f:getInventoryForecast(item)})).filter(x=>x.f.hasData);
+  const items=inventoryRecords().filter(i=>!i.archived);
+  const forecasts=items.map(item=>({item,f:getInventoryForecast(item)})).filter(x=>x.f.hasData);
   const atRisk=forecasts.filter(x=>x.f.daysRemaining<=14).sort((a,b)=>a.f.daysRemaining-b.f.daysRemaining);
   const soon=atRisk[0];
+
   return `<div class="card">
-    <div class="card-header"><div><h3>Predictive Inventory</h3><div class="tech-note">Forecasts use recent disbursement history and current clinic-activity trends.</div></div><span class="intel-badge">Forecast engine</span></div>
+    <div class="card-header">
+      <div><h3>Predictive Inventory</h3><div class="tech-note">The real backend uses recent disbursement history to maintain a rolling 3-month consumption forecast.</div></div>
+      <span class="intel-badge">3-month forecast</span>
+    </div>
     <div class="intel-grid">
       <div class="intel-card ${atRisk.length?'intel-risk-medium':'intel-risk-low'}"><div class="intel-kicker">At risk in 14 days</div><div class="intel-value">${atRisk.length}</div><div class="intel-meta">Consumable item${atRisk.length===1?'':'s'} projected to run low soon</div></div>
       <div class="intel-card"><div class="intel-kicker">Soonest projected depletion</div><div class="intel-value" style="font-size:.95rem">${soon?escapeHtml(soon.item.name):'No immediate risk'}</div><div class="intel-meta">${soon?`${soon.f.daysRemaining} days · ${fmtDate(soon.f.stockoutDate)}`:'Based on available history'}</div></div>
-      <div class="intel-card"><div class="intel-kicker">Forecast coverage</div><div class="intel-value">${forecasts.length}/${DB.inventory.length}</div><div class="intel-meta">Items with enough usage history</div></div>
+      <div class="intel-card"><div class="intel-kicker">Forecast coverage</div><div class="intel-value">${forecasts.length}/${items.length}</div><div class="intel-meta">Active items with usable demand history</div></div>
     </div>
-    ${atRisk.length?`<div class="intel-alert-list">${atRisk.slice(0,4).map(({item,f})=>`<div class="intel-alert-item"><div class="intel-alert-icon">${f.risk==='high'?'⚠️':'📦'}</div><div class="intel-alert-copy"><strong>${escapeHtml(item.name)} — ${f.daysRemaining} days remaining</strong><span>Projected depletion ${fmtDate(f.stockoutDate)}. Suggested reorder: ${f.reorderQty} ${escapeHtml(item.unit)}. Current adjusted usage ≈ ${f.adjustedDaily.toFixed(1)} ${escapeHtml(item.unit)}/day.</span></div></div>`).join('')}</div>`:`<div class="tech-note">No item with sufficient usage history is forecast to deplete within 14 days.</div>`}
+    ${atRisk.length?`<div class="intel-alert-list">${atRisk.slice(0,4).map(({item,f})=>`<div class="intel-alert-item"><div class="intel-alert-icon">${f.risk==='high'?'⚠️':'📦'}</div><div class="intel-alert-copy"><strong>${escapeHtml(item.name)} — ${f.daysRemaining} days remaining</strong><span>Projected depletion ${fmtDate(f.stockoutDate)}. Suggested reorder: ${f.reorderQty} ${escapeHtml(item.unit)}. Current forecast usage ≈ ${f.adjustedDaily.toFixed(1)} ${escapeHtml(item.unit)}/day.</span></div></div>`).join('')}</div>`:`<div class="tech-note">No item with sufficient usage history is forecast to deplete within 14 days.</div>`}
     <div class="section-label" style="margin-top:1rem">3-Month Consumption Forecast</div>
     ${threeMonthForecastTableHtml()}
-    <div class="tech-note" style="margin-top:.5rem">Forecast values are planning estimates based on recent disbursement rates and clinic activity; they are not guaranteed demand.</div>
+    <div class="section-label" style="margin-top:1rem">Monthly Usage Analytics</div>
+    ${inventoryMonthlyUsageHtml()}
+    <div class="tech-note" style="margin-top:.5rem">Forecasts are planning estimates based on recorded disbursements. They are not guaranteed future demand.</div>
   </div>`;
 }
-
 // ---------- AI Clinical Copilot ----------
 function buildClinicalCopilot(patientId){
   const pt=getPatientById(patientId);
@@ -3489,7 +3747,7 @@ function getAssistantReply(raw){
   // Emerging-tech intelligence shortcuts
   if(has('predicted stock','stock-out','stockout','inventory forecast','forecast inventory')){
     if(!(role==='Administrator'||role==='Staff'||role==='Doctor'))return "Inventory forecasting is available to clinic staff.";
-    const rows=DB.inventory.map(i=>({i,f:getInventoryForecast(i)})).filter(x=>x.f.hasData).sort((a,b)=>a.f.daysRemaining-b.f.daysRemaining);
+    const rows=inventoryRecords().filter(i=>!i.archived).map(i=>({i,f:getInventoryForecast(i)})).filter(x=>x.f.hasData).sort((a,b)=>a.f.daysRemaining-b.f.daysRemaining);
     if(!rows.length)return "There is not enough disbursement history yet to calculate a reliable inventory forecast.";
     const risk=rows.filter(x=>x.f.daysRemaining<=14);
     return risk.length
@@ -9214,17 +9472,34 @@ function saveMessageSettings(){
 // ================================================================
 // INVENTORY
 // ================================================================
-function renderInventory(){
+async function renderInventory(){
   const c=document.getElementById('app-content');
+  if(!c)return;
+  const pageToken=captureCampusPageToken();
+
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('table');
+    try{await syncRealInventory(true);}
+    catch(e){
+      if(!isCampusPageCurrent('inventory',pageToken))return;
+      console.error('Inventory sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load inventory.')}</div>
+        <button class="btn btn-sm" onclick="renderInventory()">Retry</button>`;
+      return;
+    }
+    if(!isCampusPageCurrent('inventory',pageToken))return;
+  }
+
   const lowStock=getLowStock();
   const canEdit=currentUser.role==='Staff'||currentUser.role==='Administrator';
+
   c.innerHTML=`
-    ${lowStock.length?`<div class="alert alert-danger show">⚠️ <strong>${lowStock.length} item(s)</strong> are below threshold and need restocking.</div>`:''}
+    ${lowStock.length?`<div class="alert alert-danger show">⚠️ <strong>${lowStock.length} item(s)</strong> are at or below their stock threshold and need attention.</div>`:''}
     ${predictiveInventorySummaryHtml()}
     <div class="card">
       <div class="card-header">
         <h3>Inventory Management</h3>
-        <div style="display:flex;gap:.5rem">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
           ${canEdit?`<button class="btn btn-success btn-sm" onclick="openDisbursementModal()">📦 Disburse Items</button>
           <button class="btn btn-primary btn-sm" onclick="openInvModal()">+ Add Item</button>`:''}
         </div>
@@ -9240,13 +9515,18 @@ function renderInventory(){
           <option value="low">Low Stock</option>
           <option value="ok">Sufficient</option>
         </select>
+        <select id="inv-status" onchange="renderInvTable()">
+          <option value="active">Active Items</option>
+          ${currentUser.role==='Administrator'?'<option value="archived">Archived Items</option><option value="all">All Items</option>':''}
+        </select>
       </div>
       <div id="inv-table"></div>
     </div>
     <div class="card">
-      <div class="card-header"><h3>Disbursement History</h3></div>
+      <div class="card-header"><h3>Inventory Transaction History</h3></div>
       <div id="disb-table"></div>
     </div>`;
+
   renderInvTable();
   renderDisbTable();
 }
@@ -9259,58 +9539,92 @@ function itemAvatarHtml(item,size=36){
 }
 
 function renderInvTable(){
-  const q=(document.getElementById('inv-search')||{}).value||'';
+  const q=((document.getElementById('inv-search')||{}).value||'').toLowerCase();
   const cat=(document.getElementById('inv-cat')||{}).value||'';
   const stock=(document.getElementById('inv-stock')||{}).value||'';
-  let items=DB.inventory.filter(i=>{
-    const mQ=!q||i.name.toLowerCase().includes(q.toLowerCase());
+  const status=(document.getElementById('inv-status')||{}).value||'active';
+
+  let items=inventoryRecords().filter(i=>{
+    const mQ=!q||`${i.name} ${i.supplier||''}`.toLowerCase().includes(q);
     const mC=!cat||i.category===cat;
     const mS=!stock||(stock==='low'?i.qty<=i.threshold:i.qty>i.threshold);
-    return mQ&&mC&&mS;
+    const mA=status==='all'||(status==='archived'?i.archived:!i.archived);
+    return mQ&&mC&&mS&&mA;
   });
+
   const el=document.getElementById('inv-table');
   if(!el)return;
   const canEdit=currentUser.role==='Staff'||currentUser.role==='Administrator';
-  if(!items.length){el.innerHTML='<div class="empty-state"><p>No items found.</p></div>';return;}
-  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>#</th><th>Item</th><th>Category</th><th>Qty</th><th>Threshold</th><th>Unit Cost</th><th>Expiry</th><th>Disburse Date</th><th>Stock</th><th>Forecast</th><th>Actions</th></tr></thead><tbody>${
-    items.map(i=>{
+
+  if(!items.length){
+    el.innerHTML='<div class="empty-state"><p>No inventory items found.</p></div>';
+    return;
+  }
+
+  el.innerHTML=`<div class="table-wrap"><table>
+    <thead><tr><th>Photo</th><th>#</th><th>Item</th><th>Category</th><th>Qty</th><th>Threshold</th><th>Unit Cost</th><th>Expiry</th><th>Target Disbursement</th><th>Stock</th><th>Forecast</th><th>Actions</th></tr></thead>
+    <tbody>${items.map(i=>{
       const pct=Math.min(100,Math.round(i.qty/Math.max(i.threshold*2,1)*100));
       const lvl=i.qty<=i.threshold?'Low':i.qty<=i.threshold*1.5?'Medium':'Good';
       const bdg=i.qty<=i.threshold?'badge-danger':i.qty<=i.threshold*1.5?'badge-warning':'badge-success';
-      const daysToDisb=i.disbursementDate?(Math.ceil((new Date(i.disbursementDate)-new Date(TODAY))/(1000*60*60*24))):'';
+      const daysToDisb=i.disbursementDate?Math.ceil((new Date(i.disbursementDate+'T12:00:00')-new Date(TODAY+'T12:00:00'))/86400000):'';
       const disbWarn=daysToDisb!==''&&daysToDisb<=7&&daysToDisb>=0;
-      return`<tr ${i.qty<=i.threshold?'style="background:var(--warning-bg)"':''}>
+      const f=getInventoryForecast(i);
+
+      return `<tr ${i.archived?'style="opacity:.62"':i.qty<=i.threshold?'style="background:var(--warning-bg)"':''}>
         <td>${itemAvatarHtml(i,34)}</td>
-        <td>#${i.id}</td>
-        <td><strong>${i.name}</strong><br><span class="text-muted">${i.supplier||''}</span></td>
-        <td><span class="badge badge-gray">${i.category}</span></td>
-        <td><strong>${i.qty}</strong> ${i.unit}</td>
-        <td>${i.threshold} ${i.unit}</td>
-        <td>₱${(i.unitCost||0).toFixed(2)}</td>
-        <td class="${i.expiryDate&&i.expiryDate<=TODAY?'text-danger':''}">${fmtDate(i.expiryDate)}</td>
-        <td class="${disbWarn?'text-warning':''}"><strong>${fmtDate(i.disbursementDate)}</strong>${disbWarn?` <span class="badge badge-warning">In ${daysToDisb}d</span>`:''}</td>
+        <td>#${inventoryDisplayId(i)}${i.archived?'<br><span class="badge badge-gray">Archived</span>':''}</td>
+        <td><strong>${escapeHtml(i.name)}</strong><br><span class="text-muted">${escapeHtml(i.supplier||'')}</span></td>
+        <td><span class="badge badge-gray">${escapeHtml(i.category)}</span></td>
+        <td><strong>${i.qty}</strong> ${escapeHtml(i.unit)}</td>
+        <td>${i.threshold} ${escapeHtml(i.unit)}</td>
+        <td>₱${Number(i.unitCost||0).toFixed(2)}</td>
+        <td class="${i.expiryDate&&i.expiryDate<=TODAY?'text-danger':''}">${i.expiryDate?fmtDate(i.expiryDate):'—'}</td>
+        <td class="${disbWarn?'text-warning':''}">${i.disbursementDate?`<strong>${fmtDate(i.disbursementDate)}</strong>${disbWarn?` <span class="badge badge-warning">In ${daysToDisb}d</span>`:''}`:'—'}</td>
         <td><span class="badge ${bdg}">${lvl}</span><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${i.qty<=i.threshold?'var(--danger)':i.qty<=i.threshold*1.5?'var(--warning)':'var(--success)'}"></div></div></td>
-        ${(()=>{const f=getInventoryForecast(i);return `<td>${inventoryForecastBadge(f)}${f.hasData?`<div class="text-muted" style="margin-top:.2rem">${f.daysRemaining}d remaining<br>Reorder ${f.reorderQty} ${i.unit}</div>`:`<div class="text-muted" style="margin-top:.2rem">Record usage to forecast</div>`}</td>`})()}
+        <td>${inventoryForecastBadge(f)}${f.hasData?`<div class="text-muted" style="margin-top:.2rem">${f.daysRemaining}d remaining<br>Reorder ${f.reorderQty} ${escapeHtml(i.unit)}</div>`:`<div class="text-muted" style="margin-top:.2rem">Record disbursements to forecast</div>`}</td>
         <td><div class="td-actions">
-          ${canEdit?`<button class="btn btn-xs btn-info" onclick="openUpdateQtyModal(${i.id})">Update Qty</button>
-          <button class="btn btn-xs" onclick="openInvModal(${i.id})">Edit</button>
-          ${currentUser.role==='Administrator'?`<button class="btn btn-xs btn-danger" onclick="deleteInv(${i.id})">Delete</button>`:''}
-          `:''}
+          ${canEdit&&!i.archived?`<button class="btn btn-xs btn-info" onclick="openUpdateQtyModal(${i.id})">Update Qty</button>
+            <button class="btn btn-xs" onclick="openInvModal(${i.id})">Edit</button>`:''}
+          ${currentUser.role==='Administrator'&&!i.archived?`<button class="btn btn-xs btn-warning" onclick="archiveInv(${i.id})">Archive</button>`:''}
+          ${currentUser.role==='Administrator'&&i.archived?`<button class="btn btn-xs btn-success" onclick="restoreInv(${i.id})">Restore</button>`:''}
         </div></td>
       </tr>`;
-    }).join('')
-  }</tbody></table></div>`;
+    }).join('')}</tbody>
+  </table></div>`;
 }
 
 function renderDisbTable(){
   const el=document.getElementById('disb-table');
   if(!el)return;
-  if(!DB.disbursements.length){el.innerHTML='<div class="empty-state"><p>No disbursements recorded.</p></div>';return;}
-  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Item</th><th>Qty Disbursed</th><th>Disbursed By</th><th>Notes</th></tr></thead><tbody>${
-    DB.disbursements.slice().reverse().map(d=>{const it=DB.inventory.find(i=>i.id===d.itemId);const u=getUserById(d.userId);return`<tr><td>${fmtDate(d.date)}</td><td>${it?it.name:'?'}</td><td>${d.qty} ${it?it.unit:''}</td><td>${u?u.fname+' '+u.lname:'?'}</td><td>${d.notes||'-'}</td></tr>`;}).join('')
-  }</tbody></table></div>`;
-}
 
+  const rows=inventoryTransactionRecords().slice().sort((a,b)=>String(b.dateTime||b.date).localeCompare(String(a.dateTime||a.date)));
+  if(!rows.length){
+    el.innerHTML='<div class="empty-state"><p>No inventory transactions recorded.</p></div>';
+    return;
+  }
+
+  const badge=t=>{
+    const cls=t==='Disbursement'?'badge-info':t==='Stock In'?'badge-success':t==='Expired'?'badge-danger':'badge-warning';
+    return `<span class="badge ${cls}">${escapeHtml(t)}</span>`;
+  };
+
+  el.innerHTML=`<div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Quantity</th><th>Recorded By</th><th>Notes</th></tr></thead>
+    <tbody>${rows.map(d=>{
+      const it=inventoryRecords().find(i=>i.id===d.itemId);
+      const u=getUserById(d.userId);
+      return `<tr>
+        <td>${fmtDate(d.date)}</td>
+        <td>${it?escapeHtml(it.name):'Unknown item'}</td>
+        <td>${badge(d.type)}</td>
+        <td>${d.qty} ${it?escapeHtml(it.unit):''}</td>
+        <td>${u?escapeHtml(u.fname+' '+u.lname):'System / Staff'}</td>
+        <td>${escapeHtml(d.notes||'—')}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
 // ================================================================
 // REPORTS
 // ================================================================
@@ -9599,21 +9913,22 @@ function generateReport(){
     </div>
     ${data.length?vizCardHtml(type)+exportToolbarHtml():''}`;
   }else if(type==='inventory'){
+    const inv=inventoryRecords().filter(i=>!i.archived);
     const low=getLowStock();
-    const total=DB.inventory.reduce((s,i)=>s+i.qty,0);
-    const val=DB.inventory.reduce((s,i)=>s+i.qty*(i.unitCost||0),0);
-    lastReportRows=DB.inventory.map(i=>({ID:i.id,Item:i.name,Category:i.category,Qty:i.qty,Threshold:i.threshold,UnitCost:i.unitCost||0,Value:(i.qty*(i.unitCost||0)).toFixed(2),Status:i.qty<=i.threshold?'Low':'OK'}));
+    const total=inv.reduce((s,i)=>s+i.qty,0);
+    const val=inv.reduce((s,i)=>s+i.qty*(i.unitCost||0),0);
+    lastReportRows=inv.map(i=>({ID:inventoryDisplayId(i),Item:i.name,Category:i.category,Qty:i.qty,Threshold:i.threshold,UnitCost:i.unitCost||0,Value:(i.qty*(i.unitCost||0)).toFixed(2),Status:i.qty<=i.threshold?'Low':'OK'}));
     lastReportTitle=`Inventory Report ${TODAY}`;
     el.innerHTML=`<div class="card"><div class="card-header"><h3>Inventory Report</h3></div>
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-val">${DB.inventory.length}</div><div class="stat-lbl">Total Items</div></div>
+        <div class="stat-card"><div class="stat-val">${inv.length}</div><div class="stat-lbl">Total Items</div></div>
         <div class="stat-card"><div class="stat-val text-danger">${low.length}</div><div class="stat-lbl">Low Stock</div></div>
         <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-lbl">Total Units</div></div>
         <div class="stat-card"><div class="stat-val text-primary">₱${val.toFixed(2)}</div><div class="stat-lbl">Inventory Value</div></div>
       </div>
-      <div class="table-wrap"><table><thead><tr><th>Photo</th><th>Item</th><th>Category</th><th>Qty</th><th>Threshold</th><th>Value</th><th>Status</th></tr></thead><tbody>${DB.inventory.map(i=>{const bdg=i.qty<=i.threshold?'badge-danger':'badge-success';const lvl=i.qty<=i.threshold?'Low':'OK';return`<tr><td>${itemAvatarHtml(i,30)}</td><td>${i.name}</td><td>${i.category}</td><td>${i.qty}</td><td>${i.threshold}</td><td>₱${(i.qty*(i.unitCost||0)).toFixed(2)}</td><td><span class="badge ${bdg}">${lvl}</span></td></tr>`;}).join('')}</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Photo</th><th>Item</th><th>Category</th><th>Qty</th><th>Threshold</th><th>Value</th><th>Status</th></tr></thead><tbody>${inv.map(i=>{const bdg=i.qty<=i.threshold?'badge-danger':'badge-success';const lvl=i.qty<=i.threshold?'Low':'OK';return`<tr><td>${itemAvatarHtml(i,30)}</td><td>${escapeHtml(i.name)}</td><td>${escapeHtml(i.category)}</td><td>${i.qty}</td><td>${i.threshold}</td><td>₱${(i.qty*(i.unitCost||0)).toFixed(2)}</td><td><span class="badge ${bdg}">${lvl}</span></td></tr>`;}).join('')}</tbody></table></div>
     </div>
-    ${DB.inventory.length?vizCardHtml(type)+exportToolbarHtml():''}`;
+    ${inv.length?vizCardHtml(type)+exportToolbarHtml():''}`;
   }else{
     let pts=DB.patients.filter(p=>!p.archived);
     if(college)pts=pts.filter(p=>p.college===college);
@@ -11962,7 +12277,12 @@ function restoreTreat(id){
 
 // ── Inventory Modals ──
 function openInvModal(id=null){
-  const it=id?DB.inventory.find(i=>i.id===id):null;
+  const it=id?inventoryRecords().find(i=>i.id===Number(id)):null;
+  if(it?.archived){
+    toast('Restore this inventory item before editing it.','warning');
+    return;
+  }
+
   capturedInvPhotoDataUrl=null;
   openModal(`<div class="modal">
     <div class="modal-header"><h3>${it?'Edit':'Add'} Inventory Item</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
@@ -11970,7 +12290,7 @@ function openInvModal(id=null){
       <div id="invm-msg"></div>
       <div class="form-group full">
         <label>Item Photo</label>
-        <div style="display:flex;align-items:center;gap:.75rem">
+        <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
           <div id="im-photo-wrap" style="width:60px;height:60px;border-radius:12px;background:var(--overlay);border:1px solid var(--glass-border-soft);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
             ${it&&it.photo?`<img src="${it.photo}" style="width:100%;height:100%;object-fit:cover">`:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:26px;height:26px;color:var(--ink-muted)"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M14 8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>`}
           </div>
@@ -11979,160 +12299,324 @@ function openInvModal(id=null){
           <input type="file" id="im-photo-file" accept="image/*" style="display:none" onchange="previewInvPhoto(this)">
         </div>
       </div>
+
       <div class="form-row">
-        <div class="form-group full"><label>Item Name <span class="required">*</span></label><input id="im-name" value="${it?it.name:''}"></div>
+        <div class="form-group full"><label>Item Name <span class="required">*</span></label><input id="im-name" maxlength="255" value="${it?escapeHtml(it.name):''}"></div>
         <div class="form-group"><label>Category</label>
           <select id="im-cat">${['Medicine','Dental','Supplies','Equipment','Laboratory'].map(c=>`<option ${it&&it.category===c?'selected':''}>${c}</option>`).join('')}</select>
         </div>
-        <div class="form-group"><label>Supplier</label><input id="im-supplier" value="${it?it.supplier||'':''}"></div>
-        <div class="form-group"><label>Quantity <span class="required">*</span></label><input id="im-qty" type="number" value="${it?it.qty:''}" min="0"></div>
-        <div class="form-group"><label>Threshold <span class="required">*</span></label><input id="im-thresh" type="number" value="${it?it.threshold:''}" min="0"></div>
-        <div class="form-group"><label>Unit</label><input id="im-unit" value="${it?it.unit||'pcs':'pcs'}"></div>
+        <div class="form-group"><label>Supplier</label><input id="im-supplier" maxlength="255" value="${it?escapeHtml(it.supplier||''):''}"></div>
+        <div class="form-group"><label>Quantity <span class="required">*</span></label><input id="im-qty" type="number" value="${it?it.qty:''}" min="0" step="1"></div>
+        <div class="form-group"><label>Threshold <span class="required">*</span></label><input id="im-thresh" type="number" value="${it?it.threshold:''}" min="0" step="1"></div>
+        <div class="form-group"><label>Unit <span class="required">*</span></label><input id="im-unit" maxlength="80" value="${it?escapeHtml(it.unit||'pcs'):'pcs'}"></div>
         <div class="form-group"><label>Unit Cost (₱)</label><input id="im-cost" type="number" value="${it?it.unitCost||'':''}" min="0" step="0.01"></div>
         <div class="form-group"><label>Expiry Date</label>${campusDateFieldHtml('im-expiry',it?it.expiryDate||'':'','Expiry Date')}</div>
-        <div class="form-group full"><label>Disbursement Date</label>
-          ${campusDateFieldHtml('im-disb',it?it.disbursementDate||'':'','Disbursement Date')}
-          <div class="form-note">Date when this batch should be fully disbursed/issued to patients.</div>
+        <div class="form-group full"><label>Target Disbursement Date</label>
+          ${campusDateFieldHtml('im-disb',it?it.disbursementDate||'':'','Target Disbursement Date')}
+          <div class="form-note">Optional planning date for this inventory batch.</div>
         </div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeAllModals()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveInv(${id||'null'})">Save Item</button>
+      <button class="btn btn-primary" id="im-save-btn" onclick="saveInv(${id||'null'})">Save Item</button>
     </div>
   </div>`);
 }
 
 let capturedInvPhotoDataUrl=null;
+
 function previewInvPhoto(input){
   const wrap=document.getElementById('im-photo-wrap');
   const file=input.files&&input.files[0];
   if(!wrap||!file)return;
   capturedInvPhotoDataUrl=null;
+
   const reader=new FileReader();
-  reader.onload=e=>{ wrap.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`; };
+  reader.onload=e=>{
+    wrap.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+  };
   reader.readAsDataURL(file);
 }
 
 async function saveInv(id){
   const name=document.getElementById('im-name').value.trim();
-  const qty=parseInt(document.getElementById('im-qty').value);
-  const thresh=parseInt(document.getElementById('im-thresh').value);
+  const qty=parseInt(document.getElementById('im-qty').value,10);
+  const thresh=parseInt(document.getElementById('im-thresh').value,10);
+  const unit=document.getElementById('im-unit').value.trim();
   const msg=document.getElementById('invm-msg');
-  if(!name||isNaN(qty)||isNaN(thresh)){showAlert(msg,'Name, quantity and threshold are required.');return;}
-  if(qty<0){showAlert(msg,'Quantity cannot be negative.');return;}
+  const btn=document.getElementById('im-save-btn');
+  hideAlert(msg);
+
+  if(!name||!unit||Number.isNaN(qty)||Number.isNaN(thresh)){
+    showAlert(msg,'Name, quantity, threshold, and unit are required.');
+    return;
+  }
+  if(qty<0||thresh<0){
+    showAlert(msg,'Quantity and threshold cannot be negative.');
+    return;
+  }
+
   let photo=null;
   const photoFile=document.getElementById('im-photo-file').files[0];
+
   if(capturedInvPhotoDataUrl){
     photo=capturedInvPhotoDataUrl;
   }else if(photoFile){
     photo=await resizeImageDataUrl(await readFileAsDataURL(photoFile),320,0.82);
   }else if(id){
-    const existing=DB.inventory.find(i=>i.id===id);
-    photo=existing?existing.photo:null;
+    photo=inventoryRecords().find(i=>i.id===Number(id))?.photo||null;
   }
-  const data={name,category:document.getElementById('im-cat').value,supplier:document.getElementById('im-supplier').value,qty,threshold:thresh,unit:document.getElementById('im-unit').value||'pcs',unitCost:parseFloat(document.getElementById('im-cost').value)||0,expiryDate:document.getElementById('im-expiry').value,disbursementDate:document.getElementById('im-disb').value,photo};
-  if(id){
-    const idx=DB.inventory.findIndex(i=>i.id===id);
-    if(idx>=0){DB.inventory[idx]={...DB.inventory[idx],...data};auditLog('INVENTORY_ITEM_UPDATED',`Updated inventory item ${data.name}.`,'Inventory',id);}
-    toast('Item updated.','success');
-  }else{
-    const newInvId=DB.nextInvId++;DB.inventory.push({id:newInvId,...data});
-    auditLog('INVENTORY_ITEM_CREATED',`Added inventory item ${data.name}.`,'Inventory',newInvId);
-    toast('Item added.','success');
+
+  const data={
+    name,
+    category:document.getElementById('im-cat').value,
+    supplier:document.getElementById('im-supplier').value.trim(),
+    qty,
+    threshold:thresh,
+    unit,
+    unitCost:parseFloat(document.getElementById('im-cost').value)||0,
+    expiryDate:document.getElementById('im-expiry').value,
+    disbursementDate:document.getElementById('im-disb').value,
+    photo
+  };
+
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+
+  try{
+    if(currentUser?._realSupabase){
+      const existing=id?inventoryRecords().find(i=>i.id===Number(id)):null;
+      await inventoryAction({
+        action:existing?'update':'create',
+        item_id:existing?.dbItemId||null,
+        item_name:data.name,
+        category:data.category,
+        supplier:data.supplier,
+        quantity:data.qty,
+        threshold:data.threshold,
+        unit:data.unit,
+        unit_cost:data.unitCost,
+        expiry_date:data.expiryDate||null,
+        target_disbursement_date:data.disbursementDate||null,
+        photo_data:data.photo||null
+      });
+      await syncRealInventory(false);
+    }else if(id){
+      const idx=DB.inventory.findIndex(i=>i.id===id);
+      if(idx>=0){
+        DB.inventory[idx]={...DB.inventory[idx],...data};
+        auditLog('INVENTORY_ITEM_UPDATED',`Updated inventory item ${data.name}.`,'Inventory',id);
+      }
+      persistDB();
+    }else{
+      const newInvId=DB.nextInvId++;
+      DB.inventory.push({id:newInvId,...data});
+      auditLog('INVENTORY_ITEM_CREATED',`Added inventory item ${data.name}.`,'Inventory',newInvId);
+      persistDB();
+    }
+
+    closeAllModals();
+    toast(id?'Item updated.':'Item added.','success');
+    await renderInventory();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to save inventory item.');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;
+      btn.textContent=old||'Save Item';
+    }
   }
-  if(data.qty<=data.threshold){
-    DB.users.filter(u=>u.role==='Staff'||u.role==='Administrator').forEach(u=>addNotif(u.id,'Low Stock Alert',`${data.name} is below threshold (${data.qty} ${data.unit} remaining).`,'danger'));
-  }
-  closeAllModals();
-  renderInvTable&&renderInvTable();
 }
 
 function openUpdateQtyModal(id){
-  const it=DB.inventory.find(i=>i.id===id);if(!it)return;
+  const it=inventoryRecords().find(i=>i.id===Number(id));if(!it)return;
+  if(it.archived){toast('Restore this item before updating quantity.','warning');return;}
+
   openModal(`<div class="modal modal-sm">
-    <div class="modal-header"><h3>Update Quantity – ${it.name}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-header"><h3>Update Quantity – ${escapeHtml(it.name)}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
-      <div class="alert alert-info show" style="font-size:.8rem">Current: <strong>${it.qty} ${it.unit}</strong> · Threshold: ${it.threshold}</div>
-      <div class="form-group"><label>New Quantity <span class="required">*</span></label><input type="number" id="uq-qty" value="${it.qty}" min="0"></div>
-      <div class="form-group"><label>Reason for Update</label><input id="uq-reason" placeholder="Restocked, consumed, etc."></div>
+      <div id="uq-msg"></div>
+      <div class="alert alert-info show" style="font-size:.8rem">Current: <strong>${it.qty} ${escapeHtml(it.unit)}</strong> · Threshold: ${it.threshold}</div>
+      <div class="form-group"><label>New Quantity <span class="required">*</span></label><input type="number" id="uq-qty" value="${it.qty}" min="0" step="1"></div>
+      <div class="form-group"><label>Reason for Update</label><input id="uq-reason" maxlength="500" placeholder="Restocked, physical count correction, damaged stock, etc."></div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeAllModals()">Cancel</button>
-      <button class="btn btn-primary" onclick="updateQty(${id})">Update</button>
+      <button class="btn btn-primary" id="uq-btn" onclick="updateQty(${id})">Update</button>
     </div>
   </div>`);
 }
 
-function updateQty(id){
-  const newQty=parseInt(document.getElementById('uq-qty').value);
-  if(isNaN(newQty)||newQty<0){toast('Invalid quantity.','error');return;}
-  const it=DB.inventory.find(i=>i.id===id);
-  if(!it)return;
-  it.qty=newQty;
-  if(newQty<=it.threshold){
-    DB.users.filter(u=>u.role==='Staff'||u.role==='Administrator').forEach(u=>addNotif(u.id,'Low Stock Alert',`${it.name} is now below threshold (${newQty} ${it.unit} remaining).`,'danger'));
+async function updateQty(id){
+  const newQty=parseInt(document.getElementById('uq-qty').value,10);
+  const reason=document.getElementById('uq-reason').value.trim();
+  const msg=document.getElementById('uq-msg');
+  const btn=document.getElementById('uq-btn');
+  hideAlert(msg);
+
+  if(Number.isNaN(newQty)||newQty<0){
+    showAlert(msg,'Enter a valid non-negative quantity.');
+    return;
   }
-  toast(`${it.name} updated to ${newQty} ${it.unit}.`,'success');
-  closeAllModals();
-  renderInvTable&&renderInvTable();
+
+  const it=inventoryRecords().find(i=>i.id===Number(id));
+  if(!it)return;
+
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Updating…';}
+
+  try{
+    if(it._realSupabase){
+      await inventoryAction({
+        action:'set_quantity',
+        item_id:it.dbItemId,
+        quantity:newQty,
+        reason
+      });
+      await syncRealInventory(false);
+    }else{
+      it.qty=newQty;
+      auditLog('INVENTORY_QUANTITY_UPDATED',`Updated ${it.name} to ${newQty} ${it.unit}.`,'Inventory',id);
+      persistDB();
+    }
+
+    closeAllModals();
+    toast(`${it.name} updated to ${newQty} ${it.unit}.`,'success');
+    await renderInventory();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to update inventory quantity.');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;
+      btn.textContent=old||'Update';
+    }
+  }
 }
 
-function deleteInv(id){
-  const it=DB.inventory.find(x=>x.id===id);
+function archiveInv(id){
+  const it=inventoryRecords().find(i=>i.id===Number(id));if(!it)return;
+
   showConfirmDialog({
-    title:'Delete Inventory Item',
-    message:`Are you sure you want to delete <strong>${it?escapeHtml(it.name):'this item'}</strong>? This cannot be undone.`,
-    confirmLabel:'Delete',danger:true,
-    onConfirm:()=>{
-      DB.inventory=DB.inventory.filter(x=>x.id!==id);
-      toastWithUndo('Item deleted.',()=>{if(it){DB.inventory.push(it);renderInvTable&&renderInvTable();}});
-      renderInvTable&&renderInvTable();
+    title:'Archive Inventory Item',
+    message:`Archive <strong>${escapeHtml(it.name)}</strong>? The item and its transaction history will be preserved, but it will no longer appear in the active inventory list.`,
+    confirmLabel:'Archive',
+    danger:true,
+    onConfirm:async()=>{
+      try{
+        if(it._realSupabase){
+          await inventoryAction({action:'archive',item_id:it.dbItemId});
+          await syncRealInventory(false);
+        }else{
+          it.archived=true;
+          persistDB();
+        }
+        toast('Inventory item archived.','success');
+        await renderInventory();
+      }catch(e){toast(e?.message||'Unable to archive inventory item.','error');}
     }
   });
 }
 
+function restoreInv(id){
+  const it=inventoryRecords().find(i=>i.id===Number(id));if(!it)return;
+
+  showConfirmDialog({
+    title:'Restore Inventory Item',
+    message:`Restore <strong>${escapeHtml(it.name)}</strong> to the active inventory list?`,
+    confirmLabel:'Restore',
+    onConfirm:async()=>{
+      try{
+        if(it._realSupabase){
+          await inventoryAction({action:'restore',item_id:it.dbItemId});
+          await syncRealInventory(false);
+        }else{
+          it.archived=false;
+          persistDB();
+        }
+        toast('Inventory item restored.','success');
+        await renderInventory();
+      }catch(e){toast(e?.message||'Unable to restore inventory item.','error');}
+    }
+  });
+}
+
+// Keep the old function name from stale buttons/bookmarks but use Archive.
+function deleteInv(id){archiveInv(id);}
+
 function openDisbursementModal(){
+  const items=inventoryRecords().filter(i=>!i.archived);
+
+  if(!items.length){
+    toast('Add an active inventory item before recording a disbursement.','warning');
+    return;
+  }
+
   openModal(`<div class="modal">
     <div class="modal-header"><h3>Record Item Disbursement</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
       <div id="disb-msg"></div>
       <div class="form-group"><label>Item <span class="required">*</span></label>
-        <select id="disb-item">${DB.inventory.map(i=>`<option value="${i.id}">${i.name} (${i.qty} ${i.unit})</option>`).join('')}</select>
+        <select id="disb-item">${items.map(i=>`<option value="${i.id}">${escapeHtml(i.name)} (${i.qty} ${escapeHtml(i.unit)})</option>`).join('')}</select>
       </div>
-      <div class="form-group"><label>Quantity to Disburse <span class="required">*</span></label><input type="number" id="disb-qty" min="1"></div>
-      <div class="form-group"><label>Date</label>${campusDateFieldHtml('disb-date',TODAY,'Disbursement Date')}</div>
-      <div class="form-group"><label>Notes</label><input id="disb-notes" placeholder="e.g. Regular monthly disbursement"></div>
+      <div class="form-group"><label>Quantity to Disburse <span class="required">*</span></label><input type="number" id="disb-qty" min="1" step="1"></div>
+      <div class="form-group"><label>Date</label>${campusDateFieldHtml('disb-date',TODAY,'Disbursement Date','',TODAY)}</div>
+      <div class="form-group"><label>Notes</label><input id="disb-notes" maxlength="800" placeholder="e.g. Dispensed for clinic use / prescriptions"></div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeAllModals()">Cancel</button>
-      <button class="btn btn-success" onclick="saveDisbursement()">Record Disbursement</button>
+      <button class="btn btn-success" id="disb-btn" onclick="saveDisbursement()">Record Disbursement</button>
     </div>
   </div>`);
 }
 
-function saveDisbursement(){
-  const itemId=parseInt(document.getElementById('disb-item').value);
-  const qty=parseInt(document.getElementById('disb-qty').value);
+async function saveDisbursement(){
+  const itemId=parseInt(document.getElementById('disb-item').value,10);
+  const qty=parseInt(document.getElementById('disb-qty').value,10);
   const date=document.getElementById('disb-date').value;
-  const notes=document.getElementById('disb-notes').value;
+  const notes=document.getElementById('disb-notes').value.trim();
   const msg=document.getElementById('disb-msg');
-  const it=DB.inventory.find(i=>i.id===itemId);
+  const btn=document.getElementById('disb-btn');
+  const it=inventoryRecords().find(i=>i.id===itemId);
+
+  hideAlert(msg);
   if(!it){showAlert(msg,'Item not found.');return;}
   if(!qty||qty<1){showAlert(msg,'Quantity must be at least 1.');return;}
   if(qty>it.qty){showAlert(msg,`Only ${it.qty} ${it.unit} available.`);return;}
-  it.qty-=qty;
-  auditLog('INVENTORY_DISBURSEMENT',`Recorded inventory disbursement.`,'Inventory',itemId);
-  DB.disbursements.push({id:DB.nextDisbId++,itemId,qty,date,notes,userId:currentUser.id});
-  if(it.qty<=it.threshold){
-    DB.users.filter(u=>u.role==='Staff'||u.role==='Administrator').forEach(u=>addNotif(u.id,'Low Stock After Disbursement',`${it.name} is now below threshold after disbursement.`,'danger'));
-  }
-  toast(`Disbursed ${qty} ${it.unit} of ${it.name}.`,'success');
-  closeAllModals();
-  renderInvTable&&renderInvTable();
-  renderDisbTable&&renderDisbTable();
-}
+  if(!date||date>TODAY){showAlert(msg,'Disbursement date cannot be in the future.');return;}
 
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Recording…';}
+
+  try{
+    if(it._realSupabase){
+      await inventoryAction({
+        action:'disburse',
+        item_id:it.dbItemId,
+        quantity:qty,
+        transaction_date:date,
+        notes
+      });
+      await syncRealInventory(false);
+    }else{
+      it.qty-=qty;
+      auditLog('INVENTORY_DISBURSEMENT','Recorded inventory disbursement.','Inventory',itemId);
+      DB.disbursements.push({id:DB.nextDisbId++,itemId,qty,date,notes,userId:currentUser.id});
+      persistDB();
+    }
+
+    closeAllModals();
+    toast(`Disbursed ${qty} ${it.unit} of ${it.name}.`,'success');
+    await renderInventory();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to record disbursement.');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;
+      btn.textContent=old||'Record Disbursement';
+    }
+  }
+}
 // ── Add User Modal ──
 function openAddUserModal(){
   openModal(`<div class="modal">
@@ -12327,7 +12811,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAllModals();});
 // Auto-check low stock on load (for demo)
 setTimeout(()=>{
   const lowStock=getLowStock();
-  if(lowStock.length&&currentUser&&(currentUser.role==='Staff'||currentUser.role==='Administrator')){
+  if(lowStock.length&&currentUser&&!currentUser._realSupabase&&(currentUser.role==='Staff'||currentUser.role==='Administrator')){
     lowStock.forEach(i=>{
       if(!DB.notifications.find(n=>n.title.includes(i.name)&&n.userId===currentUser.id)){
         addNotif(currentUser.id,'Low Stock Alert',`${i.name} is below threshold: ${i.qty} ${i.unit} remaining.`,'danger');
@@ -12412,7 +12896,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v35 loaded.');
+console.log('CampusCare v36 loaded.');
 </script>
 </body>
 </html>
