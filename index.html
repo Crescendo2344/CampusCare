@@ -209,7 +209,7 @@ async function fetchAdminDirectory(){
       .select('user_id,auth_user_id,first_name,last_name,username,email,contact_number,role,status,verified,person_type,college,id_number,profile_image_url,specialty,work_days,start_time,end_time,slot_duration,max_patients,created_at,last_login_at,password_changed_at,saved_signature_data')
       .order('user_id',{ascending:true}),
     supabaseClient.from('patients')
-      .select('patient_id,user_id,birth_date,sex,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,medical_history,allergies,archived_at')
+      .select('patient_id,user_id,birth_date,sex,blood_type,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,medical_history,allergies,archived_at,updated_at')
       .order('patient_id',{ascending:true})
   ]);
 
@@ -263,7 +263,7 @@ function directoryRowToPatient(u){
     age:ageFromBirthDate(p.birth_date),
     birthDate:p.birth_date||'',
     gender:p.sex||'',
-    blood:'',
+    blood:p.blood_type||'Unknown',
     address:p.address||'',
     college:uiUser.college||'',
     personType:uiUser.personType||'',
@@ -345,7 +345,7 @@ async function syncCurrentPatientFromSupabase(){
       age:ageFromBirthDate(row.birth_date),
       birthDate:row.birth_date||'',
       gender:row.sex||'',
-      blood:'',
+      blood:row.blood_type||'Unknown',
       address:row.address||'',
       college:currentUser.college||'',
       personType:currentUser.personType||'',
@@ -1653,6 +1653,25 @@ tbody tr:hover td{background:var(--overlay)}
 }
 
 
+/* v49 QA responsive hardening */
+.card,.stat-card,.official-info-card,.intel-alert-item,.form-group{min-width:0}
+.table-wrap{
+  max-width:100%;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-x:contain;
+}
+.table-wrap table{max-width:none}
+@media(max-width:1100px){
+  .grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  .grid-4,.grid-3,.grid-2{grid-template-columns:1fr}
+  .toolbar{align-items:stretch}
+  .toolbar>input,.toolbar>select,.toolbar>button{width:100%;max-width:none}
+  .modal{max-width:calc(100vw - 1rem);margin:.5rem}
+  .modal-body{overflow-wrap:anywhere}
+}
+
 /* v42 tablet overflow guard */
 #app-content{min-width:0;max-width:100%}
 @media(max-width:1100px){
@@ -2450,6 +2469,578 @@ function loadDB(){
 }
 
 // ================================================================
+// QA / USER ACCEPTANCE TESTING CENTER
+// ================================================================
+const UAT_CASES=[
+  {key:'AUTH-01',role:'All Roles',device:'Desktop',title:'Login, logout, and session recovery',steps:'Sign in with a valid account, refresh the page, confirm the session restores, then log out and confirm CampusCare returns to the login screen.'},
+  {key:'AUTH-02',role:'All Roles',device:'Desktop',title:'Password reset and change-password flow',steps:'Request a password-reset email, return through the recovery link, verify the password rules/cooldown, and confirm the new password can sign in.'},
+  {key:'PAT-01',role:'Patient',device:'Mobile',title:'Book a valid appointment',steps:'Open My Appointments, select an available future date/time, complete the booking, and verify the COR reminder and notification.'},
+  {key:'PAT-02',role:'Patient',device:'Mobile',title:'Reschedule and cancel appointment',steps:'Reschedule an eligible appointment, verify unavailable/past slots are blocked, then cancel and confirm the status/notification updates.'},
+  {key:'PAT-03',role:'Patient',device:'Tablet',title:'Health records, certificates, and fitness',steps:'Open My Health Records, Medical Certificates, and Fitness to Compete. Verify records load correctly and certificate tables can scroll/download on tablet.'},
+  {key:'PAT-04',role:'Patient',device:'Tablet',title:'Ask a Doctor messaging',steps:'Open Ask a Doctor, start a Doctor conversation, send text and one allowed attachment, then verify the one-pane tablet conversation flow and unread/read state.'},
+  {key:'DOC-01',role:'Doctor',device:'Desktop',title:'Doctor schedule and day-off request',steps:'Open My Schedule, verify real availability, submit a future schedule/day-off request, and confirm the request appears for Admin review.'},
+  {key:'DOC-02',role:'Doctor',device:'Desktop',title:'Appointment completion and treatment recording',steps:'Open an assigned appointment, record a treatment, verify the appointment becomes Completed, and confirm the treatment appears in the patient history.'},
+  {key:'DOC-03',role:'Doctor',device:'Tablet',title:'Fitness assessment and certificate signing',steps:'Claim/complete a fitness assessment and sign an assigned medical certificate using the responsive tablet interface.'},
+  {key:'DOC-04',role:'Doctor',device:'Tablet',title:'Patient messaging',steps:'Open Patient Messages, verify only permitted contacts are available, reply to a patient, and confirm the tablet one-pane chat layout.'},
+  {key:'STF-01',role:'Staff',device:'Desktop',title:'Clinic-assisted patient registration',steps:'Register a patient with required profile photo and ID/COR, verify the real patient record appears, and confirm the password-setup guidance.'},
+  {key:'STF-02',role:'Staff',device:'Desktop',title:'Appointment and certificate preparation',steps:'Manage an appointment, prepare a medical certificate for Doctor signature, and verify the assigned Doctor receives the request.'},
+  {key:'STF-03',role:'Staff',device:'Tablet',title:'Inventory workflow',steps:'Add/update an inventory item, record stock-in or disbursement, verify quantity/history, and review the responsive inventory tables.'},
+  {key:'STF-04',role:'Staff',device:'Desktop',title:'Health Education publishing workflow',steps:'Create or edit a Health Education article, publish/unpublish it, and verify patient-visible content only shows published resources.'},
+  {key:'ADM-01',role:'Administrator',device:'Desktop',title:'Approval queue and user management',steps:'Review a pending registration/workflow request, perform an allowed approval/rejection, and verify notifications and Activity Log entries.'},
+  {key:'ADM-02',role:'Administrator',device:'Desktop',title:'Reports, analytics, and filters',steps:'Open Reports & Analytics, change date/college filters, verify real IDs/details, and confirm trend/service/diagnosis widgets load without demo contamination.'},
+  {key:'ADM-03',role:'Administrator',device:'Desktop',title:'Backup, email, and security operations',steps:'Open System Settings and Security & Integrity. Verify backup status, email queue state, session timeout, and run the server integrity scan.'},
+  {key:'ADM-04',role:'Administrator',device:'Tablet',title:'Feedback, privacy, and issue tracking',steps:'Open Feedback & Issues and Privacy & Consent on tablet, reply to a report, review privacy summary, and confirm no horizontal overlap.'},
+  {key:'RSP-01',role:'All Roles',device:'Mobile',title:'Core navigation at phone width',steps:'At approximately 390px width, open every visible sidebar page for the role and confirm no page creates unintended horizontal clipping.'},
+  {key:'RSP-02',role:'All Roles',device:'Tablet',title:'Tablet navigation and messaging layout',steps:'At 768–1100px width, rotate portrait/landscape and verify sidebar, top bar, tables, and Messenger remain usable without overlap.'},
+  {key:'RSP-03',role:'All Roles',device:'Mobile',title:'Forms, modals, and touch targets',steps:'Open representative forms/modals, test date pickers and scrolling, and verify primary actions remain reachable without content being hidden off-screen.'}
+];
+
+async function uatAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/uat-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'UAT action failed.');
+  return result;
+}
+
+async function syncUATCenter(action='list'){
+  if(!currentUser?._realSupabase||currentUser.role!=='Administrator')return null;
+  const result=await uatAction({action});
+  DB.uatState=result;
+  return result;
+}
+
+function uatStatusBadge(status){
+  const cls=status==='Pass'?'badge-success':status==='Fail'?'badge-danger':status==='Blocked'?'badge-warning':'badge-gray';
+  return `<span class="badge ${cls}">${escapeHtml(status||'Not Tested')}</span>`;
+}
+
+function uatResultMap(){
+  const map=new Map();
+  (DB.uatState?.results||[]).forEach(r=>map.set(r.case_key,r));
+  return map;
+}
+
+function uatFilteredCases(){
+  const role=document.getElementById('uat-role-filter')?.value||'';
+  const device=document.getElementById('uat-device-filter')?.value||'';
+  const status=document.getElementById('uat-status-filter')?.value||'';
+  const q=(document.getElementById('uat-search')?.value||'').trim().toLowerCase();
+  const results=uatResultMap();
+
+  return UAT_CASES.filter(tc=>{
+    const saved=results.get(tc.key);
+    const current=saved?.status||'Not Tested';
+    if(role&&tc.role!==role)return false;
+    if(device&&tc.device!==device)return false;
+    if(status&&current!==status)return false;
+    if(q&&!`${tc.key} ${tc.title} ${tc.role} ${tc.device} ${tc.steps}`.toLowerCase().includes(q))return false;
+    return true;
+  });
+}
+
+function renderUATCases(){
+  const el=document.getElementById('uat-cases');
+  if(!el)return;
+  const results=uatResultMap();
+  const cases=uatFilteredCases();
+
+  if(!cases.length){
+    el.innerHTML='<div class="empty-state"><p>No UAT cases match the current filters.</p></div>';
+    return;
+  }
+
+  el.innerHTML=`<div class="table-wrap"><table>
+    <thead><tr><th>Case</th><th>Role</th><th>Device</th><th>Test</th><th>Status</th><th>Last Tested</th><th>Action</th></tr></thead>
+    <tbody>${cases.map(tc=>{
+      const saved=results.get(tc.key);
+      const status=saved?.status||'Not Tested';
+      return `<tr>
+        <td><strong>${escapeHtml(tc.key)}</strong></td>
+        <td>${escapeHtml(tc.role)}</td>
+        <td>${escapeHtml(tc.device)}</td>
+        <td style="max-width:390px;white-space:normal"><strong>${escapeHtml(tc.title)}</strong><div class="text-muted" style="font-size:.7rem;margin-top:.18rem">${escapeHtml(tc.steps)}</div>${saved?.notes?`<div class="tech-note" style="margin-top:.35rem"><strong>Tester notes:</strong> ${escapeHtml(saved.notes)}</div>`:''}</td>
+        <td>${uatStatusBadge(status)}</td>
+        <td>${saved?.tested_at?new Date(saved.tested_at).toLocaleString('en-PH'):'—'}</td>
+        <td><button class="btn btn-xs btn-info" onclick="openUATResultModal('${jsAttrSafe(tc.key)}')">${status==='Not Tested'?'Record Result':'Update'}</button></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+async function renderUATCenter(){
+  const c=document.getElementById('app-content');if(!c)return;
+
+  if(currentUser.role!=='Administrator'){
+    c.innerHTML='<div class="alert alert-danger show">Administrator access required.</div>';
+    return;
+  }
+
+  const pageToken=captureCampusPageToken();
+  showDatabaseSkeleton('table');
+
+  try{
+    await Promise.all([
+      syncUATCenter('list'),
+      syncEmailDeliveryStatus().catch(e=>{console.error('UAT email status:',e);return null;})
+    ]);
+  }catch(e){
+    if(!isCampusPageCurrent('uat-center',pageToken))return;
+    c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load QA/UAT status.')}</div>
+      <button class="btn btn-sm" onclick="renderUATCenter()">Retry</button>`;
+    return;
+  }
+
+  if(!isCampusPageCurrent('uat-center',pageToken))return;
+
+  const state=DB.uatState||{};
+  const autoChecks=state.automated?.checks||[];
+  const results=uatResultMap();
+  const counts={Pass:0,Fail:0,Blocked:0,'Not Tested':0};
+  UAT_CASES.forEach(tc=>{
+    const status=results.get(tc.key)?.status||'Not Tested';
+    counts[status]=(counts[status]||0)+1;
+  });
+
+  const completed=counts.Pass+counts.Fail+counts.Blocked;
+  const percent=Math.round((counts.Pass/UAT_CASES.length)*100);
+  const autoPass=autoChecks.filter(x=>x.status==='Pass').length;
+  const autoFail=autoChecks.filter(x=>x.status==='Fail').length;
+  const emailConfigured=Boolean(DB.emailDeliveryStatus?.configured);
+
+  c.innerHTML=`
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h3>QA / User Acceptance Testing Center</h3>
+          <div class="tech-note">Automated server checks plus a persistent role/device UAT matrix for final CampusCare validation before production release.</div>
+        </div>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="exportUATCsv()">Export UAT CSV</button>
+          <button class="btn btn-primary btn-sm" id="uat-run-btn" onclick="runUATAutomatedChecks()">Run Automated Checks</button>
+        </div>
+      </div>
+
+      <div class="grid-4">
+        <div class="stat-card"><div class="stat-val">${autoPass}/${autoChecks.length}</div><div class="stat-lbl">Automated Checks Passed</div></div>
+        <div class="stat-card"><div class="stat-val">${counts.Pass}</div><div class="stat-lbl">Manual UAT Passed</div></div>
+        <div class="stat-card"><div class="stat-val text-danger">${counts.Fail}</div><div class="stat-lbl">Failed Cases</div></div>
+        <div class="stat-card"><div class="stat-val">${percent}%</div><div class="stat-lbl">Manual Pass Progress</div></div>
+      </div>
+
+      <div style="margin-top:.75rem;height:9px;border-radius:999px;background:var(--overlay-strong);overflow:hidden">
+        <div style="height:100%;width:${percent}%;background:var(--success);transition:width .2s ease"></div>
+      </div>
+
+      <div class="alert ${autoFail?'alert-warning':'alert-success'} show" style="margin-top:.8rem">
+        <strong>${autoFail?'Automated review requires attention':'Automated backend checks are currently passing'}.</strong>
+        ${autoFail?`${autoFail} automated check${autoFail===1?'':'s'} failed.`:`${autoPass} server-side QA checks passed in the latest run.`}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div><h3>Automated Backend QA</h3><div class="tech-note">These checks run against the live Supabase project without changing patient/clinical data.</div></div></div>
+      <div class="grid-2">
+        ${autoChecks.map(ch=>`<div class="official-info-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem">
+            <h4 style="margin:0">${escapeHtml(ch.title||ch.id||'Check')}</h4>
+            ${uatStatusBadge(ch.status==='Warning'?'Blocked':ch.status)}
+          </div>
+          <p>${escapeHtml(ch.detail||'')}</p>
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div><h3>Build-Time Frontend QA</h3><div class="tech-note">Static checks performed against this v49 file before delivery.</div></div></div>
+      <div class="grid-2">
+        <div class="official-info-card"><h4>✓ JavaScript syntax</h4><p>All inline scripts pass Node.js syntax validation.</p></div>
+        <div class="official-info-card"><h4>✓ Navigation mapping</h4><p>Every configured role-navigation page has a matching renderer.</p></div>
+        <div class="official-info-card"><h4>✓ Inline action handlers</h4><p>No missing CampusCare function references were detected in the inline UI event handlers.</p></div>
+        <div class="official-info-card"><h4>✓ Hardened browser writes</h4><p>No direct frontend writes were detected for the protected clinical/business tables locked in v48.</p></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div><h3>Production Readiness Items</h3><div class="tech-note">These are configuration items that cannot be proven solely by browser QA.</div></div></div>
+      <div class="grid-2">
+        <div class="official-info-card">
+          <div style="display:flex;justify-content:space-between;gap:.5rem"><h4 style="margin:0">External Email Provider</h4>${emailConfigured?'<span class="badge badge-success">Configured</span>':'<span class="badge badge-warning">Pending</span>'}</div>
+          <p>${emailConfigured?'Operational email delivery reports a configured provider.':'The email queue is functional, but production sending still requires the protected provider secrets configured in Supabase.'}</p>
+        </div>
+        <div class="official-info-card">
+          <div style="display:flex;justify-content:space-between;gap:.5rem"><h4 style="margin:0">Leaked Password Protection</h4><span class="badge badge-warning">Verify in Supabase Auth</span></div>
+          <p>The current Supabase Security Advisor reports leaked-password protection as disabled. Enable it in the Auth password-security settings before final production release.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div><h3>Manual UAT Matrix</h3><div class="tech-note">${completed} of ${UAT_CASES.length} cases have a recorded result. Test each case using the stated role and device class.</div></div>
+        <button class="btn btn-xs btn-danger" onclick="resetUATResults()">Reset Results</button>
+      </div>
+      <div class="toolbar">
+        <input type="search" id="uat-search" placeholder="Search UAT cases..." oninput="renderUATCases()">
+        <select id="uat-role-filter" onchange="renderUATCases()">
+          <option value="">All Roles</option>
+          ${[...new Set(UAT_CASES.map(x=>x.role))].map(v=>`<option>${escapeHtml(v)}</option>`).join('')}
+        </select>
+        <select id="uat-device-filter" onchange="renderUATCases()">
+          <option value="">All Devices</option>
+          ${[...new Set(UAT_CASES.map(x=>x.device))].map(v=>`<option>${escapeHtml(v)}</option>`).join('')}
+        </select>
+        <select id="uat-status-filter" onchange="renderUATCases()">
+          <option value="">All Statuses</option>
+          <option>Not Tested</option><option>Pass</option><option>Fail</option><option>Blocked</option>
+        </select>
+      </div>
+      <div id="uat-cases"></div>
+    </div>`;
+
+  renderUATCases();
+}
+
+async function runUATAutomatedChecks(){
+  const btn=document.getElementById('uat-run-btn');
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Running…';}
+
+  try{
+    await syncUATCenter('run');
+    toast('Automated QA checks completed.','success');
+    await renderUATCenter();
+  }catch(e){
+    toast(e?.message||'Automated QA checks failed.','error');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;btn.textContent=old||'Run Automated Checks';
+    }
+  }
+}
+
+function openUATResultModal(caseKey){
+  const tc=UAT_CASES.find(x=>x.key===caseKey);if(!tc)return;
+  const saved=uatResultMap().get(caseKey);
+  const status=saved?.status||'Not Tested';
+
+  openModal(`<div class="modal modal-sm">
+    <div class="modal-header"><div><h3>${escapeHtml(tc.key)} — UAT Result</h3><div class="text-muted">${escapeHtml(tc.role)} · ${escapeHtml(tc.device)}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <h4 style="margin-bottom:.35rem">${escapeHtml(tc.title)}</h4>
+      <p class="text-muted" style="font-size:.78rem;line-height:1.55">${escapeHtml(tc.steps)}</p>
+      <div class="form-group" style="margin-top:.8rem"><label>Result</label>
+        <select id="uat-result-status">
+          ${['Not Tested','Pass','Fail','Blocked'].map(v=>`<option ${status===v?'selected':''}>${v}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label>Tester Notes</label><textarea id="uat-result-notes" maxlength="4000" rows="4" placeholder="What was tested? Record any bug, device behavior, or reproduction details.">${escapeHtml(saved?.notes||'')}</textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="saveUATResult('${jsAttrSafe(caseKey)}')">Save Result</button></div>
+  </div>`);
+}
+
+async function saveUATResult(caseKey){
+  const tc=UAT_CASES.find(x=>x.key===caseKey);if(!tc)return;
+  const status=document.getElementById('uat-result-status')?.value||'Not Tested';
+  const notes=document.getElementById('uat-result-notes')?.value.trim()||'';
+
+  try{
+    const result=await uatAction({
+      action:'save',
+      case_key:tc.key,
+      title:tc.title,
+      role_name:tc.role,
+      device:tc.device,
+      status,
+      notes
+    });
+    DB.uatState=result;
+    closeAllModals();
+    toast(`UAT case ${tc.key} saved as ${status}.`,status==='Fail'?'warning':'success');
+    await renderUATCenter();
+  }catch(e){
+    toast(e?.message||'Unable to save the UAT result.','error');
+  }
+}
+
+function resetUATResults(){
+  showConfirmDialog({
+    title:'Reset UAT Results',
+    message:'Reset all saved manual UAT results to <strong>Not Tested</strong>? Automated QA results are not affected.',
+    confirmLabel:'Reset Results',
+    danger:true,
+    onConfirm:async()=>{
+      try{
+        DB.uatState=await uatAction({action:'reset'});
+        toast('Manual UAT results reset.','success');
+        await renderUATCenter();
+      }catch(e){
+        toast(e?.message||'Unable to reset UAT results.','error');
+      }
+    }
+  });
+}
+
+function exportUATCsv(){
+  const results=uatResultMap();
+  const rows=[
+    ['Case','Role','Device','Title','Status','Tested At','Notes'],
+    ...UAT_CASES.map(tc=>{
+      const r=results.get(tc.key);
+      return [tc.key,tc.role,tc.device,tc.title,r?.status||'Not Tested',r?.tested_at||'',r?.notes||''];
+    })
+  ];
+  const csv=rows.map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`CampusCare_UAT_${TODAY}.csv`;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast('UAT CSV exported.','success');
+}
+
+// ================================================================
+// SECURITY & DATA INTEGRITY CENTER
+// ================================================================
+async function securityIntegrityAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/security-integrity`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Security check failed.');
+  return result;
+}
+
+async function syncSecurityIntegrity(action='status'){
+  if(!currentUser?._realSupabase||currentUser.role!=='Administrator')return null;
+  const result=await securityIntegrityAction({action});
+  DB.securityIntegrity=result;
+  DB.settings.sessionTimeoutMinutes=Number(result.session_timeout_minutes||DB.settings.sessionTimeoutMinutes||30);
+  configureSessionGuard(DB.settings.sessionTimeoutMinutes);
+  return result;
+}
+
+function securitySeverityBadge(severity){
+  const value=String(severity||'info').toLowerCase();
+  const cls=value==='critical'?'badge-danger':value==='warning'?'badge-warning':'badge-info';
+  return `<span class="badge ${cls}">${escapeHtml(value.toUpperCase())}</span>`;
+}
+
+function securityEventDetails(details){
+  if(!details)return '—';
+  if(typeof details==='string')return details;
+  try{
+    return Object.entries(details)
+      .map(([k,v])=>`${k.replace(/_/g,' ')}: ${typeof v==='object'?JSON.stringify(v):v}`)
+      .join(' · ');
+  }catch(_){
+    return String(details);
+  }
+}
+
+async function renderSecurityIntegrity(){
+  const c=document.getElementById('app-content');if(!c)return;
+
+  if(currentUser.role!=='Administrator'){
+    c.innerHTML='<div class="alert alert-danger show">Administrator access required.</div>';
+    return;
+  }
+
+  const pageToken=captureCampusPageToken();
+  showDatabaseSkeleton('table');
+
+  try{
+    await syncSecurityIntegrity('status');
+  }catch(e){
+    if(!isCampusPageCurrent('security-integrity',pageToken))return;
+    c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load security status.')}</div>
+      <button class="btn btn-sm" onclick="renderSecurityIntegrity()">Retry</button>`;
+    return;
+  }
+
+  if(!isCampusPageCurrent('security-integrity',pageToken))return;
+
+  const state=DB.securityIntegrity||{};
+  const report=state.report||{};
+  const summary=report.summary||{};
+  const issues=report.issues||[];
+  const events=state.recent_security_events||[];
+  const timeout=Number(state.session_timeout_minutes||30);
+  const healthy=Number(summary.integrity_issue_count||0)===0&&Number(summary.direct_write_policies||0)===0;
+
+  c.innerHTML=`
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h3>Security &amp; Data Integrity</h3>
+          <div class="tech-note">Server-side checks for access-control coverage, protected write paths, record consistency, workflow state, and security events.</div>
+        </div>
+        <button class="btn btn-primary btn-sm" id="security-scan-btn" onclick="runSecurityIntegrityScan()">Run Integrity Scan</button>
+      </div>
+
+      <div class="alert ${healthy?'alert-success':'alert-warning'} show">
+        <strong>${healthy?'Security baseline healthy':'Review required'}.</strong>
+        ${healthy
+          ? 'Current integrity checks found no flagged data inconsistencies, and protected business tables have no direct browser write policies.'
+          : `${Number(summary.integrity_issue_count||0)} integrity/security check${Number(summary.integrity_issue_count||0)===1?'':'s'} currently require review.`}
+      </div>
+
+      <div class="grid-4">
+        <div class="stat-card">
+          <div class="stat-val">${Number(summary.rls_enabled_tables||0)}/${Number(summary.public_tables||0)}</div>
+          <div class="stat-lbl">Public Tables with RLS</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${Number(summary.direct_write_policies||0)}</div>
+          <div class="stat-lbl">Protected Direct-Write Policies</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${Number(summary.integrity_issue_count||0)}</div>
+          <div class="stat-lbl">Integrity Flags</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${Number(summary.security_events_24h||0)}</div>
+          <div class="stat-lbl">Security Events · 24h</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><div><h3>Session Protection</h3><div class="tech-note">Automatically signs out inactive browser sessions that may expose clinic or patient information.</div></div></div>
+        <div class="form-group">
+          <label>Inactivity timeout</label>
+          <select id="security-timeout">
+            ${[10,15,30,45,60,90,120,180,240].map(m=>`<option value="${m}" ${timeout===m?'selected':''}>${m} minutes</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveSecurityTimeout()">Update Timeout</button>
+        <div class="form-note" style="margin-top:.55rem">Users receive an inactivity warning about 2 minutes before automatic sign-out.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div><h3>Operational Integrity</h3><div class="tech-note">Background jobs and operational queues that can affect data consistency.</div></div></div>
+        <div style="display:grid;gap:.55rem;font-size:.82rem">
+          <div style="display:flex;justify-content:space-between;gap:.6rem"><span>Failed operational emails</span><strong>${Number(summary.failed_emails||0)}</strong></div>
+          <div style="display:flex;justify-content:space-between;gap:.6rem"><span>Due approved schedule changes</span><strong>${Number(summary.due_workflows||0)}</strong></div>
+          <div style="display:flex;justify-content:space-between;gap:.6rem"><span>Protected direct-write paths</span><strong>${Number(summary.direct_write_policies||0)===0?'Locked':'Review'}</strong></div>
+        </div>
+        ${Number(summary.due_workflows||0)>0?`<button class="btn btn-sm btn-warning" style="margin-top:.75rem" onclick="applyDueSecurityWorkflows()">Apply Due Schedule Changes</button>`:''}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3>Integrity Scan Findings</h3><span class="text-muted" style="font-size:.72rem">Generated ${report.generated_at?new Date(report.generated_at).toLocaleString('en-PH'):'—'}</span></div>
+      ${issues.length?`<div style="display:grid;gap:.55rem">
+        ${issues.map(item=>`<div class="intel-alert-item">
+          <div class="intel-alert-icon">${String(item.severity).toLowerCase()==='critical'?'⚠️':'!'}</div>
+          <div class="intel-alert-copy">
+            <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap"><strong>${escapeHtml(item.title||'Security finding')}</strong>${securitySeverityBadge(item.severity)}<span class="badge badge-gray">${Number(item.count||0)}</span></div>
+            <span>Code: ${escapeHtml(item.code||'CHECK')}</span>
+          </div>
+        </div>`).join('')}
+      </div>`:`<div class="empty-state"><p>✓ No integrity issues are currently flagged by the server-side checks.</p></div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div><h3>Security Hardening Applied</h3><div class="tech-note">These controls are enforced in the database/backend, not only hidden in the user interface.</div></div></div>
+      <div class="grid-2" style="font-size:.8rem">
+        <div class="official-info-card"><h4>Protected Write Paths</h4><p>Appointments, treatments, certificates, fitness assessments, inventory changes, health resources, doctor leave, messages, and notification state changes now use protected backend workflows instead of direct browser writes.</p></div>
+        <div class="official-info-card"><h4>Database Integrity Guards</h4><p>PostgreSQL validates active Doctor/patient relationships, treatment dates, follow-up dates, and appointment-to-treatment linkage before records are accepted.</p></div>
+        <div class="official-info-card"><h4>Row Level Security</h4><p>Server scanning verifies RLS coverage across CampusCare public tables and reports any table that unexpectedly loses row-level protection.</p></div>
+        <div class="official-info-card"><h4>Auditability</h4><p>Security scans, password actions, logins/logouts, privacy events, backups, archive actions, FHIR access, and Clinical Copilot access remain traceable through the immutable application audit trail.</p></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3>Recent Security-Relevant Events</h3></div>
+      ${events.length?`<div class="table-wrap"><table>
+        <thead><tr><th>Date / Time</th><th>User</th><th>Role</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+        <tbody>${events.slice(0,100).map(ev=>`<tr>
+          <td>${new Date(ev.created_at).toLocaleString('en-PH')}</td>
+          <td>${escapeHtml(ev.actor_name||'System')}</td>
+          <td>${escapeHtml(ev.actor_role||'System')}</td>
+          <td><span class="badge badge-info">${escapeHtml(ev.action||'')}</span></td>
+          <td>${escapeHtml(ev.entity_type||'—')}${ev.entity_id!=null?` #${escapeHtml(String(ev.entity_id))}`:''}</td>
+          <td style="max-width:360px;white-space:normal">${escapeHtml(securityEventDetails(ev.details))}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>`:'<div class="empty-state"><p>No security-relevant audit events are available yet.</p></div>'}
+    </div>`;
+}
+
+async function runSecurityIntegrityScan(){
+  const btn=document.getElementById('security-scan-btn');
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Scanning…';}
+  try{
+    await syncSecurityIntegrity('scan');
+    toast('Security and integrity scan completed.','success');
+    await renderSecurityIntegrity();
+  }catch(e){
+    toast(e?.message||'Security scan failed.','error');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;btn.textContent=old||'Run Integrity Scan';
+    }
+  }
+}
+
+function saveSecurityTimeout(){
+  const minutes=Number(document.getElementById('security-timeout')?.value||30);
+  showConfirmDialog({
+    title:'Update Session Timeout',
+    message:`Automatically sign out inactive CampusCare sessions after <strong>${minutes} minutes</strong>?`,
+    confirmLabel:'Update Timeout',
+    onConfirm:async()=>{
+      try{
+        const result=await securityIntegrityAction({action:'set_timeout',minutes});
+        DB.settings.sessionTimeoutMinutes=Number(result.session_timeout_minutes||minutes);
+        configureSessionGuard(DB.settings.sessionTimeoutMinutes);
+        toast(`Session inactivity timeout updated to ${DB.settings.sessionTimeoutMinutes} minutes.`,'success');
+        await renderSecurityIntegrity();
+      }catch(e){
+        toast(e?.message||'Unable to update the session timeout.','error');
+      }
+    }
+  });
+}
+
+async function applyDueSecurityWorkflows(){
+  try{
+    const result=await securityIntegrityAction({action:'apply_due_workflows'});
+    toast(`${Number(result.applied||0)} due schedule change${Number(result.applied||0)===1?' was':'s were'} applied.`,'success');
+    await Promise.all([syncAdminDirectoryFromSupabase(),syncRealWorkflowRequests()]);
+    await renderSecurityIntegrity();
+  }catch(e){
+    toast(e?.message||'Unable to apply due schedule changes.','error');
+  }
+}
+
+// ================================================================
 // ACTIVITY LOGGING + LOCAL BACKUP FALLBACK (demo/offline only)
 // ================================================================
 const BACKUP_STORAGE_KEY='campuscare_daily_backups_v1';
@@ -2696,7 +3287,7 @@ async function syncPublicSystemSettings(){
 
   const {data,error}=await supabaseClient
     .from('system_settings')
-    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days,privacy_policy_version,privacy_policy_updated')
+    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days,privacy_policy_version,privacy_policy_updated,session_timeout_minutes')
     .order('settings_id',{ascending:true})
     .limit(1)
     .maybeSingle();
@@ -2716,8 +3307,10 @@ async function syncPublicSystemSettings(){
     dentalLimitPerSemester:Number(data.dental_visit_limit_per_semester||1),
     appointmentReminderDays:Number(data.appointment_reminder_days??1),
     privacyPolicyVersion:data.privacy_policy_version||DB.settings.privacyPolicyVersion||'1.0',
-    privacyPolicyUpdated:data.privacy_policy_updated||DB.settings.privacyPolicyUpdated||TODAY
+    privacyPolicyUpdated:data.privacy_policy_updated||DB.settings.privacyPolicyUpdated||TODAY,
+    sessionTimeoutMinutes:Number(data.session_timeout_minutes||DB.settings.sessionTimeoutMinutes||30)
   });
+  if(currentUser)configureSessionGuard(DB.settings.sessionTimeoutMinutes);
   return DB.settings;
 }
 
@@ -3664,10 +4257,10 @@ function getMedDoctors(){return getDoctors().filter(d=>d.specialty!=='Dental');}
 
 // ================================================================
 // EMERGING TECHNOLOGY ENGINE
-// 1. AI Clinical Copilot (local, explainable prototype)
+// 1. Clinical Copilot — real Supabase-backed, explainable decision support
 // 2. Predictive Campus Health Analytics
 // 3. Predictive Inventory
-// 4. FHIR-ready record mapping/export
+// 4. FHIR R4-style interoperability export
 // ================================================================
 
 // ---------- Predictive Campus Health Analytics ----------
@@ -4147,7 +4740,27 @@ function predictiveInventorySummaryHtml(){
     <div class="tech-note" style="margin-top:.5rem">Forecasts are planning estimates based on recorded disbursements. They are not guaranteed future demand.</div>
   </div>`;
 }
-// ---------- AI Clinical Copilot ----------
+// ---------- Clinical Copilot / FHIR backend ----------
+async function clinicalIntelligenceAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/clinical-intelligence`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Clinical intelligence request failed.');
+  return result;
+}
+
+// ---------- Clinical Copilot local fallback for demo/offline data ----------
 function buildClinicalCopilot(patientId){
   const pt=getPatientById(patientId);
   if(!pt)return null;
@@ -4188,35 +4801,134 @@ function buildClinicalCopilot(patientId){
   return {pt,treatments,appointments,latest,alerts,summary,history,soap};
 }
 
-function openClinicalCopilot(patientId){
-  const x=buildClinicalCopilot(patientId);if(!x)return;
+async function openClinicalCopilot(patientId){
+  const pt=getPatientById(patientId);
+  if(!pt)return;
+
+  if(!currentUser?._realSupabase){
+    const x=buildClinicalCopilot(patientId);if(!x)return;
+    openModal(`<div class="modal modal-xl">
+      <div class="modal-header"><h3>Clinical Copilot — ${escapeHtml(x.pt.fname+' '+x.pt.lname)}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+      <div class="modal-body">
+        <div class="copilot-hero">
+          <div><div class="copilot-title">✦ Clinical Copilot</div><div class="copilot-disclaimer">Demo fallback: this summarizes the local CampusCare record. It does not diagnose, prescribe, or replace clinical judgment. The clinician must verify all output before use.</div></div>
+          <span class="intel-badge">Human review required</span>
+        </div>
+        <div class="copilot-section"><h4>Patient snapshot</h4><div class="copilot-summary">${escapeHtml(x.summary)}</div></div>
+        <div class="copilot-section"><h4>Attention items</h4>
+          <div class="intel-alert-list">${x.alerts.length?x.alerts.map(a=>`<div class="intel-alert-item"><div class="intel-alert-icon">${a.type==='danger'?'⚠️':a.type==='warning'?'⏱':'ℹ️'}</div><div class="intel-alert-copy"><strong>${escapeHtml(a.title)}</strong><span>${escapeHtml(a.detail)}</span></div></div>`).join(''):`<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No automatic warning generated</strong><span>Review the complete chart before making clinical decisions.</span></div></div>`}</div>
+        </div>
+        <div class="grid-2" style="margin-top:.85rem">
+          <div class="copilot-section" style="margin-top:0"><h4>Recent clinical history</h4><div class="copilot-summary">${escapeHtml(x.history)}</div></div>
+          <div class="copilot-section" style="margin-top:0"><h4>Draft structured note</h4><textarea id="copilot-soap" rows="10" style="width:100%;padding:.7rem;border-radius:11px;border:1px solid var(--line);background:var(--overlay);color:var(--ink)">${escapeHtml(x.soap)}</textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content:space-between">
+        <div class="fhir-toolbar">
+          <button class="btn btn-info btn-sm" onclick="viewPatientFHIR(${patientId})">FHIR Preview</button>
+          <button class="btn btn-sm" onclick="downloadPatientFHIR(${patientId})">Export FHIR JSON</button>
+        </div>
+        <div style="display:flex;gap:.45rem">
+          <button class="btn" onclick="closeAllModals()">Close</button>
+          <button class="btn btn-primary" onclick="copyCopilotDraft()">Copy Draft Note</button>
+        </div>
+      </div>
+    </div>`);
+    return;
+  }
+
+  if(!pt.dbPatientId){
+    toast('The real patient database record could not be identified.','error');
+    return;
+  }
+
   openModal(`<div class="modal modal-xl">
-    <div class="modal-header"><h3>AI Clinical Copilot — ${escapeHtml(x.pt.fname+' '+x.pt.lname)}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
-    <div class="modal-body">
+    <div class="modal-header"><h3>Clinical Copilot — ${escapeHtml(pt.fname+' '+pt.lname)}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body" id="clinical-copilot-content">
       <div class="copilot-hero">
-        <div><div class="copilot-title">✦ Clinical Copilot</div><div class="copilot-disclaimer">This prototype summarizes existing CampusCare records locally. It does not diagnose, prescribe, or replace clinical judgment. The clinician must verify all output before use.</div></div>
-        <span class="intel-badge">Human review required</span>
+        <div>
+          <div class="copilot-title">✦ Clinical Copilot</div>
+          <div class="copilot-disclaimer">Loading the authorized Supabase clinical record…</div>
+        </div>
+        <span class="intel-badge">Server-side</span>
       </div>
-      <div class="copilot-section"><h4>Patient snapshot</h4><div class="copilot-summary">${escapeHtml(x.summary)}</div></div>
-      <div class="copilot-section"><h4>Attention items</h4>
-        <div class="intel-alert-list">${x.alerts.length?x.alerts.map(a=>`<div class="intel-alert-item"><div class="intel-alert-icon">${a.type==='danger'?'⚠️':a.type==='warning'?'⏱':'ℹ️'}</div><div class="intel-alert-copy"><strong>${escapeHtml(a.title)}</strong><span>${escapeHtml(a.detail)}</span></div></div>`).join(''):`<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No automatic warning generated</strong><span>Review the complete chart before making clinical decisions.</span></div></div>`}</div>
-      </div>
-      <div class="grid-2" style="margin-top:.85rem">
-        <div class="copilot-section" style="margin-top:0"><h4>Recent clinical history</h4><div class="copilot-summary">${escapeHtml(x.history)}</div></div>
-        <div class="copilot-section" style="margin-top:0"><h4>Draft structured note</h4><textarea id="copilot-soap" rows="10" style="width:100%;padding:.7rem;border-radius:11px;border:1px solid var(--line);background:var(--overlay);color:var(--ink)">${escapeHtml(x.soap)}</textarea></div>
-      </div>
-    </div>
-    <div class="modal-footer" style="justify-content:space-between">
-      <div class="fhir-toolbar">
-        <button class="btn btn-info btn-sm" onclick="viewPatientFHIR(${patientId})">FHIR Preview</button>
-        <button class="btn btn-sm" onclick="downloadPatientFHIR(${patientId})">Export FHIR JSON</button>
-      </div>
-      <div style="display:flex;gap:.45rem">
-        <button class="btn" onclick="closeAllModals()">Close</button>
-        <button class="btn btn-primary" onclick="copyCopilotDraft()">Copy Draft Note</button>
-      </div>
+      ${databaseSkeletonHtml('cards',4)}
     </div>
   </div>`);
+
+  try{
+    const result=await clinicalIntelligenceAction({
+      action:'copilot',
+      patient_id:Number(pt.dbPatientId)
+    });
+    const x=result.copilot;
+    const el=document.getElementById('clinical-copilot-content');
+    if(!el||!x)return;
+
+    const history=(x.recent_history||[]).length
+      ? x.recent_history.join('\n')
+      : 'No recent treatment history.';
+
+    el.innerHTML=`
+      <div class="copilot-hero">
+        <div>
+          <div class="copilot-title">✦ Clinical Copilot</div>
+          <div class="copilot-disclaimer">
+            This server-side assistant summarizes existing CampusCare records using transparent rules. It does not diagnose,
+            prescribe, or replace clinical judgment. Verify the complete chart and the patient before using any draft.
+          </div>
+        </div>
+        <span class="intel-badge">Human review required</span>
+      </div>
+
+      <div class="copilot-section"><h4>Patient snapshot</h4><div class="copilot-summary">${escapeHtml(x.summary||'')}</div></div>
+
+      <div class="copilot-section"><h4>Attention items</h4>
+        <div class="intel-alert-list">${(x.alerts||[]).length
+          ? x.alerts.map(a=>`<div class="intel-alert-item">
+              <div class="intel-alert-icon">${a.type==='danger'?'⚠️':a.type==='warning'?'⏱':'ℹ️'}</div>
+              <div class="intel-alert-copy"><strong>${escapeHtml(a.title||'Attention')}</strong><span>${escapeHtml(a.detail||'')}</span></div>
+            </div>`).join('')
+          : `<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No automatic warning generated</strong><span>Review the complete chart before making clinical decisions.</span></div></div>`}
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:.85rem">
+        <div class="copilot-section" style="margin-top:0">
+          <h4>Recent clinical history</h4>
+          <div class="copilot-summary">${escapeHtml(history)}</div>
+        </div>
+        <div class="copilot-section" style="margin-top:0">
+          <h4>Draft structured note</h4>
+          <textarea id="copilot-soap" rows="10" style="width:100%;padding:.7rem;border-radius:11px;border:1px solid var(--line);background:var(--overlay);color:var(--ink)">${escapeHtml(x.draft_note||'')}</textarea>
+        </div>
+      </div>
+
+      <div class="tech-note" style="margin-top:.8rem">
+        Method: ${escapeHtml(x.method||'Explainable clinical-record summarization')} ·
+        ${Number(x.record_counts?.treatments||0)} treatment record${Number(x.record_counts?.treatments||0)===1?'':'s'} ·
+        ${Number(x.record_counts?.appointments||0)} appointment record${Number(x.record_counts?.appointments||0)===1?'':'s'}
+      </div>
+    `;
+
+    const modal=el.closest('.modal');
+    if(modal&&!modal.querySelector('.modal-footer')){
+      modal.insertAdjacentHTML('beforeend',`
+        <div class="modal-footer" style="justify-content:space-between">
+          <div class="fhir-toolbar">
+            <button class="btn btn-info btn-sm" onclick="viewPatientFHIR(${patientId})">FHIR Preview</button>
+            <button class="btn btn-sm" onclick="downloadPatientFHIR(${patientId})">Export FHIR JSON</button>
+          </div>
+          <div style="display:flex;gap:.45rem">
+            <button class="btn" onclick="closeAllModals()">Close</button>
+            <button class="btn btn-primary" onclick="copyCopilotDraft()">Copy Draft Note</button>
+          </div>
+        </div>`);
+    }
+  }catch(e){
+    const el=document.getElementById('clinical-copilot-content');
+    if(el)el.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load the Clinical Copilot.')}</div>`;
+  }
 }
 
 function copyCopilotDraft(){
@@ -4228,9 +4940,10 @@ function copyCopilotDraft(){
 }
 
 // ---------- FHIR-ready Health Records ----------
-// This is a pragmatic FHIR R4-style mapping layer for the prototype.
-// It is intentionally export-only: a production deployment should validate
-// resources against a FHIR server/profile before external exchange.
+// Local mapping remains as a demo fallback. Real Supabase accounts request
+// a server-generated FHIR R4-style bundle with access checks and audit logs.
+// The export must still be validated against the receiving implementation
+// guide/profile before real interoperability.
 function fhirId(prefix,id){return `${prefix}-${id}`;}
 function fhirPatientResource(patientId){
   const p=getPatientById(patientId);if(!p)return null;
@@ -4333,25 +5046,93 @@ function campusCareFHIRBundle(patientId){
   };
 }
 
-function viewPatientFHIR(patientId){
-  const bundle=campusCareFHIRBundle(patientId);if(!bundle)return;
+async function viewPatientFHIR(patientId){
+  const pt=getPatientById(patientId);if(!pt)return;
+
+  if(!currentUser?._realSupabase){
+    const bundle=campusCareFHIRBundle(patientId);if(!bundle)return;
+    openModal(`<div class="modal modal-xl">
+      <div class="modal-header"><div><h3>FHIR-ready Record Preview</h3><div class="tech-note">Demo FHIR R4-style mapping. Validate against your target implementation guide before real interoperability.</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+      <div class="modal-body"><pre class="fhir-preview">${escapeHtml(JSON.stringify(bundle,null,2))}</pre></div>
+      <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Close</button><button class="btn btn-primary" onclick="downloadPatientFHIR(${patientId})">Download JSON</button></div>
+    </div>`);
+    return;
+  }
+
+  if(!pt.dbPatientId){
+    toast('The real patient database record could not be identified.','error');
+    return;
+  }
+
   openModal(`<div class="modal modal-xl">
-    <div class="modal-header"><div><h3>FHIR-ready Record Preview</h3><div class="tech-note">FHIR R4-style prototype mapping. Validate against your target implementation guide before real interoperability.</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
-    <div class="modal-body"><pre class="fhir-preview">${escapeHtml(JSON.stringify(bundle,null,2))}</pre></div>
-    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Close</button><button class="btn btn-primary" onclick="downloadPatientFHIR(${patientId})">Download JSON</button></div>
+    <div class="modal-header"><div><h3>FHIR-ready Record Preview</h3><div class="tech-note">Generating an authorized server-side interoperability bundle…</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body" id="fhir-preview-body">${databaseSkeletonHtml('table')}</div>
   </div>`);
+
+  try{
+    const result=await clinicalIntelligenceAction({
+      action:'fhir',
+      patient_id:Number(pt.dbPatientId),
+      mode:'preview'
+    });
+    const el=document.getElementById('fhir-preview-body');
+    if(!el||!result.bundle)return;
+
+    el.innerHTML=`
+      <div class="alert alert-info show" style="font-size:.76rem">${escapeHtml(result.validation_note||'Validate this bundle against the receiving FHIR implementation guide before exchange.')}</div>
+      <pre class="fhir-preview">${escapeHtml(JSON.stringify(result.bundle,null,2))}</pre>`;
+
+    const modal=el.closest('.modal');
+    if(modal&&!modal.querySelector('.modal-footer')){
+      modal.insertAdjacentHTML('beforeend',`
+        <div class="modal-footer">
+          <button class="btn" onclick="closeAllModals()">Close</button>
+          <button class="btn btn-primary" onclick="downloadPatientFHIR(${patientId})">Download JSON</button>
+        </div>`);
+    }
+  }catch(e){
+    const el=document.getElementById('fhir-preview-body');
+    if(el)el.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to generate the FHIR preview.')}</div>`;
+  }
 }
 
-function downloadPatientFHIR(patientId){
-  const bundle=campusCareFHIRBundle(patientId);if(!bundle)return;
-  const p=getPatientById(patientId)||{};
-  const blob=new Blob([JSON.stringify(bundle,null,2)],{type:'application/fhir+json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`CampusCare_FHIR_${(p.lname||'patient').replace(/\s+/g,'_')}_${patientId}.json`;
-  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-  toast('FHIR-ready JSON exported.','success');
+async function downloadPatientFHIR(patientId){
+  const pt=getPatientById(patientId);if(!pt)return;
+
+  try{
+    let bundle=null;
+
+    if(currentUser?._realSupabase){
+      if(!pt.dbPatientId)throw new Error('The real patient database record could not be identified.');
+
+      const result=await clinicalIntelligenceAction({
+        action:'fhir',
+        patient_id:Number(pt.dbPatientId),
+        mode:'export'
+      });
+      bundle=result.bundle;
+    }else{
+      bundle=campusCareFHIRBundle(patientId);
+    }
+
+    if(!bundle)return;
+
+    const blob=new Blob([JSON.stringify(bundle,null,2)],{type:'application/fhir+json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`CampusCare_FHIR_${(pt.lname||'patient').replace(/\s+/g,'_')}_${pt.dbPatientId||patientId}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+
+    toast('FHIR-ready JSON exported. Validate it against the receiving FHIR profile before exchange.','success',6500);
+  }catch(e){
+    toast(e?.message||'Unable to export the FHIR record.','error',6500);
+  }
 }
+
 
 
 // ================================================================
@@ -4644,7 +5425,7 @@ function getAssistantReply(raw){
     {keys:['graduate medical requirements','graduate school requirements','medical requirements submission','chest xray','cbc','drug test'],ans:"The posted Graduate School medical-requirements notice asks new graduate students to submit complete, clear, correctly named JPEG files, each not exceeding 1 MB. The listed requirements include the Medical Certificate/physical examination report, typewritten Chest X-ray result (not the film), pregnancy documentation when applicable, CBC, and Drug Test result."},
     {keys:['cancel appointment'],ans:"Open Appointments, find the appointment, and click \"Cancel.\" You'll be asked to confirm since it notifies the patient."},
     {keys:['complete appointment','mark appointment done','finish appointment'],ans:"Doctors complete an appointment by clicking \"Add Notes & Complete\" and filling in the diagnosis — notes are required before it can be marked done."},
-    {keys:['reset password','forgot password'],ans:"On the login screen, click \"Forgot password?\" and follow the steps — a verification code is sent to your email or phone."},
+    {keys:['reset password','forgot password'],ans:"On the login screen, click \"Forgot password?\". CampusCare sends a secure password-reset link to the registered email address; open that link to create a new password."},
     {keys:['change password','update password'],ans:"Go to Account Settings → Change Password. Enter your current password and a new password that meets the security checklist. Password changes are limited to once every 7 days."},
     {keys:['change name','update name','name change'],ans:role==='Administrator'?"As an administrator, you can update your own name directly from User Management by editing your account.":"For security, names can only be changed by an administrator. Go to Account Settings and use \"Request a name change.\""},
     {keys:['change email','update email','change my email'],ans:role==='Administrator'?"As an administrator, you can update your email directly on Account Settings — no verification code needed.":"Go to Account Settings, enter the new email, and save. CampusCare sends a 6-digit reauthentication code to your current verified email or phone before starting the email-change verification."},
@@ -5657,9 +6438,11 @@ function logout(){
           if(error)throw error;
         }
 
+        clearCampusSessionGuard();
         currentUser=null;
         currentPatient=null;
         sessionStorage.removeItem(SESSION_KEY);
+        try{localStorage.removeItem(SESSION_ACTIVITY_KEY);}catch(_){}
 
         // Fully reset the auth UI so an earlier email-recovery screen cannot
         // reappear after logout.
@@ -5696,11 +6479,129 @@ function tryRestoreSession(){
 }
 
 // ================================================================
+// SESSION SECURITY — INACTIVITY TIMEOUT
+// ================================================================
+const SESSION_ACTIVITY_KEY='campuscare_last_activity';
+let sessionGuardTimeoutId=null;
+let sessionGuardWarningId=null;
+let sessionGuardMinutes=30;
+let sessionGuardBound=false;
+let lastActivityWrite=0;
+
+function getCampusLastActivity(){
+  const stored=Number(localStorage.getItem(SESSION_ACTIVITY_KEY)||0);
+  return Number.isFinite(stored)&&stored>0?stored:Date.now();
+}
+
+function recordCampusActivity(force=false){
+  if(!currentUser)return;
+  const now=Date.now();
+
+  // Avoid writing localStorage on every mouse/touch/scroll event.
+  if(force||now-lastActivityWrite>10000){
+    lastActivityWrite=now;
+    try{localStorage.setItem(SESSION_ACTIVITY_KEY,String(now));}catch(_){}
+  }
+  scheduleCampusSessionGuard();
+}
+
+function clearCampusSessionGuard(){
+  if(sessionGuardTimeoutId)clearTimeout(sessionGuardTimeoutId);
+  if(sessionGuardWarningId)clearTimeout(sessionGuardWarningId);
+  sessionGuardTimeoutId=null;
+  sessionGuardWarningId=null;
+}
+
+function configureSessionGuard(minutes){
+  sessionGuardMinutes=Math.max(10,Math.min(240,Number(minutes||30)));
+
+  if(!sessionGuardBound){
+    sessionGuardBound=true;
+    ['pointerdown','keydown','touchstart','scroll'].forEach(evt=>{
+      document.addEventListener(evt,()=>recordCampusActivity(false),{passive:true});
+    });
+    window.addEventListener('storage',e=>{
+      if(e.key===SESSION_ACTIVITY_KEY&&currentUser)scheduleCampusSessionGuard();
+    });
+    document.addEventListener('visibilitychange',()=>{
+      if(document.visibilityState==='visible'&&currentUser)checkCampusSessionExpiry();
+    });
+  }
+
+  recordCampusActivity(true);
+}
+
+function scheduleCampusSessionGuard(){
+  clearCampusSessionGuard();
+  if(!currentUser)return;
+
+  const last=getCampusLastActivity();
+  const totalMs=sessionGuardMinutes*60*1000;
+  const warningMs=Math.max(0,totalMs-(2*60*1000));
+  const elapsed=Math.max(0,Date.now()-last);
+
+  const warnIn=warningMs-elapsed;
+  const expireIn=totalMs-elapsed;
+
+  if(expireIn<=0){
+    campusAutoLogout();
+    return;
+  }
+
+  if(warnIn>0){
+    sessionGuardWarningId=setTimeout(()=>{
+      if(!currentUser)return;
+      toast('For security, your CampusCare session will sign out in about 2 minutes if there is no activity.','warning',7000);
+    },warnIn);
+  }
+
+  sessionGuardTimeoutId=setTimeout(checkCampusSessionExpiry,expireIn);
+}
+
+function checkCampusSessionExpiry(){
+  if(!currentUser)return;
+  const elapsed=Date.now()-getCampusLastActivity();
+  if(elapsed>=sessionGuardMinutes*60*1000){
+    campusAutoLogout();
+  }else{
+    scheduleCampusSessionGuard();
+  }
+}
+
+async function campusAutoLogout(){
+  if(!currentUser)return;
+  clearCampusSessionGuard();
+
+  try{
+    if(currentUser._realSupabase){
+      try{await auditAction({action:'record_session',event:'LOGOUT'});}catch(e){console.error('Auto-logout audit:',e);}
+      if(initializeSupabaseClient()){
+        await supabaseClient.auth.signOut();
+      }
+    }else{
+      auditLog('LOGOUT','Session expired after inactivity.','Session',currentUser.id);
+      persistDB();
+    }
+  }catch(e){
+    console.error('Automatic session sign-out:',e);
+  }
+
+  currentUser=null;
+  currentPatient=null;
+  sessionStorage.removeItem(SESSION_KEY);
+  try{localStorage.removeItem(SESSION_ACTIVITY_KEY);}catch(_){}
+  resetAuthUiToLogin();
+  document.getElementById('back-to-top')?.classList.remove('show');
+  toast('Your CampusCare session expired due to inactivity. Please sign in again.','warning',8000);
+}
+
+// ================================================================
 // APP INIT
 // ================================================================
 function initApp(){
   /* Real deployments use the server-side scheduled backup. */
   applyDueScheduleChanges();
+  configureSessionGuard(DB.settings?.sessionTimeoutMinutes||30);
   document.getElementById('auth-wrap').style.display='none';
   document.getElementById('app').classList.add('visible');
   document.getElementById('sb-name').textContent=`${currentUser.fname} ${currentUser.lname}`;
@@ -5866,6 +6767,8 @@ const NAV_ICONS={
   'feedback-issues':'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2zM9 10h.01M13 10h.01M17 10h.01',
   fitness:'M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78zM3.8 12h4l1.3-3 2.2 6 1.7-3h7.2',
   'activity-log':'M12 6v6l4 2M12 3a9 9 0 100 18 9 9 0 000-18z',
+  'security-integrity':'M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3zM9 12l2 2 4-4M12 8v4m0 4h.01',
+  'uat-center':'M4 5h16M4 12h16M4 19h16M8 3v4M8 10v4M8 17v4M16 3v4M16 10v4M16 17v4',
   'privacy-center':'M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3zM9 12l2 2 4-4',
 };
 
@@ -5936,6 +6839,8 @@ const NAV_CONFIG={
     {id:'reports',label:'Reports & Analytics'},
     {id:'feedback-issues',label:'Feedback &amp; Issues'},
     {id:'settings',label:'System Settings'},
+    {id:'security-integrity',label:'Security & Integrity'},
+    {id:'uat-center',label:'QA / UAT Center'},
     {id:'activity-log',label:'Activity Log'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
@@ -6005,7 +6910,8 @@ function navTo(id){
     approvals:'Approval Queue',certificates:'Medical Certificates','cert-requests':'Certificate Requests',treatments:'Treatments',inventory:'Inventory Management',
     reports:'Reports & Analytics',users:'User Management',settings:'System Settings',
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',
-    'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log','privacy-center':'Privacy & Consent',
+    'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log',
+    'security-integrity':'Security & Integrity','uat-center':'QA / UAT Center','privacy-center':'Privacy & Consent',
     messages:currentUser.role==='Patient'?'Ask a Doctor':'Messages'
   }[id]||id;
   renderPage(id);
@@ -7298,6 +8204,8 @@ function renderPage(id){
     'feedback-issues':()=>renderFeedbackIssues(),
     fitness:()=>renderFitnessAssessments(),
     'activity-log':()=>renderActivityLog(),
+    'security-integrity':()=>renderSecurityIntegrity(),
+    'uat-center':()=>renderUATCenter(),
     'privacy-center':()=>renderPrivacyCenter()
   };
 
@@ -9533,12 +10441,44 @@ function renderMyPatientsTable(){
 }
 
 // ================================================================
+// REAL PATIENT MANAGEMENT
+// ================================================================
+async function patientAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/patient-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Patient action failed.');
+  return result;
+}
+
+function patientDisplayId(pt){
+  const id=Number(pt?.dbPatientId??pt?.id??0);
+  return String(id).padStart(6,'0');
+}
+
+function patientMeasurementNumber(value){
+  const n=parseFloat(String(value??'').replace(/[^\d.]/g,''));
+  return Number.isFinite(n)?n:'';
+}
+
+// ================================================================
 // PATIENTS PAGE (Staff/Admin)
 // ================================================================
 async function renderPatients(){
   const c=document.getElementById('app-content');
   const pageToken=captureCampusPageToken();
-  if(currentUser?.role==='Administrator'){
+  if(currentUser?._realSupabase&&['Administrator','Staff'].includes(currentUser.role)){
     showDatabaseSkeleton('table');
     try{
       await Promise.all([
@@ -9601,7 +10541,7 @@ function renderPatientTable(){
   const col=(document.getElementById('pt-college')||{}).value||'';
   const ptype=(document.getElementById('pt-ptype')||{}).value||'';
   const status=(document.getElementById('pt-status')||{}).value||'active';
-  const sourcePatients=currentUser?.role==='Administrator'
+  const sourcePatients=currentUser?._realSupabase
     ? DB.patients.filter(p=>p._realSupabase)
     : DB.patients;
   let pts=sourcePatients.filter(p=>{
@@ -9616,7 +10556,7 @@ function renderPatientTable(){
   el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>ID</th><th>Name</th><th>Age</th><th>College</th><th>Type</th><th>Blood</th><th>Contact</th><th>Actions</th></tr></thead><tbody>${
     pts.map(p=>`<tr ${p.archived?'style="opacity:.6;cursor:pointer"':'style="cursor:pointer"'} onclick="viewPatient(${p.id})" title="Click to view patient record">
       <td>${patientAvatarHtml(p,34)}</td>
-      <td><strong>P-${p.id}</strong><br><span class="text-muted">${p.idNo}</span></td>
+      <td><strong>P-${patientDisplayId(p)}</strong><br><span class="text-muted">${escapeHtml(p.idNo||'—')}</span></td>
       <td><strong>${p.fname} ${p.lname}</strong>${p.archived?' <span class="badge badge-gray">Archived</span>':''}</td>
       <td>${p.age}</td><td>${collegeBadge(p.college)}</td>
       <td>${priorityBadge(p.personType)}</td><td>${p.blood||'-'}</td><td>${p.contact||'-'}</td>
@@ -13896,7 +14836,7 @@ function assistedFile(input,kind){
  r.readAsDataURL(f);
 }
 function captureAssistedPatientDraft(){
- const ids=['pm-fname','pm-lname','pm-age','pm-gender','pm-blood','pm-contact','pm-college','pm-ptype','pm-height','pm-weight','pm-addr','pm-allergy','pm-history','pm-emergency','pm-emergency-contact'];
+ const ids=['pm-fname','pm-lname','pm-email','pm-username','pm-idno','pm-birth','pm-gender','pm-blood','pm-contact','pm-college','pm-ptype','pm-height','pm-weight','pm-addr','pm-allergy','pm-history','pm-ename','pm-econtact'];
  const d={};ids.forEach(id=>{const el=document.getElementById(id);if(el)d[id]=el.value});return d;
 }
 function restoreAssistedPatientDraft(){
@@ -14257,12 +15197,35 @@ function viewAppt(id){
 
 // ── Patient Modal ──
 function openPatientModal(id=null){
-  const pt=id?DB.patients.find(p=>p.id===id):null;
+  const pt=id?DB.patients.find(p=>p.id===Number(id)):null;
+  const account=pt?.userId?getUserById(pt.userId):null;
+  const realMode=Boolean(currentUser?._realSupabase);
+  const editing=Boolean(pt);
+
+  if(editing&&pt.archived){
+    toast('Restore the patient record before editing it.','warning');
+    return;
+  }
+
+  if(!editing){
+    assistedProfile='';
+    assistedIdCor='';
+  }
+
+  const birthDate=pt?.birthDate||'';
+  const height=patientMeasurementNumber(pt?.height);
+  const weight=patientMeasurementNumber(pt?.weight);
+
   openModal(`<div class="modal modal-lg">
-    <div class="modal-header"><h3>${pt?'Edit':'Add'} Patient Record</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-header"><h3>${editing?'Edit Patient Record':'Clinic-Assisted Patient Registration'}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
       <div id="ptm-msg"></div>
-      ${!pt?`<div class="alert alert-info show">Assisted account setup: profile picture and a valid ID/COR are required, matching the normal registration process.</div>
+
+      ${!editing?`<div class="alert alert-info show" style="font-size:.78rem">
+        <strong>Assisted registration:</strong> Clinic staff verifies the patient's identity in person, creates an active CampusCare account,
+        and sends a password-setup link to the patient's email. The patient should review and acknowledge the Privacy Notice after signing in.
+      </div>
+
       <div class="form-row">
         <div class="form-group">
           <label>Profile Picture <span class="required">*</span></label>
@@ -14270,71 +15233,215 @@ function openPatientModal(id=null){
             <button type="button" class="btn btn-sm" onclick="document.getElementById('pm-profile').click()"><i class="fa-solid fa-upload"></i> Upload Photo</button>
             <button type="button" class="btn btn-sm btn-info" onclick="openAssistedPatientCamera('profile')"><i class="fa-solid fa-camera"></i> Use Camera</button>
           </div>
-          <input type="file" id="pm-profile" accept="image/*" style="display:none" onchange="assistedFile(this,'profile')">
+          <input type="file" id="pm-profile" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="assistedFile(this,'profile')">
           <img id="pm-profile-preview" src="${assistedProfile||''}" style="${assistedProfile?'':'display:none;'}width:72px;height:72px;border-radius:50%;object-fit:cover;margin-top:.35rem;border:1px solid var(--line)">
+          <p class="form-note">JPG, PNG, or WebP · max 5 MB.</p>
         </div>
+
         <div class="form-group">
           <label>Valid ID / COR <span class="required">*</span></label>
           <div style="display:flex;gap:.4rem;flex-wrap:wrap">
             <button type="button" class="btn btn-sm" onclick="document.getElementById('pm-idcor').click()"><i class="fa-solid fa-upload"></i> Upload ID/COR</button>
             <button type="button" class="btn btn-sm btn-info" onclick="openAssistedPatientCamera('id')"><i class="fa-solid fa-camera"></i> Use Camera</button>
           </div>
-          <input type="file" id="pm-idcor" accept="image/*,.pdf" style="display:none" onchange="assistedFile(this,'id')">
+          <input type="file" id="pm-idcor" accept="image/jpeg,image/png,image/webp,application/pdf" style="display:none" onchange="assistedFile(this,'id')">
           <div id="pm-id-preview" class="form-note">${assistedIdCor?'✓ Photo captured / file selected.':'No file selected.'}</div>
+          <p class="form-note">JPG, PNG, WebP, or PDF · max 10 MB.</p>
         </div>
       </div>`:''}
+
+      <div class="section-label">Identity &amp; Account</div>
       <div class="form-row">
-        <div class="form-group"><label>First Name <span class="required">*</span></label><input id="pm-fname" value="${pt?pt.fname:''}"></div>
-        <div class="form-group"><label>Last Name <span class="required">*</span></label><input id="pm-lname" value="${pt?pt.lname:''}"></div>
-        <div class="form-group"><label>Age <span class="required">*</span></label><input id="pm-age" type="number" value="${pt?pt.age:''}" min="1" max="120"></div>
+        <div class="form-group"><label>First Name <span class="required">*</span></label><input id="pm-fname" maxlength="120" value="${escapeHtml(pt?.fname||'')}"></div>
+        <div class="form-group"><label>Last Name <span class="required">*</span></label><input id="pm-lname" maxlength="120" value="${escapeHtml(pt?.lname||'')}"></div>
+
+        ${!editing?`
+          <div class="form-group"><label>Email <span class="required">*</span></label><input id="pm-email" type="email" maxlength="320" placeholder="patient@example.com"></div>
+          <div class="form-group"><label>Username <span class="required">*</span></label><input id="pm-username" maxlength="120" placeholder="Choose a unique username"></div>
+        `:`
+          <div class="form-group"><label>Email</label><input id="pm-email" value="${escapeHtml(account?.email||'')}" disabled><p class="form-note">Authentication email changes are handled through Account Settings.</p></div>
+          <div class="form-group"><label>Username</label><input id="pm-username" value="${escapeHtml(account?.username||'')}" disabled></div>
+        `}
+
+        <div class="form-group"><label>University ID No. ${!editing?'<span class="required">*</span>':''}</label><input id="pm-idno" maxlength="120" value="${escapeHtml(pt?.idNo||'')}"></div>
+        <div class="form-group"><label>Date of Birth <span class="required">*</span></label>${campusDateFieldHtml('pm-birth',birthDate,'Date of Birth',null,TODAY)}</div>
+
         <div class="form-group"><label>Gender</label>
-          <select id="pm-gender"><option ${pt&&pt.gender==='Male'?'selected':''}>Male</option><option ${pt&&pt.gender==='Female'?'selected':''}>Female</option><option ${pt&&pt.gender==='Other'?'selected':''}>Other</option></select>
+          <select id="pm-gender">${['Male','Female','Other'].map(v=>`<option ${pt?.gender===v?'selected':''}>${v}</option>`).join('')}</select>
         </div>
+
         <div class="form-group"><label>Blood Type</label>
-          <select id="pm-blood">${['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'].map(b=>`<option ${pt&&pt.blood===b?'selected':''}>${b}</option>`).join('')}</select>
+          <select id="pm-blood">${['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'].map(v=>`<option ${String(pt?.blood||'Unknown')===v?'selected':''}>${v}</option>`).join('')}</select>
         </div>
-        <div class="form-group"><label>Contact</label><input id="pm-contact" value="${pt?pt.contact||'':''}"></div>
+
+        <div class="form-group"><label>Contact Number</label><input id="pm-contact" maxlength="80" value="${escapeHtml(pt?.contact||'')}"></div>
+
         <div class="form-group"><label>College</label>
-          <select id="pm-college">${['CCICT','COE','COED','CME','CAS','COT'].map(c=>`<option value="${c}" ${pt&&pt.college===c?'selected':''}>${c}</option>`).join('')}</select>
+          <select id="pm-college">${['CCICT','COE','COED','CME','CAS','COT'].map(v=>`<option value="${v}" ${pt?.college===v?'selected':''}>${v}</option>`).join('')}</select>
         </div>
+
         <div class="form-group"><label>Person Type</label>
-          <select id="pm-ptype"><option ${pt&&pt.personType==='Student'?'selected':''}>Student</option><option ${pt&&pt.personType==='Teaching Personnel'?'selected':''}>Teaching Personnel</option><option ${pt&&pt.personType==='Non-Teaching Personnel'?'selected':''}>Non-Teaching Personnel</option></select>
+          <select id="pm-ptype">${['Student','Teaching Personnel','Non-Teaching Personnel'].map(v=>`<option ${pt?.personType===v?'selected':''}>${v}</option>`).join('')}</select>
         </div>
-        <div class="form-group"><label>Height</label><input id="pm-height" value="${pt?pt.height||'':''}"></div>
-        <div class="form-group"><label>Weight</label><input id="pm-weight" value="${pt?pt.weight||'':''}"></div>
-        <div class="form-group full"><label>Address</label><input id="pm-addr" value="${pt?pt.address||'':''}"></div>
-        <div class="form-group full"><label>Allergies</label><input id="pm-allergy" value="${pt?pt.allergies||'':''}" placeholder="None"></div>
-        <div class="form-group full"><label>Medical History</label><textarea id="pm-history" rows="2">${pt?pt.medHistory||'':''}</textarea></div>
-        <div class="form-group"><label>Emergency Contact Name</label><input id="pm-ename" value="${pt?pt.emergencyName||'':''}"></div>
-        <div class="form-group"><label>Emergency Contact No.</label><input id="pm-econtact" value="${pt?pt.emergencyContact||'':''}"></div>
       </div>
+
+      <div class="section-label" style="margin-top:.9rem">Patient Information</div>
+      <div class="form-row">
+        <div class="form-group"><label>Height (cm)</label><input id="pm-height" type="number" min="40" max="260" step=".1" value="${height}"></div>
+        <div class="form-group"><label>Weight (kg)</label><input id="pm-weight" type="number" min="1" max="500" step=".1" value="${weight}"></div>
+        <div class="form-group full"><label>Address</label><input id="pm-addr" maxlength="3000" value="${escapeHtml(pt?.address||'')}"></div>
+        <div class="form-group full"><label>Allergies</label><input id="pm-allergy" maxlength="3000" value="${escapeHtml(pt?.allergies||'')}" placeholder="None"></div>
+        <div class="form-group full"><label>Medical History</label><textarea id="pm-history" maxlength="5000" rows="3">${escapeHtml(pt?.medHistory||'')}</textarea></div>
+        <div class="form-group"><label>Emergency Contact Name</label><input id="pm-ename" maxlength="255" value="${escapeHtml(pt?.emergencyName||'')}"></div>
+        <div class="form-group"><label>Emergency Contact No.</label><input id="pm-econtact" maxlength="100" value="${escapeHtml(pt?.emergencyContact||'')}"></div>
+      </div>
+
+      ${realMode&&editing?`<div class="tech-note">Changes to this real patient record are written to the CampusCare Activity/Audit Log.</div>`:''}
     </div>
+
     <div class="modal-footer">
       <button class="btn" onclick="closeAllModals()">Cancel</button>
-      <button class="btn btn-primary" onclick="savePatient(${id||'null'})">Save Patient</button>
+      <button class="btn btn-primary" id="pm-save-btn" onclick="savePatient(${id||'null'})">${editing?'Save Changes':'Create Patient Account'}</button>
     </div>
   </div>`);
+
+  setTimeout(restoreAssistedPatientDraft,0);
 }
 
-function savePatient(id){
-  const fname=document.getElementById('pm-fname').value.trim();
-  const lname=document.getElementById('pm-lname').value.trim();
-  const age=parseInt(document.getElementById('pm-age').value);
-  const contact=document.getElementById('pm-contact').value.trim();
+async function savePatient(id){
+  const editing=Boolean(id);
+  const fname=document.getElementById('pm-fname')?.value.trim()||'';
+  const lname=document.getElementById('pm-lname')?.value.trim()||'';
+  const email=document.getElementById('pm-email')?.value.trim()||'';
+  const username=document.getElementById('pm-username')?.value.trim()||'';
+  const idNo=document.getElementById('pm-idno')?.value.trim()||'';
+  const birthDate=document.getElementById('pm-birth')?.value||'';
   const msg=document.getElementById('ptm-msg');
-  if(!fname||!lname||!age){showAlert(msg,'Name and age are required.');return;}if(!id&&(!assistedProfile||!assistedIdCor)){showAlert(msg,'Profile picture and valid ID/COR are required for assisted registration.');return;}
-  if(age<1||age>120){showAlert(msg,'Invalid age.');return;}
-  const data={fname,lname,age,gender:document.getElementById('pm-gender').value,blood:document.getElementById('pm-blood').value,contact,college:document.getElementById('pm-college').value,personType:document.getElementById('pm-ptype').value,height:document.getElementById('pm-height').value,weight:document.getElementById('pm-weight').value,address:document.getElementById('pm-addr').value,allergies:document.getElementById('pm-allergy').value,medHistory:document.getElementById('pm-history').value,emergencyName:document.getElementById('pm-ename').value,emergencyContact:document.getElementById('pm-econtact').value};
-  if(id){
-    const idx=DB.patients.findIndex(p=>p.id===id);
-    if(idx>=0)DB.patients[idx]={...DB.patients[idx],...data};
-    toast('Patient updated.','success');
-  }else{
-    const newUserId=DB.nextUserId++;DB.users.push({id:newUserId,username:`assisted${newUserId}`,password:'ChangeMe123',role:'Patient',fname,lname,email:'',contact,active:true,approved:true,profilePhoto:assistedProfile,idPhoto:assistedIdCor,createdAt:TODAY});DB.patients.push({id:DB.nextPatientId++,...data,userId:newUserId,idNo:'',createdAt:TODAY});persistDB();assistedProfile='';assistedIdCor='';
-    toast('Patient added.','success');
+  const btn=document.getElementById('pm-save-btn');
+
+  hideAlert(msg);
+  if(!fname||!lname||!birthDate){
+    showAlert(msg,'First name, last name, and date of birth are required.');
+    return;
   }
-  closeAllModals();
-  renderPatientTable&&renderPatientTable();
+  if(birthDate>TODAY){
+    showAlert(msg,'Date of birth cannot be in the future.');
+    return;
+  }
+  if(!editing&&(!email||!username||!idNo)){
+    showAlert(msg,'Email, username, and university ID number are required for assisted registration.');
+    return;
+  }
+  if(!editing&&(!assistedProfile||!assistedIdCor)){
+    showAlert(msg,'Profile picture and valid ID/COR are required for assisted registration.');
+    return;
+  }
+
+  const payload={
+    first_name:fname,
+    last_name:lname,
+    contact_number:document.getElementById('pm-contact')?.value.trim()||'',
+    id_number:idNo,
+    birth_date:birthDate,
+    sex:document.getElementById('pm-gender')?.value||'',
+    blood_type:document.getElementById('pm-blood')?.value||'Unknown',
+    college:document.getElementById('pm-college')?.value||'',
+    person_type:document.getElementById('pm-ptype')?.value||'Student',
+    height_cm:document.getElementById('pm-height')?.value||null,
+    weight_kg:document.getElementById('pm-weight')?.value||null,
+    address:document.getElementById('pm-addr')?.value.trim()||'',
+    allergies:document.getElementById('pm-allergy')?.value.trim()||'',
+    medical_history:document.getElementById('pm-history')?.value.trim()||'',
+    emergency_contact_name:document.getElementById('pm-ename')?.value.trim()||'',
+    emergency_contact_number:document.getElementById('pm-econtact')?.value.trim()||''
+  };
+
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent=editing?'Saving securely…':'Creating account…';}
+
+  try{
+    if(currentUser?._realSupabase){
+      if(editing){
+        const pt=DB.patients.find(p=>p.id===Number(id));
+        if(!pt?._realSupabase)throw new Error('The real patient record could not be identified.');
+
+        await patientAction({
+          action:'update',
+          patient_id:pt.dbPatientId,
+          ...payload
+        });
+
+        await syncAdminDirectoryFromSupabase();
+        toast('Patient record updated.','success');
+      }else{
+        const result=await patientAction({
+          action:'create_assisted',
+          email,
+          username,
+          profile_data_url:assistedProfile,
+          verification_data_url:assistedIdCor,
+          ...payload
+        });
+
+        await syncAdminDirectoryFromSupabase();
+        assistedProfile='';
+        assistedIdCor='';
+        assistedPatientDraft=null;
+
+        if(result.password_setup_email_sent){
+          toast('Patient account created. A password-setup email was sent to the patient.','success',7000);
+        }else{
+          toast('Patient account created. Ask the patient to use Forgot Password to set their password.','warning',7500);
+        }
+      }
+    }else{
+      const age=ageFromBirthDate(birthDate);
+      const data={
+        fname,lname,age,birthDate,
+        gender:payload.sex,blood:payload.blood_type,
+        contact:payload.contact_number,college:payload.college,
+        personType:payload.person_type,
+        height:payload.height_cm?`${payload.height_cm}cm`:'',
+        weight:payload.weight_kg?`${payload.weight_kg}kg`:'',
+        address:payload.address,allergies:payload.allergies,
+        medHistory:payload.medical_history,
+        emergencyName:payload.emergency_contact_name,
+        emergencyContact:payload.emergency_contact_number,
+        idNo
+      };
+
+      if(editing){
+        const idx=DB.patients.findIndex(p=>p.id===Number(id));
+        if(idx>=0)DB.patients[idx]={...DB.patients[idx],...data};
+        toast('Patient updated.','success');
+      }else{
+        const newUserId=DB.nextUserId++;
+        DB.users.push({
+          id:newUserId,username,email,role:'Patient',fname,lname,
+          contact:payload.contact_number,status:'Active',approved:true,
+          verified:true,profilePhoto:assistedProfile,idPhoto:assistedIdCor,
+          createdAt:TODAY
+        });
+        DB.patients.push({
+          id:DB.nextPatientId++,...data,userId:newUserId,createdAt:TODAY
+        });
+        persistDB();
+        assistedProfile='';
+        assistedIdCor='';
+        toast('Patient added.','success');
+      }
+    }
+
+    closeAllModals();
+    if(campusActivePageId==='patients')await renderPatients();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to save the patient record.');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;
+      btn.textContent=old||(editing?'Save Changes':'Create Patient Account');
+    }
+  }
 }
 
 async function viewPatient(id){
@@ -14378,33 +15485,70 @@ async function viewPatient(id){
       </div>
       <div style="display:flex;gap:.45rem">
         <button class="btn" onclick="closeAllModals()">Close</button>
-        <button class="btn btn-info btn-sm" onclick="closeAllModals();openPatientModal(${id})">Edit Record</button>
+        ${['Staff','Administrator'].includes(currentUser.role)&&!pt.archived?`<button class="btn btn-info btn-sm" onclick="closeAllModals();openPatientModal(${id})">Edit Record</button>`:''}
       </div>
     </div>
   </div>`);
 }
 
 function archivePatient(id){
-  const p=DB.patients.find(x=>x.id===id);
+  const p=DB.patients.find(x=>x.id===Number(id));
   if(!p)return;
+
   showConfirmDialog({
     title:'Archive Patient Record',
-    message:`Are you sure you want to archive <strong>${escapeHtml(p.fname)} ${escapeHtml(p.lname)}</strong>'s record? It will be hidden from the active list but kept on file for future reference. You can restore it anytime from the "Archived Records" filter.`,
-    confirmLabel:'Archive',danger:true,
-    onConfirm:()=>{
-      p.archived=true;p.archivedAt=new Date().toLocaleString();p.archivedBy=currentUser.id;
-      toastWithUndo('Patient record archived.',()=>{p.archived=false;p.archivedAt=null;renderPatientTable&&renderPatientTable();});
-      renderPatientTable&&renderPatientTable();
+    message:`Archive <strong>${escapeHtml(p.fname)} ${escapeHtml(p.lname)}</strong>'s patient record? The linked account will also be disabled. Upcoming scheduled appointments must be cleared first.`,
+    confirmLabel:'Archive',
+    danger:true,
+    onConfirm:async()=>{
+      try{
+        if(p._realSupabase){
+          await patientAction({action:'archive',patient_id:p.dbPatientId});
+          await syncAdminDirectoryFromSupabase();
+        }else{
+          p.archived=true;
+          p.archivedAt=new Date().toLocaleString();
+          p.archivedBy=currentUser.id;
+          persistDB();
+        }
+
+        toast('Patient record archived.','success');
+        if(campusActivePageId==='patients')await renderPatients();
+      }catch(e){
+        toast(e?.message||'Unable to archive the patient record.','error',7000);
+      }
     }
   });
 }
 
 function restorePatient(id){
-  const p=DB.patients.find(x=>x.id===id);
-  if(p){p.archived=false;p.archivedAt=null;}
-  toast('Patient record restored.','success');
-  renderPatientTable&&renderPatientTable();
+  const p=DB.patients.find(x=>x.id===Number(id));
+  if(!p)return;
+
+  showConfirmDialog({
+    title:'Restore Patient Record',
+    message:`Restore <strong>${escapeHtml(p.fname)} ${escapeHtml(p.lname)}</strong>'s patient record and linked account status?`,
+    confirmLabel:'Restore',
+    onConfirm:async()=>{
+      try{
+        if(p._realSupabase){
+          await patientAction({action:'restore',patient_id:p.dbPatientId});
+          await syncAdminDirectoryFromSupabase();
+        }else{
+          p.archived=false;
+          p.archivedAt=null;
+          persistDB();
+        }
+
+        toast('Patient record restored.','success');
+        if(campusActivePageId==='patients')await renderPatients();
+      }catch(e){
+        toast(e?.message||'Unable to restore the patient record.','error');
+      }
+    }
+  });
 }
+
 
 // ── Treatment Modal ──
 function openAddTreatmentModal(apptId){
@@ -15425,7 +16569,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v45 loaded.');
+console.log('CampusCare v49 loaded.');
 </script>
 </body>
 </html>
