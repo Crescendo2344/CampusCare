@@ -161,7 +161,9 @@ function fetchWithTimeout(url,options={},timeoutMs=7000){
 }
 
 async function fetchAdminDirectory(){
-  if(currentUser?.role!=='Administrator')return [];
+  // Doctors and Staff also need the clinical directory so real
+  // appointments can resolve their patient/doctor relationships.
+  if(!['Administrator','Staff','Doctor'].includes(currentUser?.role))return [];
 
   // Administrator RLS policies already allow read access to users and patients,
   // so load the directory directly from Supabase instead of waiting on an Edge Function.
@@ -1492,6 +1494,14 @@ tbody tr:hover td{background:var(--overlay)}
   font-size:.82rem;
   font-weight:600;
 }
+
+
+/* Clickable record links inside appointment tables/modals. */
+.link-btn{
+  appearance:none;border:0;background:none;padding:0;margin:0;
+  color:var(--ink);font:inherit;text-align:left;cursor:pointer;
+}
+.link-btn:hover{color:var(--primary);text-decoration:underline}
 
 </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -5619,6 +5629,16 @@ function markReminderTaken(id) {
 // ================================================================
 // REAL SUPABASE APPOINTMENTS
 // ================================================================
+
+function appointmentDisplayId(a){
+  const id=Number(a?.dbAppointmentId??a?.id??0);
+  return String(id).padStart(6,'0');
+}
+
+function openAppointmentFromRow(id){
+  viewAppt(Number(id));
+}
+
 function appointmentRecords(){
   if(currentUser?._realSupabase)return (DB.appointments||[]).filter(a=>a._realSupabase);
   return DB.appointments||[];
@@ -5834,12 +5854,12 @@ function renderMyApptsList(appts,filter){
       const doc=getUserById(a.doctorId);
       const canCancel=a.status==='Scheduled'&&a.date>=TODAY;
       const canReschedule=a.status==='Scheduled'&&a.date>TODAY;
-      return`<tr>
-        <td>#${a.id}</td><td>${a.clinic}</td><td>${a.service}</td>
+      return`<tr style="cursor:pointer" onclick="viewAppt(${a.id})" title="Click to open appointment">
+        <td>#${appointmentDisplayId(a)}</td><td>${a.clinic}</td><td>${a.service}</td>
         <td>${fmtDate(a.date)}</td><td>${fmtTime(a.time)}</td>
         <td>Dr. ${doc?doc.lname:'Unknown'}</td>
         <td>${statusBadge(a.status)}</td>
-        <td><div class="td-actions">
+        <td><div class="td-actions" onclick="event.stopPropagation()">
           ${canReschedule?`<button class="btn btn-xs btn-info" onclick="openRescheduleModal(${a.id})">Reschedule</button>`:''}
           ${canCancel?`<button class="btn btn-xs btn-danger" onclick="cancelAppt(${a.id},true)">Cancel</button>`:''}
           ${a.status==='Completed'?`<button class="btn btn-xs" onclick="viewTreatmentForAppt(${a.id})">View Notes</button>`:''}
@@ -6787,8 +6807,18 @@ async function changeAccountPassword(){
 // ================================================================
 // DOCTOR – SCHEDULE
 // ================================================================
-function renderDoctorSchedule(){
+async function renderDoctorSchedule(){
   const c=document.getElementById('app-content');
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('table');
+    try{await syncAppointmentContext();}
+    catch(e){
+      console.error('Doctor schedule sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load your schedule.')}</div>
+        <button class="btn btn-sm" onclick="renderDoctorSchedule()">Retry</button>`;
+      return;
+    }
+  }
   const myAppts=appointmentRecords().filter(a=>a.doctorId===currentUser.id&&a.status!=='Cancelled');
   const upcoming=myAppts.filter(a=>a.date>=TODAY).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
   const today=myAppts.filter(a=>a.date===TODAY);
@@ -6796,7 +6826,7 @@ function renderDoctorSchedule(){
     <div class="grid-2">
       <div class="card">
         <div class="card-header"><h3>Today – ${fmtDate(TODAY)}</h3></div>
-        ${today.length?`<div class="timeline">${today.sort((a,b)=>a.time.localeCompare(b.time)).map(a=>{const pt=getPatientById(a.patientId);return`<div class="tl-item"><div class="tl-dot" style="background:${a.status==='Completed'?'#639922':'var(--primary)'}"></div><div class="tl-content"><div class="fw-500">${fmtTime(a.time)} – ${pt?pt.fname+' '+pt.lname:'Unknown'}</div><div class="text-muted">${a.service} ${collegeBadge(a.college)}</div></div></div>`;}).join('')}</div>`:
+        ${today.length?`<div class="timeline">${today.sort((a,b)=>a.time.localeCompare(b.time)).map(a=>{const pt=getPatientById(a.patientId);return`<div class="tl-item" style="cursor:pointer" onclick="viewAppt(${a.id})" title="Open appointment"><div class="tl-dot" style="background:${a.status==='Completed'?'#639922':'var(--primary)'}"></div><div class="tl-content"><div class="fw-500">${fmtTime(a.time)} – ${pt?pt.fname+' '+pt.lname:'Unknown'}</div><div class="text-muted">${a.service} ${collegeBadge(a.college)}</div></div></div>`;}).join('')}</div>`:
         '<div class="empty-state"><p>No patients today.</p></div>'}
       </div>
       <div class="card">
@@ -6811,12 +6841,12 @@ function renderDoctorSchedule(){
     <div class="card">
       <div class="card-header"><h3>Upcoming Appointments</h3></div>
       ${upcoming.length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Patient</th><th>College</th><th>Type</th><th>Service</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
-        upcoming.map(a=>{const pt=getPatientById(a.patientId);return`<tr>
+        upcoming.map(a=>{const pt=getPatientById(a.patientId);return`<tr style="cursor:pointer" onclick="viewAppt(${a.id})" title="Click to open appointment">
           <td>${fmtDate(a.date)}</td><td>${fmtTime(a.time)}</td>
           <td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td>
           <td>${collegeBadge(a.college)}</td><td>${priorityBadge(a.priority)}</td>
           <td>${a.service}</td><td>${statusBadge(a.status)}</td>
-          <td><div class="td-actions">
+          <td><div class="td-actions" onclick="event.stopPropagation()">
             ${a.status==='Scheduled'?`<button class="btn btn-xs btn-primary" onclick="openAddTreatmentModal(${a.id})">📝 Add Notes &amp; Complete</button>`:''}
           </div></td>
         </tr>`;}).join('')
@@ -6929,8 +6959,18 @@ function removeDoctorLeave(id){
 // ================================================================
 // DOCTOR – MY PATIENTS
 // ================================================================
-function renderMyPatients(){
+async function renderMyPatients(){
   const c=document.getElementById('app-content');
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('table');
+    try{await syncAppointmentContext();}
+    catch(e){
+      console.error('My Patients sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load your patients.')}</div>
+        <button class="btn btn-sm" onclick="renderMyPatients()">Retry</button>`;
+      return;
+    }
+  }
   const myApptPatients=appointmentRecords().filter(a=>a.doctorId===currentUser.id).map(a=>a.patientId);
   const uniqueIds=[...new Set(myApptPatients)];
   const myPts=uniqueIds.map(id=>getPatientById(id)).filter(Boolean);
@@ -6958,13 +6998,13 @@ function renderMyPatientsTable(){
   if(!el)return;
   if(!pts.length){el.innerHTML='<div class="empty-state"><p>No patients found.</p></div>';return;}
   el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>Patient</th><th>College</th><th>Type</th><th>Blood</th><th>Allergies</th><th>Actions</th></tr></thead><tbody>${
-    pts.map(p=>`<tr>
+    pts.map(p=>`<tr style="cursor:pointer" onclick="viewPatient(${p.id})" title="Click to open patient record">
       <td>${patientAvatarHtml(p,32)}</td>
       <td><strong>${p.fname} ${p.lname}</strong><br><span class="text-muted">${p.idNo}</span></td>
       <td>${collegeBadge(p.college)}</td><td>${priorityBadge(p.personType)}</td>
       <td>${p.blood||'-'}</td>
       <td class="${p.allergies&&p.allergies!=='None'?'text-danger':''}">${p.allergies||'None'}</td>
-      <td><div class="td-actions">
+      <td><div class="td-actions" onclick="event.stopPropagation()">
         <button class="btn btn-xs" onclick="viewPatient(${p.id})">View</button>
         <button class="btn btn-xs btn-primary" onclick="openAddTreatmentModalPt(${p.id})">Add Treatment</button>
       </div></td>
@@ -7178,7 +7218,7 @@ function renderApptTable(){
     const name=pt?`${pt.fname} ${pt.lname}`.toLowerCase():'';
     const matchQ=!q||name.includes(q.toLowerCase())||a.clinic.toLowerCase().includes(q.toLowerCase());
     const matchS=!stat||a.status===stat;
-    const matchC=!col||a.college===col;
+    const matchC=!col||(a.college||pt?.college||'')===col;
     const matchCl=!clinic||a.clinic===clinic;
     const matchD=(!dateFrom||a.date>=dateFrom)&&(!dateTo||a.date<=dateTo);
     const matchDoc=role!=='Doctor'||a.doctorId===currentUser.id;
@@ -7195,10 +7235,10 @@ function renderApptTable(){
       const pt=getPatientById(a.patientId);
       const doc=getUserById(a.doctorId);
       const canCancel=a.status==='Scheduled';
-      return`<tr ${pt?`style="cursor:pointer" onclick="viewPatient(${pt.id})" title="Click to view patient record"`:''}>
-        <td>#${a.id}</td>
+      return`<tr style="cursor:pointer" onclick="viewAppt(${a.id})" title="Click to open appointment">
+        <td>#${appointmentDisplayId(a)}</td>
         <td>${pt?patientAvatarHtml(pt,30):'—'}</td>
-        <td><strong>${pt?pt.fname+' '+pt.lname:'Unknown'}</strong></td>
+        <td>${pt?`<button type="button" class="link-btn" onclick="event.stopPropagation();viewPatient(${pt.id})" title="Open patient record"><strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong></button>`:'<strong>Unknown</strong>'}</td>
         <td>${collegeBadge(a.college)}</td><td>${priorityBadge(a.priority)}</td>
         <td>${a.clinic}</td>
         <td>${fmtDate(a.date)}<br><span class="text-muted">${fmtTime(a.time)}</span></td>
@@ -10097,24 +10137,43 @@ function openRescheduleModal(id){
 
 // ── View Appointment ──
 function viewAppt(id){
-  const a=appointmentRecords().find(x=>x.id===id);if(!a)return;
+  const a=appointmentRecords().find(x=>x.id===Number(id));if(!a)return;
   const pt=getPatientById(a.patientId);
   const doc=getUserById(a.doctorId);
+  const clinicalUser=['Doctor','Staff','Administrator'].includes(currentUser.role);
+  const canTreat=currentUser.role==='Doctor'&&a.doctorId===currentUser.id&&a.status==='Scheduled';
+  const canManage=['Staff','Administrator'].includes(currentUser.role)&&a.status==='Scheduled';
+
   openModal(`<div class="modal">
-    <div class="modal-header"><h3>Appointment #${a.id}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
-    <div class="modal-body">
-      <div class="info-row"><span class="info-label">Patient</span><span class="info-val">${pt?pt.fname+' '+pt.lname:'?'}</span></div>
-      <div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(a.college)}</span></div>
-      <div class="info-row"><span class="info-label">Priority</span><span class="info-val">${priorityBadge(a.priority)}</span></div>
-      <div class="info-row"><span class="info-label">Clinic</span><span class="info-val">${a.clinic}</span></div>
-      <div class="info-row"><span class="info-label">Service</span><span class="info-val">${a.service}</span></div>
-      <div class="info-row"><span class="info-label">Doctor</span><span class="info-val">Dr. ${doc?doc.fname+' '+doc.lname:'?'} (${doc?doc.specialty:''})</span></div>
-      <div class="info-row"><span class="info-label">Date & Time</span><span class="info-val">${fmtDate(a.date)} at ${fmtTime(a.time)}</span></div>
-      <div class="info-row"><span class="info-label">Reason</span><span class="info-val">${a.reason||'—'}</span></div>
-      <div class="info-row"><span class="info-label">Status</span><span class="info-val">${statusBadge(a.status)}</span></div>
-      ${a.notes?`<div class="info-row"><span class="info-label">Notes</span><span class="info-val">${a.notes}</span></div>`:''}
+    <div class="modal-header">
+      <h3>Appointment #${appointmentDisplayId(a)}</h3>
+      <button class="close-btn" onclick="closeAllModals()">✕</button>
     </div>
-    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Close</button></div>
+    <div class="modal-body">
+      <div class="info-row">
+        <span class="info-label">Patient</span>
+        <span class="info-val">${pt
+          ? (clinicalUser
+              ? `<button class="link-btn" onclick="closeAllModals();viewPatient(${pt.id})">${escapeHtml(pt.fname+' '+pt.lname)}</button>`
+              : escapeHtml(pt.fname+' '+pt.lname))
+          : 'Unknown'}</span>
+      </div>
+      <div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(a.college||pt?.college||'')}</span></div>
+      <div class="info-row"><span class="info-label">Priority</span><span class="info-val">${priorityBadge(a.priority||pt?.personType||'')}</span></div>
+      <div class="info-row"><span class="info-label">Clinic</span><span class="info-val">${escapeHtml(a.clinic||'—')}</span></div>
+      <div class="info-row"><span class="info-label">Service</span><span class="info-val">${escapeHtml(a.service||'—')}</span></div>
+      <div class="info-row"><span class="info-label">Doctor</span><span class="info-val">${doc?`Dr. ${escapeHtml(doc.fname+' '+doc.lname)}${doc.specialty?` · ${escapeHtml(doc.specialty)}`:''}`:'Unknown'}</span></div>
+      <div class="info-row"><span class="info-label">Date & Time</span><span class="info-val">${fmtDate(a.date)} at ${fmtTime(a.time)}</span></div>
+      <div class="info-row"><span class="info-label">Reason</span><span class="info-val">${escapeHtml(a.reason||'—')}</span></div>
+      <div class="info-row"><span class="info-label">Status</span><span class="info-val">${statusBadge(a.status)}</span></div>
+      ${a.notes?`<div class="info-row"><span class="info-label">Notes</span><span class="info-val">${escapeHtml(a.notes)}</span></div>`:''}
+    </div>
+    <div class="modal-footer">
+      ${clinicalUser&&pt?`<button class="btn" onclick="closeAllModals();viewPatient(${pt.id})">View Patient</button>`:''}
+      ${canTreat?`<button class="btn btn-primary" onclick="closeAllModals();openAddTreatmentModal(${a.id})">📝 Add Notes & Complete</button>`:''}
+      ${canManage?`<button class="btn btn-warning" onclick="closeAllModals();openRescheduleModal(${a.id})">Reschedule</button>`:''}
+      <button class="btn" onclick="closeAllModals()">Close</button>
+    </div>
   </div>`);
 }
 
@@ -10901,7 +10960,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v29 loaded.');
+console.log('CampusCare v30 loaded.');
 </script>
 </body>
 </html>
