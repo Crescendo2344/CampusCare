@@ -65,23 +65,27 @@ async function syncCampusCareSessionUI(){
     // Do not keep the whole page blocked while secondary directory data loads.
     initApp();
 
-    if(currentUser.role==='Administrator'){
-      // Keep the already-rendered dashboard visible. Sync real database data in
-      // the background, then refresh the active page when the data arrives.
+    if(['Administrator','Staff','Doctor'].includes(currentUser.role)){
+      // Keep the already-rendered page visible while clinical directory and
+      // certificate data synchronize in the background.
       syncAdminDirectoryFromSupabase()
         .then(async()=>{
-          if(typeof refreshRealApprovalQueue==='function'){
+          if(typeof syncRealCertificates==='function'){
+            try{await syncRealCertificates();}catch(err){console.error('Certificate sync:',err);}
+          }
+          if(currentUser.role==='Administrator'&&typeof refreshRealApprovalQueue==='function'){
             try{await refreshRealApprovalQueue(false);}catch(err){console.error('Approval sync:',err);}
           }
           refreshActivePageAfterSync();
         })
         .catch(err=>{
-          console.error('Admin directory background sync:',err);
+          console.error('Clinical directory background sync:',err);
           toast('Some database data could not be refreshed. Open the page again to retry.','warning');
         });
     }else if(currentUser.role==='Patient'){
       syncCurrentPatientFromSupabase()
         .then(()=>syncRealMedicationReminders())
+        .then(()=>syncRealCertificates())
         .then(()=>refreshActivePageAfterSync())
         .catch(err=>console.error('Patient background sync:',err));
     }
@@ -149,6 +153,7 @@ function normalizeSupabaseUser(profile){
     createdAt: profile.created_at??profile.createdAt??'',
     lastLogin: profile.last_login_at??profile.lastLogin??'',
     passwordChangedAt: profile.password_changed_at??profile.passwordChangedAt??'',
+    savedSignature: profile.saved_signature_data??profile.savedSignature??'',
     _realSupabase:true
   };
 }
@@ -170,7 +175,7 @@ async function fetchAdminDirectory(){
   // so load the directory directly from Supabase instead of waiting on an Edge Function.
   const [{data:users,error:userErr},{data:patients,error:patientErr}]=await Promise.all([
     supabaseClient.from('users')
-      .select('user_id,auth_user_id,first_name,last_name,username,email,contact_number,role,status,verified,person_type,college,id_number,profile_image_url,specialty,work_days,start_time,end_time,slot_duration,max_patients,created_at,last_login_at')
+      .select('user_id,auth_user_id,first_name,last_name,username,email,contact_number,role,status,verified,person_type,college,id_number,profile_image_url,specialty,work_days,start_time,end_time,slot_duration,max_patients,created_at,last_login_at,password_changed_at,saved_signature_data')
       .order('user_id',{ascending:true}),
     supabaseClient.from('patients')
       .select('patient_id,user_id,birth_date,sex,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,medical_history,allergies,archived_at')
@@ -9368,6 +9373,104 @@ function loadJsPDF(){
   });
 }
 
+
+// ================================================================
+// REAL SUPABASE MEDICAL CERTIFICATES
+// ================================================================
+function certificateRecords(){
+  if(currentUser?._realSupabase)return (DB.certRequests||[]).filter(r=>r._realSupabase);
+  return DB.certRequests||[];
+}
+
+function certificateDisplayId(r){
+  const id=Number(r?.dbCertificateId??r?.id??0);
+  return String(id).padStart(6,'0');
+}
+
+function certificateNumberFor(r){
+  if(r?.certNo)return r.certNo;
+  const id=Number(r?.dbCertificateId??r?.id??0);
+  return `CTU-MC-${new Date().getFullYear()}-${String(id).padStart(6,'0')}`;
+}
+
+async function certificateAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/certificate-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Certificate action failed.');
+  return result;
+}
+
+function realCertificateToUi(r){
+  return {
+    id:700000+Number(r.certificate_id),
+    dbCertificateId:Number(r.certificate_id),
+    patientId:200000+Number(r.patient_id),
+    dbPatientId:Number(r.patient_id),
+    doctorId:r.doctor_id?100000+Number(r.doctor_id):null,
+    dbDoctorId:r.doctor_id?Number(r.doctor_id):null,
+    treatmentId:r.treatment_id?500000+Number(r.treatment_id):null,
+    dbTreatmentId:r.treatment_id?Number(r.treatment_id):null,
+    purpose:r.purpose||'',
+    details:r.request_details||'',
+    status:r.status||'Pending',
+    requestedAt:r.requested_at||r.created_at||'',
+    certNo:r.certificate_no||'',
+    issuedAt:r.issued_at||'',
+    findings:r.examination_findings||'',
+    recommendations:r.remarks||'',
+    documentHtml:r.document_content||'',
+    signatureData:r.signature_url||'',
+    declineReason:r.decline_reason||'',
+    preparedById:r.prepared_by?100000+Number(r.prepared_by):null,
+    preparedAt:r.prepared_at||'',
+    signedById:r.signed_by?100000+Number(r.signed_by):null,
+    signedAt:r.signed_at||'',
+    updatedAt:r.updated_at||'',
+    _realSupabase:true
+  };
+}
+
+async function syncRealCertificates(){
+  if(!currentUser?._realSupabase)return certificateRecords();
+
+  const {data,error}=await supabaseClient
+    .from('medical_certificates')
+    .select('certificate_id,patient_id,doctor_id,treatment_id,purpose,request_details,examination_findings,diagnosis,remarks,document_content,signature_url,status,requested_at,issued_at,certificate_no,decline_reason,prepared_by,prepared_at,signed_by,signed_at,created_at,updated_at')
+    .order('requested_at',{ascending:false})
+    .order('certificate_id',{ascending:false});
+
+  if(error)throw error;
+
+  DB.certRequests=(DB.certRequests||[]).filter(r=>!r._realSupabase);
+  DB.certRequests.push(...(data||[]).map(realCertificateToUi));
+  return certificateRecords();
+}
+
+async function syncCertificateContext(){
+  if(!currentUser?._realSupabase)return;
+
+  if(['Administrator','Staff','Doctor'].includes(currentUser.role)){
+    await syncAdminDirectoryFromSupabase();
+    if(typeof syncRealTreatments==='function')await syncRealTreatments();
+  }else if(currentUser.role==='Patient'){
+    if(!currentPatient||!currentPatient._realSupabase)await syncCurrentPatientFromSupabase();
+  }
+
+  await syncRealCertificates();
+}
+
 const CERT_PURPOSES=[
   'OJT / Internship Requirement',
   'Excused Absence',
@@ -9379,34 +9482,54 @@ const CERT_PURPOSES=[
 ];
 
 function certStatusBadge(s){
-  const m={Pending:'badge-warning','Awaiting Signature':'badge-purple',Issued:'badge-success',Declined:'badge-danger'};
+  const m={Pending:'badge-warning','Awaiting Signature':'badge-purple',Issued:'badge-success',Declined:'badge-danger',Cancelled:'badge-gray'};
   return `<span class="badge ${m[s]||'badge-gray'}">${escapeHtml(s||'')}</span>`;
 }
 
-function renderMyCertificates(){
+async function renderMyCertificates(){
   const c=document.getElementById('app-content');
-  const pt=currentPatient;
   if(!c)return;
+  const pageToken=captureCampusPageToken();
+
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('table');
+    try{await syncCertificateContext();}
+    catch(e){
+      if(!isCampusPageCurrent('my-certificates',pageToken))return;
+      console.error('Certificate sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load medical certificates.')}</div>
+        <button class="btn btn-sm" onclick="renderMyCertificates()">Retry</button>`;
+      return;
+    }
+    if(!isCampusPageCurrent('my-certificates',pageToken))return;
+  }
+
+  const pt=currentPatient;
   if(!pt){
     c.innerHTML='<div class="alert alert-warning show">No patient record linked. Contact admin.</div>';
     return;
   }
-  const reqs=(DB.certRequests||[]).filter(r=>r.patientId===pt.id).slice().sort((a,b)=>b.id-a.id);
+
+  const reqs=certificateRecords()
+    .filter(r=>r.patientId===pt.id)
+    .slice()
+    .sort((a,b)=>String(b.requestedAt).localeCompare(String(a.requestedAt))||b.id-a.id);
+
   c.innerHTML=`<div class="card">
     <div class="card-header">
       <h3>Medical Certificates</h3>
       <button class="btn btn-primary btn-sm" onclick="openCertRequestModal()">+ Request Certificate</button>
     </div>
-    <p class="text-muted" style="font-size:.82rem;margin-bottom:.8rem">Staff prepares the certificate details, then the assigned doctor signs it before it becomes downloadable.</p>
-    ${reqs.length?`<div class="cert-swipe-hint"><i class="fa-solid fa-arrows-left-right"></i> Swipe horizontally to view the certificate number and download actions.</div>
+    <p class="text-muted" style="font-size:.82rem;margin-bottom:.8rem">Staff prepares the certificate details, then the assigned doctor reviews and signs it before it becomes downloadable.</p>
+    ${reqs.length?`<div class="cert-swipe-hint"><i class="fa-solid fa-arrows-left-right"></i> Swipe horizontally to view certificate status and actions.</div>
       <div class="table-wrap cert-table-wrap"><table>
         <thead><tr><th>#</th><th>Purpose</th><th>Requested</th><th>Status</th><th>Certificate No.</th><th>Actions</th></tr></thead>
         <tbody>${reqs.map(r=>`<tr>
-          <td>#${r.id}</td>
+          <td>#${certificateDisplayId(r)}</td>
           <td>${escapeHtml(r.purpose)}</td>
-          <td>${fmtDate(r.requestedAt)}</td>
+          <td>${fmtDateTime(r.requestedAt)}</td>
           <td>${certStatusBadge(r.status)}</td>
-          <td>${r.certNo||'—'}</td>
+          <td>${escapeHtml(r.certNo||'—')}</td>
           <td><div class="td-actions">
             ${r.status==='Issued'?`<button class="btn btn-xs btn-primary" onclick="downloadCertPdf(${r.id})">⬇ Download PDF</button>`:''}
             ${r.status==='Pending'?`<button class="btn btn-xs btn-danger" onclick="cancelCertRequest(${r.id})">Cancel</button>`:''}
@@ -9424,45 +9547,92 @@ function openCertRequestModal(){
       <button class="close-btn" onclick="closeAllModals()">✕</button>
     </div>
     <div class="modal-body">
+      <div id="cert-request-msg"></div>
       <div class="form-group"><label>Purpose</label>
         <select id="cert-purpose">${CERT_PURPOSES.map(p=>`<option>${escapeHtml(p)}</option>`).join('')}</select>
       </div>
       <div class="form-group"><label>Details (optional)</label>
-        <textarea id="cert-details" rows="3" placeholder="e.g. dates of absence, requesting office"></textarea>
+        <textarea id="cert-details" rows="3" maxlength="1000" placeholder="e.g. dates of absence, requesting office"></textarea>
       </div>
-      <button class="btn btn-primary" style="width:100%" onclick="submitCertRequest()">Submit Request</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-primary" id="cert-request-btn" onclick="submitCertRequest()">Submit Request</button>
     </div>
   </div>`);
 }
 
-function submitCertRequest(){
+async function submitCertRequest(){
   if(!currentPatient){toast('No patient record linked.','error');return;}
   const purpose=document.getElementById('cert-purpose').value;
-  const details=document.getElementById('cert-details').value.trim().slice(0,300);
-  DB.certRequests.push({
-    id:DB.nextCertId++,
-    patientId:currentPatient.id,
-    purpose,details,status:'Pending',requestedAt:TODAY,
-    certNo:'',issuedAt:'',issuedById:null,doctorId:null,
-    findings:'',recommendations:'',declineReason:'',
-    preparedById:null,preparedAt:'',signedById:null,signedAt:''
-  });
-  persistDB();
-  closeAllModals();
-  toast('Certificate request submitted.','success');
-  renderMyCertificates();
+  const details=document.getElementById('cert-details').value.trim().slice(0,1000);
+  const msg=document.getElementById('cert-request-msg');
+  const btn=document.getElementById('cert-request-btn');
+  hideAlert(msg);
+
+  const old=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Submitting…';}
+
+  try{
+    if(currentUser?._realSupabase){
+      await certificateAction({
+        action:'create',
+        patient_id:currentPatient.dbPatientId,
+        purpose,
+        request_details:details
+      });
+      await syncRealCertificates();
+    }else{
+      DB.certRequests.push({
+        id:DB.nextCertId++,
+        patientId:currentPatient.id,
+        purpose,details,status:'Pending',requestedAt:TODAY,
+        certNo:'',issuedAt:'',issuedById:null,doctorId:null,
+        findings:'',recommendations:'',declineReason:'',
+        preparedById:null,preparedAt:'',signedById:null,signedAt:''
+      });
+      persistDB();
+    }
+
+    closeAllModals();
+    toast('Certificate request submitted.','success');
+    await renderMyCertificates();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to submit certificate request.');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;btn.textContent=old||'Submit Request';
+    }
+  }
 }
 
 function cancelCertRequest(id){
-  const r=DB.certRequests.find(x=>x.id===id);
+  const r=certificateRecords().find(x=>x.id===Number(id));
   if(!r||r.status!=='Pending')return;
-  DB.certRequests=DB.certRequests.filter(x=>x.id!==id);
-  persistDB();
-  toast('Request cancelled.','info');
-  renderMyCertificates();
+
+  showConfirmDialog({
+    title:'Cancel Certificate Request',
+    message:`Cancel medical certificate request <strong>#${certificateDisplayId(r)}</strong>?`,
+    confirmLabel:'Cancel Request',
+    danger:true,
+    onConfirm:async()=>{
+      try{
+        if(r._realSupabase){
+          await certificateAction({action:'cancel',certificate_id:r.dbCertificateId});
+          await syncRealCertificates();
+        }else{
+          DB.certRequests=DB.certRequests.filter(x=>x.id!==r.id);
+          persistDB();
+        }
+        toast('Certificate request cancelled.','info');
+        await renderMyCertificates();
+      }catch(e){toast(e?.message||'Unable to cancel the request.','error');}
+    }
+  });
 }
+
 function viewCertDecline(id){
-  const r=DB.certRequests.find(x=>x.id===id); if(!r)return;
+  const r=certificateRecords().find(x=>x.id===Number(id)); if(!r)return;
   openModal(`<div class="modal"><div class="modal-header"><h3>Request Declined</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body"><p style="font-size:.85rem">${escapeHtml(r.declineReason||'No reason provided.')}</p></div></div>`);
 }
@@ -9475,8 +9645,8 @@ let certSignatureLastPoint=null;
 
 // Return the newest clinical record for this patient, preferring the selected doctor's own record.
 function getLatestTreatmentForCertificate(patientId,doctorId=null){
-  const byDoctor=DB.treatments.filter(t=>t.patientId===patientId&&(!doctorId||t.doctorId===doctorId));
-  const fallback=DB.treatments.filter(t=>t.patientId===patientId);
+  const byDoctor=treatmentRecords().filter(t=>t.patientId===patientId&&!t.archived&&(!doctorId||t.doctorId===doctorId));
+  const fallback=treatmentRecords().filter(t=>t.patientId===patientId&&!t.archived);
   const list=byDoctor.length?byDoctor:fallback;
   return list.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||b.id-a.id)[0]||null;
 }
@@ -9548,14 +9718,33 @@ function certEditorToolbarHtml(){
   </div>`;
 }
 
-function renderCertRequests(filter='Pending'){
+async function renderCertRequests(filter='Pending'){
   const c=document.getElementById('app-content');
+  if(!c)return;
+  const pageToken=captureCampusPageToken();
+
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('table');
+    try{await syncCertificateContext();}
+    catch(e){
+      if(!isCampusPageCurrent('cert-requests',pageToken))return;
+      console.error('Certificate requests sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load certificate requests.')}</div>
+        <button class="btn btn-sm" onclick="renderCertRequests('${jsAttrSafe(filter)}')">Retry</button>`;
+      return;
+    }
+    if(!isCampusPageCurrent('cert-requests',pageToken))return;
+  }
+
   const canPrepare=currentUser.role==='Staff'||currentUser.role==='Administrator';
   const canSign=currentUser.role==='Doctor';
-  let all=DB.certRequests.slice().sort((a,b)=>b.id-a.id);
+
+  let all=certificateRecords().slice().sort((a,b)=>String(b.requestedAt).localeCompare(String(a.requestedAt))||b.id-a.id);
   if(currentUser.role==='Doctor')all=all.filter(r=>r.doctorId===currentUser.id);
+
   const list=filter==='all'?all:all.filter(r=>r.status===filter);
-  const tabs=['Pending','Awaiting Signature','Issued','Declined','all'];
+  const tabs=['Pending','Awaiting Signature','Issued','Declined','Cancelled','all'];
+
   c.innerHTML=`<div class="card">
     <div class="card-header"><div><h3>Medical Certificate Requests</h3><div class="text-muted">${currentUser.role==='Doctor'?'Review the prepared document and add your signature.':currentUser.role==='Staff'?'Prepare the certificate document and send it to the assigned doctor.':'Prepare certificates and monitor doctor signatures.'}</div></div></div>
     <div class="tabs">${tabs.map(t=>`<button class="tab ${t===filter?'active':''}" onclick="renderCertRequests('${t}')">${t==='all'?'All':t}</button>`).join('')}</div>
@@ -9563,8 +9752,16 @@ function renderCertRequests(filter='Pending'){
       const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null,physician=getUserById(r.doctorId);
       const prepareBtn=canPrepare&&(r.status==='Pending'||r.status==='Awaiting Signature'||r.status==='Issued')?`<button class="btn btn-xs btn-info" onclick="openEditCertModal(${r.id})">${r.status==='Issued'?'Edit / Re-sign':'✎ Prepare / Edit'}</button>`:'';
       const signBtn=canSign&&r.status==='Awaiting Signature'&&r.doctorId===currentUser.id?`<button class="btn btn-xs btn-success" onclick="openSignCertModal(${r.id})">✍ Review & Sign</button>`:'';
-      const declineBtn=canPrepare&&r.status!=='Issued'&&r.status!=='Declined'?`<button class="btn btn-xs btn-danger" onclick="openDeclineCertModal(${r.id})">Decline</button>`:'';
-      return `<tr><td>#${r.id}</td><td>${u?escapeHtml(u.fname+' '+u.lname):'Unknown'}</td><td>${escapeHtml(r.purpose)}${r.details?`<div class="text-muted" style="font-size:.72rem">${escapeHtml(r.details)}</div>`:''}</td><td>${physician?escapeHtml(docName(physician)):'Not assigned'}</td><td>${fmtDate(r.requestedAt)}</td><td>${certStatusBadge(r.status)}</td><td><div class="td-actions">${prepareBtn}${signBtn}${declineBtn}${r.status==='Issued'?`<button class="btn btn-xs btn-primary" onclick="downloadCertPdf(${r.id})">⬇ PDF</button>`:''}</div></td></tr>`;
+      const declineBtn=canPrepare&&r.status!=='Issued'&&r.status!=='Declined'&&r.status!=='Cancelled'?`<button class="btn btn-xs btn-danger" onclick="openDeclineCertModal(${r.id})">Decline</button>`:'';
+      return `<tr>
+        <td>#${certificateDisplayId(r)}</td>
+        <td>${u?`<button class="link-btn" onclick="viewPatient(${pt.id})">${escapeHtml(u.fname+' '+u.lname)}</button>`:'Unknown'}</td>
+        <td>${escapeHtml(r.purpose)}${r.details?`<div class="text-muted" style="font-size:.72rem">${escapeHtml(r.details)}</div>`:''}</td>
+        <td>${physician?escapeHtml(docName(physician)):'Not assigned'}</td>
+        <td>${fmtDateTime(r.requestedAt)}</td>
+        <td>${certStatusBadge(r.status)}</td>
+        <td><div class="td-actions">${prepareBtn}${signBtn}${declineBtn}${r.status==='Issued'?`<button class="btn btn-xs btn-primary" onclick="downloadCertPdf(${r.id})">⬇ PDF</button>`:''}</div></td>
+      </tr>`;
     }).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No requests found.</p></div>'}
   </div>`;
 }
@@ -9572,7 +9769,7 @@ function renderCertRequests(filter='Pending'){
 // Staff/Admin use this Word-like screen to prepare or revise the document before doctor signing.
 function openEditCertModal(id){
   if(!(currentUser.role==='Staff'||currentUser.role==='Administrator')){toast('Only staff or administrators can prepare certificates.','error');return;}
-  const r=DB.certRequests.find(x=>x.id===id);if(!r||r.status==='Declined')return;
+  const r=certificateRecords().find(x=>x.id===Number(id));if(!r||r.status==='Declined')return;
   const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null;
   const latest=getLatestTreatmentForCertificate(r.patientId,r.doctorId||null);
   const defaultDoctor=r.doctorId||(latest&&latest.doctorId)||(getDoctors()[0]||{}).id;
@@ -9581,7 +9778,7 @@ function openEditCertModal(id){
   const remarks=r.recommendations||autofill.remarks;
   const documentHtml=ensureCertificateLogo(r.documentHtml||buildCertificateDocument(r,defaultDoctor,findings,remarks,''));
   openModal(`<div class="modal modal-xl" style="max-width:1180px">
-    <div class="modal-header"><div><h3>${r.status==='Issued'?'Edit Medical Certificate':'Prepare Medical Certificate'}</h3><div class="text-muted">Request #${r.id} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-header"><div><h3>${r.status==='Issued'?'Edit Medical Certificate':'Prepare Medical Certificate'}</h3><div class="text-muted">Request #${certificateDisplayId(r)} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
       <div class="alert alert-info show" style="font-size:.78rem">Edit the certificate like a document. Findings and remarks are automatically filled from the selected doctor's latest clinical notes when available.</div>
       <div class="cert-editor-shell">
@@ -9603,35 +9800,71 @@ function openEditCertModal(id){
 }
 
 // Save the editable document exactly as prepared and route it to the assigned doctor.
-function saveCertDraft(id){
-  const r=DB.certRequests.find(x=>x.id===id);if(!r)return;
+async function saveCertDraft(id){
+  const r=certificateRecords().find(x=>x.id===Number(id));if(!r)return;
   if(!(currentUser.role==='Staff'||currentUser.role==='Administrator'))return;
+
   const doctorId=parseInt(document.getElementById('ec-doctor').value);
+  const doctor=getUserById(doctorId);
   const editor=document.getElementById('cert-editor');
   const findings=(document.getElementById('cert-findings-edit')||{}).textContent?.trim()||'';
   const recommendations=(document.getElementById('cert-remarks-edit')||{}).textContent?.trim()||'';
-  if(!doctorId){toast('Please select the attending physician.','error');return;}
+
+  if(!doctorId||!doctor){toast('Please select the attending physician.','error');return;}
   if(!findings){toast('Please enter the examination findings / diagnosis in the document.','error');return;}
-  r.purpose=document.getElementById('ec-purpose').value;
-  r.details=document.getElementById('ec-details').value.trim().slice(0,300);
-  r.doctorId=doctorId;r.findings=findings;r.recommendations=recommendations;
-  r.documentHtml=ensureCertificateLogo(sanitizeCertHtml(editor.innerHTML));
-  r.signatureData='';
-  r.status='Awaiting Signature';r.preparedById=currentUser.id;r.preparedAt=new Date().toISOString();
-  addNotif(doctorId,'Certificate Ready for Signature',`Certificate request #${r.id} has been prepared and is waiting for your signature.`,'info');
-  persistDB();closeAllModals();toast('Certificate saved and sent for doctor signature.','success');renderCertRequests('Awaiting Signature');
+
+  const purpose=document.getElementById('ec-purpose').value;
+  const details=document.getElementById('ec-details').value.trim().slice(0,1000);
+  const documentHtml=ensureCertificateLogo(sanitizeCertHtml(editor.innerHTML));
+  const source=certificateAutofillFromTreatment(r.patientId,doctorId).treatment;
+
+  try{
+    if(r._realSupabase){
+      if(!doctor._realSupabase)throw new Error('Select a real CampusCare doctor.');
+      await certificateAction({
+        action:'prepare',
+        certificate_id:r.dbCertificateId,
+        doctor_id:doctor.dbUserId,
+        treatment_id:source?.dbTreatmentId||null,
+        purpose,
+        request_details:details,
+        examination_findings:findings,
+        remarks:recommendations,
+        document_content:documentHtml
+      });
+      await syncRealCertificates();
+    }else{
+      r.purpose=purpose;
+      r.details=details;
+      r.doctorId=doctorId;
+      r.findings=findings;
+      r.recommendations=recommendations;
+      r.documentHtml=documentHtml;
+      r.signatureData='';
+      r.status='Awaiting Signature';
+      r.preparedById=currentUser.id;
+      r.preparedAt=new Date().toISOString();
+      persistDB();
+    }
+
+    closeAllModals();
+    toast('Certificate saved and sent for doctor signature.','success');
+    await renderCertRequests('Awaiting Signature');
+  }catch(e){
+    toast(e?.message||'Unable to prepare certificate.','error');
+  }
 }
 
 // The assigned doctor reviews the same Word-like document and can make final wording edits before signing.
 function openSignCertModal(id){
-  const r=DB.certRequests.find(x=>x.id===id);if(!r||r.status!=='Awaiting Signature')return;
+  const r=certificateRecords().find(x=>x.id===Number(id));if(!r||r.status!=='Awaiting Signature')return;
   if(currentUser.role!=='Doctor'||r.doctorId!==currentUser.id){toast('Only the assigned doctor can sign this certificate.','error');return;}
   const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null,doctor=currentUser;
   const autofill=certificateAutofillFromTreatment(r.patientId,doctor.id);
   const documentHtml=ensureCertificateLogo(r.documentHtml||buildCertificateDocument(r,doctor.id,r.findings||autofill.findings,r.recommendations||autofill.remarks,''));
   certDraftSignature=r.signatureData||doctor.savedSignature||'';
   openModal(`<div class="modal modal-xl" style="max-width:1180px">
-    <div class="modal-header"><div><h3>Review &amp; Sign Medical Certificate</h3><div class="text-muted">Request #${r.id} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-header"><div><h3>Review &amp; Sign Medical Certificate</h3><div class="text-muted">Request #${certificateDisplayId(r)} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
       <div class="alert alert-info show" style="font-size:.78rem">Review the document, make any final wording changes, then sign using your mouse, trackpad, touchscreen, uploaded image, pasted image, or saved signature.</div>
       <input id="ic-doctor" type="hidden" value="${doctor.id}">
@@ -9672,7 +9905,7 @@ function updateCertPurposeText(){
 
 // Refill only the clinical fields so manually edited header/body formatting is preserved.
 function refreshCertAutofill(id){
-  const r=DB.certRequests.find(x=>x.id===id);if(!r)return;
+  const r=certificateRecords().find(x=>x.id===Number(id));if(!r)return;
   const doctorId=parseInt((document.getElementById('ec-doctor')||document.getElementById('ic-doctor')).value);
   const data=certificateAutofillFromTreatment(r.patientId,doctorId);
   const f=document.getElementById('cert-findings-edit'),m=document.getElementById('cert-remarks-edit');
@@ -9718,42 +9951,106 @@ function sanitizeCertHtml(html){
 }
 
 // Final doctor signing stores the document and optional reusable signature, then releases it to the patient.
-function signCert(id){
-  const r=DB.certRequests.find(x=>x.id===id);if(!r||r.status!=='Awaiting Signature')return;
-  if(currentUser.role!=='Doctor'||r.doctorId!==currentUser.id){toast('Only the assigned doctor can sign this certificate.','error');return;}
+async function signCert(id){
+  const r=certificateRecords().find(x=>x.id===Number(id));if(!r||r.status!=='Awaiting Signature')return;
+  if(currentUser.role!=='Doctor'||r.doctorId!==currentUser.id){
+    toast('Only the assigned doctor can sign this certificate.','error');
+    return;
+  }
+
   const editor=document.getElementById('cert-editor');
   const findings=(document.getElementById('cert-findings-edit')||{}).textContent?.trim()||'';
   const recommendations=(document.getElementById('cert-remarks-edit')||{}).textContent?.trim()||'';
+
   if(!findings){toast('The certificate needs examination findings / diagnosis.','error');return;}
   if(!certDraftSignature){toast('Please add your signature before issuing the certificate.','error');return;}
-  if(!r.certNo)r.certNo=genId('CTU-MC',r.id);if(!r.issuedAt)r.issuedAt=TODAY;
-  const noEl=document.getElementById('cert-number-display');if(noEl)noEl.textContent=r.certNo;
-  const dateEl=document.getElementById('cert-date-display');if(dateEl)dateEl.textContent=fmtDate(r.issuedAt);
-  r.findings=findings;r.recommendations=recommendations;r.signatureData=certDraftSignature;r.documentHtml=ensureCertificateLogo(sanitizeCertHtml(editor.innerHTML));
-  r.status='Issued';
-  auditLog('MEDICAL_CERTIFICATE_ISSUED',`Medical certificate request #${r.id} issued.`,'MedicalCertificate',r.id);r.issuedById=currentUser.id;r.signedById=currentUser.id;r.signedAt=new Date().toISOString();r.updatedAt=new Date().toLocaleString();
-  if(document.getElementById('cert-save-signature')?.checked)currentUser.savedSignature=certDraftSignature;
-  const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null;
-  if(u)addNotif(u.id,'Medical Certificate Ready',`Your certificate (${r.certNo}) has been signed and issued. Download it from Medical Certificates.`,'success');
-  persistDB();closeAllModals();toast(`Certificate ${r.certNo} signed and issued.`,'success');renderCertRequests('Issued');
+
+  const certNo=certificateNumberFor(r);
+  const issuedAt=new Date().toISOString();
+  const noEl=document.getElementById('cert-number-display');if(noEl)noEl.textContent=certNo;
+  const dateEl=document.getElementById('cert-date-display');if(dateEl)dateEl.textContent=fmtDate(issuedAt);
+
+  const finalHtml=ensureCertificateLogo(sanitizeCertHtml(editor.innerHTML));
+  const saveSignature=Boolean(document.getElementById('cert-save-signature')?.checked);
+
+  try{
+    if(r._realSupabase){
+      const result=await certificateAction({
+        action:'sign',
+        certificate_id:r.dbCertificateId,
+        examination_findings:findings,
+        remarks:recommendations,
+        document_content:finalHtml,
+        signature_data:certDraftSignature,
+        save_signature:saveSignature
+      });
+
+      if(saveSignature)currentUser.savedSignature=certDraftSignature;
+      await syncRealCertificates();
+
+      const refreshed=certificateRecords().find(x=>x.dbCertificateId===r.dbCertificateId);
+      closeAllModals();
+      toast(`Certificate ${refreshed?.certNo||result.certificate_no||certNo} signed and issued.`,'success');
+      await renderCertRequests('Issued');
+    }else{
+      r.certNo=certNo;
+      r.issuedAt=issuedAt;
+      r.findings=findings;
+      r.recommendations=recommendations;
+      r.signatureData=certDraftSignature;
+      r.documentHtml=finalHtml;
+      r.status='Issued';
+      r.issuedById=currentUser.id;
+      r.signedById=currentUser.id;
+      r.signedAt=issuedAt;
+      r.updatedAt=new Date().toLocaleString();
+      if(saveSignature)currentUser.savedSignature=certDraftSignature;
+      persistDB();
+      closeAllModals();
+      toast(`Certificate ${certNo} signed and issued.`,'success');
+      renderCertRequests('Issued');
+    }
+  }catch(e){
+    toast(e?.message||'Unable to sign and issue certificate.','error');
+  }
 }
 
 function openDeclineCertModal(id){
   if(!(currentUser.role==='Staff'||currentUser.role==='Administrator')){toast('Only staff or administrators can decline requests.','error');return;}
   openModal(`<div class="modal"><div class="modal-header"><h3>Decline Request</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div class="form-group"><label>Reason (shown to the patient)</label><textarea id="dc-reason" rows="3" placeholder="e.g. No clinic consultation on record for the stated dates."></textarea></div><button class="btn btn-danger" style="width:100%" onclick="declineCert(${id})">Decline Request</button></div></div>`);
 }
-function declineCert(id){const r=DB.certRequests.find(x=>x.id===id);if(!r)return;if(!(currentUser.role==='Staff'||currentUser.role==='Administrator'))return;const reason=document.getElementById('dc-reason').value.trim();if(!reason){toast('Please provide a reason.','error');return}r.status='Declined';r.declineReason=reason;persistDB();const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null;if(u)addNotif(u.id,'Certificate Request Declined',reason,'error');closeAllModals();toast('Request declined.','info');renderCertRequests('Pending')}
+async function declineCert(id){
+  const r=certificateRecords().find(x=>x.id===Number(id));if(!r)return;
+  if(!(currentUser.role==='Staff'||currentUser.role==='Administrator'))return;
+
+  const reason=document.getElementById('dc-reason').value.trim();
+  if(!reason){toast('Please provide a reason.','error');return;}
+
+  try{
+    if(r._realSupabase){
+      await certificateAction({action:'decline',certificate_id:r.dbCertificateId,reason});
+      await syncRealCertificates();
+    }else{
+      r.status='Declined';
+      r.declineReason=reason;
+      persistDB();
+    }
+    closeAllModals();
+    toast('Request declined.','info');
+    await renderCertRequests('Pending');
+  }catch(e){toast(e?.message||'Unable to decline request.','error');}
+}
 
 function loadHtml2Canvas(){return new Promise((resolve,reject)=>{if(window.html2canvas){resolve(window.html2canvas);return}const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';script.onload=()=>window.html2canvas?resolve(window.html2canvas):reject(new Error('html2canvas failed'));script.onerror=()=>reject(new Error('Could not load html2canvas'));document.head.appendChild(script)})}
 
 // Export the exact saved document styling and signature to PDF.
 async function downloadCertPdf(id){
-  const r=DB.certRequests.find(x=>x.id===id);if(!r||r.status!=='Issued'){toast('Certificate not available.','error');return;}
+  const r=certificateRecords().find(x=>x.id===Number(id));if(!r||r.status!=='Issued'){toast('Certificate not available.','error');return;}
   let jsPDF,html2canvas;try{jsPDF=await loadJsPDF();html2canvas=await loadHtml2Canvas()}catch(e){toast('Could not load the PDF generator. Check your connection.','error');return}
   if(!r.documentHtml){toast('This older certificate needs to be prepared again before using the redesigned PDF.','warning');return}
   const certHtml=ensureCertificateLogo(r.documentHtml);
   const stage=document.createElement('div');stage.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1;';stage.innerHTML=`<div class="cert-paper" style="width:794px;min-height:1123px;box-shadow:none;margin:0">${certHtml}</div>`;document.body.appendChild(stage);
-  try{await Promise.all([...stage.querySelectorAll('img')].map(img=>img.complete?Promise.resolve():new Promise(res=>{img.onload=img.onerror=res})));const canvas=await html2canvas(stage.firstElementChild,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false});const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});const imgData=canvas.toDataURL('image/jpeg',.96),pageW=210,pageH=297,imgH=canvas.height*pageW/canvas.width;let remaining=imgH,pos=0;pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH;while(remaining>0){pos=remaining-imgH;pdf.addPage();pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH}pdf.save(`Medical_Certificate_${r.certNo}.pdf`);toast('Certificate downloaded.','success')}finally{stage.remove()}
+  try{await Promise.all([...stage.querySelectorAll('img')].map(img=>img.complete?Promise.resolve():new Promise(res=>{img.onload=img.onerror=res})));const canvas=await html2canvas(stage.firstElementChild,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false});const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});const imgData=canvas.toDataURL('image/jpeg',.96),pageW=210,pageH=297,imgH=canvas.height*pageW/canvas.width;let remaining=imgH,pos=0;pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH;while(remaining>0){pos=remaining-imgH;pdf.addPage();pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH}pdf.save(`Medical_Certificate_${r.certNo||certificateDisplayId(r)}.pdf`);toast('Certificate downloaded.','success')}finally{stage.remove()}
 }
 
 // ================================================================
@@ -11422,7 +11719,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v32 loaded.');
+console.log('CampusCare v33 loaded.');
 </script>
 </body>
 </html>
