@@ -81,6 +81,7 @@ async function syncCampusCareSessionUI(){
         });
     }else if(currentUser.role==='Patient'){
       syncCurrentPatientFromSupabase()
+        .then(()=>syncRealMedicationReminders())
         .then(()=>refreshActivePageAfterSync())
         .catch(err=>console.error('Patient background sync:',err));
     }
@@ -253,6 +254,12 @@ function getActiveNavPageId(){
 
 function refreshActivePageAfterSync(){
   const pageId=getActiveNavPageId();
+
+  // Sidebar state is authoritative only when it still matches the active
+  // navigation token. This avoids a background Supabase sync reviving an
+  // older page while the user is clicking elsewhere.
+  if(pageId!==campusActivePageId)return;
+
   try{
     if(pageId==='dashboard')renderDashboard();
     else renderPage(pageId);
@@ -3027,7 +3034,7 @@ function predictiveInventorySummaryHtml(){
 function buildClinicalCopilot(patientId){
   const pt=getPatientById(patientId);
   if(!pt)return null;
-  const treatments=DB.treatments.filter(t=>t.patientId===patientId).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const treatments=treatmentRecords().filter(t=>t.patientId===patientId&&!t.archived).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const appointments=appointmentRecords().filter(a=>a.patientId===patientId).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const latest=treatments[0]||null;
 
@@ -3153,7 +3160,7 @@ function campusCareFHIRBundle(patientId){
     });
   });
 
-  DB.treatments.filter(t=>t.patientId===patientId).forEach(t=>{
+  treatmentRecords().filter(t=>t.patientId===patientId&&!t.archived).forEach(t=>{
     const encounterId=fhirId('encounter',t.id);
     push({
       resourceType:'Encounter',id:encounterId,status:'finished',
@@ -4597,6 +4604,35 @@ function toggleSidebar(force){
   bd.classList.toggle('show',open);
 }
 
+
+// ================================================================
+// NAVIGATION RACE PROTECTION
+// ================================================================
+// Some CampusCare pages load Supabase data asynchronously. If the user taps
+// another sidebar item before the first request finishes, the old request must
+// not render over the newer page.
+let campusNavigationToken=0;
+let campusActivePageId='dashboard';
+
+function beginCampusNavigation(id){
+  campusActivePageId=id;
+  campusNavigationToken+=1;
+  const content=document.getElementById('app-content');
+  if(content){
+    content.dataset.pageId=id;
+    content.dataset.navToken=String(campusNavigationToken);
+  }
+  return campusNavigationToken;
+}
+
+function captureCampusPageToken(){
+  return campusNavigationToken;
+}
+
+function isCampusPageCurrent(pageId,token){
+  return campusActivePageId===pageId && campusNavigationToken===token;
+}
+
 function navTo(id){
   if(window.innerWidth<=768) toggleSidebar(false);
   document.querySelectorAll('[id^="nav-"]').forEach(el=>el.classList.remove('active'));
@@ -5206,6 +5242,8 @@ function renderPage(id){
   const c=document.getElementById('app-content');
   if(!c)return;
 
+  const renderToken=beginCampusNavigation(id);
+
   // Use lazy callbacks. A missing optional page renderer must never stop
   // Dashboard or other modules from loading.
   const renders={
@@ -5246,6 +5284,10 @@ function renderPage(id){
     if(result&&typeof result.catch==='function'){
       result.catch(err=>{
         console.error(`CampusCare page "${id}" failed:`,err);
+
+        // Ignore errors from a page the user has already left.
+        if(!isCampusPageCurrent(id,renderToken))return;
+
         c.innerHTML=`<div class="card">
           <div class="alert alert-danger show">This page could not finish loading.</div>
           <button class="btn btn-sm" onclick="renderPage('${jsAttrSafe(id)}')">Retry</button>
@@ -5254,6 +5296,7 @@ function renderPage(id){
     }
   }catch(err){
     console.error(`CampusCare page "${id}" failed:`,err);
+    if(!isCampusPageCurrent(id,renderToken))return;
     c.innerHTML=`<div class="card">
       <div class="alert alert-danger show">${escapeHtml(err?.message||'This page could not load.')}</div>
       <button class="btn btn-sm" onclick="renderPage('${jsAttrSafe(id)}')">Retry</button>
@@ -5795,14 +5838,17 @@ async function syncAppointmentContext(){
 // ================================================================
 async function renderMyAppointments(){
   const c=document.getElementById('app-content');
+  const pageToken=captureCampusPageToken();
   if(currentUser?._realSupabase){
     showDatabaseSkeleton('table');
     try{await syncAppointmentContext();}
     catch(e){
+      if(!isCampusPageCurrent('my-appointments',pageToken))return;
       console.error('My appointments sync:',e);
       c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load appointments.')}</div><button class="btn btn-sm" onclick="renderMyAppointments()">Retry</button>`;
       return;
     }
+    if(!isCampusPageCurrent('my-appointments',pageToken))return;
   }
   const pt=currentPatient;
   if(!pt){c.innerHTML='<div class="alert alert-warning show">No patient record linked. Contact admin.</div>';return;}
@@ -5869,36 +5915,187 @@ function renderMyApptsList(appts,filter){
   }</tbody></table></div>`;
 }
 
+
+// ================================================================
+// REAL SUPABASE TREATMENT RECORDS
+// ================================================================
+function treatmentRecords(){
+  if(currentUser?._realSupabase)return (DB.treatments||[]).filter(t=>t._realSupabase);
+  return DB.treatments||[];
+}
+
+function treatmentDisplayId(t){
+  const id=Number(t?.dbTreatmentId??t?.id??0);
+  return String(id).padStart(6,'0');
+}
+
+async function treatmentAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/treatment-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Treatment action failed.');
+  return result;
+}
+
+function realTreatmentToUi(t){
+  return {
+    id:500000+Number(t.treatment_id),
+    dbTreatmentId:Number(t.treatment_id),
+    patientId:200000+Number(t.patient_id),
+    dbPatientId:Number(t.patient_id),
+    doctorId:100000+Number(t.doctor_id),
+    dbDoctorId:Number(t.doctor_id),
+    appointmentId:t.appointment_id?300000+Number(t.appointment_id):null,
+    dbAppointmentId:t.appointment_id?Number(t.appointment_id):null,
+    findings:t.examination_findings||'',
+    diagnosis:t.diagnosis||'',
+    prescription:t.prescription||'',
+    notes:t.clinical_notes||'',
+    vitals:t.vitals||{},
+    xray:t.imaging_notes||'',
+    date:t.treatment_date||'',
+    followupDate:t.follow_up_date||'',
+    status:t.status||'Active',
+    archived:String(t.status||'').toLowerCase()==='archived',
+    archivedAt:t.archived_at||'',
+    archivedBy:t.archived_by?100000+Number(t.archived_by):null,
+    createdAt:t.created_at||'',
+    _realSupabase:true
+  };
+}
+
+async function syncRealTreatments(){
+  if(!currentUser?._realSupabase)return treatmentRecords();
+
+  const {data,error}=await supabaseClient
+    .from('treatments')
+    .select('treatment_id,patient_id,doctor_id,appointment_id,examination_findings,diagnosis,prescription,clinical_notes,vitals,imaging_notes,treatment_date,follow_up_date,status,archived_at,archived_by,created_at')
+    .order('treatment_date',{ascending:false})
+    .order('treatment_id',{ascending:false});
+
+  if(error)throw error;
+
+  DB.treatments=(DB.treatments||[]).filter(t=>!t._realSupabase);
+  DB.treatments.push(...(data||[]).map(realTreatmentToUi));
+  return treatmentRecords();
+}
+
+async function syncRealMedicationReminders(){
+  if(!currentUser?._realSupabase)return DB.medReminders||[];
+
+  const {data,error}=await supabaseClient
+    .from('medication_reminders')
+    .select('reminder_id,patient_id,medication,dosage,frequency,times_of_day,start_date,end_date,active,created_at')
+    .order('created_at',{ascending:false});
+
+  if(error)throw error;
+
+  DB.medReminders=(DB.medReminders||[]).filter(r=>!r._realSupabase);
+  DB.medReminders.push(...(data||[]).map(r=>({
+    id:600000+Number(r.reminder_id),
+    dbReminderId:Number(r.reminder_id),
+    patientId:200000+Number(r.patient_id),
+    medicationName:r.medication||'',
+    dosage:[r.dosage,r.frequency].filter(Boolean).join(' · '),
+    startDate:r.start_date||'',
+    endDate:r.end_date||'',
+    timeOfDay:Array.isArray(r.times_of_day)?r.times_of_day:[],
+    lastSent:null,
+    status:r.active?'active':'inactive',
+    _realSupabase:true
+  })));
+  return DB.medReminders;
+}
+
+async function syncTreatmentContext(){
+  if(!currentUser?._realSupabase)return;
+
+  if(['Administrator','Staff','Doctor'].includes(currentUser.role)){
+    await syncAppointmentContext();
+  }else if(currentUser.role==='Patient'){
+    if(!currentPatient||!currentPatient._realSupabase)await syncCurrentPatientFromSupabase();
+    await syncRealDoctorDirectory();
+  }
+
+  await Promise.all([
+    syncRealTreatments(),
+    syncRealMedicationReminders()
+  ]);
+}
+
 // ================================================================
 // PATIENT – MY RECORDS
 // ================================================================
-function renderMyRecords(){
+async function renderMyRecords(){
   const c=document.getElementById('app-content');
+  const pageToken=captureCampusPageToken();
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('table');
+    try{await syncTreatmentContext();}
+    catch(e){
+      if(!isCampusPageCurrent('my-records',pageToken))return;
+      console.error('My Records sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load your health records.')}</div>
+        <button class="btn btn-sm" onclick="renderMyRecords()">Retry</button>`;
+      return;
+    }
+    if(!isCampusPageCurrent('my-records',pageToken))return;
+  }
+
   const pt=currentPatient;
   if(!pt){c.innerHTML='<div class="alert alert-warning show">No patient record found.</div>';return;}
-  const treats=DB.treatments.filter(t=>t.patientId===pt.id);
+  const treats=treatmentRecords()
+    .filter(t=>t.patientId===pt.id&&!t.archived)
+    .slice()
+    .sort((a,b)=>String(b.date).localeCompare(String(a.date))||b.id-a.id);
+
   c.innerHTML=`
     <div class="card">
       <div class="card-header"><h3>Personal Information</h3></div>
       <div class="grid-2" style="font-size:.83rem">
-        <div class="info-row"><span class="info-label">Full Name</span><span class="info-val">${pt.fname} ${pt.lname}</span></div>
-        <div class="info-row"><span class="info-label">Age</span><span class="info-val">${pt.age}</span></div>
-        <div class="info-row"><span class="info-label">Gender</span><span class="info-val">${pt.gender}</span></div>
-        <div class="info-row"><span class="info-label">Blood Type</span><span class="info-val">${pt.blood}</span></div>
+        <div class="info-row"><span class="info-label">Full Name</span><span class="info-val">${escapeHtml(pt.fname)} ${escapeHtml(pt.lname)}</span></div>
+        <div class="info-row"><span class="info-label">Age</span><span class="info-val">${pt.age||'—'}</span></div>
+        <div class="info-row"><span class="info-label">Gender</span><span class="info-val">${escapeHtml(pt.gender||'—')}</span></div>
+        <div class="info-row"><span class="info-label">Blood Type</span><span class="info-val">${escapeHtml(pt.blood||'—')}</span></div>
         <div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
-        <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${pt.idNo}</span></div>
-        <div class="info-row full"><span class="info-label">Allergies</span><span class="info-val text-danger">${pt.allergies||'None'}</span></div>
-        <div class="info-row full"><span class="info-label">Medical History</span><span class="info-val">${pt.medHistory||'None'}</span></div>
+        <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${escapeHtml(pt.idNo||'—')}</span></div>
+        <div class="info-row full"><span class="info-label">Allergies</span><span class="info-val text-danger">${escapeHtml(pt.allergies||'None')}</span></div>
+        <div class="info-row full"><span class="info-label">Medical History</span><span class="info-val">${escapeHtml(pt.medHistory||'None')}</span></div>
       </div>
     </div>
     <div class="card">
       <div class="card-header"><h3>Treatment History</h3></div>
-      ${treats.length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Diagnosis</th><th>Prescription</th><th>Doctor</th><th>Follow-up</th></tr></thead><tbody>${
-        treats.map(t=>{const doc=getUserById(t.doctorId);return`<tr><td>${fmtDate(t.date)}</td><td>${t.diagnosis}</td><td style="max-width:180px">${t.prescription||'-'}</td><td>Dr. ${doc?doc.lname:'?'}</td><td>${fmtDate(t.followupDate)}</td></tr>`;}).join('')
-      }</tbody></table></div>`:'<div class="empty-state"><p>No treatment records yet.</p></div>'}
+      ${treats.length?`<div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>Date</th><th>Diagnosis</th><th>Prescription</th><th>Doctor</th><th>Follow-up</th><th>Actions</th></tr></thead>
+        <tbody>${treats.map(t=>{
+          const doc=getUserById(t.doctorId);
+          return `<tr style="cursor:pointer" onclick="viewTreatment(${t.id})" title="Open treatment record">
+            <td>#${treatmentDisplayId(t)}</td>
+            <td>${fmtDate(t.date)}</td>
+            <td>${escapeHtml(t.diagnosis)}</td>
+            <td style="max-width:180px">${escapeHtml(t.prescription||'—')}</td>
+            <td>${doc?escapeHtml(docName(doc)):'Doctor'}</td>
+            <td>${t.followupDate?fmtDate(t.followupDate):'—'}</td>
+            <td><div class="td-actions" onclick="event.stopPropagation()">
+              <button class="btn btn-xs" onclick="viewTreatment(${t.id})">View</button>
+              <button class="btn btn-xs btn-primary" onclick="downloadTreatmentPDF(${t.id})">Download PDF</button>
+            </div></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`:'<div class="empty-state"><p>No treatment records yet.</p></div>'}
     </div>`;
 }
-
 // ================================================================
 // MY ACCOUNT
 // ================================================================
@@ -6809,15 +7006,18 @@ async function changeAccountPassword(){
 // ================================================================
 async function renderDoctorSchedule(){
   const c=document.getElementById('app-content');
+  const pageToken=captureCampusPageToken();
   if(currentUser?._realSupabase){
     showDatabaseSkeleton('table');
     try{await syncAppointmentContext();}
     catch(e){
+      if(!isCampusPageCurrent('schedule',pageToken))return;
       console.error('Doctor schedule sync:',e);
       c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load your schedule.')}</div>
         <button class="btn btn-sm" onclick="renderDoctorSchedule()">Retry</button>`;
       return;
     }
+    if(!isCampusPageCurrent('schedule',pageToken))return;
   }
   const myAppts=appointmentRecords().filter(a=>a.doctorId===currentUser.id&&a.status!=='Cancelled');
   const upcoming=myAppts.filter(a=>a.date>=TODAY).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
@@ -6847,7 +7047,7 @@ async function renderDoctorSchedule(){
           <td>${collegeBadge(a.college)}</td><td>${priorityBadge(a.priority)}</td>
           <td>${a.service}</td><td>${statusBadge(a.status)}</td>
           <td><div class="td-actions" onclick="event.stopPropagation()">
-            ${a.status==='Scheduled'?`<button class="btn btn-xs btn-primary" onclick="openAddTreatmentModal(${a.id})">📝 Add Notes &amp; Complete</button>`:''}
+            ${a.status==='Scheduled'&&a.date<=TODAY?`<button class="btn btn-xs btn-primary" onclick="openAddTreatmentModal(${a.id})">📝 Add Notes &amp; Complete</button>`:''}
           </div></td>
         </tr>`;}).join('')
       }</tbody></table></div>`:'<div class="empty-state"><p>No upcoming appointments.</p></div>'}
@@ -6961,15 +7161,18 @@ function removeDoctorLeave(id){
 // ================================================================
 async function renderMyPatients(){
   const c=document.getElementById('app-content');
+  const pageToken=captureCampusPageToken();
   if(currentUser?._realSupabase){
     showDatabaseSkeleton('table');
     try{await syncAppointmentContext();}
     catch(e){
+      if(!isCampusPageCurrent('my-patients',pageToken))return;
       console.error('My Patients sync:',e);
       c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load your patients.')}</div>
         <button class="btn btn-sm" onclick="renderMyPatients()">Retry</button>`;
       return;
     }
+    if(!isCampusPageCurrent('my-patients',pageToken))return;
   }
   const myApptPatients=appointmentRecords().filter(a=>a.doctorId===currentUser.id).map(a=>a.patientId);
   const uniqueIds=[...new Set(myApptPatients)];
@@ -7017,15 +7220,18 @@ function renderMyPatientsTable(){
 // ================================================================
 async function renderPatients(){
   const c=document.getElementById('app-content');
+  const pageToken=captureCampusPageToken();
   if(currentUser?.role==='Administrator'){
     showDatabaseSkeleton('table');
     try{await syncAdminDirectoryFromSupabase();}
     catch(e){
+      if(!isCampusPageCurrent('patients',pageToken))return;
       console.error(e);
       c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load patient records.')}</div>
         <button class="btn btn-sm" onclick="renderPatients()">Retry</button>`;
       return;
     }
+    if(!isCampusPageCurrent('patients',pageToken))return;
   }
   const canEdit=currentUser.role==='Administrator'||currentUser.role==='Staff';
   c.innerHTML=`
@@ -7173,14 +7379,17 @@ function viewFitnessAssessment(id){
 // ================================================================
 async function renderAppointments(){
   const c=document.getElementById('app-content');
+  const pageToken=captureCampusPageToken();
   if(currentUser?._realSupabase){
     showDatabaseSkeleton('table');
     try{await syncAppointmentContext();}
     catch(e){
+      if(!isCampusPageCurrent('appointments',pageToken))return;
       console.error('Appointments sync:',e);
       c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load appointments.')}</div><button class="btn btn-sm" onclick="renderAppointments()">Retry</button>`;
       return;
     }
+    if(!isCampusPageCurrent('appointments',pageToken))return;
   }
   const role=currentUser.role;
   c.innerHTML=`
@@ -7247,8 +7456,8 @@ function renderApptTable(){
         <td><div class="td-actions" onclick="event.stopPropagation()">
           <button class="btn btn-xs" onclick="viewAppt(${a.id})">View</button>
           ${canManage&&canCancel?`<button class="btn btn-xs btn-warning" onclick="openRescheduleModal(${a.id})">Reschedule</button>`:''}
-          ${canManage&&a.status==='Scheduled'?`<button class="btn btn-xs btn-success" onclick="completeAppt(${a.id})">Complete</button>`:''}
-          ${isDoc&&a.status==='Scheduled'?`<button class="btn btn-xs btn-primary" onclick="openAddTreatmentModal(${a.id})">📝 Add Notes &amp; Complete</button>`:''}
+          
+          ${isDoc&&a.status==='Scheduled'&&a.date<=TODAY?`<button class="btn btn-xs btn-primary" onclick="openAddTreatmentModal(${a.id})">📝 Add Notes &amp; Complete</button>`:''}
           ${canManage&&canCancel?`<button class="btn btn-xs btn-danger" onclick="cancelAppt(${a.id})">Cancel</button>`:''}
           ${currentUser.role==='Administrator'&&a.status==='Scheduled'?`<button class="btn btn-xs" onclick="noShowAppt(${a.id})">No-show</button>`:''}
           ${(canManage||isDoc)&&a.status==='Scheduled'?`<button class="btn btn-xs btn-info" onclick="sendApptNotif(${a.id})">🔔 Notify</button>`:''}
@@ -7411,16 +7620,19 @@ async function refreshRealApprovalQueue(renderPage=false){
 async function renderApprovals(loadRemote=true) {
   const c=document.getElementById('app-content');
   if(!c)return;
+  const pageToken=captureCampusPageToken();
 
   if(loadRemote){
     showDatabaseSkeleton('table');
     try{
       await refreshRealApprovalQueue(false);
     }catch(e){
+      if(!isCampusPageCurrent('approvals',pageToken))return;
       c.innerHTML=`<div class="card"><div class="card-header"><h3>Pending Registration Approvals</h3></div>
         <div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load pending registrations.')}</div></div>`;
       return;
     }
+    if(!isCampusPageCurrent('approvals',pageToken))return;
   }
 
   const pending=realPendingApprovals.map(realApprovalUiUser);
@@ -7521,9 +7733,24 @@ async function confirmRejectUser(id){
 // ================================================================
 // TREATMENTS
 // ================================================================
-function renderTreatments(){
+async function renderTreatments(){
   const c=document.getElementById('app-content');
-  const role=currentUser.role;
+  const pageToken=captureCampusPageToken();
+
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('table');
+    try{await syncTreatmentContext();}
+    catch(e){
+      if(!isCampusPageCurrent('treatments',pageToken))return;
+      console.error('Treatments sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load treatment records.')}</div>
+        <button class="btn btn-sm" onclick="renderTreatments()">Retry</button>`;
+      return;
+    }
+    if(!isCampusPageCurrent('treatments',pageToken))return;
+  }
+
+  const canAdd=currentUser.role==='Doctor'||currentUser.role==='Administrator';
   c.innerHTML=`
     <div class="toolbar">
       <input type="text" placeholder="Search patient, diagnosis..." id="tr-search" oninput="renderTreatTable()">
@@ -7531,51 +7758,65 @@ function renderTreatments(){
         <option value="">All Colleges</option>
         ${['CCICT','COE','COED','CME','CAS','COT'].map(col=>`<option value="${col}">${col}</option>`).join('')}
       </select>
-      <select id="tr-status" onchange="renderTreatTable()"><option value="active">Active Records</option><option value="archived">Archived Records</option><option value="all">All Records</option></select>
-      <button class="btn btn-primary btn-sm" onclick="openAddTreatmentModalPt(null)">+ Add Treatment</button>
+      <select id="tr-status" onchange="renderTreatTable()">
+        <option value="active">Active Records</option>
+        <option value="archived">Archived Records</option>
+        <option value="all">All Records</option>
+      </select>
+      ${canAdd?`<button class="btn btn-primary btn-sm" onclick="openAddTreatmentModalPt(null)">+ Add Treatment</button>`:''}
     </div>
     <div class="card"><div id="treat-table"></div></div>`;
   renderTreatTable();
 }
 
 function renderTreatTable(){
-  const q=(document.getElementById('tr-search')||{}).value||'';
+  const q=((document.getElementById('tr-search')||{}).value||'').toLowerCase();
   const col=(document.getElementById('tr-college')||{}).value||'';
   const status=(document.getElementById('tr-status')||{}).value||'active';
   const role=currentUser.role;
-  let treats=DB.treatments.filter(t=>{
+
+  let treats=treatmentRecords().filter(t=>{
     const pt=getPatientById(t.patientId);
     const name=pt?`${pt.fname} ${pt.lname}`.toLowerCase():'';
-    const matchQ=!q||name.includes(q.toLowerCase())||t.diagnosis.toLowerCase().includes(q.toLowerCase());
+    const matchQ=!q||name.includes(q)||String(t.diagnosis||'').toLowerCase().includes(q);
     const matchC=!col||(pt&&pt.college===col);
     const matchDoc=role!=='Doctor'||t.doctorId===currentUser.id;
     const matchStatus=status==='all'||(status==='archived'?!!t.archived:!t.archived);
     return matchQ&&matchC&&matchDoc&&matchStatus;
-  }).slice().sort((a,b)=>b.id-a.id);
+  }).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))||b.id-a.id);
+
   const el=document.getElementById('treat-table');
   if(!el)return;
-  if(!treats.length){el.innerHTML='<div class="empty-state"><p>No treatment records.</p></div>';return;}
-  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>College</th><th>Diagnosis</th><th>Doctor</th><th>Date</th><th>Follow-up</th><th>Actions</th></tr></thead><tbody>${
-    treats.map(t=>{
+  if(!treats.length){
+    el.innerHTML='<div class="empty-state"><p>No treatment records.</p></div>';
+    return;
+  }
+
+  el.innerHTML=`<div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Patient</th><th>College</th><th>Diagnosis</th><th>Doctor</th><th>Date</th><th>Follow-up</th><th>Actions</th></tr></thead>
+    <tbody>${treats.map(t=>{
       const pt=getPatientById(t.patientId);
       const doc=getUserById(t.doctorId);
-      return`<tr ${t.archived?'style="opacity:.67"':''}>
-        <td>#${t.id}${t.archived?'<br><span class="badge badge-gray">Archived</span>':''}</td>
-        <td>${pt?pt.fname+' '+pt.lname:'?'}</td>
-        <td>${collegeBadge(pt?pt.college:'')}</td>
-        <td>${t.diagnosis}</td>
-        <td>Dr. ${doc?doc.lname:'?'}</td>
+      return `<tr ${t.archived?'style="opacity:.67"':''}>
+        <td>#${treatmentDisplayId(t)}${t.archived?'<br><span class="badge badge-gray">Archived</span>':''}</td>
+        <td>${pt?`<button class="link-btn" onclick="viewPatient(${pt.id})">${escapeHtml(pt.fname+' '+pt.lname)}</button>`:'Unknown'}</td>
+        <td>${collegeBadge(pt?.college||'')}</td>
+        <td>${escapeHtml(t.diagnosis)}</td>
+        <td>${doc?escapeHtml(docName(doc)):'Doctor'}</td>
         <td>${fmtDate(t.date)}</td>
-        <td>${fmtDate(t.followupDate)}</td>
+        <td>${t.followupDate?fmtDate(t.followupDate):'—'}</td>
         <td><div class="td-actions">
           <button class="btn btn-xs" onclick="viewTreatment(${t.id})">View</button>
-          ${currentUser.role==='Administrator'?(t.archived?`<button class="btn btn-xs btn-success" onclick="restoreTreat(${t.id})">Restore</button>`:`<button class="btn btn-xs btn-warning" onclick="archiveTreat(${t.id})">Archive</button>`):''}
+          ${currentUser.role==='Administrator'
+            ? (t.archived
+              ? `<button class="btn btn-xs btn-success" onclick="restoreTreat(${t.id})">Restore</button>`
+              : `<button class="btn btn-xs btn-warning" onclick="archiveTreat(${t.id})">Archive</button>`)
+            : ''}
         </div></td>
       </tr>`;
-    }).join('')
-  }</tbody></table></div>`;
+    }).join('')}</tbody>
+  </table></div>`;
 }
-
 // ================================================================
 // MODERN MESSENGER
 // ================================================================
@@ -8760,15 +9001,18 @@ function userAvatarHtml(u,size=34){
 
 async function renderUsers(){
   const c=document.getElementById('app-content');
+  const pageToken=captureCampusPageToken();
   if(currentUser?.role==='Administrator'){
     showDatabaseSkeleton('table');
     try{await syncAdminDirectoryFromSupabase();}
     catch(e){
+      if(!isCampusPageCurrent('users',pageToken))return;
       console.error(e);
       c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load user management data.')}</div>
         <button class="btn btn-sm" onclick="renderUsers()">Retry</button>`;
       return;
     }
+    if(!isCampusPageCurrent('users',pageToken))return;
   }
   c.innerHTML=`
     <div class="toolbar">
@@ -10141,7 +10385,7 @@ function viewAppt(id){
   const pt=getPatientById(a.patientId);
   const doc=getUserById(a.doctorId);
   const clinicalUser=['Doctor','Staff','Administrator'].includes(currentUser.role);
-  const canTreat=currentUser.role==='Doctor'&&a.doctorId===currentUser.id&&a.status==='Scheduled';
+  const canTreat=currentUser.role==='Doctor'&&a.doctorId===currentUser.id&&a.status==='Scheduled'&&a.date<=TODAY;
   const canManage=['Staff','Administrator'].includes(currentUser.role)&&a.status==='Scheduled';
 
   openModal(`<div class="modal">
@@ -10259,9 +10503,12 @@ function savePatient(id){
   renderPatientTable&&renderPatientTable();
 }
 
-function viewPatient(id){
+async function viewPatient(id){
   const pt=DB.patients.find(p=>p.id===id);if(!pt)return;
-  const treats=DB.treatments.filter(t=>t.patientId===id);
+  if(currentUser?._realSupabase){
+    try{await syncRealTreatments();}catch(e){console.error('Patient treatment sync:',e);}
+  }
+  const treats=treatmentRecords().filter(t=>t.patientId===id&&!t.archived);
   const appts=appointmentRecords().filter(a=>a.patientId===id).slice(-5);
   openModal(`<div class="modal modal-lg">
     <div class="modal-header"><h3 style="display:flex;align-items:center;gap:.6rem">${patientAvatarHtml(pt,32)} Patient: ${pt.fname} ${pt.lname}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
@@ -10327,68 +10574,136 @@ function restorePatient(id){
 
 // ── Treatment Modal ──
 function openAddTreatmentModal(apptId){
-  const a=appointmentRecords().find(x=>x.id===apptId);
-  const ptId=a?a.patientId:null;
-  openAddTreatmentModalPt(ptId,apptId);
+  const a=appointmentRecords().find(x=>x.id===Number(apptId));
+  if(!a)return;
+
+  if(a.date>TODAY){
+    toast(`This appointment is scheduled for ${fmtDate(a.date)}. Treatment notes can only be recorded on or after the visit date.`,'warning',6500);
+    return;
+  }
+  if(a.status==='Cancelled'||a.status==='No-show'){
+    toast('Treatment notes cannot be recorded for a cancelled or no-show appointment.','warning');
+    return;
+  }
+
+  const existing=treatmentRecords().find(t=>t.appointmentId===a.id);
+  if(existing){
+    viewTreatment(existing.id);
+    return;
+  }
+
+  openAddTreatmentModalPt(a.patientId,a.id);
 }
 
 function openAddTreatmentModalPt(ptId,apptId=null){
+  if(currentUser.role!=='Doctor'&&currentUser.role!=='Administrator'){
+    toast('Only a Doctor or Administrator can record treatment.','warning');
+    return;
+  }
+
+  const appt=apptId?appointmentRecords().find(a=>a.id===Number(apptId)):null;
   const pt=ptId?getPatientById(ptId):null;
-  const patientOpts=!ptId?DB.patients.map(p=>`<option value="${p.id}">${p.fname} ${p.lname} (${p.college})</option>`).join(''):
-    `<option value="${pt.id}">${pt.fname} ${pt.lname}</option>`;
+  const realMode=Boolean(currentUser?._realSupabase);
+  const patientSource=realMode?DB.patients.filter(p=>p._realSupabase&&!p.archived):DB.patients.filter(p=>!p.archived);
+  const doctorSource=getDoctors();
+
+  if(ptId&&!pt){
+    toast('Patient record could not be loaded. Refresh the page and try again.','error');
+    return;
+  }
+  if(!ptId&&!patientSource.length){
+    toast('No active patient records are available.','warning');
+    return;
+  }
+
+  const patientOpts=!ptId
+    ? patientSource.map(p=>`<option value="${p.id}">${escapeHtml(p.fname+' '+p.lname)} (${escapeHtml(p.college||'')})</option>`).join('')
+    : `<option value="${pt.id}">${escapeHtml(pt.fname+' '+pt.lname)}</option>`;
+
+  const doctorSelect=currentUser.role==='Administrator'
+    ? `<div class="form-group"><label>Attending Doctor <span class="required">*</span></label>
+        <select id="tm-doc">${doctorSource.map(d=>`<option value="${d.id}" ${appt&&appt.doctorId===d.id?'selected':''}>${escapeHtml(docName(d))} · ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('')}</select>
+      </div>`
+    : '';
+
+  const defaultDate=appt?.date&&appt.date<=TODAY?appt.date:TODAY;
+
   openModal(`<div class="modal modal-lg">
-    <div class="modal-header"><h3>Record Treatment / Clinical Notes</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-header">
+      <h3>${appt?`Complete Appointment #${appointmentDisplayId(appt)}`:'Record Treatment / Clinical Notes'}</h3>
+      <button class="close-btn" onclick="closeAllModals()">✕</button>
+    </div>
     <div class="modal-body">
       <div id="trm-msg"></div>
       ${pt?`<div class="alert alert-info show" style="margin-bottom:.7rem;font-size:.8rem">
-        Patient: <strong>${pt.fname} ${pt.lname}</strong> · ${pt.college} · Allergies: <strong class="text-danger">${pt.allergies||'None'}</strong>
+        Patient: <strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong> · ${escapeHtml(pt.college||'')} ·
+        Allergies: <strong class="text-danger">${escapeHtml(pt.allergies||'None')}</strong>
+        ${appt?`<br>Appointment: ${fmtDate(appt.date)} at ${fmtTime(appt.time)} · ${escapeHtml(appt.service)}`:''}
       </div>`:''}
-      <div class="form-group ${ptId?'':''}"><label>Patient <span class="required">*</span></label>
-        <select id="tm-pt" ${ptId?'disabled':''}>${patientOpts}</select>
+
+      <div class="form-row">
+        <div class="form-group"><label>Patient <span class="required">*</span></label>
+          <select id="tm-pt" ${ptId?'disabled':''}>${patientOpts}</select>
+        </div>
+        ${doctorSelect}
       </div>
+
       <div class="section-label">Vital Signs</div>
       <div class="form-row">
         <div class="form-group"><label>Blood Pressure</label><input id="tm-bp" placeholder="e.g. 120/80"></div>
-        <div class="form-group"><label>Temperature (°C)</label><input id="tm-temp" placeholder="e.g. 36.8"></div>
-        <div class="form-group"><label>Pulse Rate</label><input id="tm-pulse" placeholder="bpm"></div>
-        <div class="form-group"><label>SpO2</label><input id="tm-spo2" placeholder="e.g. 98%"></div>
-        <div class="form-group"><label>Weight (kg)</label><input id="tm-weight"></div>
-        <div class="form-group"><label>Height (cm)</label><input id="tm-height"></div>
+        <div class="form-group"><label>Temperature (°C)</label><input id="tm-temp" inputmode="decimal" placeholder="e.g. 36.8"></div>
+        <div class="form-group"><label>Pulse Rate</label><input id="tm-pulse" inputmode="numeric" placeholder="bpm"></div>
+        <div class="form-group"><label>SpO₂</label><input id="tm-spo2" placeholder="e.g. 98%"></div>
+        <div class="form-group"><label>Weight (kg)</label><input id="tm-weight" inputmode="decimal"></div>
+        <div class="form-group"><label>Height (cm)</label><input id="tm-height" inputmode="decimal"></div>
       </div>
+
       <div class="section-label">Findings & Diagnosis</div>
       <div class="form-group"><label>Clinical Findings / Chief Complaint <span class="required">*</span></label>
         <textarea id="tm-findings" rows="2" placeholder="Describe findings and observations..."></textarea>
       </div>
       <div class="form-group"><label>Diagnosis <span class="required">*</span></label>
-        <textarea id="tm-diag" rows="2"></textarea>
+        <textarea id="tm-diag" rows="2" placeholder="Enter the clinician's diagnosis or clinical impression"></textarea>
       </div>
       <div class="form-group"><label>Prescription / Treatment Given</label>
-        <textarea id="tm-presc" rows="2" maxlength="600" placeholder="Medications, dosage, frequency..."></textarea>
+        <textarea id="tm-presc" rows="2" maxlength="600" placeholder="Medications, treatment given, dosage, instructions..."></textarea>
       </div>
-      <div class="form-group"><label>Additional Notes</label>
-        <textarea id="tm-notes" rows="2" placeholder="Advice, special instructions..."></textarea>
+      <div class="form-group"><label>Clinical Notes / Instructions</label>
+        <textarea id="tm-notes" rows="2" placeholder="Advice, special instructions, restrictions..."></textarea>
       </div>
+
       <div class="form-row">
-        <div class="form-group"><label>Date <span class="required">*</span></label>${campusDateFieldHtml('tm-date',TODAY,'Treatment Date')}</div>
-        <div class="form-group"><label>Follow-up Date</label>${campusDateFieldHtml('tm-followup','','Follow-up Date')}</div>
-        <div class="form-group full"><label>Has X-ray / Imaging?</label>
-          <select id="tm-xray"><option value="">No</option><option value="X-ray taken">X-ray taken</option><option value="Dental X-ray taken">Dental X-ray taken</option><option value="Referred for imaging">Referred for imaging</option></select>
+        <div class="form-group"><label>Treatment Date <span class="required">*</span></label>${campusDateFieldHtml('tm-date',defaultDate,'Treatment Date','',TODAY)}</div>
+        <div class="form-group"><label>Follow-up Date</label>${campusDateFieldHtml('tm-followup','','Follow-up Date',defaultDate)}</div>
+        <div class="form-group full"><label>Imaging / X-ray</label>
+          <select id="tm-xray">
+            <option value="">None</option>
+            <option value="X-ray taken">X-ray taken</option>
+            <option value="Dental X-ray taken">Dental X-ray taken</option>
+            <option value="Referred for imaging">Referred for imaging</option>
+          </select>
         </div>
       </div>
-    </div>
-    <div class="form-row">
+
+      <div class="section-label">Optional Medication Reminder</div>
+      <p class="form-note" style="margin-bottom:.65rem">If completed, CampusCare creates a medication reminder for the patient.</p>
+      <div class="form-row">
         <div class="form-group"><label>Medication Name</label><input id="tm-medname" placeholder="e.g. Amoxicillin"></div>
-        <div class="form-group"><label>Dosage</label><input id="tm-dosage" placeholder="e.g. 3x/day"></div>
-        <div class="form-group"><label>End Date</label>${campusDateFieldHtml('tm-enddate',new Date(Date.now()+7*86400000).toISOString().slice(0,10),'Medication End Date')}</div>
+        <div class="form-group"><label>Dosage</label><input id="tm-dosage" placeholder="e.g. 500 mg"></div>
+        <div class="form-group"><label>Frequency</label><input id="tm-frequency" placeholder="e.g. 3 times a day"></div>
+        <div class="form-group"><label>End Date</label>${campusDateFieldHtml('tm-enddate',new Date(Date.now()+7*86400000).toISOString().slice(0,10),'Medication End Date',defaultDate)}</div>
       </div>
+    </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeAllModals()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveTreatment(${ptId||'null'},${apptId||'null'})">Save Treatment Record</button>
+      <button class="btn btn-primary" id="tm-save-btn" onclick="saveTreatment(${ptId||'null'},${apptId||'null'})">
+        ${appt?'Save Notes & Complete Appointment':'Save Treatment Record'}
+      </button>
     </div>
   </div>`);
 }
 
-function saveTreatment(ptId,apptId){
+async function saveTreatment(ptId,apptId){
   const ptIdVal=ptId||parseInt(document.getElementById('tm-pt').value);
   const findings=document.getElementById('tm-findings').value.trim();
   const diag=document.getElementById('tm-diag').value.trim();
@@ -10398,37 +10713,141 @@ function saveTreatment(ptId,apptId){
   const followup=document.getElementById('tm-followup').value;
   const xray=document.getElementById('tm-xray').value;
   const msg=document.getElementById('trm-msg');
-  const medName = document.getElementById('tm-medname')?.value.trim();
-  const dosage = document.getElementById('tm-dosage')?.value.trim();
-  const endDate = document.getElementById('tm-enddate')?.value;
-  if(!ptIdVal||!diag||!date){showAlert(msg,'Patient, diagnosis and date are required.');return;}
-  if(presc.length>600){showAlert(msg,'Prescription exceeds 600 characters.');return;}
-  const vitals={bp:document.getElementById('tm-bp').value,temp:document.getElementById('tm-temp').value,pulse:document.getElementById('tm-pulse').value,spo2:document.getElementById('tm-spo2').value,weight:document.getElementById('tm-weight').value,height:document.getElementById('tm-height').value};
-  const docId=currentUser.role==='Doctor'?currentUser.id:(getDoctors()[0]||{id:2}).id;
-  const treatmentId=DB.nextTreatId++;
-  DB.treatments.push({id:treatmentId,patientId:ptIdVal,doctorId:docId,appointmentId:apptId,diagnosis:diag,prescription:presc,findings,notes,xray,vitals,date,followupDate:followup,createdAt:new Date().toLocaleString()});
-  auditLog('TREATMENT_CREATED',`Treatment #${treatmentId} recorded with diagnosis: ${diag}.`,'Treatment',treatmentId);
-  if(apptId){const a=appointmentRecords().find(x=>x.id===apptId);if(a)a.status='Completed';}
+  const medName=document.getElementById('tm-medname')?.value.trim()||'';
+  const dosage=document.getElementById('tm-dosage')?.value.trim()||'';
+  const frequency=document.getElementById('tm-frequency')?.value.trim()||'';
+  const endDate=document.getElementById('tm-enddate')?.value||'';
+  const btn=document.getElementById('tm-save-btn');
+
+  hideAlert(msg);
+
+  if(!ptIdVal||!findings||!diag||!date){
+    showAlert(msg,'Patient, clinical findings, diagnosis, and treatment date are required.');
+    return;
+  }
+  if(date>TODAY){
+    showAlert(msg,'Treatment date cannot be in the future.');
+    return;
+  }
+  if(followup&&followup<date){
+    showAlert(msg,'Follow-up date cannot be earlier than the treatment date.');
+    return;
+  }
+  if(presc.length>600){
+    showAlert(msg,'Prescription exceeds 600 characters.');
+    return;
+  }
+
   const pt=getPatientById(ptIdVal);
-  if(pt){const u=DB.users.find(x=>x.id===pt.userId);if(u)addNotif(u.id,'Treatment Record Added',`Dr. ${currentUser.lname} has added treatment notes for your visit on ${fmtDate(date)}.`,'info');}
-  toast('Treatment record saved.','success');
-  if (medName && dosage && endDate) {
-  DB.medReminders.push({
-    id: DB.nextReminderId++,
-    patientId: ptIdVal,
-    medicationName: medName,
-    dosage: dosage,
-    startDate: TODAY,
-    endDate: endDate,
-    timeOfDay: ['08:00','14:00','20:00'], // default
-    lastSent: null,
-    status: 'active'
-  });
-  addNotif(pt.userId, 'Medication Reminder Added', `Dr. ${currentUser.lname} prescribed ${medName}. Take as directed.`, 'info');
-}
-  closeAllModals();
-  if(document.getElementById('treat-table'))renderTreatTable();
-  if(document.getElementById('my-appts-list'))renderMyAppointments();
+  if(!pt){
+    showAlert(msg,'Patient record could not be loaded.');
+    return;
+  }
+
+  const vitals={
+    bp:document.getElementById('tm-bp').value.trim(),
+    temp:document.getElementById('tm-temp').value.trim(),
+    pulse:document.getElementById('tm-pulse').value.trim(),
+    spo2:document.getElementById('tm-spo2').value.trim(),
+    weight:document.getElementById('tm-weight').value.trim(),
+    height:document.getElementById('tm-height').value.trim()
+  };
+
+  const appt=apptId?appointmentRecords().find(a=>a.id===Number(apptId)):null;
+  let doc=currentUser.role==='Doctor'
+    ? currentUser
+    : getUserById(parseInt(document.getElementById('tm-doc')?.value||'0'));
+
+  if(!doc||doc.role!=='Doctor'){
+    showAlert(msg,'Select an attending doctor.');
+    return;
+  }
+
+  const oldText=btn?.textContent;
+  if(btn){btn.disabled=true;btn.textContent='Saving securely…';}
+
+  try{
+    if(currentUser?._realSupabase){
+      if(!pt._realSupabase||!doc._realSupabase){
+        throw new Error('Select real CampusCare patient and doctor records.');
+      }
+
+      await treatmentAction({
+        action:'create',
+        patient_id:pt.dbPatientId,
+        doctor_id:doc.dbUserId,
+        appointment_id:appt?.dbAppointmentId||null,
+        examination_findings:findings,
+        diagnosis:diag,
+        prescription:presc,
+        clinical_notes:notes,
+        imaging_notes:xray,
+        vitals,
+        treatment_date:date,
+        follow_up_date:followup||null,
+        medication_name:medName||null,
+        dosage:dosage||null,
+        frequency:frequency||null,
+        medication_end_date:medName&&endDate?endDate:null,
+        times_of_day:['08:00','14:00','20:00']
+      });
+
+      await Promise.all([
+        syncRealTreatments(),
+        syncRealAppointments(),
+        syncRealMedicationReminders()
+      ]);
+
+      toast(appt
+        ? 'Treatment record saved and appointment completed.'
+        : 'Treatment record saved.','success');
+    }else{
+      const treatmentId=DB.nextTreatId++;
+      DB.treatments.push({
+        id:treatmentId,patientId:ptIdVal,doctorId:doc.id,appointmentId:apptId,
+        diagnosis:diag,prescription:presc,findings,notes,xray,vitals,date,
+        followupDate:followup,createdAt:new Date().toLocaleString()
+      });
+      auditLog('TREATMENT_CREATED',`Treatment #${treatmentId} recorded with diagnosis: ${diag}.`,'Treatment',treatmentId);
+      if(appt)appt.status='Completed';
+
+      if(medName&&endDate){
+        DB.medReminders.push({
+          id:DB.nextReminderId++,
+          patientId:ptIdVal,
+          medicationName:medName,
+          dosage:[dosage,frequency].filter(Boolean).join(' · '),
+          startDate:date,
+          endDate,
+          timeOfDay:['08:00','14:00','20:00'],
+          lastSent:null,
+          status:'active'
+        });
+      }
+      persistDB();
+      toast(appt?'Treatment record saved and appointment completed.':'Treatment record saved.','success');
+    }
+
+    closeAllModals();
+
+    if(currentUser.role==='Patient'){
+      await renderMyRecords();
+    }else if(document.getElementById('treat-table')){
+      await renderTreatments();
+    }else if(document.getElementById('appt-table')){
+      await renderAppointments();
+    }else if(currentUser.role==='Doctor'){
+      await renderDoctorSchedule();
+    }
+  }catch(e){
+    console.error('Treatment save:',e);
+    showAlert(msg,e?.message||'Unable to save treatment record.');
+  }finally{
+    if(btn&&document.body.contains(btn)){
+      btn.disabled=false;
+      btn.textContent=oldText||'Save Treatment Record';
+    }
+  }
 }
 
 function treatmentDocumentHtml(t){
@@ -10436,7 +10855,7 @@ function treatmentDocumentHtml(t){
   return `<div class="treatment-record-doc" id="treatment-document-${t.id}">
     <div class="treatment-doc-head"><img src="${CTU_MAIN_LOGO_DATA}" alt="CTU Main Campus Logo" width="78" height="78" style="width:78px;height:78px;object-fit:contain;display:block;margin:0 auto 8px"><h2>${escapeHtml(s.clinicName||'CTU Main Medical & Dental Clinic')}</h2><p>${escapeHtml(s.address||'CTU Main Campus')}</p><p>${escapeHtml(s.contactEmail||'')}</p></div>
     <div class="treatment-doc-title">CLINICAL TREATMENT RECORD</div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:.7rem;color:#64717a"><span>Record No. <strong>#${t.id}</strong></span>${t.archived?'<span class="treatment-archived-mark">ARCHIVED</span>':''}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:.7rem;color:#64717a"><span>Record No. <strong>#${treatmentDisplayId(t)}</strong></span>${t.archived?'<span class="treatment-archived-mark">ARCHIVED</span>':''}</div>
     <div class="treatment-doc-grid">
       <div class="treatment-doc-field"><span>Patient</span><strong>${safe((pt.fname||'')+' '+(pt.lname||''))}</strong></div>
       <div class="treatment-doc-field"><span>Patient ID</span><strong>${safe(pt.idNo||('P-'+pt.id))}</strong></div>
@@ -10459,11 +10878,11 @@ function treatmentDocumentHtml(t){
   </div>`;
 }
 function viewTreatment(id){
-  const t=DB.treatments.find(x=>x.id===id);if(!t)return;
-  openModal(`<div class="modal modal-xl"><div class="modal-header"><div><h3>Treatment Record #${t.id}</h3><div class="text-muted">Clinical document preview</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div class="treatment-record-shell">${treatmentDocumentHtml(t)}</div></div><div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap"><span class="tech-note">PDF uses the same clinical-document layout shown in the preview.</span><div style="display:flex;gap:.45rem;flex-wrap:wrap"><button class="btn" onclick="closeAllModals()">Close</button><button class="btn btn-info" onclick="printTreatmentRecord(${id})"><i class="fa-solid fa-print"></i> Print</button><button class="btn btn-primary" onclick="downloadTreatmentPDF(${id})"><i class="fa-solid fa-file-arrow-down"></i> Download PDF</button></div></div></div>`);
+  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  openModal(`<div class="modal modal-xl"><div class="modal-header"><div><h3>Treatment Record #${treatmentDisplayId(t)}</h3><div class="text-muted">Clinical document preview</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div><div class="modal-body"><div class="treatment-record-shell">${treatmentDocumentHtml(t)}</div></div><div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap"><span class="tech-note">PDF uses the same clinical-document layout shown in the preview.</span><div style="display:flex;gap:.45rem;flex-wrap:wrap"><button class="btn" onclick="closeAllModals()">Close</button><button class="btn btn-info" onclick="printTreatmentRecord(${id})"><i class="fa-solid fa-print"></i> Print</button><button class="btn btn-primary" onclick="downloadTreatmentPDF(${id})"><i class="fa-solid fa-file-arrow-down"></i> Download PDF</button></div></div></div>`);
 }
 function printTreatmentRecord(id){
-  const t=DB.treatments.find(x=>x.id===id);if(!t)return;
+  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
   const w=window.open('','_blank','width=900,height=900');if(!w){toast('Please allow pop-ups to print the treatment record.','warning');return;}
   w.document.write(`<!doctype html><html><head><title>Treatment Record #${id}</title><style>body{font-family:Arial,sans-serif;background:#fff;margin:0;padding:24px}.treatment-record-doc{max-width:760px;margin:auto;color:#1f2933}.treatment-doc-head{text-align:center;border-bottom:2px solid #0a7ea8;padding-bottom:14px;margin-bottom:18px}.treatment-doc-head h2{font-size:20px;margin:0;color:#12314a}.treatment-doc-head p{font-size:11px;color:#5f6d76}.treatment-doc-title{text-align:center;font-size:15px;font-weight:800;letter-spacing:1px;margin:16px 0;color:#0a5f80}.treatment-doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}.treatment-doc-field{font-size:12px;border-bottom:1px solid #e7ecef;padding:5px 0}.treatment-doc-field span,.treatment-vital-box span{display:block;font-size:10px;text-transform:uppercase;color:#76848d;font-weight:700}.treatment-doc-vitals{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 17px}.treatment-vital-box{border:1px solid #dfe7ec;border-radius:8px;padding:8px;text-align:center}.treatment-doc-section{margin:14px 0}.treatment-doc-section h4{font-size:11px;text-transform:uppercase;color:#0a6f96;border-bottom:1px solid #cfe0e8;padding-bottom:4px}.treatment-doc-section p{font-size:12px;line-height:1.55}.treatment-doc-sign{display:flex;justify-content:flex-end;margin-top:34px}.treatment-doc-sign>div{width:240px;text-align:center;font-size:11px}.treatment-doc-sign .line{border-top:1px solid #333;margin-top:38px;padding-top:5px}</style></head><body>${treatmentDocumentHtml(t)}</body></html>`);
   w.document.close();w.focus();setTimeout(()=>w.print(),250);
@@ -10478,7 +10897,7 @@ async function waitForDocumentImages(root){
 }
 
 async function downloadTreatmentPDF(id){
-  const t=DB.treatments.find(x=>x.id===id);if(!t)return;
+  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
   let stage=null;
   try{
     const [jsPDF,html2canvas]=await Promise.all([loadJsPDF(),loadHtml2Canvas()]);
@@ -10488,24 +10907,67 @@ async function downloadTreatmentPDF(id){
     const canvas=await html2canvas(doc,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false});
     const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'}),imgData=canvas.toDataURL('image/jpeg',.96),pageW=210,pageH=297,imgH=canvas.height*pageW/canvas.width;
     let remaining=imgH,pos=0;pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH;while(remaining>0){pos=remaining-imgH;pdf.addPage();pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH;}
-    const pt=getPatientById(t.patientId)||{};pdf.save(`CampusCare_Treatment_${(pt.lname||'Patient').replace(/\s+/g,'_')}_${t.id}.pdf`);
-    auditLog('TREATMENT_PDF_EXPORTED',`Treatment #${t.id} downloaded as PDF.`,'Treatment',t.id);toast('Treatment record downloaded as PDF.','success');
+    const pt=getPatientById(t.patientId)||{};pdf.save(`CampusCare_Treatment_${(pt.lname||'Patient').replace(/\s+/g,'_')}_${treatmentDisplayId(t)}.pdf`);
+    auditLog('TREATMENT_PDF_EXPORTED',`Treatment #${treatmentDisplayId(t)} downloaded as PDF.`,'Treatment',t.id);toast('Treatment record downloaded as PDF.','success');
   }catch(e){console.error(e);toast('Could not generate the PDF. Please try Print instead.','error');}
   finally{if(stage)stage.remove();}
 }
-function viewTreatmentForAppt(apptId){
-  const t=DB.treatments.find(x=>x.appointmentId===apptId);
-  if(t)viewTreatment(t.id);
-  else toast('No treatment record for this appointment.','warning');
+async function viewTreatmentForAppt(apptId){
+  try{
+    if(currentUser?._realSupabase)await syncRealTreatments();
+    const t=treatmentRecords().find(x=>x.appointmentId===Number(apptId));
+    if(t)viewTreatment(t.id);
+    else toast('No treatment record for this appointment.','warning');
+  }catch(e){
+    toast(e?.message||'Unable to load the treatment record.','error');
+  }
 }
 
 function archiveTreat(id){
-  const t=DB.treatments.find(x=>x.id===id);if(!t)return;
-  showConfirmDialog({title:'Archive Treatment Record',message:'Archive this treatment record? It will be hidden from the active list but preserved and can be restored later.',confirmLabel:'Archive',danger:true,onConfirm:()=>{t.archived=true;t.archivedAt=new Date().toISOString();t.archivedBy=currentUser.id;auditLog('TREATMENT_ARCHIVED',`Treatment #${id} archived.`,'Treatment',id);persistDB();toast('Treatment record archived.','success');renderTreatTable();}});
+  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  showConfirmDialog({
+    title:'Archive Treatment Record',
+    message:`Archive treatment record <strong>#${treatmentDisplayId(t)}</strong>? It will be hidden from the active list but preserved and can be restored later.`,
+    confirmLabel:'Archive',
+    danger:true,
+    onConfirm:async()=>{
+      try{
+        if(t._realSupabase){
+          await treatmentAction({action:'archive',treatment_id:t.dbTreatmentId});
+          await syncRealTreatments();
+        }else{
+          t.archived=true;t.archivedAt=new Date().toISOString();t.archivedBy=currentUser.id;
+          auditLog('TREATMENT_ARCHIVED',`Treatment #${id} archived.`,'Treatment',id);
+          persistDB();
+        }
+        toast('Treatment record archived.','success');
+        renderTreatTable();
+      }catch(e){toast(e?.message||'Unable to archive treatment record.','error');}
+    }
+  });
 }
+
 function restoreTreat(id){
-  const t=DB.treatments.find(x=>x.id===id);if(!t)return;
-  showConfirmDialog({title:'Restore Treatment Record',message:'Restore this treatment record to the active treatment list?',confirmLabel:'Restore',onConfirm:()=>{t.archived=false;t.restoredAt=new Date().toISOString();t.restoredBy=currentUser.id;auditLog('TREATMENT_RESTORED',`Treatment #${id} restored.`,'Treatment',id);persistDB();toast('Treatment record restored.','success');renderTreatTable();}});
+  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  showConfirmDialog({
+    title:'Restore Treatment Record',
+    message:`Restore treatment record <strong>#${treatmentDisplayId(t)}</strong> to the active treatment list?`,
+    confirmLabel:'Restore',
+    onConfirm:async()=>{
+      try{
+        if(t._realSupabase){
+          await treatmentAction({action:'restore',treatment_id:t.dbTreatmentId});
+          await syncRealTreatments();
+        }else{
+          t.archived=false;t.restoredAt=new Date().toISOString();t.restoredBy=currentUser.id;
+          auditLog('TREATMENT_RESTORED',`Treatment #${id} restored.`,'Treatment',id);
+          persistDB();
+        }
+        toast('Treatment record restored.','success');
+        renderTreatTable();
+      }catch(e){toast(e?.message||'Unable to restore treatment record.','error');}
+    }
+  });
 }
 
 // ── Inventory Modals ──
@@ -10960,7 +11422,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v30 loaded.');
+console.log('CampusCare v32 loaded.');
 </script>
 </body>
 </html>
