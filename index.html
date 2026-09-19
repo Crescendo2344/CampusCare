@@ -85,6 +85,9 @@ async function syncCampusCareSessionUI(){
           if(typeof syncRealIssueReports==='function'){
             try{await syncRealIssueReports();}catch(err){console.error('Issue report sync:',err);}
           }
+          if(typeof syncRealWorkflowRequests==='function'){
+            try{await syncRealWorkflowRequests();}catch(err){console.error('Workflow request sync:',err);}
+          }
           if(typeof syncRealCertificates==='function'){
             try{await syncRealCertificates();}catch(err){console.error('Certificate sync:',err);}
           }
@@ -110,6 +113,7 @@ async function syncCampusCareSessionUI(){
         .then(()=>syncRealMessages())
         .then(()=>syncRealHealthResources())
         .then(()=>syncRealIssueReports())
+        .then(()=>syncRealWorkflowRequests())
         .then(()=>syncRealMedicationReminders())
         .then(()=>syncRealCertificates())
         .then(()=>syncRealFitnessAssessments())
@@ -7866,7 +7870,10 @@ async function renderMyAppointments(){
   const pageToken=captureCampusPageToken();
   if(currentUser?._realSupabase){
     showDatabaseSkeleton('table');
-    try{await syncAppointmentContext();}
+    try{
+      await syncAppointmentContext();
+      await syncRealWorkflowRequests();
+    }
     catch(e){
       if(!isCampusPageCurrent('my-appointments',pageToken))return;
       console.error('My appointments sync:',e);
@@ -8268,6 +8275,112 @@ function renderMyAccount(){
   updateAccountPasswordStrength();
 }
 
+
+// ================================================================
+// REAL ACCOUNT / DOCTOR WORKFLOW REQUESTS
+// ================================================================
+function workflowRequestRecords(){
+  return currentUser?._realSupabase?(DB.workflowRequests||[]):[];
+}
+
+async function workflowAction(payload){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/workflow-actions`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Workflow action failed.');
+  return result;
+}
+
+function realWorkflowToUi(r){
+  const base={
+    id:1500000+Number(r.request_id),
+    dbRequestId:Number(r.request_id),
+    type:r.request_type||'',
+    userId:100000+Number(r.requester_id),
+    doctorId:100000+Number(r.target_user_id),
+    requesterId:100000+Number(r.requester_id),
+    targetUserId:100000+Number(r.target_user_id),
+    reason:r.reason||'',
+    effectiveDate:r.effective_date||'',
+    rawStatus:r.status||'Pending',
+    adminNote:r.admin_note||'',
+    reviewedAt:r.reviewed_at||'',
+    appliedAt:r.applied_at||'',
+    createdAt:r.created_at||'',
+    payload:r.payload||{},
+    _realSupabase:true
+  };
+
+  if(r.request_type==='Name Change'){
+    return {
+      ...base,
+      currentFname:r.payload?.current?.firstName||'',
+      currentLname:r.payload?.current?.lastName||'',
+      requestedFname:r.payload?.requested?.firstName||'',
+      requestedLname:r.payload?.requested?.lastName||'',
+      status:r.status==='Applied'?'Approved':r.status
+    };
+  }
+
+  if(r.request_type==='Schedule Change'){
+    return {
+      ...base,
+      currentSchedule:r.payload?.current||{},
+      requested:r.payload?.requested||{},
+      status:r.status
+    };
+  }
+
+  if(r.request_type==='Day Off'){
+    return {
+      ...base,
+      date:r.effective_date||r.payload?.leaveDate||'',
+      status:r.status==='Applied'?'Approved':r.status
+    };
+  }
+
+  return base;
+}
+
+function realDoctorLeaveToUi(l){
+  return {
+    id:1600000+Number(l.leave_id),
+    dbLeaveId:Number(l.leave_id),
+    doctorId:100000+Number(l.doctor_id),
+    date:l.leave_date||'',
+    reason:l.reason||'',
+    createdAt:l.created_at||'',
+    _realSupabase:true
+  };
+}
+
+async function syncRealWorkflowRequests(){
+  if(!currentUser?._realSupabase)return [];
+
+  const result=await workflowAction({action:'list'});
+  DB.workflowRequests=(result.requests||[]).map(realWorkflowToUi);
+
+  DB.nameChangeRequests=DB.workflowRequests.filter(r=>r.type==='Name Change');
+  DB.scheduleChangeRequests=DB.workflowRequests.filter(r=>r.type==='Schedule Change');
+  DB.leaveRequests=DB.workflowRequests.filter(r=>r.type==='Day Off');
+
+  DB.doctorLeaves=(DB.doctorLeaves||[]).filter(l=>!l._realSupabase);
+  DB.doctorLeaves.push(...(result.doctor_leaves||[]).map(realDoctorLeaveToUi));
+
+  return DB.workflowRequests;
+}
+
 function openScheduleChangeRequest(){
   const u=currentUser;
   openModal(`<div class="modal">
@@ -8293,88 +8406,144 @@ function openScheduleChangeRequest(){
   </div>`);
 }
 
-function submitScheduleChangeRequest(){
+async function submitScheduleChangeRequest(){
   const u=currentUser;
   const msg=document.getElementById('scr-msg');
   const startTime=document.getElementById('scr-start').value;
   const endTime=document.getElementById('scr-end').value;
-  const slotDuration=parseInt(document.getElementById('scr-slot').value)||60;
-  const maxPatients=parseInt(document.getElementById('scr-max').value)||20;
+  const slotDuration=parseInt(document.getElementById('scr-slot').value,10)||60;
+  const maxPatients=parseInt(document.getElementById('scr-max').value,10)||20;
   const workDays=Array.from(document.querySelectorAll('.scr-day:checked')).map(cb=>cb.value);
   const effectiveDate=document.getElementById('scr-effective').value;
   const reason=document.getElementById('scr-reason').value.trim();
+
+  hideAlert(msg);
   if(!workDays.length){showAlert(msg,'Please select at least one work day.');return;}
   if(startTime>=endTime){showAlert(msg,'Start time must be before end time.');return;}
   if(!effectiveDate){showAlert(msg,'Please choose an effective date.');return;}
-  DB.scheduleChangeRequests=DB.scheduleChangeRequests||[];
-  DB.nextScheduleReqId=DB.nextScheduleReqId||1;
-  DB.scheduleChangeRequests.push({
-    id:DB.nextScheduleReqId++,doctorId:u.id,
-    currentSchedule:{startTime:u.startTime,endTime:u.endTime,slotDuration:u.slotDuration,maxPatients:u.maxPatients,workDays:u.workDays},
-    requested:{startTime,endTime,slotDuration,maxPatients,workDays},
-    effectiveDate,reason,status:'Pending',createdAt:TODAY
-  });
-  DB.users.filter(a=>a.role==='Administrator').forEach(a=>addNotif(a.id,'Schedule Change Request',`${docName(u)} has requested a work schedule change effective ${fmtDate(effectiveDate)}.`,'info'));
-  toast('Schedule change request submitted.','success');
-  closeAllModals();
+
+  try{
+    if(currentUser?._realSupabase){
+      await workflowAction({
+        action:'create',
+        request_type:'Schedule Change',
+        start_time:startTime,
+        end_time:endTime,
+        slot_duration:slotDuration,
+        max_patients:maxPatients,
+        work_days:workDays,
+        effective_date:effectiveDate,
+        reason
+      });
+      await syncRealWorkflowRequests();
+    }else{
+      DB.scheduleChangeRequests=DB.scheduleChangeRequests||[];
+      DB.nextScheduleReqId=DB.nextScheduleReqId||1;
+      DB.scheduleChangeRequests.push({
+        id:DB.nextScheduleReqId++,doctorId:u.id,
+        currentSchedule:{startTime:u.startTime,endTime:u.endTime,slotDuration:u.slotDuration,maxPatients:u.maxPatients,workDays:u.workDays},
+        requested:{startTime,endTime,slotDuration,maxPatients,workDays},
+        effectiveDate,reason,status:'Pending',createdAt:TODAY
+      });
+      DB.users.filter(a=>a.role==='Administrator').forEach(a=>addNotif(a.id,'Schedule Change Request',`${docName(u)} has requested a work schedule change effective ${fmtDate(effectiveDate)}.`,'info'));
+      persistDB();
+    }
+
+    toast('Schedule change request submitted.','success');
+    closeAllModals();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to submit schedule change request.');
+  }
 }
 
+
 function approveScheduleChange(reqId){
-  const req=(DB.scheduleChangeRequests||[]).find(r=>r.id===reqId);
+  const req=(DB.scheduleChangeRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
-  const doc=DB.users.find(u=>u.id===req.doctorId);
+  const doc=getUserById(req.doctorId);
   if(!doc)return;
   const effDate=req.effectiveDate||TODAY;
+
   showConfirmDialog({
     title:'Approve Schedule Change',
     message:`Approve the requested schedule change for <strong>${docName(doc)}</strong>, effective ${fmtDate(effDate)}?`,
     confirmLabel:'Approve',
-    onConfirm:()=>{
-      if(effDate<=TODAY){
-        Object.assign(doc,req.requested);
-        req.status='Approved';
-        addNotif(doc.id,'Schedule Change Approved','Your requested work schedule change is now in effect.','success');
-        toastWithUndo('Schedule change approved and applied.',()=>{Object.assign(doc,req.currentSchedule);req.status='Pending';if(document.getElementById('user-table'))renderUsers();});
-      }else{
-        req.status='Approved-Pending';
-        addNotif(doc.id,'Schedule Change Approved',`Your requested work schedule change has been approved and will take effect on ${fmtDate(effDate)}.`,'success');
-        toast(`Approved — will take effect automatically on ${fmtDate(effDate)}.`,'success');
+    onConfirm:async()=>{
+      try{
+        if(req._realSupabase){
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve'});
+          await Promise.all([syncAdminDirectoryFromSupabase(),syncRealWorkflowRequests()]);
+          toast(effDate<=TODAY?'Schedule change approved and applied.':`Approved — will take effect automatically on ${fmtDate(effDate)}.`,'success');
+        }else{
+          if(effDate<=TODAY){
+            Object.assign(doc,req.requested);
+            req.status='Approved';
+            addNotif(doc.id,'Schedule Change Approved','Your requested work schedule change is now in effect.','success');
+          }else{
+            req.status='Approved-Pending';
+            addNotif(doc.id,'Schedule Change Approved',`Your requested work schedule change has been approved and will take effect on ${fmtDate(effDate)}.`,'success');
+          }
+          persistDB();
+          toast('Schedule change approved.','success');
+        }
+        if(document.getElementById('user-table'))await renderUsers();
+      }catch(e){
+        toast(e?.message||'Unable to approve the schedule change.','error');
       }
-      if(document.getElementById('user-table'))renderUsers();
     }
   });
 }
+
 
 // Applies any admin-approved schedule changes whose effective date has
 // arrived. Runs once per login/dashboard load, since there's no backend
 // scheduler to do this continuously.
 function applyDueScheduleChanges(){
+  if(currentUser?._realSupabase){
+    // Real accounts are applied by the hourly PostgreSQL scheduler.
+    return;
+  }
+
   (DB.scheduleChangeRequests||[]).filter(r=>r.status==='Approved-Pending'&&r.effectiveDate<=TODAY).forEach(r=>{
     const doc=DB.users.find(u=>u.id===r.doctorId);
     if(doc){
       Object.assign(doc,r.requested);
-      addNotif(doc.id,'Schedule Change Now Active',`Your approved work schedule change is now in effect.`,'info');
+      addNotif(doc.id,'Schedule Change Now Active','Your approved work schedule change is now in effect.','info');
     }
     r.status='Approved';
   });
 }
 
+
 function rejectScheduleChange(reqId){
-  const req=(DB.scheduleChangeRequests||[]).find(r=>r.id===reqId);
+  const req=(DB.scheduleChangeRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
-  const doc=DB.users.find(u=>u.id===req.doctorId);
+  const doc=getUserById(req.doctorId);
+
   showConfirmDialog({
     title:'Reject Schedule Change',
     message:`Reject this schedule change request${doc?' for <strong>'+docName(doc)+'</strong>':''}?`,
-    confirmLabel:'Reject',danger:true,
-    onConfirm:()=>{
-      req.status='Rejected';
-      if(doc)addNotif(doc.id,'Schedule Change Declined','Your requested work schedule change was declined by an administrator. Please reach out for more details.','warning');
-      toast('Request rejected.','success');
-      if(document.getElementById('user-table'))renderUsers();
+    confirmLabel:'Reject',
+    danger:true,
+    onConfirm:async()=>{
+      try{
+        if(req._realSupabase){
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject'});
+          await syncRealWorkflowRequests();
+        }else{
+          req.status='Rejected';
+          if(doc)addNotif(doc.id,'Schedule Change Declined','Your requested work schedule change was declined by an administrator. Please reach out for more details.','warning');
+          persistDB();
+        }
+        toast('Request rejected.','success');
+        if(document.getElementById('user-table'))await renderUsers();
+      }catch(e){
+        toast(e?.message||'Unable to reject the request.','error');
+      }
     }
   });
 }
+
 
 let pendingAccountUpdate=null;
 
@@ -8739,56 +8908,112 @@ function openNameChangeRequest(){
   </div>`);
 }
 
-function submitNameChangeRequest(){
+async function submitNameChangeRequest(){
   const fname=document.getElementById('ncr-fname').value.trim();
   const lname=document.getElementById('ncr-lname').value.trim();
   const reason=document.getElementById('ncr-reason').value.trim();
   const msg=document.getElementById('ncr-msg');
+
   hideAlert(msg);
   if(!fname||!lname){showAlert(msg,'Please fill in both name fields.');return;}
-  if(fname===currentUser.fname&&lname===currentUser.lname){showAlert(msg,'This matches your current name — nothing to change.');return;}
-  DB.nameChangeRequests=DB.nameChangeRequests||[];
-  DB.nextNameReqId=DB.nextNameReqId||1;
-  DB.nameChangeRequests.push({id:DB.nextNameReqId++,userId:currentUser.id,currentFname:currentUser.fname,currentLname:currentUser.lname,requestedFname:fname,requestedLname:lname,reason,status:'Pending',createdAt:TODAY});
-  DB.users.filter(a=>a.role==='Administrator').forEach(a=>addNotif(a.id,'Name Change Request',`${currentUser.fname} ${currentUser.lname} requests to change their name to "${fname} ${lname}".`,'info'));
-  toast('Request submitted. An admin will review it and you\'ll be notified.','success');
-  closeAllModals();
+  if(fname===currentUser.fname&&lname===currentUser.lname){
+    showAlert(msg,'This matches your current name — nothing to change.');
+    return;
+  }
+
+  try{
+    if(currentUser?._realSupabase){
+      await workflowAction({
+        action:'create',
+        request_type:'Name Change',
+        requested_first_name:fname,
+        requested_last_name:lname,
+        reason
+      });
+      await syncRealWorkflowRequests();
+    }else{
+      DB.nameChangeRequests=DB.nameChangeRequests||[];
+      DB.nextNameReqId=DB.nextNameReqId||1;
+      DB.nameChangeRequests.push({
+        id:DB.nextNameReqId++,userId:currentUser.id,
+        currentFname:currentUser.fname,currentLname:currentUser.lname,
+        requestedFname:fname,requestedLname:lname,reason,status:'Pending',createdAt:TODAY
+      });
+      DB.users.filter(a=>a.role==='Administrator').forEach(a=>
+        addNotif(a.id,'Name Change Request',`${currentUser.fname} ${currentUser.lname} requests to change their name to "${fname} ${lname}".`,'info')
+      );
+      persistDB();
+    }
+
+    toast('Request submitted. An admin will review it and you will be notified.','success');
+    closeAllModals();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to submit the name change request.');
+  }
 }
 
+
 function approveNameChange(reqId){
-  const req=(DB.nameChangeRequests||[]).find(r=>r.id===reqId);
+  const req=(DB.nameChangeRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
+
   showConfirmDialog({
     title:'Approve Name Change',
     message:`Approve changing "<strong>${escapeHtml(req.currentFname)} ${escapeHtml(req.currentLname)}</strong>" to "<strong>${escapeHtml(req.requestedFname)} ${escapeHtml(req.requestedLname)}</strong>"?`,
     confirmLabel:'Approve',
-    onConfirm:()=>{
-      const user=DB.users.find(u=>u.id===req.userId);
-      if(user){user.fname=req.requestedFname;user.lname=req.requestedLname;}
-      req.status='Approved';
-      if(user)addNotif(user.id,'Name Change Approved',`Your name has been updated to "${req.requestedFname} ${req.requestedLname}".`,'success');
-      toast('Name change approved.','success');
-      if(document.getElementById('name-change-table')){renderUserTable();renderNameChangeTable();}
+    onConfirm:async()=>{
+      try{
+        if(req._realSupabase){
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve'});
+          await Promise.all([syncAdminDirectoryFromSupabase(),syncRealWorkflowRequests()]);
+        }else{
+          const user=DB.users.find(u=>u.id===req.userId);
+          if(user){user.fname=req.requestedFname;user.lname=req.requestedLname;}
+          req.status='Approved';
+          if(user)addNotif(user.id,'Name Change Approved',`Your name has been updated to "${req.requestedFname} ${req.requestedLname}".`,'success');
+          persistDB();
+        }
+
+        toast('Name change approved.','success');
+        if(document.getElementById('user-table'))await renderUsers();
+      }catch(e){
+        toast(e?.message||'Unable to approve the name change.','error');
+      }
     }
   });
 }
 
+
 function rejectNameChange(reqId){
-  const req=(DB.nameChangeRequests||[]).find(r=>r.id===reqId);
+  const req=(DB.nameChangeRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
+
   showConfirmDialog({
     title:'Reject Name Change',
     message:`Reject this name change request for "<strong>${escapeHtml(req.currentFname)} ${escapeHtml(req.currentLname)}</strong>"?`,
-    confirmLabel:'Reject',danger:true,
-    onConfirm:()=>{
-      req.status='Rejected';
-      const user=DB.users.find(u=>u.id===req.userId);
-      if(user)addNotif(user.id,'Name Change Request Declined','Your name change request was declined by an administrator. Please contact the clinic office for more information.','warning');
-      toast('Request rejected.','success');
-      if(document.getElementById('name-change-table')){renderUserTable();renderNameChangeTable();}
+    confirmLabel:'Reject',
+    danger:true,
+    onConfirm:async()=>{
+      try{
+        if(req._realSupabase){
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject'});
+          await syncRealWorkflowRequests();
+        }else{
+          req.status='Rejected';
+          const user=DB.users.find(u=>u.id===req.userId);
+          if(user)addNotif(user.id,'Name Change Request Declined','Your name change request was declined by an administrator. Please contact the clinic office for more information.','warning');
+          persistDB();
+        }
+
+        toast('Request rejected.','success');
+        if(document.getElementById('user-table'))await renderUsers();
+      }catch(e){
+        toast(e?.message||'Unable to reject the name change.','error');
+      }
     }
   });
 }
+
 
 
 async function uploadCurrentUserProfilePhoto(file){
@@ -9105,81 +9330,148 @@ function getDoctorLeaveRequests(docId){
   return (DB.leaveRequests||[]).filter(l=>l.doctorId===docId&&l.status==='Pending').sort((a,b)=>a.date.localeCompare(b.date));
 }
 
-function requestDoctorLeave(){
+async function requestDoctorLeave(){
   const date=document.getElementById('leave-date').value;
   const reason=document.getElementById('leave-reason').value.trim();
   const msg=document.getElementById('leave-msg');
+
   hideAlert(msg);
   if(!date){showAlert(msg,'Please choose a date.');return;}
-  if(DB.doctorLeaves.some(l=>l.doctorId===currentUser.id&&l.date===date)){showAlert(msg,'That date is already approved as a day off.');return;}
-  if((DB.leaveRequests||[]).some(l=>l.doctorId===currentUser.id&&l.date===date&&l.status==='Pending')){showAlert(msg,'You already have a pending request for that date.');return;}
-  DB.leaveRequests=DB.leaveRequests||[];
-  DB.nextLeaveReqId=DB.nextLeaveReqId||1;
-  DB.leaveRequests.push({id:DB.nextLeaveReqId++,doctorId:currentUser.id,date,reason,status:'Pending',createdAt:TODAY});
-  DB.users.filter(a=>a.role==='Administrator').forEach(a=>addNotif(a.id,'Day Off Request',`${docName(currentUser)} requested ${fmtDate(date)} off.`,'info'));
-  toast('Day off request submitted for admin approval.','success');
-  document.getElementById('leave-date').value='';
-  document.getElementById('leave-reason').value='';
-  renderDoctorSchedule();
+  if(DB.doctorLeaves.some(l=>l.doctorId===currentUser.id&&l.date===date)){
+    showAlert(msg,'That date is already approved as a day off.');
+    return;
+  }
+  if((DB.leaveRequests||[]).some(l=>l.doctorId===currentUser.id&&l.date===date&&l.status==='Pending')){
+    showAlert(msg,'You already have a pending request for that date.');
+    return;
+  }
+
+  try{
+    if(currentUser?._realSupabase){
+      await workflowAction({
+        action:'create',
+        request_type:'Day Off',
+        leave_date:date,
+        reason
+      });
+      await syncRealWorkflowRequests();
+    }else{
+      DB.leaveRequests=DB.leaveRequests||[];
+      DB.nextLeaveReqId=DB.nextLeaveReqId||1;
+      DB.leaveRequests.push({
+        id:DB.nextLeaveReqId++,doctorId:currentUser.id,
+        date,reason,status:'Pending',createdAt:TODAY
+      });
+      DB.users.filter(a=>a.role==='Administrator').forEach(a=>
+        addNotif(a.id,'Day Off Request',`${docName(currentUser)} requested ${fmtDate(date)} off.`,'info')
+      );
+      persistDB();
+    }
+
+    toast('Day off request submitted for admin approval.','success');
+    document.getElementById('leave-date').value='';
+    document.getElementById('leave-reason').value='';
+    await renderDoctorSchedule();
+  }catch(e){
+    showAlert(msg,e?.message||'Unable to submit the day off request.');
+  }
 }
 
+
 function approveLeaveRequest(reqId){
-  const req=(DB.leaveRequests||[]).find(r=>r.id===reqId);
+  const req=(DB.leaveRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
   const doc=getUserById(req.doctorId);
+
   showConfirmDialog({
     title:'Approve Day Off',
     message:`Approve ${doc?'<strong>'+docName(doc)+'</strong>':'this doctor'}'s day off on ${fmtDate(req.date)}?`,
     confirmLabel:'Approve',
-    onConfirm:()=>{
-      DB.doctorLeaves=DB.doctorLeaves||[];
-      DB.nextLeaveId=DB.nextLeaveId||1;
-      DB.doctorLeaves.push({id:DB.nextLeaveId++,doctorId:req.doctorId,date:req.date,reason:req.reason});
-      req.status='Approved';
-      if(doc)addNotif(doc.id,'Day Off Approved',`Your day off on ${fmtDate(req.date)} has been approved.`,'success');
-      toastWithUndo('Day off approved.',()=>{
-        req.status='Pending';
-        DB.doctorLeaves=DB.doctorLeaves.filter(l=>!(l.doctorId===req.doctorId&&l.date===req.date));
-        if(document.getElementById('user-table'))renderUsers();
-      });
-      if(document.getElementById('user-table'))renderUsers();
+    onConfirm:async()=>{
+      try{
+        if(req._realSupabase){
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve'});
+          await Promise.all([syncRealWorkflowRequests(),syncRealAppointments()]);
+        }else{
+          DB.doctorLeaves=DB.doctorLeaves||[];
+          DB.nextLeaveId=DB.nextLeaveId||1;
+          DB.doctorLeaves.push({id:DB.nextLeaveId++,doctorId:req.doctorId,date:req.date,reason:req.reason});
+          req.status='Approved';
+          if(doc)addNotif(doc.id,'Day Off Approved',`Your day off on ${fmtDate(req.date)} has been approved.`,'success');
+          persistDB();
+        }
+
+        toast('Day off approved.','success');
+        if(document.getElementById('user-table'))await renderUsers();
+      }catch(e){
+        toast(e?.message||'Unable to approve the day off.','error',6500);
+      }
     }
   });
 }
 
+
 function rejectLeaveRequest(reqId){
-  const req=(DB.leaveRequests||[]).find(r=>r.id===reqId);
+  const req=(DB.leaveRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
   const doc=getUserById(req.doctorId);
+
   showConfirmDialog({
     title:'Reject Day Off Request',
     message:`Reject this day off request${doc?' for <strong>'+docName(doc)+'</strong>':''}?`,
-    confirmLabel:'Reject',danger:true,
-    onConfirm:()=>{
-      req.status='Rejected';
-      if(doc)addNotif(doc.id,'Day Off Request Declined',`Your day off request for ${fmtDate(req.date)} was declined.`,'warning');
-      toast('Request rejected.','success');
-      if(document.getElementById('user-table'))renderUsers();
+    confirmLabel:'Reject',
+    danger:true,
+    onConfirm:async()=>{
+      try{
+        if(req._realSupabase){
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject'});
+          await syncRealWorkflowRequests();
+        }else{
+          req.status='Rejected';
+          if(doc)addNotif(doc.id,'Day Off Request Declined',`Your day off request for ${fmtDate(req.date)} was declined.`,'warning');
+          persistDB();
+        }
+
+        toast('Request rejected.','success');
+        if(document.getElementById('user-table'))await renderUsers();
+      }catch(e){
+        toast(e?.message||'Unable to reject the request.','error');
+      }
     }
   });
 }
 
+
 function removeDoctorLeave(id){
-  const l=DB.doctorLeaves.find(x=>x.id===id);
+  const l=DB.doctorLeaves.find(x=>x.id===Number(id));
   if(!l)return;
   const doc=getUserById(l.doctorId);
+
   showConfirmDialog({
     title:'Cancel Approved Day Off',
-    message:`Cancel this approved day off${doc?' for <strong>'+docName(doc)+'</strong>':''} on ${fmtDate(l.date)}? Bookings on that date will open back up.`,
-    confirmLabel:'Cancel Day Off',danger:true,
-    onConfirm:()=>{
-      DB.doctorLeaves=DB.doctorLeaves.filter(x=>x.id!==id);
-      if(doc)addNotif(doc.id,'Day Off Cancelled',`Your approved day off on ${fmtDate(l.date)} was cancelled by an administrator.`,'warning');
-      toast('Day off cancelled.','warning');
-      if(document.getElementById('user-table'))renderUsers();
+    message:`Cancel this approved day off${doc?' for <strong>'+docName(doc)+'</strong>':''} on ${fmtDate(l.date)}? Booking availability for that date will reopen.`,
+    confirmLabel:'Cancel Day Off',
+    danger:true,
+    onConfirm:async()=>{
+      try{
+        if(l._realSupabase){
+          await workflowAction({action:'cancel_leave',leave_id:l.dbLeaveId});
+          await syncRealWorkflowRequests();
+        }else{
+          DB.doctorLeaves=DB.doctorLeaves.filter(x=>x.id!==id);
+          if(doc)addNotif(doc.id,'Day Off Cancelled',`Your approved day off on ${fmtDate(l.date)} was cancelled by an administrator.`,'warning');
+          persistDB();
+        }
+
+        toast('Day off cancelled.','warning');
+        if(document.getElementById('user-table'))await renderUsers();
+      }catch(e){
+        toast(e?.message||'Unable to cancel the approved day off.','error');
+      }
     }
   });
 }
+
 
 // ================================================================
 // DOCTOR – MY PATIENTS
@@ -9248,7 +9540,12 @@ async function renderPatients(){
   const pageToken=captureCampusPageToken();
   if(currentUser?.role==='Administrator'){
     showDatabaseSkeleton('table');
-    try{await syncAdminDirectoryFromSupabase();}
+    try{
+      await Promise.all([
+        syncAdminDirectoryFromSupabase(),
+        syncRealWorkflowRequests()
+      ]);
+    }
     catch(e){
       if(!isCampusPageCurrent('patients',pageToken))return;
       console.error(e);
@@ -12099,7 +12396,7 @@ async function renderUsers(){
     </div>
     <div class="card">
       <div class="card-header"><h3>Schedule Change Requests</h3></div>
-      ${(()=>{const reqs=(DB.scheduleChangeRequests||[]).filter(r=>r.status==='Pending').sort((a,b)=>b.id-a.id);
+      ${(()=>{const reqs=(DB.scheduleChangeRequests||[]).filter(r=>['Pending','Approved-Pending'].includes(r.status)).sort((a,b)=>b.id-a.id);
         if(!reqs.length)return '<p class="text-muted">No pending schedule change requests.</p>';
         return `<div class="table-wrap"><table><thead><tr><th>Doctor</th><th>Requested Hours</th><th>Work Days</th><th>Max/Day</th><th>Effective</th><th>Reason</th><th>Actions</th></tr></thead><tbody>${
           reqs.map(r=>{const doc=getUserById(r.doctorId);return `<tr>
@@ -12110,8 +12407,10 @@ async function renderUsers(){
             <td>${fmtDate(r.effectiveDate||r.createdAt)}</td>
             <td>${r.reason?escapeHtml(r.reason):'<span class="text-muted">—</span>'}</td>
             <td><div class="td-actions">
-              <button class="btn btn-xs btn-success" onclick="approveScheduleChange(${r.id})">Approve</button>
-              <button class="btn btn-xs btn-danger" onclick="rejectScheduleChange(${r.id})">Reject</button>
+              ${r.status==='Pending'
+                ? `<button class="btn btn-xs btn-success" onclick="approveScheduleChange(${r.id})">Approve</button>
+                   <button class="btn btn-xs btn-danger" onclick="rejectScheduleChange(${r.id})">Reject</button>`
+                : `<span class="badge badge-info">Approved · activates ${fmtDate(r.effectiveDate)}</span>`}
             </div></td>
           </tr>`;}).join('')
         }</tbody></table></div>`;
@@ -15126,7 +15425,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v44 loaded.');
+console.log('CampusCare v45 loaded.');
 </script>
 </body>
 </html>
