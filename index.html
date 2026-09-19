@@ -70,6 +70,9 @@ async function syncCampusCareSessionUI(){
       // certificate data synchronize in the background.
       syncAdminDirectoryFromSupabase()
         .then(async()=>{
+          if(typeof syncRealTreatments==='function'){
+            try{await syncRealTreatments();}catch(err){console.error('Treatment sync:',err);}
+          }
           if(typeof syncRealCertificates==='function'){
             try{await syncRealCertificates();}catch(err){console.error('Certificate sync:',err);}
           }
@@ -3010,7 +3013,7 @@ function computeCampusHealthAnalytics(windowDays=7){
   const prevTo=isoDateOffset(currentFrom,-1);
   const prevFrom=isoDateOffset(prevTo,-(windowDays-1));
 
-  const clinical=DB.treatments.map(t=>{
+  const clinical=treatmentRecords().filter(t=>!t.archived).map(t=>{
     const pt=getPatientById(t.patientId)||{};
     return {...t,_kind:'Treatment',college:pt.college||'',signals:extractHealthSignals(t)};
   });
@@ -3065,7 +3068,7 @@ function computeCampusHealthAnalyticsRange(dateFrom,dateTo){
   const fromD=new Date(from+'T12:00:00'),toD=new Date(to+'T12:00:00');
   const spanDays=Math.max(1,Math.round((toD-fromD)/86400000)+1);
   const prevTo=isoDateOffset(from,-1),prevFrom=isoDateOffset(prevTo,-(spanDays-1));
-  const clinical=DB.treatments.filter(t=>!t.archived).map(t=>{const pt=getPatientById(t.patientId)||{};return {...t,college:pt.college||'',signals:extractHealthSignals(t)};});
+  const clinical=treatmentRecords().filter(t=>!t.archived).map(t=>{const pt=getPatientById(t.patientId)||{};return {...t,college:pt.college||'',signals:extractHealthSignals(t)};});
   const current=clinical.filter(x=>x.date>=from&&x.date<=to),previous=clinical.filter(x=>x.date>=prevFrom&&x.date<=prevTo);
   const countSignals=list=>{const m={};list.forEach(x=>x.signals.forEach(s=>m[s]=(m[s]||0)+1));return m;};
   const curr=countSignals(current),prev=countSignals(previous),names=[...new Set([...Object.keys(curr),...Object.keys(prev)])];
@@ -3096,9 +3099,28 @@ function renderHealthIntelligenceCard(dateFrom,dateTo){
     <div class="tech-note" style="margin-top:.65rem">The comparison automatically uses the immediately preceding range with the same number of days.</div>
   </div>`;
 }
-function refreshHealthIntelligence(){
-  const from=document.getElementById('rpt-from')?.value||TODAY.substring(0,7)+'-01',to=document.getElementById('rpt-to')?.value||TODAY;
-  const el=document.getElementById('health-intelligence-wrap');if(el)el.innerHTML=renderHealthIntelligenceCard(from,to);
+async function refreshHealthIntelligence(){
+  const from=document.getElementById('rpt-from')?.value||TODAY.substring(0,7)+'-01';
+  const to=document.getElementById('rpt-to')?.value||TODAY;
+  const college=document.getElementById('rpt-college')?.value||'';
+  const el=document.getElementById('health-intelligence-wrap');
+  if(!el)return;
+
+  if(!currentUser?._realSupabase){
+    el.innerHTML=renderHealthIntelligenceCard(from,to);
+    return;
+  }
+
+  el.innerHTML=databaseSkeletonHtml('cards',4);
+  try{
+    const summary=await fetchAnalyticsSummary(from,to,college);
+    if(campusActivePageId!=='reports')return;
+    el.innerHTML=renderLiveAnalyticsCard(summary);
+  }catch(e){
+    if(campusActivePageId!=='reports')return;
+    el.innerHTML=`<div class="card"><div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to refresh analytics.')}</div>
+      <button class="btn btn-sm" onclick="refreshHealthIntelligence()">Retry</button></div>`;
+  }
 }
 
 
@@ -9628,28 +9650,229 @@ function renderDisbTable(){
 // ================================================================
 // REPORTS
 // ================================================================
-function renderReports(){
+
+let currentAnalyticsSummary=null;
+
+async function fetchAnalyticsSummary(from,to,college=''){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/analytics-summary`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    },
+    body:JSON.stringify({from,to,college})
+  });
+
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Unable to generate analytics.');
+  currentAnalyticsSummary=result;
+  return result;
+}
+
+function analyticsMiniBars(rows,valueKey='count'){
+  if(!rows?.length)return '<div class="tech-note">No records in the selected date range.</div>';
+  const max=Math.max(...rows.map(r=>Number(r[valueKey]||0)),1);
+  return `<div class="intel-alert-list">${rows.slice(0,8).map(r=>{
+    const val=Number(r[valueKey]||0);
+    const name=r.name||r.itemName||r.label||'Item';
+    return `<div class="intel-alert-item">
+      <div class="intel-alert-copy" style="width:100%">
+        <div style="display:flex;justify-content:space-between;gap:.75rem"><strong>${escapeHtml(String(name))}</strong><span>${val}</span></div>
+        <div class="progress-bar" style="margin-top:.3rem"><div class="progress-fill" style="width:${Math.round(val/max*100)}%"></div></div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function analyticsVisitForecastHtml(summary){
+  const rows=summary?.visitForecast||[];
+  if(!rows.length)return '<div class="tech-note">No forecast is available yet.</div>';
+
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Month</th><th>Predicted Clinic Visits</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.label)}</td><td><strong>${Number(r.predictedVisits||0)}</strong></td></tr>`).join('')}</tbody>
+  </table></div>
+  <div class="tech-note" style="margin-top:.5rem">
+    Method: ${escapeHtml(summary.forecastMeta?.method||'trend analysis')} ·
+    Confidence: <strong>${escapeHtml(summary.forecastMeta?.confidence||'Limited')}</strong> ·
+    ${Number(summary.forecastMeta?.historicalVisits||0)} historical visit${Number(summary.forecastMeta?.historicalVisits||0)===1?'':'s'} used.
+  </div>`;
+}
+
+function analyticsMedicineForecastHtml(summary){
+  const rows=summary?.medicineForecast||[];
+  if(!rows.length){
+    return '<div class="tech-note">Medicine consumption forecasting appears after Medicine inventory items and disbursement history are available.</div>';
+  }
+
+  const byItem={};
+  rows.forEach(r=>{
+    (byItem[r.itemName]??=[]).push(r);
+  });
+
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Medicine</th><th>Month</th><th>Predicted Use</th><th>Projected Remaining</th><th>Recommended Reorder</th></tr></thead>
+    <tbody>${Object.entries(byItem).flatMap(([name,items])=>
+      items.map(r=>`<tr>
+        <td>${escapeHtml(name)}</td>
+        <td>${escapeHtml(r.label)}</td>
+        <td>${Number(r.predictedUsage||0)} ${escapeHtml(r.unit||'')}</td>
+        <td>${r.predictedRemainingStock==null?'—':`${Number(r.predictedRemainingStock)} ${escapeHtml(r.unit||'')}`}</td>
+        <td>${Number(r.recommendedReorderQty||0)} ${escapeHtml(r.unit||'')}</td>
+      </tr>`)
+    ).join('')}</tbody>
+  </table></div>`;
+}
+
+function renderLiveAnalyticsCard(summary){
+  if(!summary)return `<div class="card"><div class="empty-state"><p>Analytics data is unavailable.</p></div></div>`;
+
+  const s=summary.summary||{};
+  const range=summary.range||{};
+  const scopeText=summary.scope==='doctor'
+    ? 'Your clinical records only'
+    : (range.college?`Campus analytics filtered to ${range.college}`:'Campus-wide clinical analytics');
+
+  return `<div class="card">
+    <div class="card-header">
+      <div>
+        <h3>Campus Health Intelligence &amp; Data Mining</h3>
+        <div class="tech-note">${escapeHtml(scopeText)} · ${fmtDate(range.from)} – ${fmtDate(range.to)}</div>
+      </div>
+      <span class="intel-badge">Live Supabase data</span>
+    </div>
+
+    <div class="intel-grid">
+      <div class="intel-card"><div class="intel-kicker">Clinical visits</div><div class="intel-value">${Number(s.clinicalVisits||0)}</div><div class="intel-meta">${s.visitGrowth>=0?'+':''}${Number(s.visitGrowth||0)}% vs previous equal period</div></div>
+      <div class="intel-card"><div class="intel-kicker">Unique patients</div><div class="intel-value">${Number(s.uniquePatients||0)}</div><div class="intel-meta">${Number(s.completedAppointments||0)} completed appointment${Number(s.completedAppointments||0)===1?'':'s'}</div></div>
+      <div class="intel-card"><div class="intel-kicker">Common diagnosis</div><div class="intel-value" style="font-size:.95rem">${s.topDiagnosis?escapeHtml(s.topDiagnosis.name):'No data'}</div><div class="intel-meta">${s.topDiagnosis?`${s.topDiagnosis.count} record${s.topDiagnosis.count===1?'':'s'}`:'Record treatments to populate'}</div></div>
+      <div class="intel-card"><div class="intel-kicker">Common service / procedure</div><div class="intel-value" style="font-size:.95rem">${s.topService?escapeHtml(s.topService.name):'No data'}</div><div class="intel-meta">${s.topService?`${s.topService.count} completed visit${s.topService.count===1?'':'s'} · ${escapeHtml(s.topService.clinic||'')}`:'Complete appointments to populate'}</div></div>
+    </div>
+
+    <div class="grid-2" style="align-items:start;margin-top:1rem">
+      <div>
+        <div class="section-label">Common Diagnoses</div>
+        ${analyticsMiniBars(summary.diagnoses||[])}
+      </div>
+      <div>
+        <div class="section-label">Procedure / Service Frequencies</div>
+        ${analyticsMiniBars(summary.services||[])}
+      </div>
+    </div>
+
+    <div class="section-label" style="margin-top:1rem">Health Trend Alerts</div>
+    <div class="intel-alert-list">
+      ${(summary.alerts||[]).length
+        ? summary.alerts.map(a=>`<div class="intel-alert-item"><div class="intel-alert-icon">${a.severity==='high'?'⚠️':'📈'}</div><div class="intel-alert-copy"><strong>${escapeHtml(a.title)}</strong><span>${escapeHtml(a.detail)}</span></div></div>`).join('')
+        : `<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No unusual increase detected</strong><span>No clinical trend met the review threshold for this selected range.</span></div></div>`}
+    </div>
+
+    <div class="grid-2" style="align-items:start;margin-top:1rem">
+      <div>
+        <div class="section-label">3-Month Clinic Visit Forecast</div>
+        ${analyticsVisitForecastHtml(summary)}
+      </div>
+      <div>
+        <div class="section-label">Medicine Consumption in Selected Range</div>
+        ${(summary.medicineUsage||[]).length
+          ? analyticsMiniBars(summary.medicineUsage.map(x=>({name:`${x.itemName} (${x.unit})`,count:x.used})))
+          : '<div class="tech-note">Medicine consumption analytics are available to Staff and Administrators after inventory disbursements are recorded.</div>'}
+      </div>
+    </div>
+
+    ${['Administrator','Staff'].includes(currentUser.role)?`
+      <div class="section-label" style="margin-top:1rem">3-Month Medicine Consumption Forecast</div>
+      ${analyticsMedicineForecastHtml(summary)}
+    `:''}
+
+    <div class="tech-note" style="margin-top:.75rem">
+      Campus Health Intelligence identifies patterns for administrative and clinical review. It does not independently diagnose outbreaks or replace clinician judgment.
+    </div>
+  </div>`;
+}
+
+async function syncReportsContext(){
+  if(!currentUser?._realSupabase)return;
+
+  if(['Administrator','Staff','Doctor'].includes(currentUser.role)){
+    await syncAdminDirectoryFromSupabase();
+  }
+
+  await Promise.all([
+    syncRealAppointments(),
+    syncRealTreatments(),
+    ['Administrator','Staff'].includes(currentUser.role)?syncRealInventory(false):Promise.resolve()
+  ]);
+}
+
+async function renderReports(){
   const c=document.getElementById('app-content');
+  if(!c)return;
+  const pageToken=captureCampusPageToken();
+  const defaultFrom=TODAY.substring(0,7)+'-01';
+  const defaultTo=TODAY;
+
+  if(currentUser?._realSupabase){
+    showDatabaseSkeleton('dashboard');
+    try{
+      await syncReportsContext();
+      if(!isCampusPageCurrent('reports',pageToken))return;
+      currentAnalyticsSummary=await fetchAnalyticsSummary(defaultFrom,defaultTo,'');
+    }catch(e){
+      if(!isCampusPageCurrent('reports',pageToken))return;
+      console.error('Reports sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load Reports & Analytics.')}</div>
+        <button class="btn btn-sm" onclick="renderReports()">Retry</button>`;
+      return;
+    }
+    if(!isCampusPageCurrent('reports',pageToken))return;
+  }else{
+    currentAnalyticsSummary=null;
+  }
+
+  const reportTypeOptions=[
+    '<option value="appointments">Appointments</option>',
+    '<option value="treatments">Treatments</option>',
+    ...(['Administrator','Staff'].includes(currentUser.role)?['<option value="inventory">Inventory</option>']:[]),
+    '<option value="patients">Patients</option>'
+  ].join('');
+
   c.innerHTML=`
-    <div id="health-intelligence-wrap">${renderHealthIntelligenceCard(TODAY.substring(0,7)+'-01',TODAY)}</div>
+    <div id="health-intelligence-wrap">
+      ${currentUser?._realSupabase
+        ? renderLiveAnalyticsCard(currentAnalyticsSummary)
+        : renderHealthIntelligenceCard(defaultFrom,defaultTo)}
+    </div>
+
     <div class="card">
-      <div class="card-header"><h3>Generate Report</h3></div>
+      <div class="card-header">
+        <div>
+          <h3>Generate Detailed Report</h3>
+          <div class="tech-note">Exportable operational records use the same synchronized Supabase data as the analytics above.</div>
+        </div>
+      </div>
       <div class="form-row">
         <div class="form-group"><label>Report Type</label>
-          <select id="rpt-type" onchange="updateReportMetricOptions()">
-            <option value="appointments">Appointments</option>
-            <option value="treatments">Treatments</option>
-            <option value="inventory">Inventory</option>
-            <option value="patients">Patients</option>
-          </select>
+          <select id="rpt-type" onchange="updateReportMetricOptions()">${reportTypeOptions}</select>
         </div>
         <div class="form-group full"><label>Date Range</label>
-          <input type="hidden" id="rpt-from" value="${TODAY.substring(0,7)+'-01'}"><input type="hidden" id="rpt-to" value="${TODAY}">
-          <button type="button" class="modern-date-btn" onclick="openReportDateRange()" style="width:min(100%,420px);justify-content:flex-start"><i class="fa-regular fa-calendar"></i><span id="rpt-range-label">${fmtDate(TODAY.substring(0,7)+'-01')} – ${fmtDate(TODAY)}</span></button>
+          <input type="hidden" id="rpt-from" value="${defaultFrom}">
+          <input type="hidden" id="rpt-to" value="${defaultTo}">
+          <button type="button" class="modern-date-btn" onclick="openReportDateRange()" style="width:min(100%,420px);justify-content:flex-start">
+            <i class="fa-regular fa-calendar"></i>
+            <span id="rpt-range-label">${fmtDate(defaultFrom)} – ${fmtDate(defaultTo)}</span>
+          </button>
           <p class="form-note">Use one calendar: first select Date From, then Date To.</p>
         </div>
         <div class="form-group"><label>College</label>
-          <select id="rpt-college"><option value="">All Colleges</option>${['CCICT','COE','COED','CME','CAS','COT'].map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
+          <select id="rpt-college" onchange="refreshHealthIntelligence()">
+            <option value="">All Colleges</option>
+            ${['CCICT','COE','COED','CME','CAS','COT'].map(c=>`<option value="${c}">${c}</option>`).join('')}
+          </select>
         </div>
       </div>
       <button class="btn btn-primary btn-sm" onclick="generateReport()">Generate Report</button>
@@ -9888,7 +10111,7 @@ function generateReport(){
 
   if(type==='appointments'){
     let data=appointmentRecords().filter(a=>a.date>=from&&a.date<=to&&(!college||a.college===college));
-    lastReportRows=data.map(a=>{const pt=getPatientById(a.patientId);const doc=getUserById(a.doctorId);return{ID:a.id,Patient:pt?pt.fname+' '+pt.lname:'?',College:a.college,Clinic:a.clinic,Date:a.date,Time:a.time,Doctor:doc?'Dr. '+doc.fname+' '+doc.lname:'?',Status:a.status};});
+    lastReportRows=data.map(a=>{const pt=getPatientById(a.patientId);const doc=getUserById(a.doctorId);return{ID:appointmentDisplayId(a),Patient:pt?pt.fname+' '+pt.lname:'?',College:a.college,Clinic:a.clinic,Date:a.date,Time:a.time,Doctor:doc?'Dr. '+doc.fname+' '+doc.lname:'?',Status:a.status};});
     lastReportTitle=`Appointment Report ${from} to ${to}`;
     el.innerHTML=`<div class="card"><div class="card-header"><h3>Appointment Report – ${fmtDate(from)} to ${fmtDate(to)}</h3></div>
       <div class="stats-grid">
@@ -9899,17 +10122,17 @@ function generateReport(){
         <div class="stat-card"><div class="stat-val">${data.filter(a=>a.clinic==='Dental Clinic').length}</div><div class="stat-lbl">Dental</div></div>
         <div class="stat-card"><div class="stat-val">${data.filter(a=>a.clinic==='Medical Clinic').length}</div><div class="stat-lbl">Medical</div></div>
       </div>
-      ${data.length?`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>#</th><th>Patient</th><th>College</th><th>Clinic</th><th>Date</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${data.map(a=>{const pt=getPatientById(a.patientId);const doc=getUserById(a.doctorId);return`<tr><td>${pt?patientAvatarHtml(pt,30):'—'}</td><td>#${a.id}</td><td>${pt?pt.fname+' '+pt.lname:'?'}</td><td>${collegeBadge(a.college)}</td><td>${a.clinic}</td><td>${fmtDate(a.date)}</td><td>${doc?docName(doc):'?'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No records found.</p></div>'}
+      ${data.length?`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>#</th><th>Patient</th><th>College</th><th>Clinic</th><th>Date</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${data.map(a=>{const pt=getPatientById(a.patientId);const doc=getUserById(a.doctorId);return`<tr><td>${pt?patientAvatarHtml(pt,30):'—'}</td><td>#${appointmentDisplayId(a)}</td><td>${pt?pt.fname+' '+pt.lname:'?'}</td><td>${collegeBadge(a.college)}</td><td>${a.clinic}</td><td>${fmtDate(a.date)}</td><td>${doc?docName(doc):'?'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No records found.</p></div>'}
     </div>
     ${data.length?vizCardHtml(type)+exportToolbarHtml():''}`;
   }else if(type==='treatments'){
-    let data=DB.treatments.filter(t=>t.date>=from&&t.date<=to);
+    let data=treatmentRecords().filter(t=>!t.archived&&t.date>=from&&t.date<=to);
     if(college)data=data.filter(t=>{const pt=getPatientById(t.patientId);return pt&&pt.college===college;});
-    lastReportRows=data.map(t=>{const pt=getPatientById(t.patientId);const doc=getUserById(t.doctorId);return{ID:t.id,Patient:pt?pt.fname+' '+pt.lname:'?',Diagnosis:t.diagnosis,Doctor:doc?'Dr. '+doc.fname+' '+doc.lname:'?',Date:t.date,FollowUp:t.followupDate||''};});
+    lastReportRows=data.map(t=>{const pt=getPatientById(t.patientId);const doc=getUserById(t.doctorId);return{ID:treatmentDisplayId(t),Patient:pt?pt.fname+' '+pt.lname:'?',Diagnosis:t.diagnosis,Doctor:doc?'Dr. '+doc.fname+' '+doc.lname:'?',Date:t.date,FollowUp:t.followupDate||''};});
     lastReportTitle=`Treatment Report ${from} to ${to}`;
     el.innerHTML=`<div class="card"><div class="card-header"><h3>Treatment Report</h3></div>
       <div class="stats-grid"><div class="stat-card"><div class="stat-val">${data.length}</div><div class="stat-lbl">Total Treatments</div></div></div>
-      ${data.length?`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>#</th><th>Patient</th><th>Diagnosis</th><th>Doctor</th><th>Date</th><th>Follow-up</th></tr></thead><tbody>${data.map(t=>{const pt=getPatientById(t.patientId);const doc=getUserById(t.doctorId);return`<tr><td>${pt?patientAvatarHtml(pt,30):'—'}</td><td>#${t.id}</td><td>${pt?pt.fname+' '+pt.lname:'?'}</td><td>${t.diagnosis}</td><td>${doc?docName(doc):'?'}</td><td>${fmtDate(t.date)}</td><td>${fmtDate(t.followupDate)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No records found.</p></div>'}
+      ${data.length?`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>#</th><th>Patient</th><th>Diagnosis</th><th>Doctor</th><th>Date</th><th>Follow-up</th></tr></thead><tbody>${data.map(t=>{const pt=getPatientById(t.patientId);const doc=getUserById(t.doctorId);return`<tr><td>${pt?patientAvatarHtml(pt,30):'—'}</td><td>#${treatmentDisplayId(t)}</td><td>${pt?pt.fname+' '+pt.lname:'?'}</td><td>${t.diagnosis}</td><td>${doc?docName(doc):'?'}</td><td>${fmtDate(t.date)}</td><td>${fmtDate(t.followupDate)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No records found.</p></div>'}
     </div>
     ${data.length?vizCardHtml(type)+exportToolbarHtml():''}`;
   }else if(type==='inventory'){
@@ -9930,11 +10153,15 @@ function generateReport(){
     </div>
     ${inv.length?vizCardHtml(type)+exportToolbarHtml():''}`;
   }else{
-    let pts=DB.patients.filter(p=>!p.archived);
+    let pts=(currentUser?._realSupabase?DB.patients.filter(p=>p._realSupabase&&!p.archived):DB.patients.filter(p=>!p.archived));
+    if(currentUser.role==='Doctor'){
+      const allowed=new Set(appointmentRecords().filter(a=>a.doctorId===currentUser.id).map(a=>a.patientId));
+      pts=pts.filter(p=>allowed.has(p.id));
+    }
     if(college)pts=pts.filter(p=>p.college===college);
     const byCollege={};
     pts.forEach(p=>{byCollege[p.college||'Unknown']=(byCollege[p.college||'Unknown']||0)+1;});
-    lastReportRows=pts.map(p=>({ID:p.id,Name:p.fname+' '+p.lname,College:p.college||'',Type:p.personType||'',Age:p.age,Blood:p.blood||''}));
+    lastReportRows=pts.map(p=>({ID:p.dbPatientId||p.id,Name:p.fname+' '+p.lname,College:p.college||'',Type:p.personType||'',Age:p.age,Blood:p.blood||''}));
     lastReportTitle=`Patient Report ${TODAY}`;
     el.innerHTML=`<div class="card"><div class="card-header"><h3>Patient Report</h3></div>
       <div class="stats-grid">
@@ -12896,7 +13123,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v36 loaded.');
+console.log('CampusCare v37 loaded.');
 </script>
 </body>
 </html>
