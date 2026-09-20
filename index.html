@@ -1372,7 +1372,9 @@ tbody tr:hover td{background:var(--overlay)}
 .cert-paper .cert-center{text-align:center}.cert-paper .cert-rule{border:0;border-top:2px solid #222;margin:12px 0 28px}.cert-paper .cert-title{font-size:24px;font-weight:700;text-align:center;letter-spacing:.3px;margin:0 0 22px}
 .cert-paper .cert-meta{display:flex;justify-content:space-between;gap:1rem;font-size:14px;margin-bottom:28px}.cert-paper p{margin:0 0 18px}
 .cert-paper .cert-signature-area{width:280px;margin:46px 0 0 auto;text-align:center}.cert-paper .cert-signature-area img{display:block;max-width:210px;max-height:80px;object-fit:contain;margin:0 auto -6px}.cert-paper .cert-sign-line{border-top:1px solid #111;padding-top:5px}
-.cert-paper [data-cert-field]{padding:1px 2px;border-radius:3px}.cert-paper [data-cert-field]:hover{background:#fff8d9}
+.cert-paper [data-cert-field]{padding:1px 2px;border-radius:3px;display:inline-block;min-width:170px;min-height:1em;white-space:pre-wrap;vertical-align:baseline}.cert-paper [data-cert-field]:hover{background:#fff8d9}
+#cert-editor [data-cert-field="findings"]:empty::before{content:"Click here to enter findings / diagnosis";color:#999;font-style:italic}
+#cert-editor [data-cert-field="remarks"]:empty::before{content:"Click here to enter remarks / recommendations";color:#999;font-style:italic}
 .cert-side-panel{display:flex;flex-direction:column;gap:.75rem}.cert-sign-pad{border:1px dashed var(--line);border-radius:12px;background:#fff;overflow:hidden;touch-action:none}.cert-sign-pad canvas{display:block;width:100%;height:140px;cursor:crosshair;touch-action:none}
 .cert-sign-actions{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem}.cert-sign-preview{min-height:72px;border:1px solid var(--line);border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;padding:.4rem}.cert-sign-preview img{max-width:100%;max-height:64px;object-fit:contain}.cert-autofill-note{font-size:.74rem;color:var(--ink-muted);line-height:1.45}
 @media(max-width:980px){.cert-editor-shell{grid-template-columns:1fr}.cert-page-wrap{max-height:none}.cert-side-panel{order:-1}.cert-paper{min-width:680px}}
@@ -14271,6 +14273,46 @@ function openEditCertModal(id){
   </div>`);
 }
 
+// Read certificate fields robustly from the visible editable document.
+// Browsers can sometimes place text beside an empty field <span> inside a
+// contenteditable page. In that case, fall back to the text after the label
+// in the same paragraph instead of incorrectly treating the field as blank.
+function cleanCertificateFieldText(value=''){
+  return String(value||'')
+    .replace(/\u200B/g,' ')
+    .replace(/\u00A0/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function readCertificateDocumentField(field){
+  const editor=document.getElementById('cert-editor');
+  if(!editor)return '';
+
+  const marked=editor.querySelector(`[data-cert-field="${field}"]`);
+  const direct=cleanCertificateFieldText(marked?.textContent||'');
+  if(direct)return direct;
+
+  const labels={
+    findings:'FINDINGS / DIAGNOSIS:',
+    remarks:'REMARKS / RECOMMENDATIONS:'
+  };
+  const label=labels[field];
+  if(!label)return '';
+
+  for(const p of editor.querySelectorAll('p')){
+    const full=cleanCertificateFieldText(p.textContent||'');
+    const upper=full.toUpperCase();
+    const at=upper.indexOf(label);
+    if(at<0)continue;
+
+    const value=cleanCertificateFieldText(full.slice(at+label.length));
+    if(value)return value;
+  }
+
+  return '';
+}
+
 // Save the editable document exactly as prepared and route it to the assigned doctor.
 async function saveCertDraft(id){
   const r=certificateRecords().find(x=>x.id===Number(id));if(!r)return;
@@ -14279,11 +14321,11 @@ async function saveCertDraft(id){
   const doctorId=parseInt(document.getElementById('ec-doctor').value);
   const doctor=getUserById(doctorId);
   const editor=document.getElementById('cert-editor');
-  const findings=(document.getElementById('cert-findings-edit')||{}).textContent?.trim()||'';
-  const recommendations=(document.getElementById('cert-remarks-edit')||{}).textContent?.trim()||'';
+  const findings=readCertificateDocumentField('findings');
+  const recommendations=readCertificateDocumentField('remarks');
 
   if(!doctorId||!doctor){toast('Please select the attending physician.','error');return;}
-  if(!findings){toast('Please enter the examination findings / diagnosis in the document.','error');return;}
+  if(!findings){toast('Please enter findings or a diagnosis in the FINDINGS / DIAGNOSIS line before sending for signature.','error');return;}
 
   const purpose=document.getElementById('ec-purpose').value;
   const details=document.getElementById('ec-details').value.trim().slice(0,1000);
@@ -14431,10 +14473,10 @@ async function signCert(id){
   }
 
   const editor=document.getElementById('cert-editor');
-  const findings=(document.getElementById('cert-findings-edit')||{}).textContent?.trim()||'';
-  const recommendations=(document.getElementById('cert-remarks-edit')||{}).textContent?.trim()||'';
+  const findings=readCertificateDocumentField('findings');
+  const recommendations=readCertificateDocumentField('remarks');
 
-  if(!findings){toast('The certificate needs examination findings / diagnosis.','error');return;}
+  if(!findings){toast('Please enter findings or a diagnosis in the FINDINGS / DIAGNOSIS line before issuing the certificate.','error');return;}
   if(!certDraftSignature){toast('Please add your signature before issuing the certificate.','error');return;}
 
   const certNo=certificateNumberFor(r);
@@ -16569,7 +16611,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v49 loaded.');
+console.log('CampusCare v50 loaded.');
 </script>
 </body>
 </html>
