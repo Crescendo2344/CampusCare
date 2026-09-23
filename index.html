@@ -743,7 +743,45 @@ nav svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
   .top-search-input{font-size:.68rem}
   #top-date{font-size:.6rem}
 }
-.notif-btn{position:relative;background:var(--overlay);border:1px solid var(--glass-border-soft);cursor:pointer;padding:.35rem;border-radius:9px;color:var(--ink-muted);transition:background .15s ease,color .15s ease;display:flex}
+.notif-btn{
+  position:relative;
+  width:34px;
+  height:34px;
+  flex:0 0 34px;
+  align-items:center;
+  justify-content:center;
+  overflow:visible;
+  background:var(--overlay);
+  border:1px solid var(--glass-border-soft);
+  cursor:pointer;
+  padding:0;
+  border-radius:9px;
+  color:var(--ink-muted);
+  transition:background .15s ease,color .15s ease;
+  display:flex;
+  margin-right:2px;
+}
+#notif-count{
+  position:absolute!important;
+  top:-6px!important;
+  right:-6px!important;
+  min-width:17px!important;
+  height:17px!important;
+  padding:0 4px!important;
+  border-radius:999px!important;
+  background:var(--danger)!important;
+  color:#fff!important;
+  border:2px solid var(--glass-surface)!important;
+  font-size:9px!important;
+  font-weight:800!important;
+  line-height:13px!important;
+  text-align:center!important;
+  box-sizing:border-box!important;
+  z-index:3;
+  pointer-events:none;
+  font-variant-numeric:tabular-nums;
+}
+#notif-count[hidden]{display:none!important}
 .notif-btn:hover{background:var(--overlay-strong);color:var(--ink)}
 .notif-btn svg{transition:transform .2s ease}
 #notif-btn:hover svg{animation:bellRing .5s cubic-bezier(.36,.07,.19,.97) both}
@@ -761,7 +799,7 @@ nav svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
   25%{transform:translateX(-2px) rotate(-3deg)}
   75%{transform:translateX(2px) rotate(3deg)}
 }
-.notif-dot{position:absolute;top:1px;right:1px;width:7px;height:7px;background:var(--danger);border-radius:50%;border:1.5px solid var(--glass-surface)}
+.notif-dot{display:none!important}
 .content{padding:1.25rem;flex:1}
 
 /* ===PAGES=== */
@@ -2167,7 +2205,7 @@ tbody tr:hover td{background:var(--overlay)}
           <div class="top-search-results" id="top-search-results"></div>
         </div>
         <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notifications">
-          <span id="notif-count" style="display:none;position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:var(--danger);color:#fff;font-size:10px;font-weight:800;line-height:17px;text-align:center"></span>
+          <span id="notif-count" hidden aria-label="Unread notifications"></span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
           <span class="notif-dot" id="notif-dot" style="display:none"></span>
         </button>
@@ -2479,7 +2517,7 @@ const UAT_CASES=[
   {key:'PAT-01',role:'Patient',device:'Mobile',title:'Book a valid appointment',steps:'Open My Appointments, select an available future date/time, complete the booking, and verify the COR reminder and notification.'},
   {key:'PAT-02',role:'Patient',device:'Mobile',title:'Reschedule and cancel appointment',steps:'Reschedule an eligible appointment, verify unavailable/past slots are blocked, then cancel and confirm the status/notification updates.'},
   {key:'PAT-03',role:'Patient',device:'Tablet',title:'Health records, certificates, and fitness',steps:'Open My Health Records, Medical Certificates, and Fitness to Compete. Verify records load correctly and certificate tables can scroll/download on tablet.'},
-  {key:'PAT-04',role:'Patient',device:'Tablet',title:'Ask a Doctor messaging',steps:'Open Ask a Doctor, start a Doctor conversation, send text and one allowed attachment, then verify the one-pane tablet conversation flow and unread/read state.'},
+  {key:'PAT-04',role:'Patient',device:'Tablet',title:'Patient clinic messaging',steps:'Open Messages, verify Doctors, Staff, and Administrators are available but other Patients are not, send text and one allowed attachment, then confirm incoming Admin/Staff messages appear in the conversation list and the one-pane tablet flow remains usable.'},
   {key:'DOC-01',role:'Doctor',device:'Desktop',title:'Doctor schedule and day-off request',steps:'Open My Schedule, verify real availability, submit a future schedule/day-off request, and confirm the request appears for Admin review.'},
   {key:'DOC-02',role:'Doctor',device:'Desktop',title:'Appointment completion and treatment recording',steps:'Open an assigned appointment, record a treatment, verify the appointment becomes Completed, and confirm the treatment appears in the patient history.'},
   {key:'DOC-03',role:'Doctor',device:'Tablet',title:'Fitness assessment and certificate signing',steps:'Claim/complete a fitness assessment and sign an assigned medical certificate using the responsive tablet interface.'},
@@ -3944,8 +3982,20 @@ function getSemester(dateStr){
 }
 function currentSemester(){return getSemester(TODAY);}
 
-function fmtDate(d){if(!d)return'-';const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'});}
-function fmtDateTime(d){if(!d)return'-';return new Date(d).toLocaleString('en-PH',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});}
+function fmtDate(d){
+  if(!d)return '-';
+  const value=String(d).trim();
+  const dateOnly=/^\d{4}-\d{2}-\d{2}$/.test(value);
+  const dt=new Date(dateOnly?`${value}T00:00:00`:value);
+  if(Number.isNaN(dt.getTime()))return '-';
+  return dt.toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'});
+}
+function fmtDateTime(d){
+  if(!d)return '-';
+  const dt=new Date(d);
+  if(Number.isNaN(dt.getTime()))return '-';
+  return dt.toLocaleString('en-PH',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+}
 function fmtTime(t){if(!t)return'-';const [h,m]=t.split(':');const hr=parseInt(h);return `${hr===0?12:hr>12?hr-12:hr}:${m} ${hr<12?'AM':'PM'}`;}
 function dayOfWeek(dateStr){return new Date(dateStr+'T12:00:00').toLocaleDateString('en',{weekday:'short'});}
 
@@ -5234,14 +5284,23 @@ async function updateNotifUI(){
   }
 
   const unread=notificationRecords().filter(n=>n.userId===currentUser.id&&!n.read);
-  const dot=document.getElementById('notif-dot');
-  if(dot)dot.style.display=unread.length?'':'none';
 
   const count=document.getElementById('notif-count');
   if(count){
-    count.textContent=String(unread.length);
-    count.style.display=unread.length?'':'none';
+    if(unread.length>0){
+      count.textContent=unread.length>99?'99+':String(unread.length);
+      count.hidden=false;
+      count.setAttribute('aria-label',`${unread.length} unread notification${unread.length===1?'':'s'}`);
+    }else{
+      count.textContent='';
+      count.hidden=true;
+      count.setAttribute('aria-label','No unread notifications');
+    }
   }
+
+  // The numeric badge replaces the old duplicate red dot.
+  const dot=document.getElementById('notif-dot');
+  if(dot)dot.style.display='none';
 
   renderNotifList();
 }
@@ -5443,7 +5502,7 @@ function getAssistantReply(raw){
     {keys:['add inventory','new inventory item','add stock item'],ans:"Go to Inventory and click \"+ Add Item.\" You can also attach a photo by uploading one or using your camera."},
     {keys:['update stock','adjust quantity','restock'],ans:"In Inventory, click \"Update Qty\" next to an item to add or remove stock, or record a disbursement."},
     {keys:['add article','write article','create health article','post article'],ans:"On Health Education, click \"+ Add Article\" (staff/admin). You can upload a real photo, pick or type any category you like, and add a source link."},
-    {keys:['send message','message a doctor','contact staff','chat with'],ans:"Go to Messages and click the ✏️ pencil icon to start a new conversation, or search for someone by name."},
+    {keys:['send message','message a doctor','contact staff','chat with'],ans:"Go to Messages and click the ✏️ pencil icon to start a secure conversation. Patient accounts can contact active Doctors, clinic Staff, and Administrators, but not other Patient accounts."},
     {keys:['forward message','share message'],ans:"Hover a message bubble and click the ⋯ button — you'll see options to Forward, Share, and (for your own messages) Edit or Delete."},
     {keys:['delete message'],ans:"Hover the message and click ⋯ → Delete. You can choose \"Delete for Everyone\" (your own messages only) or \"Delete for Me.\""},
     {keys:['voice message','record audio','send voice note'],ans:"In a conversation, click the 🎤 microphone icon to start recording, and click it again to stop and send."},
@@ -6783,7 +6842,7 @@ const NAV_CONFIG={
     {id:'my-certificates',label:'Medical Certificates'},
     {id:'fitness',label:'Fitness to Compete'},
     {id: 'health_education', label: 'Health Education' },
-    { id: 'messages', label: 'Ask a Doctor' },
+    { id: 'messages', label: 'Messages' },
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
     {id:'privacy-center',label:'Privacy & Consent'},
@@ -6914,7 +6973,7 @@ function navTo(id){
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',
     'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log',
     'security-integrity':'Security & Integrity','uat-center':'QA / UAT Center','privacy-center':'Privacy & Consent',
-    messages:currentUser.role==='Patient'?'Ask a Doctor':'Messages'
+    messages:'Messages'
   }[id]||id;
   renderPage(id);
   window.scrollTo({top:0,behavior:'smooth'});
@@ -11681,10 +11740,47 @@ async function messageAction(payload){
   return result;
 }
 
+function mergeRealMessageContacts(rows=[]){
+  for(const row of rows||[]){
+    const dbUserId=Number(row.user_id||0);
+    if(!dbUserId||dbUserId===Number(currentUser?.dbUserId))continue;
+
+    const existing=(DB.users||[]).find(u=>u._realSupabase&&Number(u.dbUserId)===dbUserId);
+    if(existing){
+      existing.fname=row.first_name||existing.fname||'';
+      existing.lname=row.last_name||existing.lname||'';
+      existing.role=row.role||existing.role||'Patient';
+      existing.status=row.status||existing.status||'Active';
+      existing.specialty=row.specialty||existing.specialty||'';
+      if(row.profile_signed_url)existing.profilePhoto=row.profile_signed_url;
+      existing._realMessageDirectory=true;
+      continue;
+    }
+
+    const user=normalizeSupabaseUser({
+      user_id:dbUserId,
+      first_name:row.first_name||'',
+      last_name:row.last_name||'',
+      role:row.role||'Patient',
+      status:row.status||'Active',
+      specialty:row.specialty||'',
+      profile_signed_url:row.profile_signed_url||''
+    });
+    user._realMessageDirectory=true;
+    DB.users.push(user);
+  }
+}
+
 async function syncRealMessages(){
   if(!currentUser?._realSupabase)return messageRecords();
 
   const result=await messageAction({action:'list'});
+
+  // The backend returns both the user's messages and every contact the role
+  // is allowed to message. This prevents an incoming Admin/Staff message from
+  // disappearing simply because that sender was not loaded in another module.
+  mergeRealMessageContacts(result.contacts||[]);
+
   DB.messages=(DB.messages||[]).filter(m=>!m._realSupabase);
   DB.messages.push(...(result.messages||[]).map(realMessageToUi));
   return messageRecords();
@@ -11802,8 +11898,11 @@ function getAllMessagePeople(){
   );
 
   if(currentUser.role==='Patient'){
-    // "Ask a Doctor" is intentionally Doctor-only for Patient accounts.
-    return users.filter(u=>u.role==='Doctor').map(user=>({id:user.id,user}));
+    // Patients may contact the clinic team, but not other Patient accounts.
+    // The backend enforces the same role rule.
+    return users
+      .filter(u=>['Doctor','Staff','Administrator'].includes(u.role))
+      .map(user=>({id:user.id,user}));
   }
 
   if(currentUser.role==='Doctor'){
@@ -11915,13 +12014,13 @@ async function renderMessages(){
     <div class="alert alert-info show" style="font-size:.76rem">
       🔒 <strong>Secure CampusCare messaging.</strong>
       ${currentUser.role==='Patient'
-        ? 'Use Ask a Doctor for non-emergency health questions. For urgent or emergency symptoms, seek immediate in-person or emergency care.'
+        ? 'Use Messages to contact Doctors, clinic Staff, or Administrators for non-emergency health and clinic-related concerns. For urgent or emergency symptoms, seek immediate in-person or emergency care.'
         : 'Messages may contain health-related information. Use only what is necessary for clinic coordination and patient care.'}
     </div>
     <div class="msgr-shell" id="msgr-shell">
       <div class="msgr-sidebar">
         <div class="msgr-sidebar-header">
-          <h3>💬 ${currentUser.role==='Patient'?'Ask a Doctor':'Messages'}</h3>
+          <h3>💬 Messages</h3>
           <div style="display:flex;gap:.35rem">
             <button class="msgr-icon-btn" onclick="openMessageSettings()" title="Message settings">⚙️</button>
             <button class="msgr-icon-btn" onclick="openNewMessageModal()" title="New message">✏️</button>
@@ -12467,7 +12566,7 @@ async function toggleVoiceRecording(_toId){
 async function openNewMessageModal(){
   const recipients=getAllMessagePeople();
   openModal(`<div class="modal">
-    <div class="modal-header"><h3>${currentUser.role==='Patient'?'Ask a Doctor':'New Secure Message'}</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-header"><h3>New Secure Message</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
       <div id="msg-err"></div>
       <div class="form-group"><label>To</label>
@@ -14147,6 +14246,28 @@ function ensureCertificateLogo(html=''){
   return logo+value;
 }
 
+// Keep saved certificate HTML synchronized with its current issued metadata.
+// This also repairs older saved documents that contained the literal text
+// "Invalid Date" because issued_at is a full ISO timestamp.
+function normalizeCertificateDocumentMetadata(r,html=''){
+  const value=ensureCertificateLogo(String(html||''));
+  if(!value)return value;
+
+  const shell=document.createElement('div');
+  shell.innerHTML=value;
+
+  const noEl=shell.querySelector('#cert-number-display');
+  if(noEl)noEl.textContent=r?.certNo||certificateDisplayId(r);
+
+  const dateEl=shell.querySelector('#cert-date-display');
+  if(dateEl){
+    const sourceDate=r?.issuedAt||r?.signedAt||r?.requestedAt||TODAY;
+    dateEl.textContent=fmtDate(sourceDate);
+  }
+
+  return shell.innerHTML;
+}
+
 // Create the editable A4-like certificate document shown in the browser.
 function buildCertificateDocument(r,doctorId,findings,remarks,signature=''){
   const pt=getPatientById(r.patientId)||{};
@@ -14250,7 +14371,10 @@ function openEditCertModal(id){
   const autofill=certificateAutofillFromTreatment(r.patientId,defaultDoctor);
   const findings=r.findings||autofill.findings;
   const remarks=r.recommendations||autofill.remarks;
-  const documentHtml=ensureCertificateLogo(r.documentHtml||buildCertificateDocument(r,defaultDoctor,findings,remarks,''));
+  const documentHtml=normalizeCertificateDocumentMetadata(
+    r,
+    r.documentHtml||buildCertificateDocument(r,defaultDoctor,findings,remarks,'')
+  );
   openModal(`<div class="modal modal-xl" style="max-width:1180px">
     <div class="modal-header"><div><h3>${r.status==='Issued'?'Edit Medical Certificate':'Prepare Medical Certificate'}</h3><div class="text-muted">Request #${certificateDisplayId(r)} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
@@ -14375,7 +14499,10 @@ function openSignCertModal(id){
   if(currentUser.role!=='Doctor'||r.doctorId!==currentUser.id){toast('Only the assigned doctor can sign this certificate.','error');return;}
   const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null,doctor=currentUser;
   const autofill=certificateAutofillFromTreatment(r.patientId,doctor.id);
-  const documentHtml=ensureCertificateLogo(r.documentHtml||buildCertificateDocument(r,doctor.id,r.findings||autofill.findings,r.recommendations||autofill.remarks,''));
+  const documentHtml=normalizeCertificateDocumentMetadata(
+    r,
+    r.documentHtml||buildCertificateDocument(r,doctor.id,r.findings||autofill.findings,r.recommendations||autofill.remarks,'')
+  );
   certDraftSignature=r.signatureData||doctor.savedSignature||'';
   openModal(`<div class="modal modal-xl" style="max-width:1180px">
     <div class="modal-header"><div><h3>Review &amp; Sign Medical Certificate</h3><div class="text-muted">Request #${certificateDisplayId(r)} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
@@ -14559,12 +14686,84 @@ function loadHtml2Canvas(){return new Promise((resolve,reject)=>{if(window.html2
 
 // Export the exact saved document styling and signature to PDF.
 async function downloadCertPdf(id){
-  const r=certificateRecords().find(x=>x.id===Number(id));if(!r||r.status!=='Issued'){toast('Certificate not available.','error');return;}
-  let jsPDF,html2canvas;try{jsPDF=await loadJsPDF();html2canvas=await loadHtml2Canvas()}catch(e){toast('Could not load the PDF generator. Check your connection.','error');return}
-  if(!r.documentHtml){toast('This older certificate needs to be prepared again before using the redesigned PDF.','warning');return}
-  const certHtml=ensureCertificateLogo(r.documentHtml);
-  const stage=document.createElement('div');stage.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1;';stage.innerHTML=`<div class="cert-paper" style="width:794px;min-height:1123px;box-shadow:none;margin:0">${certHtml}</div>`;document.body.appendChild(stage);
-  try{await Promise.all([...stage.querySelectorAll('img')].map(img=>img.complete?Promise.resolve():new Promise(res=>{img.onload=img.onerror=res})));const canvas=await html2canvas(stage.firstElementChild,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false});const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});const imgData=canvas.toDataURL('image/jpeg',.96),pageW=210,pageH=297,imgH=canvas.height*pageW/canvas.width;let remaining=imgH,pos=0;pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH;while(remaining>0){pos=remaining-imgH;pdf.addPage();pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH}pdf.save(`Medical_Certificate_${r.certNo||certificateDisplayId(r)}.pdf`);toast('Certificate downloaded.','success')}finally{stage.remove()}
+  const r=certificateRecords().find(x=>x.id===Number(id));
+  if(!r||r.status!=='Issued'){
+    toast('Certificate not available.','error');
+    return;
+  }
+
+  let jsPDF,html2canvas;
+  try{
+    jsPDF=await loadJsPDF();
+    html2canvas=await loadHtml2Canvas();
+  }catch(e){
+    toast('Could not load the PDF generator. Check your connection.','error');
+    return;
+  }
+
+  if(!r.documentHtml){
+    toast('This older certificate needs to be prepared again before using the redesigned PDF.','warning');
+    return;
+  }
+
+  const certHtml=normalizeCertificateDocumentMetadata(r,r.documentHtml);
+  const stage=document.createElement('div');
+
+  // 794 × 1122 px is the 96-DPI A4 ratio closely enough to avoid the
+  // ~0.02 mm overflow that previously generated a blank second page.
+  stage.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1;pointer-events:none;';
+  stage.innerHTML=`<div class="cert-paper" style="width:794px;min-height:1122px;box-shadow:none;margin:0">${certHtml}</div>`;
+  document.body.appendChild(stage);
+
+  try{
+    await Promise.all(
+      [...stage.querySelectorAll('img')].map(img=>
+        img.complete
+          ? Promise.resolve()
+          : new Promise(res=>{img.onload=img.onerror=res;})
+      )
+    );
+
+    const paper=stage.firstElementChild;
+    const canvas=await html2canvas(paper,{
+      scale:2,
+      backgroundColor:'#ffffff',
+      useCORS:true,
+      logging:false
+    });
+
+    const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
+    const imgData=canvas.toDataURL('image/jpeg',.96);
+    const pageW=210;
+    const pageH=297;
+    const imgH=canvas.height*pageW/canvas.width;
+
+    // A normal medical certificate is a single A4 page. Allow a small
+    // tolerance for browser/html2canvas rounding instead of treating a
+    // fraction of a millimeter as a second page.
+    if(imgH<=pageH+3){
+      pdf.addImage(imgData,'JPEG',0,0,pageW,pageH,'FAST');
+    }else{
+      let remaining=imgH;
+      let pos=0;
+
+      pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');
+      remaining-=pageH;
+
+      // Only add another page when meaningful content actually remains.
+      while(remaining>3){
+        pos=remaining-imgH;
+        pdf.addPage();
+        pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');
+        remaining-=pageH;
+      }
+    }
+
+    pdf.save(`Medical_Certificate_${r.certNo||certificateDisplayId(r)}.pdf`);
+    toast('Certificate downloaded.','success');
+  }finally{
+    stage.remove();
+  }
 }
 
 // ================================================================
@@ -16611,7 +16810,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v50 loaded.');
+console.log('CampusCare v52 loaded.');
 </script>
 </body>
 </html>
