@@ -2529,7 +2529,7 @@ const UAT_CASES=[
   {key:'ADM-01',role:'Administrator',device:'Desktop',title:'Approval queue and user management',steps:'Review a pending registration/workflow request, perform an allowed approval/rejection, and verify notifications and Activity Log entries.'},
   {key:'ADM-02',role:'Administrator',device:'Desktop',title:'Reports, analytics, and filters',steps:'Open Reports & Analytics, change date/college filters, verify real IDs/details, and confirm trend/service/diagnosis widgets load without demo contamination.'},
   {key:'ADM-03',role:'Administrator',device:'Desktop',title:'Backup, email, and security operations',steps:'Open System Settings and Security & Integrity. Verify backup status, email queue state, session timeout, and run the server integrity scan.'},
-  {key:'ADM-04',role:'Administrator',device:'Tablet',title:'Feedback, privacy, and issue tracking',steps:'Open Feedback & Issues and Privacy & Consent on tablet, reply to a report, review privacy summary, and confirm no horizontal overlap.'},
+  {key:'ADM-04',role:'Administrator',device:'Tablet',title:'Feedback, privacy, and issue tracking',steps:'Open Feedback & Issues and System Settings on tablet, review the privacy summary, then open Account Settings → Privacy & Personal Data and confirm the Privacy Notice/request flow works without horizontal overlap.'},
   {key:'RSP-01',role:'All Roles',device:'Mobile',title:'Core navigation at phone width',steps:'At approximately 390px width, open every visible sidebar page for the role and confirm no page creates unintended horizontal clipping.'},
   {key:'RSP-02',role:'All Roles',device:'Tablet',title:'Tablet navigation and messaging layout',steps:'At 768–1100px width, rotate portrait/landscape and verify sidebar, top bar, tables, and Messenger remain usable without overlap.'},
   {key:'RSP-03',role:'All Roles',device:'Mobile',title:'Forms, modals, and touch targets',steps:'Open representative forms/modals, test date pickers and scrolling, and verify primary actions remain reachable without content being hidden off-screen.'}
@@ -5247,6 +5247,7 @@ async function syncRealNotifications(){
 }
 
 function notificationPageFor(n){
+  if(n.actionPage==='privacy-center')return 'my-account';
   if(n.actionPage)return n.actionPage;
 
   const type=String(n.type||'').toLowerCase();
@@ -6830,7 +6831,6 @@ const NAV_ICONS={
   'activity-log':'M12 6v6l4 2M12 3a9 9 0 100 18 9 9 0 000-18z',
   'security-integrity':'M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3zM9 12l2 2 4-4M12 8v4m0 4h.01',
   'uat-center':'M4 5h16M4 12h16M4 19h16M8 3v4M8 10v4M8 17v4M16 3v4M16 10v4M16 17v4',
-  'privacy-center':'M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3zM9 12l2 2 4-4',
 };
 
 const NAV_CONFIG={
@@ -6845,7 +6845,6 @@ const NAV_CONFIG={
     { id: 'messages', label: 'Messages' },
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
-    {id:'privacy-center',label:'Privacy & Consent'},
     {id:'report-issue',label:'Report an Issue'},
   ],
   Doctor:[
@@ -6862,7 +6861,6 @@ const NAV_CONFIG={
     {id:'reports',label:'Reports'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
-    {id:'privacy-center',label:'Privacy & Consent'},
     {id:'report-issue',label:'Report an Issue'},
   ],
   Staff:[
@@ -6880,7 +6878,6 @@ const NAV_CONFIG={
     {id:'reports',label:'Reports'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
-    {id:'privacy-center',label:'Privacy & Consent'},
     {id:'report-issue',label:'Report an Issue'},
   ],
   Administrator:[
@@ -6905,7 +6902,6 @@ const NAV_CONFIG={
     {id:'activity-log',label:'Activity Log'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
-    {id:'privacy-center',label:'Privacy & Consent'},
   ],
 };
 
@@ -6972,7 +6968,7 @@ function navTo(id){
     reports:'Reports & Analytics',users:'User Management',settings:'System Settings',
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',
     'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log',
-    'security-integrity':'Security & Integrity','uat-center':'QA / UAT Center','privacy-center':'Privacy & Consent',
+    'security-integrity':'Security & Integrity','uat-center':'QA / UAT Center',
     messages:'Messages'
   }[id]||id;
   renderPage(id);
@@ -7271,134 +7267,22 @@ function archiveArticle(id){
 
 
 // ================================================================
-// PRIVACY CENTER — AUDITABLE CONSENT HISTORY
+// PRIVACY NOTICE & DATA REQUESTS
+// Privacy acknowledgement is collected during registration. Logged-in users
+// can review the notice or submit a privacy/data request from Account Settings.
 // ================================================================
-function privacyEventBadge(row){
-  const good=row.consented===true;
-  const cls=good?'badge-success':row.event_type==='Withdrawal Request'?'badge-warning':'badge-gray';
-  return `<span class="badge ${cls}">${escapeHtml(row.event_type||(good?'Acknowledgement':'Request'))}</span>`;
-}
-
-async function renderPrivacyCenter(){
-  const c=document.getElementById('app-content');if(!c)return;
-  const pageToken=captureCampusPageToken();
-
-  if(currentUser?._realSupabase){
-    showDatabaseSkeleton('table');
-    try{
-      await Promise.all([syncPublicSystemSettings(),syncPrivacyStatus()]);
-    }catch(e){
-      if(!isCampusPageCurrent('privacy-center',pageToken))return;
-      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load your privacy record.')}</div>
-        <button class="btn btn-sm" onclick="renderPrivacyCenter()">Retry</button>`;
-      return;
-    }
-    if(!isCampusPageCurrent('privacy-center',pageToken))return;
-  }
-
-  const state=DB.privacyStatus||{};
-  const history=state.history||[];
-  const latest=state.latest||null;
-  const currentVersion=state.current_version||DB.settings.privacyPolicyVersion||'1.0';
-  const currentAck=currentUser?._realSupabase?Boolean(state.current_acknowledged):true;
-  const withdrawalPending=latest?.event_type==='Withdrawal Request'&&latest?.consented===false;
-
-  c.innerHTML=`
-    <div class="card">
-      <div class="card-header">
-        <div>
-          <h3>Privacy &amp; Consent Center</h3>
-          <div class="tech-note">Review the current CampusCare privacy notice and your recorded acknowledgement history.</div>
-        </div>
-        <button class="btn btn-sm" onclick="openPrivacyNotice()">View Privacy Notice</button>
-      </div>
-
-      <div class="grid-3">
-        <div class="stat-card">
-          <div class="stat-val" style="font-size:1rem">v${escapeHtml(currentVersion)}</div>
-          <div class="stat-lbl">Current Privacy Notice</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-val">${currentAck?'✓':'!'}</div>
-          <div class="stat-lbl">${currentAck?'Current Notice Acknowledged':'Acknowledgement Needed'}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-val">${history.length}</div>
-          <div class="stat-lbl">Recorded Privacy Event${history.length===1?'':'s'}</div>
-        </div>
-      </div>
-
-      ${withdrawalPending?`
-        <div class="alert alert-warning show">
-          <strong>Privacy request submitted.</strong> Your latest record is a withdrawal/privacy-processing request awaiting administrative review.
-          This does not automatically erase medical or dental records that CTU may be required or otherwise lawfully permitted to retain.
-        </div>
-      `:!currentAck?`
-        <div class="alert alert-warning show">
-          CampusCare has a privacy notice version you have not yet acknowledged. Review the current notice before acknowledging it.
-        </div>
-      `:`
-        <div class="alert alert-success show">Your acknowledgement is current for Privacy Notice version ${escapeHtml(currentVersion)}.</div>
-      `}
-
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.8rem">
-        ${!currentAck&&!withdrawalPending?`<button class="btn btn-primary btn-sm" onclick="acknowledgeCurrentPrivacy()">Acknowledge Current Notice</button>`:''}
-        ${!withdrawalPending?`<button class="btn btn-sm btn-warning" onclick="openPrivacyRequestModal()">Submit Privacy / Withdrawal Request</button>`:''}
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><h3>Your Consent History</h3></div>
-      ${history.length?`<div class="table-wrap"><table>
-        <thead><tr><th>Date</th><th>Version</th><th>Event</th><th>Consent</th><th>Notes</th></tr></thead>
-        <tbody>${history.map(row=>`<tr>
-          <td>${new Date(row.consented_at).toLocaleString('en-PH')}</td>
-          <td>v${escapeHtml(row.privacy_version||'')}</td>
-          <td>${privacyEventBadge(row)}</td>
-          <td>${row.consented?'<span class="badge badge-success">Yes</span>':'<span class="badge badge-warning">Request / No</span>'}</td>
-          <td style="max-width:380px;white-space:normal">${escapeHtml(row.notes||'—')}</td>
-        </tr>`).join('')}</tbody>
-      </table></div>`:'<div class="empty-state"><p>No server-side privacy acknowledgement has been recorded for this account yet.</p></div>'}
-    </div>
-
-    <div class="card">
-      <div class="card-header"><h3>Important</h3></div>
-      <p class="text-muted" style="font-size:.8rem;line-height:1.6">
-        CampusCare's consent history is an audit trail, not an automatic deletion system. Requests involving access, correction, objection,
-        withdrawal, or deletion should be reviewed by authorized CTU personnel together with applicable medical-record and institutional retention requirements.
-      </p>
-    </div>`;
-}
-
-function acknowledgeCurrentPrivacy(){
-  showConfirmDialog({
-    title:'Acknowledge Privacy Notice',
-    message:`Confirm that you have reviewed Privacy Notice <strong>version ${escapeHtml(DB.settings.privacyPolicyVersion||'1.0')}</strong> and acknowledge the processing described in it?`,
-    confirmLabel:'Acknowledge',
-    onConfirm:async()=>{
-      try{
-        await privacyAction({action:'acknowledge'});
-        await syncPrivacyStatus();
-        toast('Privacy acknowledgement recorded.','success');
-        await renderPrivacyCenter();
-      }catch(e){
-        toast(e?.message||'Unable to record privacy acknowledgement.','error');
-      }
-    }
-  });
-}
-
 function openPrivacyRequestModal(){
   openModal(`<div class="modal modal-sm">
-    <div class="modal-header"><h3>Privacy / Consent Request</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-header"><h3>Privacy / Data Request</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
       <div id="privacy-request-msg"></div>
       <div class="alert alert-info show" style="font-size:.76rem">
-        This submits a request for authorized CTU review. It does not immediately delete or disable medical records.
+        Use this form to request review of access, correction, objection, withdrawal, deletion, or another privacy-related concern.
+        Submitting a request does not automatically erase or disable medical/dental records that CTU may be required or otherwise lawfully permitted to retain.
       </div>
       <div class="form-group">
         <label>Request details <span class="required">*</span></label>
-        <textarea id="privacy-request-notes" rows="4" maxlength="1200" placeholder="Briefly describe the consent or privacy-processing request you want the clinic to review."></textarea>
+        <textarea id="privacy-request-notes" rows="4" maxlength="1200" placeholder="Briefly describe the privacy or personal-data request you want authorized CTU personnel to review."></textarea>
       </div>
     </div>
     <div class="modal-footer">
@@ -7411,16 +7295,14 @@ function openPrivacyRequestModal(){
 async function submitPrivacyRequest(){
   const notes=document.getElementById('privacy-request-notes')?.value.trim()||'';
   const msg=document.getElementById('privacy-request-msg');
-  if(!notes){showAlert(msg,'Please describe your privacy request.');return;}
+  if(!notes){showAlert(msg,'Please describe your privacy or data request.');return;}
 
   try{
     await privacyAction({action:'withdraw_request',notes});
-    await syncPrivacyStatus();
     closeAllModals();
-    toast('Privacy request submitted for administrative review.','success');
-    await renderPrivacyCenter();
+    toast('Privacy/data request submitted for authorized review.','success');
   }catch(e){
-    showAlert(msg,e?.message||'Unable to submit the privacy request.');
+    showAlert(msg,e?.message||'Unable to submit the privacy/data request.');
   }
 }
 
@@ -8267,7 +8149,6 @@ function renderPage(id){
     'activity-log':()=>renderActivityLog(),
     'security-integrity':()=>renderSecurityIntegrity(),
     'uat-center':()=>renderUATCenter(),
-    'privacy-center':()=>renderPrivacyCenter()
   };
 
   c.innerHTML='';
@@ -9215,6 +9096,21 @@ function renderMyAccount(){
           ${pt?`<div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
           <div class="info-row"><span class="info-label">Person Type</span><span class="info-val">${priorityBadge(pt.personType)}</span></div>
           <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${pt.idNo}</span></div>`:''}
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Privacy &amp; Personal Data</h3>
+              <div class="tech-note">Privacy acknowledgement is collected during registration; repeated acknowledgement is not required during normal use.</div>
+            </div>
+          </div>
+          <p class="text-muted" style="font-size:.78rem;line-height:1.6">
+            You can review the current CampusCare Privacy Notice at any time or submit a privacy/data request for authorized CTU review.
+          </p>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
+            <button class="btn btn-sm" onclick="openPrivacyNotice()">View Privacy Notice</button>
+            <button class="btn btn-sm btn-warning" onclick="openPrivacyRequestModal()">Submit Privacy / Data Request</button>
+          </div>
         </div>
         ${u.role==='Patient'?`<div class="card">
           <div class="card-header"><h3>Available Doctors</h3></div>
@@ -13703,20 +13599,20 @@ async function renderSettings(){
       <div class="card-header">
         <div>
           <h3>Privacy &amp; Data Protection</h3>
-          <div class="tech-note">Server-managed privacy notice versioning and auditable user acknowledgement history.</div>
+          <div class="tech-note">The Privacy Notice version is recorded with registration acknowledgements and privacy/data requests.</div>
         </div>
         <button class="btn btn-sm" onclick="openPrivacyNotice()">View Privacy Notice</button>
       </div>
 
       <div class="grid-3" style="margin-bottom:1rem">
-        <div class="stat-card"><div class="stat-val">${Number(DB.privacyAdminSummary?.current_acknowledged||0)}</div><div class="stat-lbl">Current Acknowledgements</div></div>
-        <div class="stat-card"><div class="stat-val text-warning">${Number(DB.privacyAdminSummary?.outdated||0)}</div><div class="stat-lbl">Outdated Versions</div></div>
+        <div class="stat-card"><div class="stat-val">v${escapeHtml(s.privacyPolicyVersion||'1.0')}</div><div class="stat-lbl">Current Notice Version</div></div>
+        <div class="stat-card"><div class="stat-val">${Number(DB.privacyAdminSummary?.total_users_with_history||0)}</div><div class="stat-lbl">Users with Privacy Records</div></div>
         <div class="stat-card"><div class="stat-val text-danger">${Number(DB.privacyAdminSummary?.withdrawal_requests||0)}</div><div class="stat-lbl">Privacy Requests</div></div>
       </div>
 
       <div class="form-row">
         <div class="form-group">
-          <label>Current Privacy Notice Version</label>
+          <label>Privacy Notice Version</label>
           <input id="set-privacy-version" maxlength="40" value="${escapeHtml(s.privacyPolicyVersion||'1.0')}">
         </div>
         <div class="form-group">
@@ -13726,10 +13622,11 @@ async function renderSettings(){
       </div>
 
       <div class="alert alert-info show" style="font-size:.76rem">
-        Changing the privacy version causes accounts without an acknowledgement for the new version to appear as needing acknowledgement in their Privacy &amp; Consent Center.
+        This version is stored with future registration acknowledgements. Existing users are not automatically asked to acknowledge the notice again during normal use.
+        If a future change materially affects how CampusCare processes information, CTU can communicate that update through an appropriate separate process.
       </div>
 
-      <button class="btn btn-primary btn-sm" onclick="savePrivacySettings()">Save Privacy Version</button>
+      <button class="btn btn-primary btn-sm" onclick="savePrivacySettings()">Save Privacy Notice Version</button>
     </div>
     ${currentUser?._realSupabase?`<div class="card">
       <div class="card-header">
@@ -13873,7 +13770,7 @@ async function savePrivacySettings(){
 
   showConfirmDialog({
     title:'Update Privacy Notice Version',
-    message:`Set the current CampusCare privacy notice to <strong>version ${escapeHtml(version)}</strong>? Users who have not acknowledged this version will see an acknowledgement reminder in their Privacy Center.`,
+    message:`Set the current CampusCare Privacy Notice to <strong>version ${escapeHtml(version)}</strong>? The version will be recorded with future registration acknowledgements; existing users will not be prompted to acknowledge it again automatically.`,
     confirmLabel:'Update Version',
     onConfirm:async()=>{
       try{
@@ -15463,8 +15360,8 @@ function openPatientModal(id=null){
       <div id="ptm-msg"></div>
 
       ${!editing?`<div class="alert alert-info show" style="font-size:.78rem">
-        <strong>Assisted registration:</strong> Clinic staff verifies the patient's identity in person, creates an active CampusCare account,
-        and sends a password-setup link to the patient's email. The patient should review and acknowledge the Privacy Notice after signing in.
+        <strong>Assisted registration:</strong> Clinic staff verifies the patient's identity in person, presents the CampusCare Privacy Notice,
+        records the patient's acknowledgement during registration, creates the active account, and sends a password-setup link to the patient's email.
       </div>
 
       <div class="form-row">
@@ -15538,6 +15435,15 @@ function openPatientModal(id=null){
       </div>
 
       ${realMode&&editing?`<div class="tech-note">Changes to this real patient record are written to the CampusCare Activity/Audit Log.</div>`:''}
+
+      ${!editing?`<div class="privacy-agree" style="margin-top:1rem">
+        <input type="checkbox" id="pm-privacy-ack">
+        <label for="pm-privacy-ack">
+          The patient has reviewed and acknowledges the
+          <a onclick="event.preventDefault();openPrivacyNotice()">CampusCare Privacy Notice</a>
+          (version ${escapeHtml(DB.settings?.privacyPolicyVersion||'1.0')}) as part of this assisted registration.
+        </label>
+      </div>`:''}
     </div>
 
     <div class="modal-footer">
@@ -15575,6 +15481,10 @@ async function savePatient(id){
   }
   if(!editing&&(!assistedProfile||!assistedIdCor)){
     showAlert(msg,'Profile picture and valid ID/COR are required for assisted registration.');
+    return;
+  }
+  if(!editing&&!document.getElementById('pm-privacy-ack')?.checked){
+    showAlert(msg,'Please confirm that the patient reviewed and acknowledged the CampusCare Privacy Notice during registration.');
     return;
   }
 
@@ -15621,6 +15531,7 @@ async function savePatient(id){
           username,
           profile_data_url:assistedProfile,
           verification_data_url:assistedIdCor,
+          privacy_acknowledged:true,
           ...payload
         });
 
@@ -15630,9 +15541,9 @@ async function savePatient(id){
         assistedPatientDraft=null;
 
         if(result.password_setup_email_sent){
-          toast('Patient account created. A password-setup email was sent to the patient.','success',7000);
+          toast('Patient account created and privacy acknowledgement recorded. A password-setup email was sent to the patient.','success',7000);
         }else{
-          toast('Patient account created. Ask the patient to use Forgot Password to set their password.','warning',7500);
+          toast('Patient account created and privacy acknowledgement recorded. Ask the patient to use Forgot Password to set their password.','warning',7500);
         }
       }
     }else{
@@ -16810,7 +16721,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v52 loaded.');
+console.log('CampusCare v53 loaded.');
 </script>
 </body>
 </html>
