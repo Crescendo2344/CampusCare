@@ -1377,7 +1377,7 @@ tbody tr:hover td{background:var(--overlay)}
 .step-item:hover{transform:translateY(-3px);box-shadow:var(--glass-shadow)}
 .hero-info-card{transition:transform .25s ease,box-shadow .25s ease}
 .hero-info-card:hover{transform:translateY(-4px)}
-#auth-page{position:relative;min-height:100vh}
+#auth-page{position:relative;width:100%;min-height:100vh}
 #auth-page .auth-section{min-height:100vh;padding:6.8rem 1rem 3rem;background:radial-gradient(45% 50% at 85% 15%,rgba(110,175,235,.35),transparent 65%),radial-gradient(50% 55% at 12% 85%,rgba(105,205,190,.28),transparent 65%),linear-gradient(180deg,#f4f7fb,#dceefb)}
 [data-theme="dark"] #auth-page .auth-section{background:radial-gradient(45% 50% at 85% 15%,rgba(30,70,110,.5),transparent 65%),radial-gradient(50% 55% at 12% 85%,rgba(15,75,70,.45),transparent 65%),linear-gradient(180deg,#12161c,#0d1117)}
 #auth-page-back{position:absolute;top:5rem;left:1.5rem;z-index:10;background:var(--glass-surface-strong);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);border:1px solid var(--glass-border);color:var(--ink);padding:.45rem 1.1rem;border-radius:20px;font-size:.8rem;font-weight:600;cursor:pointer;box-shadow:var(--glass-shadow-sm);transition:background .18s ease,box-shadow .18s ease}
@@ -2521,7 +2521,6 @@ tbody tr:hover td{background:var(--overlay)}
               <span id="hero-carousel-progress-bottom"></span>
             </div>
           </div>
-          </div>
         </div>
       </div>
     </section>
@@ -2672,7 +2671,7 @@ tbody tr:hover td{background:var(--overlay)}
           </select>
         </div>
         <div class="form-group" id="r-college-group">
-          <label id="r-unit-label">College <span class="required">*</span></label>
+          <label id="r-unit-label">College / Department <span class="required">*</span></label>
           <select id="r-college"></select>
         </div>
       </div>
@@ -4942,12 +4941,12 @@ function recheckNameMatch(justAutoFilled){
 }
 
 const REGISTRATION_ACADEMIC_UNITS=[
-  ['CAS','College of Arts and Sciences (CAS)'],
-  ['CCICT','College of Communication, Information and Computing Technology (CCICT)'],
-  ['COE','College of Engineering (COE)'],
-  ['COED','College of Education (COED)'],
-  ['CME','College of Management and Entrepreneurship (CME)'],
-  ['COT','College of Technology (COT)']
+  ['CAS','CAS'],
+  ['CCICT','CCICT'],
+  ['COE','COE'],
+  ['COED','COED'],
+  ['CME','CME'],
+  ['COT','COT']
 ];
 
 const REGISTRATION_NONTEACHING_DEPARTMENTS=[
@@ -4963,7 +4962,7 @@ const REGISTRATION_NONTEACHING_DEPARTMENTS=[
   ['Research / Extension','Research / Extension'],
   ['Facilities / Maintenance','Facilities / Maintenance'],
   ['Security Services','Security Services'],
-  ['Janitorial / Cleaning Services','Janitorial / Cleaning Services'],
+  ['Janitorial / Cleaning Services','Janitorial / Cleaning'],
   ['Clinic / Health Services','Clinic / Health Services']
 ];
 
@@ -4991,7 +4990,7 @@ function updateRegistrationIdentityFields(){
     : REGISTRATION_NONTEACHING_DEPARTMENTS;
 
   if(unitLabel){
-    unitLabel.innerHTML=(isStudent||isTeaching?'College':'Department')+' <span class="required">*</span>';
+    unitLabel.innerHTML='College / Department <span class="required">*</span>';
   }
 
   if(unitSelect){
@@ -6442,13 +6441,22 @@ function normalizeLandingCarouselScroll(){
 
   const width=landingCarouselSlideWidth();
   const raw=Math.round(viewport.scrollLeft/width);
+  let target=null;
 
   // Three identical groups exist: 0–3, 4–7, 8–11.
-  // Re-center to the middle group without any visible animation.
-  if(raw<4){
-    viewport.scrollLeft=(raw+LANDING_CAROUSEL_COUNT)*width;
-  }else if(raw>=8){
-    viewport.scrollLeft=(raw-LANDING_CAROUSEL_COUNT)*width;
+  // When the user reaches an outer copy, silently move to the
+  // identical slide in the middle copy. No backwards animation.
+  if(raw<4)target=(raw+LANDING_CAROUSEL_COUNT)*width;
+  else if(raw>=8)target=(raw-LANDING_CAROUSEL_COUNT)*width;
+
+  if(target!==null){
+    const previous=viewport.style.scrollBehavior;
+    viewport.style.scrollBehavior='auto';
+    viewport.scrollLeft=target;
+    // Force layout before restoring smooth scrolling so Safari/iOS
+    // cannot animate the hidden normalization jump.
+    void viewport.offsetWidth;
+    viewport.style.scrollBehavior=previous;
   }
 }
 
@@ -6473,13 +6481,18 @@ function buildLandingCarouselLoop(){
     return clone;
   });
 
-  before.reverse().forEach(slide=>track.prepend(slide));
-  after.forEach(slide=>track.appendChild(slide));
+  const fragment=document.createDocumentFragment();
+  [...before,...originals,...after].forEach(slide=>fragment.appendChild(slide));
+  track.replaceChildren(fragment);
   track.dataset.loopReady='1';
 
   requestAnimationFrame(()=>{
     const width=landingCarouselSlideWidth();
+    const previous=viewport.style.scrollBehavior;
+    viewport.style.scrollBehavior='auto';
     viewport.scrollLeft=LANDING_CAROUSEL_COUNT*width;
+    void viewport.offsetWidth;
+    viewport.style.scrollBehavior=previous;
   });
 }
 
@@ -6587,8 +6600,8 @@ function initializeLandingCarouselInteractions(){
     viewport.addEventListener('scroll',()=>{
       if(landingCarouselScrollTimer)clearTimeout(landingCarouselScrollTimer);
       landingCarouselScrollTimer=setTimeout(()=>{
-        normalizeLandingCarouselScroll();
-      },140);
+        if(!landingCarouselMouseDragging)normalizeLandingCarouselScroll();
+      },180);
     },{passive:true});
 
     carousel.addEventListener('keydown',e=>{
@@ -6638,7 +6651,9 @@ function showLandingRoute(route='home',updateHash=true){
   setPublicNavbarMode(false);
 
   document.querySelectorAll('[data-landing-route]').forEach(el=>{
-    el.classList.toggle('active',el.dataset.landingRoute===clean);
+    const active=el.dataset.landingRoute===clean;
+    el.classList.toggle('active',active);
+    el.style.display=active?'block':'none';
   });
   document.querySelectorAll('[data-landing-link]').forEach(el=>{
     el.classList.toggle('active',el.dataset.landingLink===clean);
@@ -17786,7 +17801,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v59 loaded.');
+console.log('CampusCare v60 loaded.');
 </script>
 </body>
 </html>
