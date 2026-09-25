@@ -918,7 +918,7 @@ select option{background:#1c2128;color:#e9edf0}
 .copilot-section{margin-top:.85rem}
 .copilot-section h4{font-size:.78rem;margin-bottom:.4rem;color:var(--ink)}
 .copilot-summary{font-size:.8rem;line-height:1.58;background:var(--overlay);border:1px solid var(--glass-border-soft);border-radius:11px;padding:.7rem .8rem;white-space:pre-wrap}
-.fhir-preview{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.68rem;line-height:1.45;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;background:#101820;color:#d8eef7;border-radius:12px;padding:.85rem}
+.fhir-preview{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.68rem;line-height:1.45;white-space:pre-wrap;word-break:break-word;max-height:390px;overflow:auto;background:#101820;color:#d8eef7;border-radius:12px;padding:.85rem}
 .fhir-toolbar{display:flex;gap:.45rem;flex-wrap:wrap}
 .prediction-meter{height:7px;border-radius:999px;background:var(--overlay);overflow:hidden;margin-top:.3rem}
 .prediction-meter>span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--success),var(--warning),var(--danger))}
@@ -1604,47 +1604,6 @@ tbody tr:hover td{background:var(--overlay)}
   animation:heroAmbientTwo 11s ease-in-out infinite alternate;
 }
 
-/* Header restored, but blended into the same glass surface. */
-.hero-carousel-header{
-  position:relative;
-  z-index:3;
-  flex:0 0 auto;
-  min-height:63px;
-  display:flex;
-  align-items:center;
-  gap:.7rem;
-  padding:.85rem 1.05rem .8rem;
-  border-bottom:1px solid rgba(231,243,249,.12);
-  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.012));
-}
-.hero-carousel-header-icon{
-  width:34px;height:34px;
-  flex:0 0 34px;
-  border-radius:11px;
-  display:grid;
-  place-items:center;
-  color:#eaf9ff;
-  font-size:.9rem;
-  background:rgba(194,231,245,.11);
-  border:1px solid rgba(216,239,248,.15);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
-}
-.hero-carousel-header-copy{min-width:0}
-.hero-carousel-header-copy strong{
-  display:block;
-  color:#f3fbff;
-  font-size:.79rem;
-  line-height:1.2;
-  font-weight:800;
-}
-.hero-carousel-header-copy span{
-  display:block;
-  margin-top:.14rem;
-  color:rgba(213,231,240,.60);
-  font-size:.58rem;
-  line-height:1.2;
-}
-
 /* The viewport itself scrolls. Touch devices use their native swipe physics. */
 .hero-carousel-viewport{
   position:relative;
@@ -1996,7 +1955,7 @@ tbody tr:hover td{background:var(--overlay)}
     min-height:0;
     justify-self:center;
   }
-  .hero-info-carousel{width:min(100%,560px);height:420px}
+  .hero-info-carousel{width:min(100%,560px);height:390px}
   .public-services-grid,.public-advisory-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .public-about-grid,.public-contact-layout{grid-template-columns:1fr}
   .landing-static-page{height:auto;min-height:calc(100vh - var(--landing-nav-h));overflow:visible}
@@ -2093,18 +2052,9 @@ tbody tr:hover td{background:var(--overlay)}
   .hero-info-carousel{
     width:100%;
     max-width:100%;
-    height:440px;
+    height:410px;
     border-radius:22px;
   }
-  .hero-carousel-header{
-    min-height:58px;
-    padding:.72rem .82rem .68rem;
-  }
-  .hero-carousel-header-icon{
-    width:31px;height:31px;flex-basis:31px;
-  }
-  .hero-carousel-header-copy strong{font-size:.72rem}
-  .hero-carousel-header-copy span{font-size:.54rem}
   .hero-carousel-slide{padding:.9rem .85rem .85rem}
   .hero-slide-top{gap:.6rem;margin-bottom:.58rem}
   .hero-slide-icon{width:40px;height:40px;flex-basis:40px;font-size:1.08rem}
@@ -2124,7 +2074,7 @@ tbody tr:hover td{background:var(--overlay)}
   .public-page-title{font-size:1.45rem}
 }
 @media(max-width:390px){
-  .hero-info-carousel{height:510px}
+  .hero-info-carousel{height:480px}
   .hero-mini-grid{grid-template-columns:1fr}
 }
 
@@ -2498,14 +2448,6 @@ tbody tr:hover td{background:var(--overlay)}
         <div class="landing-hero-visual">
 
           <div class="hero-info-carousel" id="landing-swipe-carousel" aria-label="Clinic Information and Current Advisories">
-            <div class="hero-carousel-header">
-              <div class="hero-carousel-header-icon">✦</div>
-              <div class="hero-carousel-header-copy">
-                <strong>Clinic Information &amp; Current Advisories</strong>
-                <span>Campus clinic information and timely updates</span>
-              </div>
-            </div>
-
             <div class="hero-carousel-viewport" id="hero-carousel-viewport">
               <div class="hero-carousel-track" id="hero-carousel-track">
 
@@ -2698,53 +2640,47 @@ tbody tr:hover td{background:var(--overlay)}
 
     <!-- REGISTER -->
     <div id="reg-section" style="display:none">
-      <div class="alert alert-info show" style="margin-bottom:.8rem;font-size:.78rem">
-        📋 Registration requires admin approval. Upload your Valid Government ID, School ID or COR.
-      </div>
-      <div class="alert alert-danger" id="reg-err"></div>
+<div class="alert alert-danger" id="reg-err"></div>
       <div class="alert alert-success" id="reg-ok"></div>
       <div class="form-row">
-        <div class="form-group"><label>First Name <span class="required">*</span></label><input id="r-fname" type="text" oninput="sanitizeInput(this,'name');recheckNameMatch()"></div>
-        <div class="form-group"><label>Last Name <span class="required">*</span></label><input id="r-lname" type="text" oninput="sanitizeInput(this,'name');recheckNameMatch()"></div>
+        <div class="form-group"><label>First Name <span class="required">*</span></label><input id="r-fname" type="text" maxlength="50" autocomplete="given-name" oninput="sanitizeInput(this,'name');recheckNameMatch()"></div>
+        <div class="form-group"><label>Last Name <span class="required">*</span></label><input id="r-lname" type="text" maxlength="50" autocomplete="family-name" oninput="sanitizeInput(this,'name');recheckNameMatch()"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Username <span class="required">*</span></label><input id="r-user" type="text" oninput="sanitizeInput(this,'username')"></div>
-        <div class="form-group"><label>Email <span class="required">*</span></label><input id="r-email" type="email" oninput="sanitizeInput(this,'email')"></div>
+        <div class="form-group"><label>Username <span class="required">*</span></label><input id="r-user" type="text" maxlength="20" autocomplete="username" oninput="sanitizeInput(this,'username')"></div>
+        <div class="form-group"><label>Email <span class="required">*</span></label><input id="r-email" type="email" maxlength="150" autocomplete="email" oninput="sanitizeInput(this,'email')"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Password <span class="required">*</span></label><input id="r-pass" type="password" onfocus="showPasswordChecklist()" oninput="sanitizeInput(this,'password');updatePasswordStrength()" onblur="hidePasswordChecklist()"></div>
+        <div class="form-group"><label>Password <span class="required">*</span></label><input id="r-pass" type="password" minlength="8" maxlength="64" autocomplete="new-password" onfocus="showPasswordChecklist()" oninput="sanitizeInput(this,'password');updatePasswordStrength()" onblur="hidePasswordChecklist()"></div>
         <div id="r-pass-strength" class="password-checklist" aria-live="polite">
           <div id="r-pass-strength-label" class="password-strength-label weak">Weak password</div>
-          <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>At least 8 characters</span></div>
+          <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>8–64 characters</span></div>
           <div class="password-check" data-check="upper"><span class="pw-check-icon"></span><span>One uppercase letter</span></div>
           <div class="password-check" data-check="lower"><span class="pw-check-icon"></span><span>One lowercase letter</span></div>
           <div class="password-check" data-check="number"><span class="pw-check-icon"></span><span>One number</span></div>
           <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
         </div>
-        <div class="form-group"><label>Contact No.</label><input id="r-contact" type="text" inputmode="numeric" placeholder="09XXXXXXXXX" oninput="sanitizeInput(this,'phone')"></div>
+        <div class="form-group"><label>Contact No.</label><input id="r-contact" type="text" inputmode="numeric" maxlength="11" autocomplete="tel" placeholder="09XXXXXXXXX" oninput="sanitizeInput(this,'phone')"></div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Person Type <span class="required">*</span></label>
-          <select id="r-ptype" onchange="updateCollegeField()">
+          <select id="r-ptype" onchange="updateRegistrationIdentityFields()">
             <option value="Student">Student</option>
             <option value="Teaching Personnel">Teaching Personnel</option>
             <option value="Non-Teaching Personnel">Non-Teaching Personnel</option>
           </select>
         </div>
         <div class="form-group" id="r-college-group">
-          <label>College <span class="required">*</span></label>
-          <select id="r-college">
-            <option value="CCICT">CCICT</option>
-            <option value="COE">COE</option>
-            <option value="COED">COED</option>
-            <option value="CME">CME</option>
-            <option value="CAS">CAS</option>
-            <option value="COT">COT</option>
-          </select>
+          <label id="r-unit-label">College <span class="required">*</span></label>
+          <select id="r-college"></select>
         </div>
       </div>
-      <div class="form-group"><label>Student/Employee ID No.</label><input id="r-idno" type="text" placeholder="e.g. 2021-00001" oninput="sanitizeInput(this,'idno')"></div>
+      <div class="form-group">
+        <label id="r-idno-label">Student ID No. <span class="required">*</span></label>
+        <input id="r-idno" type="text" inputmode="numeric" maxlength="7" placeholder="e.g. 1350098" oninput="sanitizeRegistrationId(this)">
+        <p class="form-note" id="r-idno-note">Student ID must contain exactly 7 digits.</p>
+      </div>
       <div class="form-row">
         <div class="form-group"><label>Date of Birth <span class="required">*</span></label>
           <input type="hidden" id="r-dob" value="">
@@ -2772,11 +2708,11 @@ tbody tr:hover td{background:var(--overlay)}
         </div>
       </div>
       <div class="form-group">
-        <label>Upload Valid Government ID, School ID or COR <span class="required">*</span></label>
+        <label id="r-verification-label">Upload School ID or COR <span class="required">*</span></label>
         <div class="upload-area" onclick="document.getElementById('r-id-file').click()">
           <input type="file" id="r-id-file" accept="image/*,.pdf" onchange="handleIdFileChange(this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:24px;height:24px;margin:0 auto .4rem;display:block;color:#aaa"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-          <p>Click to upload Valid Government ID, School ID or COR</p>
+          <p id="r-verification-help">Click to upload School ID or COR</p>
           <div id="r-file-preview" style="margin-top:.4rem;font-size:.78rem;color:var(--primary);font-weight:500"></div>
         </div>
         <button type="button" class="btn btn-sm btn-info" style="margin-top:.5rem" onclick="event.stopPropagation();openCamera('id')">📷 Use Camera Instead</button>
@@ -4668,10 +4604,10 @@ function sanitizeInput(el,type){
       v=v.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s'.-]/g,'').replace(/\s{2,}/g,' ').slice(0,50);
       break;
     case 'username':
-      v=v.replace(/[^A-Za-z0-9_.-]/g,'').slice(0,24);
+      v=v.replace(/[^A-Za-z0-9_.-]/g,'').slice(0,20);
       break;
     case 'email':
-      v=v.replace(/\s/g,'').toLowerCase().replace(/[^a-z0-9@._+-]/g,'').slice(0,60);
+      v=v.replace(/\s/g,'').toLowerCase().replace(/[^a-z0-9@._+-]/g,'').slice(0,150);
       break;
     case 'phone':
       v=v.replace(/\D/g,'').slice(0,11);
@@ -5005,10 +4941,95 @@ function recheckNameMatch(justAutoFilled){
   }
 }
 
-function updateCollegeField(){
-  const pt=document.getElementById('r-ptype').value;
-  const cg=document.getElementById('r-college-group');
-  cg.style.display=pt!=='Student'?'none':'';
+const REGISTRATION_ACADEMIC_UNITS=[
+  ['CAS','College of Arts and Sciences (CAS)'],
+  ['CCICT','College of Communication, Information and Computing Technology (CCICT)'],
+  ['COE','College of Engineering (COE)'],
+  ['COED','College of Education (COED)'],
+  ['CME','College of Management and Entrepreneurship (CME)'],
+  ['COT','College of Technology (COT)']
+];
+
+const REGISTRATION_NONTEACHING_DEPARTMENTS=[
+  ['Administration','Administration'],
+  ['Registrar','Registrar'],
+  ['Finance / Accounting','Finance / Accounting'],
+  ['Human Resources','Human Resources'],
+  ['Procurement / Supply','Procurement / Supply'],
+  ['Library','Library'],
+  ['ICT / MIS','ICT / MIS'],
+  ['Student Affairs','Student Affairs'],
+  ['Guidance Services','Guidance Services'],
+  ['Research / Extension','Research / Extension'],
+  ['Facilities / Maintenance','Facilities / Maintenance'],
+  ['Security Services','Security Services'],
+  ['Janitorial / Cleaning Services','Janitorial / Cleaning Services'],
+  ['Clinic / Health Services','Clinic / Health Services']
+];
+
+function sanitizeRegistrationId(el){
+  const pt=document.getElementById('r-ptype')?.value||'Student';
+  const max=pt==='Student'?7:5;
+  const clean=String(el.value||'').replace(/\D/g,'').slice(0,max);
+  if(el.value!==clean)el.value=clean;
+}
+
+function updateRegistrationIdentityFields(){
+  const pt=document.getElementById('r-ptype')?.value||'Student';
+  const unitLabel=document.getElementById('r-unit-label');
+  const unitSelect=document.getElementById('r-college');
+  const idLabel=document.getElementById('r-idno-label');
+  const idInput=document.getElementById('r-idno');
+  const idNote=document.getElementById('r-idno-note');
+  const verificationLabel=document.getElementById('r-verification-label');
+  const verificationHelp=document.getElementById('r-verification-help');
+
+  const isStudent=pt==='Student';
+  const isTeaching=pt==='Teaching Personnel';
+  const units=isStudent||isTeaching
+    ? REGISTRATION_ACADEMIC_UNITS
+    : REGISTRATION_NONTEACHING_DEPARTMENTS;
+
+  if(unitLabel){
+    unitLabel.innerHTML=(isStudent||isTeaching?'College':'Department')+' <span class="required">*</span>';
+  }
+
+  if(unitSelect){
+    const previous=unitSelect.value;
+    unitSelect.innerHTML=units
+      .map(([value,label])=>`<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
+      .join('');
+    if(units.some(([value])=>value===previous))unitSelect.value=previous;
+  }
+
+  if(idLabel){
+    idLabel.innerHTML=(isStudent?'Student ID No.':'Employee ID No.')+' <span class="required">*</span>';
+  }
+
+  if(idInput){
+    const max=isStudent?7:5;
+    idInput.maxLength=max;
+    idInput.placeholder=isStudent?'e.g. 1350098':'e.g. 14982';
+    sanitizeRegistrationId(idInput);
+  }
+
+  if(idNote){
+    idNote.textContent=isStudent
+      ? 'Student ID must contain exactly 7 digits.'
+      : 'Employee ID must contain exactly 5 digits.';
+  }
+
+  if(verificationLabel){
+    verificationLabel.innerHTML=(isStudent?'Upload School ID or COR':'Upload Employee ID')+' <span class="required">*</span>';
+  }
+  if(verificationHelp){
+    verificationHelp.textContent=isStudent
+      ? 'Click to upload School ID or COR'
+      : 'Click to upload Employee ID';
+  }
+
+  const status=document.getElementById('id-analyze-status');
+  if(status)status.textContent='';
 }
 
 function checkDentalQuota(patientId,excludeId=null){
@@ -6683,6 +6704,7 @@ function authTab(t){
   const forgot=document.getElementById('forgot-section');
   if(forgot)forgot.style.display='none';
   document.getElementById('auth-tabs').style.display='flex';
+  if(t==='reg')updateRegistrationIdentityFields();
 }
 
 // ================================================================
@@ -6922,7 +6944,7 @@ async function doRegister() {
   const pass=document.getElementById('r-pass').value;
   const contact=document.getElementById('r-contact').value.trim();
   const ptype=document.getElementById('r-ptype').value;
-  const college=ptype==='Student'?document.getElementById('r-college').value:'';
+  const college=document.getElementById('r-college').value;
   const idNo=document.getElementById('r-idno').value.trim();
   const dob=document.getElementById('r-dob').value;
   const sex=document.getElementById('r-sex').value;
@@ -6936,6 +6958,40 @@ async function doRegister() {
   }
   if(!fname||!lname||!uname||!email||!pass){
     registrationToast('Name, username, email and password are required.','error');
+    return;
+  }
+  if(fname.length>50||lname.length>50){
+    registrationToast('First and last name must not exceed 50 characters.','error');
+    return;
+  }
+  if(!/^[A-Za-z0-9_.-]{4,20}$/.test(uname)){
+    registrationToast('Username must be 4–20 characters using letters, numbers, periods, underscores, or hyphens.','error');
+    return;
+  }
+  if(email.length>150){
+    registrationToast('Email must not exceed 150 characters.','error');
+    return;
+  }
+  if(pass.length>64){
+    registrationToast('Password must not exceed 64 characters.','error');
+    return;
+  }
+  if(contact&&!/^09\d{9}$/.test(contact)){
+    registrationToast('Contact number must contain 11 digits and start with 09.','error');
+    return;
+  }
+  const expectedIdLength=ptype==='Student'?7:5;
+  if(!new RegExp(`^\\d{${expectedIdLength}}$`).test(idNo)){
+    registrationToast(
+      ptype==='Student'
+        ? 'Student ID must contain exactly 7 digits, for example 1350098.'
+        : 'Employee ID must contain exactly 5 digits, for example 14982.',
+      'error'
+    );
+    return;
+  }
+  if(!college){
+    registrationToast(ptype==='Non-Teaching Personnel'?'Please select your department.':'Please select your college.','error');
     return;
   }
   if(!dob){
@@ -6964,7 +7020,12 @@ async function doRegister() {
     return;
   }
   if(!fileInput.files.length&&!capturedIdDataUrl){
-    registrationToast('Please upload or capture your School ID or COR.','error');
+    registrationToast(
+      ptype==='Student'
+        ? 'Please upload or capture your School ID or COR.'
+        : 'Please upload or capture your Employee ID.',
+      'error'
+    );
     return;
   }
 
@@ -6987,6 +7048,8 @@ async function doRegister() {
     person_type:ptype,
     college,
     id_number:idNo,
+    registration_context:'public',
+    verification_document_type:ptype==='Student'?'School ID or COR':'Employee ID',
     date_of_birth:dob,
     sex,
     privacy_consent:true,
@@ -7036,6 +7099,7 @@ async function doRegister() {
     const preview=document.getElementById('r-file-preview');if(preview)preview.textContent='';
     const consent=document.getElementById('r-privacy-consent');if(consent)consent.checked=false;
     capturedSelfieDataUrl=null;capturedIdDataUrl=null;
+    updateRegistrationIdentityFields();
   }catch(e){
     registrationToast(e?.message||'Registration failed. Please try again.','error',6000);
   }finally{
@@ -17722,7 +17786,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v58 loaded.');
+console.log('CampusCare v59 loaded.');
 </script>
 </body>
 </html>
