@@ -1427,7 +1427,7 @@ tbody tr:hover td{background:var(--overlay)}
 #landing-navbar{
   height:var(--landing-nav-h);
   display:grid;
-  grid-template-columns:minmax(250px,1fr) auto minmax(250px,1fr);
+  grid-template-columns:minmax(280px,1fr) minmax(440px,auto) minmax(190px,1fr);
   align-items:center;
   padding:.65rem clamp(1.4rem,2.4vw,2.4rem);
 }
@@ -1435,6 +1435,26 @@ tbody tr:hover td{background:var(--overlay)}
 #landing-navbar .landing-nav-links{justify-self:center}
 #landing-navbar .landing-nav-actions{justify-self:end;margin-left:0}
 #landing-navbar.auth-mode .landing-get-started{display:none!important}
+.landing-nav-links{
+  flex-wrap:nowrap!important;
+  white-space:nowrap;
+  gap:clamp(1.15rem,1.7vw,1.8rem);
+}
+.landing-nav-links a{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+  white-space:nowrap!important;
+  word-break:keep-all;
+  overflow-wrap:normal;
+  border:0!important;
+  border-left:0!important;
+  border-right:0!important;
+}
+.landing-nav-links::before,
+.landing-nav-links::after,
+.landing-nav-links a::before{content:none!important;display:none!important}
 .landing-nav-links a.active{color:#fff;font-weight:700}
 .landing-nav-links a.active::after{width:100%}
 .landing-get-started{min-width:112px}
@@ -1481,38 +1501,330 @@ tbody tr:hover td{background:var(--overlay)}
 .landing-hero-text p{max-width:500px}
 .landing-hero-visual{justify-self:end;width:100%;min-height:390px}
 
-/* Hero information + advisory carousel. */
+/* Modern Clinic Information + Advisories carousel. */
 .hero-info-carousel{
-  width:min(100%,420px);
-  min-height:390px;
-  background:rgba(247,249,252,.96);
-  color:#173047;
-  border:1px solid rgba(255,255,255,.65);
-  border-radius:22px;
-  box-shadow:0 22px 55px rgba(0,0,0,.22);
+  position:relative;
+  isolation:isolate;
+  width:min(100%,440px);
+  min-height:405px;
+  color:#eef8ff;
+  border:1px solid rgba(121,211,245,.24);
+  border-radius:26px;
   overflow:hidden;
-  backdrop-filter:blur(14px) saturate(130%);
-  -webkit-backdrop-filter:blur(14px) saturate(130%);
+  background:
+    linear-gradient(145deg,rgba(8,31,49,.91),rgba(14,33,58,.84) 55%,rgba(22,31,66,.88));
+  box-shadow:
+    0 26px 70px rgba(0,0,0,.30),
+    inset 0 1px 0 rgba(255,255,255,.08);
+  backdrop-filter:blur(22px) saturate(150%);
+  -webkit-backdrop-filter:blur(22px) saturate(150%);
 }
-.hero-carousel-head{padding:1.15rem 1.35rem .6rem;display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem}
-.hero-carousel-head h4{font-size:1rem;margin:0;color:#102a40;line-height:1.25}
-.hero-carousel-head span{font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#688096;white-space:nowrap;padding-top:.15rem}
+.hero-info-carousel::before,
+.hero-info-carousel::after{
+  content:'';
+  position:absolute;
+  z-index:-1;
+  border-radius:50%;
+  filter:blur(3px);
+  pointer-events:none;
+}
+.hero-info-carousel::before{
+  width:230px;height:230px;
+  top:-135px;right:-70px;
+  background:radial-gradient(circle,rgba(61,193,241,.28),rgba(61,193,241,0) 68%);
+  animation:heroCarouselGlow 7s ease-in-out infinite alternate;
+}
+.hero-info-carousel::after{
+  width:190px;height:190px;
+  left:-105px;bottom:-105px;
+  background:radial-gradient(circle,rgba(113,104,232,.22),rgba(113,104,232,0) 70%);
+  animation:heroCarouselGlow 8.5s ease-in-out 1s infinite alternate-reverse;
+}
+.hero-carousel-accent{
+  position:absolute;
+  top:0;left:0;right:0;
+  height:3px;
+  background:linear-gradient(90deg,#44c7ef,#5e8cff 55%,#9276ee);
+  box-shadow:0 0 20px rgba(68,199,239,.55);
+}
+.hero-carousel-head{
+  padding:1.2rem 1.25rem .85rem;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.8rem;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.hero-carousel-brand{display:flex;align-items:center;gap:.7rem;min-width:0}
+.hero-carousel-brand-icon{
+  width:36px;height:36px;flex:0 0 36px;
+  border-radius:12px;
+  display:grid;place-items:center;
+  background:linear-gradient(145deg,rgba(55,190,235,.26),rgba(111,99,227,.22));
+  border:1px solid rgba(115,210,244,.25);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+  font-size:1rem;
+}
+.hero-carousel-head h4{
+  font-size:.9rem;
+  margin:0;
+  color:#f3fbff;
+  line-height:1.2;
+  letter-spacing:-.1px;
+}
+.hero-carousel-head small{
+  display:block;
+  color:#86a6ba;
+  font-size:.63rem;
+  margin-top:.18rem;
+  font-weight:600;
+}
+.hero-carousel-counter{
+  flex:0 0 auto;
+  padding:.3rem .55rem;
+  border-radius:999px;
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.08);
+  color:#a9dff3;
+  font-size:.64rem;
+  font-weight:800;
+  letter-spacing:.08em;
+  font-variant-numeric:tabular-nums;
+}
+.hero-carousel-progress{
+  height:2px;
+  background:rgba(255,255,255,.06);
+  overflow:hidden;
+}
+.hero-carousel-progress span{
+  display:block;
+  width:0;
+  height:100%;
+  background:linear-gradient(90deg,#42c5ed,#628cf5,#8b76ec);
+  box-shadow:0 0 10px rgba(66,197,237,.5);
+}
+.hero-carousel-progress span.running{animation:heroCarouselProgress 6.5s linear forwards}
 .hero-carousel-viewport{overflow:hidden}
-.hero-carousel-track{display:flex;transition:transform .42s cubic-bezier(.22,.72,.2,1)}
-.hero-carousel-slide{min-width:100%;padding:.35rem 1.35rem .6rem;min-height:260px}
-.hero-carousel-slide h5{font-size:.92rem;color:#0d6a91;margin:.2rem 0 .75rem}
-.hero-carousel-slide p,.hero-carousel-slide li{font-size:.76rem;line-height:1.55;color:#52677b}
-.hero-carousel-slide ul,.hero-carousel-slide ol{padding-left:1.1rem;margin:.45rem 0}
-.hero-carousel-slide .hic-row{padding:.58rem 0}
-.hero-carousel-slide .hic-row strong{color:#203b52}
-.hero-carousel-foot{display:flex;align-items:center;justify-content:space-between;padding:.7rem 1rem 1rem;border-top:1px solid #e3e8ed}
-.hero-carousel-arrow{width:32px;height:32px;border:none;border-radius:50%;background:#e9f3f8;color:#17698b;display:grid;place-items:center;cursor:pointer;font-size:1rem;font-weight:800}
-.hero-carousel-arrow:hover{background:#d7edf7}
+.hero-carousel-track{
+  display:flex;
+  transition:transform .62s cubic-bezier(.22,.82,.23,1);
+  will-change:transform;
+}
+.hero-carousel-slide{
+  min-width:100%;
+  min-height:286px;
+  padding:1rem 1.25rem .9rem;
+  opacity:.62;
+  transform:scale(.985);
+  transition:opacity .45s ease,transform .45s ease;
+}
+.hero-carousel-slide.active{opacity:1;transform:scale(1)}
+.hero-slide-top{display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem}
+.hero-slide-icon{
+  width:46px;height:46px;flex:0 0 46px;
+  border-radius:15px;
+  display:grid;place-items:center;
+  font-size:1.35rem;
+  background:linear-gradient(145deg,rgba(52,189,234,.23),rgba(106,96,222,.22));
+  border:1px solid rgba(118,209,244,.22);
+  box-shadow:0 9px 25px rgba(0,0,0,.16),inset 0 1px 0 rgba(255,255,255,.08);
+}
+.hero-carousel-slide.active .hero-slide-icon{animation:heroIconFloat 3.4s ease-in-out infinite}
+.hero-slide-copy{min-width:0}
+.hero-slide-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:.3rem;
+  margin-bottom:.2rem;
+  padding:.18rem .48rem;
+  border-radius:999px;
+  background:rgba(58,192,237,.11);
+  border:1px solid rgba(80,198,238,.17);
+  color:#70d8f7;
+  font-size:.58rem;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.hero-carousel-slide h5{
+  font-size:1.05rem;
+  color:#fff;
+  margin:0;
+  line-height:1.2;
+  letter-spacing:-.2px;
+}
+.hero-slide-lead{
+  margin:0 0 .75rem;
+  color:#9fb9ca!important;
+  font-size:.72rem!important;
+  line-height:1.5!important;
+}
+.hero-mini-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem}
+.hero-mini-card{
+  min-width:0;
+  padding:.67rem .72rem;
+  border-radius:13px;
+  background:rgba(255,255,255,.055);
+  border:1px solid rgba(255,255,255,.075);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.025);
+}
+.hero-mini-card .mini-label{
+  display:flex;align-items:center;gap:.35rem;
+  color:#d9eef8;
+  font-size:.66rem;
+  font-weight:800;
+  margin-bottom:.2rem;
+}
+.hero-mini-card p{
+  margin:0!important;
+  color:#8fa8ba!important;
+  font-size:.64rem!important;
+  line-height:1.42!important;
+}
+.hero-requirement-list{display:grid;gap:.45rem}
+.hero-requirement{
+  display:flex;align-items:flex-start;gap:.55rem;
+  padding:.55rem .65rem;
+  border-radius:12px;
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.06);
+  color:#a7bdcb;
+  font-size:.67rem;
+  line-height:1.4;
+}
+.hero-requirement i{
+  width:21px;height:21px;flex:0 0 21px;
+  display:grid;place-items:center;
+  border-radius:7px;
+  background:rgba(58,192,237,.13);
+  color:#70d8f7;
+  font-style:normal;
+  font-size:.62rem;
+  font-weight:900;
+}
+.hero-step-line{display:grid;gap:.47rem}
+.hero-step{
+  display:grid;
+  grid-template-columns:27px 1fr;
+  align-items:start;
+  gap:.55rem;
+}
+.hero-step-num{
+  width:27px;height:27px;
+  display:grid;place-items:center;
+  border-radius:9px;
+  color:#e7f8ff;
+  font-size:.64rem;
+  font-weight:900;
+  background:linear-gradient(145deg,rgba(49,184,230,.25),rgba(93,111,232,.25));
+  border:1px solid rgba(101,199,238,.20);
+}
+.hero-step strong{display:block;color:#dceff8;font-size:.69rem;margin-bottom:.12rem}
+.hero-step span{display:block;color:#8fa7b8;font-size:.63rem;line-height:1.4}
+.hero-contact-pills{display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:.7rem}
+.hero-contact-pill{
+  display:inline-flex;align-items:center;gap:.35rem;
+  padding:.42rem .58rem;
+  border-radius:10px;
+  background:rgba(255,255,255,.055);
+  border:1px solid rgba(255,255,255,.075);
+  color:#b8d0dd;
+  font-size:.64rem;
+}
+.hero-referral-note{
+  padding:.7rem .75rem;
+  border-radius:13px;
+  background:linear-gradient(135deg,rgba(61,190,232,.09),rgba(110,93,222,.08));
+  border:1px solid rgba(98,184,225,.12);
+  color:#9fb7c7;
+  font-size:.66rem;
+  line-height:1.48;
+}
+.hero-carousel-slide.active .hero-slide-top,
+.hero-carousel-slide.active .hero-slide-lead,
+.hero-carousel-slide.active .hero-mini-grid,
+.hero-carousel-slide.active .hero-requirement-list,
+.hero-carousel-slide.active .hero-step-line,
+.hero-carousel-slide.active .hero-contact-pills,
+.hero-carousel-slide.active .hero-referral-note{
+  animation:heroSlideIn .48s ease both;
+}
+.hero-carousel-slide.active .hero-slide-lead{animation-delay:.06s}
+.hero-carousel-slide.active .hero-mini-grid,
+.hero-carousel-slide.active .hero-requirement-list,
+.hero-carousel-slide.active .hero-step-line,
+.hero-carousel-slide.active .hero-contact-pills{animation-delay:.1s}
+.hero-carousel-slide.active .hero-referral-note{animation-delay:.15s}
+.hero-carousel-foot{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.7rem;
+  padding:.72rem 1rem .9rem;
+  border-top:1px solid rgba(255,255,255,.075);
+  background:rgba(4,15,25,.16);
+}
+.hero-carousel-arrow{
+  width:34px;height:34px;
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:11px;
+  background:rgba(255,255,255,.06);
+  color:#cceefa;
+  display:grid;place-items:center;
+  cursor:pointer;
+  font-size:1rem;
+  font-weight:900;
+  transition:transform .18s ease,background .18s ease,border-color .18s ease;
+}
+.hero-carousel-arrow:hover{
+  transform:translateY(-1px);
+  background:rgba(66,193,236,.13);
+  border-color:rgba(91,199,237,.22);
+}
 .hero-carousel-dots{display:flex;align-items:center;gap:.4rem}
-.hero-carousel-dot{width:7px;height:7px;border:none;border-radius:999px;background:#c9d4dc;padding:0;cursor:pointer;transition:width .2s ease,background .2s ease}
-.hero-carousel-dot.active{width:22px;background:#2da7d8}
-[data-theme="dark"] .hero-info-carousel{background:rgba(244,247,250,.96);color:#173047}
+.hero-carousel-dot{
+  width:7px;height:7px;
+  border:none;border-radius:999px;
+  background:rgba(176,203,218,.30);
+  padding:0;cursor:pointer;
+  transition:width .25s ease,background .25s ease,box-shadow .25s ease;
+}
+.hero-carousel-dot.active{
+  width:25px;
+  background:linear-gradient(90deg,#45c7ee,#7587f1);
+  box-shadow:0 0 12px rgba(69,199,238,.28);
+}
+[data-theme="dark"] .hero-info-carousel{color:#eef8ff}
 
+@keyframes heroCarouselGlow{
+  from{transform:translate3d(0,0,0) scale(1)}
+  to{transform:translate3d(-10px,12px,0) scale(1.08)}
+}
+@keyframes heroCarouselProgress{
+  from{width:0}
+  to{width:100%}
+}
+@keyframes heroSlideIn{
+  from{opacity:0;transform:translateY(9px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes heroIconFloat{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-3px)}
+}
+@media(prefers-reduced-motion:reduce){
+  .hero-info-carousel::before,.hero-info-carousel::after,
+  .hero-carousel-slide.active .hero-slide-icon,
+  .hero-carousel-slide.active .hero-slide-top,
+  .hero-carousel-slide.active .hero-slide-lead,
+  .hero-carousel-slide.active .hero-mini-grid,
+  .hero-carousel-slide.active .hero-requirement-list,
+  .hero-carousel-slide.active .hero-step-line,
+  .hero-carousel-slide.active .hero-contact-pills,
+  .hero-carousel-slide.active .hero-referral-note,
+  .hero-carousel-progress span.running{animation:none!important}
+  .hero-carousel-track{transition:none}
+}
 /* Page-style public routes. */
 .landing-static-page{
   height:100%;
@@ -1589,7 +1901,9 @@ tbody tr:hover td{background:var(--overlay)}
   .landing-hero-grid{gap:1.1rem}
   #landing-hero{padding:1.8rem 1rem 2rem}
   .landing-hero-text h1{font-size:2rem}
-  .hero-info-carousel{min-height:360px}
+  .hero-info-carousel{min-height:390px}
+  .hero-mini-grid{grid-template-columns:1fr}
+  .hero-carousel-slide{min-height:300px}
   .public-services-grid,.public-advisory-grid,.public-about-points{grid-template-columns:1fr}
   .landing-static-page{padding:1.7rem 1rem 2.2rem}
   .public-page-title{font-size:1.45rem}
@@ -1931,7 +2245,6 @@ tbody tr:hover td{background:var(--overlay)}
       <a data-landing-link="home" onclick="landingNavTo('home')">Home</a>
       <a data-landing-link="services" onclick="landingNavTo('services')">Clinic Services</a>
       <a data-landing-link="about" onclick="landingNavTo('about')">About the Clinic</a>
-      <a data-landing-link="advisory" onclick="landingNavTo('advisory')">Advisory</a>
       <a data-landing-link="contact" onclick="landingNavTo('contact')">Contact</a>
     </div>
     <div class="landing-nav-actions">
@@ -1965,63 +2278,121 @@ tbody tr:hover td{background:var(--overlay)}
 
         <div class="landing-hero-visual">
           <div class="hero-info-carousel" aria-label="Clinic Information and Current Advisories">
+            <div class="hero-carousel-accent"></div>
+
             <div class="hero-carousel-head">
-              <h4>Clinic Information &amp; Current Advisories</h4>
-              <span id="hero-carousel-counter">1 / 4</span>
+              <div class="hero-carousel-brand">
+                <div class="hero-carousel-brand-icon">✦</div>
+                <div>
+                  <h4>Clinic Information &amp; Current Advisories</h4>
+                  <small>Live campus clinic highlights</small>
+                </div>
+              </div>
+              <span class="hero-carousel-counter" id="hero-carousel-counter">01 / 04</span>
             </div>
+
+            <div class="hero-carousel-progress" aria-hidden="true">
+              <span id="hero-carousel-progress"></span>
+            </div>
+
             <div class="hero-carousel-viewport">
               <div class="hero-carousel-track" id="hero-carousel-track">
-                <article class="hero-carousel-slide">
-                  <h5>Visit the Clinic</h5>
-                  <div class="hic-row"><span>📍</span><div><strong>Location</strong>Ground Floor, Education Building, CTU Main Campus</div></div>
-                  <div class="hic-row"><span>🕗</span><div><strong>Medical Clinic Hours</strong>Regular: Mon–Fri 8:00 AM–5:00 PM<br>Extended: Mon–Fri 5:00 PM–9:00 PM<br>Sat 8:00 AM–9:00 PM · Sun 8:00 AM–5:00 PM</div></div>
-                  <div class="hic-row"><span>⛑️</span><div><strong>Emergencies</strong>Walk in during clinic hours — no appointment needed.</div></div>
-                  <div class="hic-row"><span>🦷</span><div><strong>Dental</strong>Daily slots are limited; reserve early through CampusCare.</div></div>
+
+                <article class="hero-carousel-slide active">
+                  <div class="hero-slide-top">
+                    <div class="hero-slide-icon">🏥</div>
+                    <div class="hero-slide-copy">
+                      <span class="hero-slide-chip">Clinic Overview</span>
+                      <h5>Visit the Clinic</h5>
+                    </div>
+                  </div>
+                  <p class="hero-slide-lead">Quick information for visiting the CTU Main Medical &amp; Dental Clinic.</p>
+                  <div class="hero-mini-grid">
+                    <div class="hero-mini-card">
+                      <div class="mini-label">📍 Location</div>
+                      <p>Ground Floor, Education Building, CTU Main Campus</p>
+                    </div>
+                    <div class="hero-mini-card">
+                      <div class="mini-label">🕗 Medical Hours</div>
+                      <p>Mon–Fri 8 AM–5 PM · Extended until 9 PM · Weekend hours posted</p>
+                    </div>
+                    <div class="hero-mini-card">
+                      <div class="mini-label">⛑️ Emergencies</div>
+                      <p>Walk in during clinic hours. Emergency concerns do not require booking.</p>
+                    </div>
+                    <div class="hero-mini-card">
+                      <div class="mini-label">🦷 Dental</div>
+                      <p>Daily slots are limited. Reserve early through CampusCare.</p>
+                    </div>
+                  </div>
                 </article>
 
                 <article class="hero-carousel-slide">
-                  <h5>Graduate School Medical Requirements</h5>
-                  <p>Current clinic guidance asks new graduate students to submit clear, correctly named <strong>JPEG</strong> files, each not exceeding <strong>1 MB</strong>.</p>
-                  <ul>
-                    <li>Medical Certificate / physical examination report</li>
-                    <li>Chest X-ray typewritten result</li>
-                    <li>CBC and Drug Test result</li>
-                    <li>Pregnancy documentation when applicable</li>
-                  </ul>
-                  <p><strong>Privacy:</strong> submitted information is handled confidentially in accordance with applicable CTU privacy procedures.</p>
+                  <div class="hero-slide-top">
+                    <div class="hero-slide-icon">🎓</div>
+                    <div class="hero-slide-copy">
+                      <span class="hero-slide-chip">Graduate School</span>
+                      <h5>Medical Requirements</h5>
+                    </div>
+                  </div>
+                  <p class="hero-slide-lead">Prepare clear, correctly named JPEG files, each not exceeding 1 MB.</p>
+                  <div class="hero-requirement-list">
+                    <div class="hero-requirement"><i>01</i><span>Medical Certificate / physical examination report</span></div>
+                    <div class="hero-requirement"><i>02</i><span>Chest X-ray typewritten result</span></div>
+                    <div class="hero-requirement"><i>03</i><span>Complete Blood Count (CBC) and Drug Test result</span></div>
+                    <div class="hero-requirement"><i>04</i><span>Pregnancy documentation when applicable</span></div>
+                  </div>
                 </article>
 
                 <article class="hero-carousel-slide">
-                  <h5>Intramurals 2026–2027 Guidance</h5>
-                  <ol>
-                    <li>Secure the Eligibility Form from your coach.</li>
-                    <li>Complete personal information and sports event.</li>
-                    <li>Sign the Participant's Waiver and Release Agreement.</li>
-                    <li>Obtain required parent/guardian and coach signatures.</li>
-                    <li>Bring the completed form to the clinic as instructed.</li>
-                  </ol>
-                  <p><strong>Reminder:</strong> enrollment medical requirements should already be submitted before requesting the Intramurals medical certificate.</p>
+                  <div class="hero-slide-top">
+                    <div class="hero-slide-icon">🏅</div>
+                    <div class="hero-slide-copy">
+                      <span class="hero-slide-chip">Intramurals 2026–2027</span>
+                      <h5>Fitness &amp; Clearance Guide</h5>
+                    </div>
+                  </div>
+                  <p class="hero-slide-lead">Complete the eligibility requirements before bringing the form to the clinic.</p>
+                  <div class="hero-step-line">
+                    <div class="hero-step"><div class="hero-step-num">1</div><div><strong>Get your Eligibility Form</strong><span>Secure the official form from your coach and complete your personal/sports information.</span></div></div>
+                    <div class="hero-step"><div class="hero-step-num">2</div><div><strong>Complete required signatures</strong><span>Sign the waiver and obtain the required parent/guardian and coach signatures.</span></div></div>
+                    <div class="hero-step"><div class="hero-step-num">3</div><div><strong>Visit the clinic</strong><span>Bring the completed form after your enrollment medical requirements have been submitted.</span></div></div>
+                  </div>
                 </article>
 
                 <article class="hero-carousel-slide">
-                  <h5>Clinic Contact &amp; Referral</h5>
-                  <div class="hic-row"><span>☎️</span><div><strong>Phone</strong>(032) 402 4060 loc. 1142</div></div>
-                  <div class="hic-row"><span>✉️</span><div><strong>Email</strong>ctumainmedclinic@gmail.com</div></div>
-                  <div class="hic-row"><span>📘</span><div><strong>Facebook</strong>CTU Main Medical Clinic</div></div>
-                  <p style="margin-top:.7rem">Persistent symptoms or conditions needing further evaluation may be referred to an appropriate medical facility. For emergencies on campus, proceed directly to the clinic or alert university personnel.</p>
+                  <div class="hero-slide-top">
+                    <div class="hero-slide-icon">☎️</div>
+                    <div class="hero-slide-copy">
+                      <span class="hero-slide-chip">Contact &amp; Referral</span>
+                      <h5>Reach the Clinic</h5>
+                    </div>
+                  </div>
+                  <p class="hero-slide-lead">Use the official clinic contact channels for questions and follow-up coordination.</p>
+                  <div class="hero-contact-pills">
+                    <span class="hero-contact-pill">☎️ (032) 402 4060 loc. 1142</span>
+                    <span class="hero-contact-pill">✉️ ctumainmedclinic@gmail.com</span>
+                    <span class="hero-contact-pill">📘 CTU Main Medical Clinic</span>
+                  </div>
+                  <div class="hero-referral-note">
+                    Persistent symptoms or conditions needing further evaluation may be referred to an appropriate medical facility. For emergencies on campus, proceed directly to the clinic or alert university personnel.
+                  </div>
                 </article>
+
               </div>
             </div>
+
             <div class="hero-carousel-foot">
-              <button class="hero-carousel-arrow" onclick="moveLandingCarousel(-1)" aria-label="Previous advisory">‹</button>
+              <button class="hero-carousel-arrow" onclick="moveLandingCarousel(-1)" aria-label="Previous slide">‹</button>
               <div class="hero-carousel-dots" id="hero-carousel-dots">
-                <button class="hero-carousel-dot active" onclick="setLandingCarousel(0)" aria-label="Clinic information"></button>
-                <button class="hero-carousel-dot" onclick="setLandingCarousel(1)" aria-label="Graduate School advisory"></button>
-                <button class="hero-carousel-dot" onclick="setLandingCarousel(2)" aria-label="Intramurals advisory"></button>
+                <button class="hero-carousel-dot active" onclick="setLandingCarousel(0)" aria-label="Clinic overview"></button>
+                <button class="hero-carousel-dot" onclick="setLandingCarousel(1)" aria-label="Graduate School requirements"></button>
+                <button class="hero-carousel-dot" onclick="setLandingCarousel(2)" aria-label="Intramurals guidance"></button>
                 <button class="hero-carousel-dot" onclick="setLandingCarousel(3)" aria-label="Contact and referral"></button>
               </div>
-              <button class="hero-carousel-arrow" onclick="moveLandingCarousel(1)" aria-label="Next advisory">›</button>
+              <button class="hero-carousel-arrow" onclick="moveLandingCarousel(1)" aria-label="Next slide">›</button>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -2042,9 +2413,6 @@ tbody tr:hover td{background:var(--overlay)}
           <div class="feature-card"><div class="fc-icon">📄</div><h4>Medical Certificates &amp; Clearances</h4><p>Request certificates for OJT, sports, enrollment, and excused absence, then follow the preparation and Doctor-signature workflow online.</p></div>
           <div class="feature-card"><div class="fc-icon">📋</div><h4>Health Records</h4><p>Consultations, treatments, prescriptions, vitals, and follow-up information are organized in one role-protected clinical record.</p></div>
           <div class="feature-card"><div class="fc-icon">🧠</div><h4>Health Education &amp; Wellness</h4><p>Access clinic advisories and trustworthy educational resources covering stress, nutrition, first aid, vaccination, sleep, and physical activity.</p></div>
-        </div>
-        <div class="public-page-cta">
-          <button class="btn btn-primary" onclick="showAuthPage('login')">Access CampusCare</button>
         </div>
       </div>
     </section>
@@ -2083,35 +2451,6 @@ tbody tr:hover td{background:var(--overlay)}
     </section>
   </main>
 
-  <!-- ADVISORIES -->
-  <main class="landing-route" data-landing-route="advisory">
-    <section class="landing-static-page">
-      <div class="landing-static-inner">
-        <div class="public-page-kicker">Clinic Information</div>
-        <h2 class="public-page-title">Current Advisories</h2>
-        <p class="public-page-sub">Quick-reference guidance currently reflected in the CampusCare prototype.</p>
-        <div class="public-advisory-grid">
-          <article class="public-advisory-card">
-            <div class="advisory-icon">🎓</div><h3>Graduate School Medical Requirements</h3>
-            <p>Submit complete, clear, correctly named <strong>JPEG</strong> files, each not exceeding <strong>1 MB</strong>.</p>
-            <ul><li>Medical Certificate / physical examination report</li><li>Chest X-ray typewritten result</li><li>Pregnancy documentation when applicable</li><li>Complete Blood Count (CBC)</li><li>Drug Test result</li></ul>
-          </article>
-          <article class="public-advisory-card">
-            <div class="advisory-icon">🏅</div><h3>Intramurals 2026–2027</h3>
-            <ol><li>Secure the Eligibility Form from your coach.</li><li>Complete personal information and sports event.</li><li>Sign the Participant's Waiver.</li><li>Obtain required parent/guardian and coach signatures.</li><li>Bring the completed form to the clinic as instructed.</li></ol>
-            <p><strong>Reminder:</strong> enrollment medical requirements should already be submitted.</p>
-          </article>
-          <article class="public-advisory-card">
-            <div class="advisory-icon">⛑️</div><h3>Referral &amp; Emergency Guidance</h3>
-            <p>For persistent symptoms or conditions that need further evaluation, the clinic may refer the patient to an appropriate medical facility and coordinate the necessary follow-up.</p>
-            <p>For an emergency on campus, proceed directly to the clinic or alert university personnel immediately.</p>
-            <p><strong>Walk-in note:</strong> emergency concerns do not require online appointment booking.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-  </main>
-
   <!-- CONTACT -->
   <main class="landing-route" data-landing-route="contact">
     <section class="landing-static-page">
@@ -2135,7 +2474,6 @@ tbody tr:hover td{background:var(--overlay)}
               <div class="public-hours-row"><strong>Sunday</strong><span>8:00 AM–5:00 PM</span></div>
             </div>
             <p style="margin-top:1rem">Appointment availability in CampusCare still follows the selected Doctor's configured work schedule.</p>
-            <div class="public-page-cta" style="justify-content:flex-start;margin-top:1rem"><button class="btn btn-primary" onclick="showAuthPage('login')">Get Started with CampusCare</button></div>
           </div>
         </div>
         <div class="public-contact-footer">© 2026 CampusCare · CTU Main Medical &amp; Dental Clinic</div>
@@ -5850,22 +6188,36 @@ async function checkReminders(){
 // AUTH
 // ================================================================
 
-const LANDING_ROUTE_NAMES=['home','services','about','advisory','contact'];
+const LANDING_ROUTE_NAMES=['home','services','about','contact'];
 let landingCarouselIndex=0;
 let landingCarouselTimer=null;
 
 function setLandingCarousel(index,resetTimer=true){
   const track=document.getElementById('hero-carousel-track');
   const dots=[...document.querySelectorAll('.hero-carousel-dot')];
+  const slides=[...document.querySelectorAll('.hero-carousel-slide')];
   if(!track||!dots.length)return;
 
   const count=dots.length;
   landingCarouselIndex=((Number(index)||0)%count+count)%count;
   track.style.transform=`translateX(-${landingCarouselIndex*100}%)`;
+
   dots.forEach((dot,i)=>dot.classList.toggle('active',i===landingCarouselIndex));
+  slides.forEach((slide,i)=>slide.classList.toggle('active',i===landingCarouselIndex));
 
   const counter=document.getElementById('hero-carousel-counter');
-  if(counter)counter.textContent=`${landingCarouselIndex+1} / ${count}`;
+  if(counter){
+    const current=String(landingCarouselIndex+1).padStart(2,'0');
+    const total=String(count).padStart(2,'0');
+    counter.textContent=`${current} / ${total}`;
+  }
+
+  const progress=document.getElementById('hero-carousel-progress');
+  if(progress){
+    progress.classList.remove('running');
+    void progress.offsetWidth;
+    progress.classList.add('running');
+  }
 
   if(resetTimer)startLandingCarouselTimer();
 }
@@ -5882,6 +6234,34 @@ function startLandingCarouselTimer(){
     if(landing?.style.display==='none'||!home?.classList.contains('active'))return;
     setLandingCarousel(landingCarouselIndex+1,false);
   },6500);
+}
+
+function initializeLandingCarouselInteractions(){
+  const carousel=document.querySelector('.hero-info-carousel');
+  if(!carousel||carousel.dataset.interactionsReady==='1')return;
+  carousel.dataset.interactionsReady='1';
+
+  const pause=()=>{
+    if(landingCarouselTimer){
+      clearInterval(landingCarouselTimer);
+      landingCarouselTimer=null;
+    }
+    document.getElementById('hero-carousel-progress')?.classList.remove('running');
+  };
+  const resume=()=>{
+    const home=document.querySelector('[data-landing-route="home"]');
+    if(home?.classList.contains('active')){
+      setLandingCarousel(landingCarouselIndex,false);
+      startLandingCarouselTimer();
+    }
+  };
+
+  carousel.addEventListener('mouseenter',pause);
+  carousel.addEventListener('mouseleave',resume);
+  carousel.addEventListener('focusin',pause);
+  carousel.addEventListener('focusout',e=>{
+    if(!carousel.contains(e.relatedTarget))resume();
+  });
 }
 
 function setPublicNavbarMode(authMode=false){
@@ -5940,13 +6320,14 @@ function landingNavTo(route){
 
 function initializeLandingRouting(){
   const hash=String(window.location.hash||'');
-  const match=hash.match(/^#page=(home|services|about|advisory|contact)$/);
+  const match=hash.match(/^#page=(home|services|about|contact)$/);
   showLandingRoute(match?match[1]:'home',false);
   setLandingCarousel(0,false);
+  initializeLandingCarouselInteractions();
   startLandingCarouselTimer();
 
   window.addEventListener('popstate',()=>{
-    const m=String(window.location.hash||'').match(/^#page=(home|services|about|advisory|contact)$/);
+    const m=String(window.location.hash||'').match(/^#page=(home|services|about|contact)$/);
     if(m)showLandingRoute(m[1],false);
   });
 }
@@ -16999,7 +17380,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v54 loaded.');
+console.log('CampusCare v55 loaded.');
 </script>
 </body>
 </html>
