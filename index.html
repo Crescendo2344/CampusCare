@@ -1437,12 +1437,16 @@ tbody tr:hover td{background:var(--overlay)}
   white-space:nowrap;
 }
 #landing-navbar .landing-nav-links{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
   display:flex;
   align-items:center;
   justify-content:center;
-  flex:1 1 auto;
-  min-width:0;
-  margin-left:clamp(1rem,3vw,3.5rem);
+  flex:0 0 auto;
+  min-width:max-content;
+  margin:0;
   gap:clamp(1.35rem,2.4vw,2.6rem);
   white-space:nowrap;
 }
@@ -1484,6 +1488,8 @@ tbody tr:hover td{background:var(--overlay)}
     top:100%;
     left:0;
     right:0;
+    transform:none;
+    min-width:0;
     margin:0;
     padding:1rem 1.4rem;
     flex-direction:column;
@@ -1550,11 +1556,14 @@ tbody tr:hover td{background:var(--overlay)}
   height:395px;
   overflow:hidden;
   border-radius:26px;
-  border:1px solid rgba(108,203,240,.22);
-  background:rgba(8,27,45,.66);
-  box-shadow:0 26px 68px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.07);
-  backdrop-filter:blur(18px) saturate(145%);
-  -webkit-backdrop-filter:blur(18px) saturate(145%);
+  border:1px solid rgba(205,233,244,.24);
+  background:
+    linear-gradient(145deg,rgba(42,86,113,.43),rgba(32,63,92,.36) 58%,rgba(52,58,103,.34));
+  box-shadow:
+    0 24px 60px rgba(2,14,24,.22),
+    inset 0 1px 0 rgba(255,255,255,.11);
+  backdrop-filter:blur(24px) saturate(132%);
+  -webkit-backdrop-filter:blur(24px) saturate(132%);
   user-select:none;
   -webkit-user-select:none;
   touch-action:pan-y;
@@ -1575,13 +1584,13 @@ tbody tr:hover td{background:var(--overlay)}
 .hero-info-carousel::before{
   width:240px;height:240px;
   right:-115px;top:-115px;
-  background:radial-gradient(circle,rgba(51,190,238,.28),rgba(51,190,238,0) 70%);
+  background:radial-gradient(circle,rgba(111,211,241,.18),rgba(111,211,241,0) 70%);
   animation:heroAmbientOne 9s ease-in-out infinite alternate;
 }
 .hero-info-carousel::after{
   width:220px;height:220px;
   left:-120px;bottom:-120px;
-  background:radial-gradient(circle,rgba(111,95,231,.22),rgba(111,95,231,0) 72%);
+  background:radial-gradient(circle,rgba(158,146,239,.14),rgba(158,146,239,0) 72%);
   animation:heroAmbientTwo 10s ease-in-out infinite alternate;
 }
 .hero-carousel-viewport{
@@ -1688,8 +1697,8 @@ tbody tr:hover td{background:var(--overlay)}
   min-width:0;
   padding:.72rem .74rem;
   border-radius:14px;
-  background:rgba(255,255,255,.055);
-  border:1px solid rgba(255,255,255,.075);
+  background:rgba(255,255,255,.075);
+  border:1px solid rgba(255,255,255,.105);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.025);
 }
 .hero-mini-card .mini-label{
@@ -1774,8 +1783,8 @@ tbody tr:hover td{background:var(--overlay)}
   gap:.35rem;
   padding:.45rem .58rem;
   border-radius:10px;
-  background:rgba(255,255,255,.055);
-  border:1px solid rgba(255,255,255,.075);
+  background:rgba(255,255,255,.075);
+  border:1px solid rgba(255,255,255,.105);
   color:#bbd1dd;
   font-size:.63rem;
 }
@@ -1788,37 +1797,32 @@ tbody tr:hover td{background:var(--overlay)}
   font-size:.66rem;
   line-height:1.5;
 }
-.hero-swipe-hint{
+
+.hero-carousel-progress-bottom{
   position:absolute;
-  right:1rem;
-  bottom:.85rem;
-  z-index:3;
-  display:flex;
-  align-items:center;
-  gap:.35rem;
-  color:rgba(186,216,229,.58);
-  font-size:.56rem;
-  font-weight:750;
-  letter-spacing:.05em;
+  left:16px;
+  right:16px;
+  bottom:0;
+  height:2px;
+  overflow:hidden;
+  border-radius:999px;
+  background:rgba(210,220,228,.12);
   pointer-events:none;
-  transition:opacity .25s ease;
+  z-index:4;
 }
-.hero-info-carousel.dragging .hero-swipe-hint{opacity:0}
-.hero-swipe-hint span{
-  display:inline-block;
-  width:26px;
-  height:1px;
-  background:linear-gradient(90deg,transparent,rgba(108,213,246,.75));
-  position:relative;
+.hero-carousel-progress-bottom span{
+  display:block;
+  width:0;
+  height:100%;
+  border-radius:999px;
+  background:rgba(214,222,229,.38);
 }
-.hero-swipe-hint span::after{
-  content:'';
-  position:absolute;
-  right:0;top:-2px;
-  width:5px;height:5px;
-  border-top:1px solid rgba(108,213,246,.8);
-  border-right:1px solid rgba(108,213,246,.8);
-  transform:rotate(45deg);
+.hero-carousel-progress-bottom span.running{
+  animation:heroBottomProgress 5.2s linear forwards;
+}
+@keyframes heroBottomProgress{
+  from{width:0}
+  to{width:100%}
 }
 @keyframes heroAmbientOne{
   from{transform:translate3d(0,0,0) scale(1)}
@@ -1835,7 +1839,8 @@ tbody tr:hover td{background:var(--overlay)}
 @media(prefers-reduced-motion:reduce){
   .hero-info-carousel::before,
   .hero-info-carousel::after,
-  .hero-slide-inner{animation:none!important}
+  .hero-slide-inner,
+  .hero-carousel-progress-bottom span.running{animation:none!important}
   .hero-carousel-track.animating{transition:none!important}
 }
 /* Page-style public routes. */
@@ -2376,7 +2381,9 @@ tbody tr:hover td{background:var(--overlay)}
 
               </div>
             </div>
-            <div class="hero-swipe-hint"><span></span> DRAG / SWIPE</div>
+            <div class="hero-carousel-progress-bottom" aria-hidden="true">
+              <span id="hero-carousel-progress-bottom"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -6173,8 +6180,9 @@ async function checkReminders(){
 // ================================================================
 
 const LANDING_ROUTE_NAMES=['home','services','about','contact'];
-let landingCarouselIndex=1; // track index: 0 clone-last, 1..4 real, 5 clone-first
+let landingCarouselIndex=1; // 0=last clone, 1..4=real slides, 5=first clone
 let landingCarouselTimer=null;
+let landingCarouselNormalizeTimer=null;
 let landingCarouselDragging=false;
 let landingCarouselStartX=0;
 let landingCarouselDeltaX=0;
@@ -6188,41 +6196,82 @@ function getLandingCarouselParts(){
   };
 }
 
-function positionLandingCarousel(index,{animate=true,pixels=0}={}){
+function restartLandingCarouselProgress(){
+  const bar=document.getElementById('hero-carousel-progress-bottom');
+  if(!bar)return;
+  bar.classList.remove('running');
+  void bar.offsetWidth;
+  bar.classList.add('running');
+}
+
+function pauseLandingCarouselProgress(){
+  document.getElementById('hero-carousel-progress-bottom')?.classList.remove('running');
+}
+
+function positionLandingCarousel(index,{animate=true,pixels=0,restartProgress=false}={}){
   const {carousel,track}=getLandingCarouselParts();
   if(!carousel||!track)return;
 
-  const width=carousel.clientWidth||1;
-  landingCarouselIndex=index;
+  // Never allow the track index to move outside the two clone boundaries.
+  const safeIndex=Math.max(0,Math.min(5,Number(index)||0));
+  const width=Math.max(1,carousel.getBoundingClientRect().width||carousel.clientWidth||1);
 
+  landingCarouselIndex=safeIndex;
   track.classList.toggle('animating',Boolean(animate));
-  const x=-(landingCarouselIndex*width)+Number(pixels||0);
-  track.style.transform=`translate3d(${x}px,0,0)`;
+  track.style.transform=`translate3d(${-(safeIndex*width)+Number(pixels||0)}px,0,0)`;
+
+  if(restartProgress)restartLandingCarouselProgress();
 }
 
 function normalizeLandingCarouselLoop(){
-  const {track}=getLandingCarouselParts();
-  if(!track)return;
+  if(landingCarouselNormalizeTimer){
+    clearTimeout(landingCarouselNormalizeTimer);
+    landingCarouselNormalizeTimer=null;
+  }
 
-  if(landingCarouselIndex===5){
+  if(landingCarouselIndex>=5){
     positionLandingCarousel(1,{animate:false});
-  }else if(landingCarouselIndex===0){
+  }else if(landingCarouselIndex<=0){
     positionLandingCarousel(4,{animate:false});
   }
 }
 
-function moveLandingCarousel(step=1){
+function scheduleLandingCarouselNormalization(){
+  if(landingCarouselNormalizeTimer)clearTimeout(landingCarouselNormalizeTimer);
+
+  // transitionend normally handles this. The timeout is a safety fallback
+  // for reduced-motion modes, interrupted transitions, or rapid pointer input.
+  landingCarouselNormalizeTimer=setTimeout(()=>{
+    normalizeLandingCarouselLoop();
+  },760);
+}
+
+function moveLandingCarousel(step=1,{restartProgress=true}={}){
   if(landingCarouselDragging)return;
-  positionLandingCarousel(landingCarouselIndex+Number(step||0),{animate:true});
+
+  // If a previous clone jump has not normalized yet, repair it first.
+  if(landingCarouselIndex>=5){
+    positionLandingCarousel(1,{animate:false});
+  }else if(landingCarouselIndex<=0){
+    positionLandingCarousel(4,{animate:false});
+  }
+
+  const direction=Number(step||0)>=0?1:-1;
+  const next=landingCarouselIndex+direction;
+
+  positionLandingCarousel(next,{animate:true,restartProgress});
+  if(next===0||next===5)scheduleLandingCarouselNormalization();
 }
 
 function startLandingCarouselTimer(){
   if(landingCarouselTimer)clearInterval(landingCarouselTimer);
+  restartLandingCarouselProgress();
+
   landingCarouselTimer=setInterval(()=>{
     const landing=document.getElementById('landing-page');
     const home=document.querySelector('[data-landing-route="home"]');
     if(landing?.style.display==='none'||!home?.classList.contains('active')||landingCarouselDragging)return;
-    moveLandingCarousel(1);
+    moveLandingCarousel(1,{restartProgress:true});
   },5200);
 }
 
@@ -6231,84 +6280,106 @@ function pauseLandingCarouselTimer(){
     clearInterval(landingCarouselTimer);
     landingCarouselTimer=null;
   }
+  pauseLandingCarouselProgress();
 }
 
 function initializeLandingCarouselInteractions(){
   const {carousel,track}=getLandingCarouselParts();
-  if(!carousel||!track||carousel.dataset.interactionsReady==='1')return;
+  if(!carousel||!track)return;
 
-  carousel.dataset.interactionsReady='1';
+  // Every entry to Home re-establishes a known valid real slide.
+  if(carousel.dataset.interactionsReady!=='1'){
+    carousel.dataset.interactionsReady='1';
 
-  // Start on the first real slide, not on a clone.
-  requestAnimationFrame(()=>positionLandingCarousel(1,{animate:false}));
+    track.addEventListener('transitionend',()=>{
+      normalizeLandingCarouselLoop();
+    });
 
-  track.addEventListener('transitionend',()=>{
-    normalizeLandingCarouselLoop();
-  });
+    const pointerX=e=>e.clientX ?? 0;
 
-  const pointerX=e=>e.clientX ?? (e.touches?.[0]?.clientX||0);
+    const beginDrag=e=>{
+      if(e.pointerType==='mouse'&&e.button!==0)return;
 
-  const beginDrag=e=>{
-    if(e.pointerType==='mouse'&&e.button!==0)return;
-    landingCarouselDragging=true;
-    landingCarouselStartX=pointerX(e);
-    landingCarouselDeltaX=0;
-    landingCarouselStartTime=performance.now();
-    carousel.classList.add('dragging');
-    track.classList.remove('animating');
-    pauseLandingCarouselTimer();
-    try{carousel.setPointerCapture?.(e.pointerId);}catch(_){}
-  };
+      normalizeLandingCarouselLoop();
+      landingCarouselDragging=true;
+      landingCarouselStartX=pointerX(e);
+      landingCarouselDeltaX=0;
+      landingCarouselStartTime=performance.now();
+      carousel.classList.add('dragging');
+      track.classList.remove('animating');
+      pauseLandingCarouselTimer();
 
-  const drag=e=>{
-    if(!landingCarouselDragging)return;
-    landingCarouselDeltaX=pointerX(e)-landingCarouselStartX;
+      try{carousel.setPointerCapture?.(e.pointerId);}catch(_){}
+    };
 
-    // Add a small resistance so the slide remains controlled during a fast drag.
-    const width=carousel.clientWidth||1;
-    const limited=Math.max(-width*.92,Math.min(width*.92,landingCarouselDeltaX));
-    positionLandingCarousel(landingCarouselIndex,{animate:false,pixels:limited});
+    const drag=e=>{
+      if(!landingCarouselDragging)return;
 
-    if(e.cancelable&&Math.abs(landingCarouselDeltaX)>8)e.preventDefault();
-  };
+      landingCarouselDeltaX=pointerX(e)-landingCarouselStartX;
+      const width=Math.max(1,carousel.getBoundingClientRect().width||carousel.clientWidth||1);
+      const limited=Math.max(-width*.92,Math.min(width*.92,landingCarouselDeltaX));
 
-  const endDrag=e=>{
-    if(!landingCarouselDragging)return;
-    landingCarouselDragging=false;
-    carousel.classList.remove('dragging');
+      positionLandingCarousel(landingCarouselIndex,{animate:false,pixels:limited});
+      if(e.cancelable&&Math.abs(landingCarouselDeltaX)>8)e.preventDefault();
+    };
 
-    const width=carousel.clientWidth||1;
-    const elapsed=Math.max(1,performance.now()-landingCarouselStartTime);
-    const velocity=Math.abs(landingCarouselDeltaX)/elapsed;
-    const shouldChange=Math.abs(landingCarouselDeltaX)>width*.16||velocity>.55;
+    const endDrag=e=>{
+      if(!landingCarouselDragging)return;
 
-    if(shouldChange){
-      moveLandingCarousel(landingCarouselDeltaX<0?1:-1);
-    }else{
-      positionLandingCarousel(landingCarouselIndex,{animate:true});
-    }
+      landingCarouselDragging=false;
+      carousel.classList.remove('dragging');
 
-    landingCarouselDeltaX=0;
-    startLandingCarouselTimer();
-    try{carousel.releasePointerCapture?.(e.pointerId);}catch(_){}
-  };
+      const width=Math.max(1,carousel.getBoundingClientRect().width||carousel.clientWidth||1);
+      const elapsed=Math.max(1,performance.now()-landingCarouselStartTime);
+      const velocity=Math.abs(landingCarouselDeltaX)/elapsed;
+      const shouldChange=Math.abs(landingCarouselDeltaX)>width*.16||velocity>.55;
 
-  carousel.addEventListener('pointerdown',beginDrag);
-  carousel.addEventListener('pointermove',drag);
-  carousel.addEventListener('pointerup',endDrag);
-  carousel.addEventListener('pointercancel',endDrag);
-  carousel.addEventListener('mouseleave',e=>{
-    if(landingCarouselDragging&&e.buttons===0)endDrag(e);
-  });
+      if(shouldChange){
+        moveLandingCarousel(landingCarouselDeltaX<0?1:-1,{restartProgress:true});
+      }else{
+        positionLandingCarousel(landingCarouselIndex,{animate:true,restartProgress:true});
+      }
 
-  // Keyboard access remains available even though visible arrow controls were removed.
-  carousel.addEventListener('keydown',e=>{
-    if(e.key==='ArrowLeft'){e.preventDefault();pauseLandingCarouselTimer();moveLandingCarousel(-1);startLandingCarouselTimer();}
-    if(e.key==='ArrowRight'){e.preventDefault();pauseLandingCarouselTimer();moveLandingCarousel(1);startLandingCarouselTimer();}
-  });
+      landingCarouselDeltaX=0;
+      startLandingCarouselTimer();
+      try{carousel.releasePointerCapture?.(e.pointerId);}catch(_){}
+    };
 
-  window.addEventListener('resize',()=>{
-    if(!landingCarouselDragging)positionLandingCarousel(landingCarouselIndex,{animate:false});
+    carousel.addEventListener('pointerdown',beginDrag);
+    carousel.addEventListener('pointermove',drag);
+    carousel.addEventListener('pointerup',endDrag);
+    carousel.addEventListener('pointercancel',endDrag);
+    carousel.addEventListener('lostpointercapture',e=>{
+      if(landingCarouselDragging)endDrag(e);
+    });
+
+    carousel.addEventListener('keydown',e=>{
+      if(e.key==='ArrowLeft'){
+        e.preventDefault();
+        pauseLandingCarouselTimer();
+        moveLandingCarousel(-1,{restartProgress:true});
+        startLandingCarouselTimer();
+      }
+      if(e.key==='ArrowRight'){
+        e.preventDefault();
+        pauseLandingCarouselTimer();
+        moveLandingCarousel(1,{restartProgress:true});
+        startLandingCarouselTimer();
+      }
+    });
+
+    window.addEventListener('resize',()=>{
+      if(!landingCarouselDragging){
+        normalizeLandingCarouselLoop();
+        positionLandingCarousel(landingCarouselIndex,{animate:false});
+      }
+    });
+  }
+
+  // Always return to a valid real slide whenever the Home route is shown.
+  if(landingCarouselIndex<1||landingCarouselIndex>4)landingCarouselIndex=1;
+  requestAnimationFrame(()=>{
+    positionLandingCarousel(landingCarouselIndex,{animate:false,restartProgress:true});
   });
 }
 
@@ -17432,7 +17503,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v56 loaded.');
+console.log('CampusCare v57 loaded.');
 </script>
 </body>
 </html>
