@@ -1419,6 +1419,182 @@ tbody tr:hover td{background:var(--overlay)}
 @media(max-width:720px){.cert-page-wrap{padding:.5rem}.cert-paper{min-width:620px;padding:40px 44px}.cert-word-toolbar{position:static}.cert-editor-shell{display:block}.cert-side-panel{margin-bottom:1rem}}
 
 /* ===PRINT=== */
+
+/* ================================================================
+   v54 PUBLIC LANDING ROUTES — static home + page-style navigation
+   ================================================================ */
+:root{--landing-nav-h:70px}
+#landing-navbar{
+  height:var(--landing-nav-h);
+  display:grid;
+  grid-template-columns:minmax(250px,1fr) auto minmax(250px,1fr);
+  align-items:center;
+  padding:.65rem clamp(1.4rem,2.4vw,2.4rem);
+}
+#landing-navbar .landing-logo{justify-self:start;cursor:pointer}
+#landing-navbar .landing-nav-links{justify-self:center}
+#landing-navbar .landing-nav-actions{justify-self:end;margin-left:0}
+#landing-navbar.auth-mode .landing-get-started{display:none!important}
+.landing-nav-links a.active{color:#fff;font-weight:700}
+.landing-nav-links a.active::after{width:100%}
+.landing-get-started{min-width:112px}
+
+#landing-page{
+  height:100vh;
+  min-height:100vh;
+  overflow:hidden;
+  background:#0d141d;
+}
+.landing-route{
+  display:none;
+  position:relative;
+  height:calc(100vh - var(--landing-nav-h));
+  margin-top:var(--landing-nav-h);
+  overflow:hidden;
+}
+.landing-route.active{display:block}
+
+/* Home is intentionally one fixed viewport — no scroll-to sections. */
+#landing-hero{
+  height:100%;
+  min-height:0;
+  padding:clamp(2rem,5vh,4rem) clamp(2rem,5vw,5.5rem);
+  display:flex;
+  align-items:center;
+  background:
+    linear-gradient(90deg,rgba(5,17,29,.90) 0%,rgba(5,22,36,.70) 27%,rgba(5,24,39,.34) 48%,rgba(8,30,49,.34) 63%,rgba(7,25,42,.76) 100%),
+    url('ctu-campus.png') center 31%/cover no-repeat,
+    linear-gradient(160deg,#0a1f30 0%,#0a3760 55%,#0d5478 100%);
+}
+#landing-hero::before{
+  background:radial-gradient(44% 65% at 92% 12%,rgba(116,128,235,.19),transparent 65%),radial-gradient(38% 50% at 4% 92%,rgba(49,187,174,.18),transparent 65%);
+}
+.landing-hero-grid{
+  width:100%;
+  max-width:1450px;
+  margin:0 auto;
+  grid-template-columns:minmax(430px,520px) minmax(350px,420px);
+  justify-content:space-between;
+  gap:clamp(5rem,10vw,11rem);
+}
+.landing-hero-text{justify-self:start;max-width:520px}
+.landing-hero-text p{max-width:500px}
+.landing-hero-visual{justify-self:end;width:100%;min-height:390px}
+
+/* Hero information + advisory carousel. */
+.hero-info-carousel{
+  width:min(100%,420px);
+  min-height:390px;
+  background:rgba(247,249,252,.96);
+  color:#173047;
+  border:1px solid rgba(255,255,255,.65);
+  border-radius:22px;
+  box-shadow:0 22px 55px rgba(0,0,0,.22);
+  overflow:hidden;
+  backdrop-filter:blur(14px) saturate(130%);
+  -webkit-backdrop-filter:blur(14px) saturate(130%);
+}
+.hero-carousel-head{padding:1.15rem 1.35rem .6rem;display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem}
+.hero-carousel-head h4{font-size:1rem;margin:0;color:#102a40;line-height:1.25}
+.hero-carousel-head span{font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#688096;white-space:nowrap;padding-top:.15rem}
+.hero-carousel-viewport{overflow:hidden}
+.hero-carousel-track{display:flex;transition:transform .42s cubic-bezier(.22,.72,.2,1)}
+.hero-carousel-slide{min-width:100%;padding:.35rem 1.35rem .6rem;min-height:260px}
+.hero-carousel-slide h5{font-size:.92rem;color:#0d6a91;margin:.2rem 0 .75rem}
+.hero-carousel-slide p,.hero-carousel-slide li{font-size:.76rem;line-height:1.55;color:#52677b}
+.hero-carousel-slide ul,.hero-carousel-slide ol{padding-left:1.1rem;margin:.45rem 0}
+.hero-carousel-slide .hic-row{padding:.58rem 0}
+.hero-carousel-slide .hic-row strong{color:#203b52}
+.hero-carousel-foot{display:flex;align-items:center;justify-content:space-between;padding:.7rem 1rem 1rem;border-top:1px solid #e3e8ed}
+.hero-carousel-arrow{width:32px;height:32px;border:none;border-radius:50%;background:#e9f3f8;color:#17698b;display:grid;place-items:center;cursor:pointer;font-size:1rem;font-weight:800}
+.hero-carousel-arrow:hover{background:#d7edf7}
+.hero-carousel-dots{display:flex;align-items:center;gap:.4rem}
+.hero-carousel-dot{width:7px;height:7px;border:none;border-radius:999px;background:#c9d4dc;padding:0;cursor:pointer;transition:width .2s ease,background .2s ease}
+.hero-carousel-dot.active{width:22px;background:#2da7d8}
+[data-theme="dark"] .hero-info-carousel{background:rgba(244,247,250,.96);color:#173047}
+
+/* Page-style public routes. */
+.landing-static-page{
+  height:100%;
+  padding:clamp(2rem,4vh,3.5rem) clamp(2rem,6vw,6rem);
+  background:
+    radial-gradient(42% 62% at 84% 16%,rgba(45,117,177,.18),transparent 70%),
+    radial-gradient(36% 55% at 8% 90%,rgba(25,126,113,.13),transparent 70%),
+    #10151c;
+  color:#fff;
+}
+.landing-static-inner{width:min(1190px,100%);height:100%;margin:0 auto;display:flex;flex-direction:column;justify-content:center}
+.public-page-kicker{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:#4ec4ef;margin-bottom:.45rem;text-align:center}
+.public-page-title{text-align:center;font-size:1.8rem;font-weight:800;margin:0;color:#f5f7f9;letter-spacing:-.5px}
+.public-page-sub{text-align:center;color:#a9b6c1;font-size:.88rem;line-height:1.55;max-width:650px;margin:.6rem auto 1.55rem}
+.public-page-cta{display:flex;justify-content:center;gap:.6rem;margin-top:1.25rem}
+
+.public-services-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
+.public-services-grid .feature-card{min-height:166px;padding:1.15rem 1.2rem;background:#181e26;border-color:#303943}
+.public-services-grid .feature-card h4{font-size:.9rem;margin-bottom:.45rem}
+.public-services-grid .feature-card p{font-size:.75rem;line-height:1.5}
+.public-services-grid .fc-icon{width:43px;height:43px;margin-bottom:.65rem}
+
+.public-about-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:1.2rem;align-items:stretch}
+.public-story-card,.public-info-panel,.public-advisory-card,.public-contact-card{
+  background:#181e26;border:1px solid #303943;border-radius:18px;padding:1.25rem 1.3rem;box-shadow:0 14px 35px rgba(0,0,0,.14)
+}
+.public-story-card h3,.public-info-panel h3,.public-advisory-card h3,.public-contact-card h3{font-size:1rem;color:#f4f7fa;margin:0 0 .55rem}
+.public-story-card p,.public-info-panel p,.public-advisory-card p,.public-advisory-card li,.public-contact-card p{font-size:.77rem;line-height:1.58;color:#aebbc7}
+.public-about-points{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin-top:.85rem}
+.public-about-point{padding:.8rem;border-radius:13px;background:#202730;border:1px solid #333d48}
+.public-about-point strong{display:block;color:#edf4f8;font-size:.78rem;margin-bottom:.22rem}
+.public-about-point span{font-size:.7rem;color:#9fb0be;line-height:1.4}
+
+.public-advisory-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
+.public-advisory-card{min-height:330px}
+.public-advisory-card .advisory-icon{font-size:1.3rem;margin-bottom:.55rem}
+.public-advisory-card ul,.public-advisory-card ol{padding-left:1.1rem;margin:.5rem 0}
+.public-advisory-card li{margin:.25rem 0}
+
+.public-contact-layout{display:grid;grid-template-columns:.85fr 1.15fr;gap:1.1rem;align-items:stretch}
+.public-contact-stack{display:grid;grid-template-columns:1fr;gap:.75rem}
+.public-contact-card{display:flex;gap:.8rem;align-items:flex-start;padding:1rem 1.1rem}
+.public-contact-card .contact-big-icon{width:40px;height:40px;border-radius:12px;background:linear-gradient(145deg,#2ca6d7,#4468cf);display:grid;place-items:center;flex:0 0 auto}
+.public-contact-card a{color:#70d3f5;text-decoration:none;font-size:.78rem}
+.public-hours{display:grid;gap:.5rem;margin-top:.8rem}
+.public-hours-row{display:flex;justify-content:space-between;gap:1rem;padding:.55rem 0;border-bottom:1px solid #303943;font-size:.75rem;color:#aebbc7}
+.public-hours-row strong{color:#edf4f8}
+.public-contact-footer{text-align:center;margin-top:1rem;color:#72818d;font-size:.69rem}
+
+/* Keep dedicated public pages static on regular laptop/desktop heights.
+   Small screens/heights get internal scrolling so nothing is clipped. */
+@media(max-height:720px) and (min-width:901px){
+  .landing-static-page{overflow-y:auto;align-items:flex-start;padding-top:1.4rem;padding-bottom:1.4rem}
+  .landing-static-inner{height:auto;min-height:100%;justify-content:flex-start}
+  #landing-hero{overflow-y:auto;align-items:flex-start;padding-top:2rem;padding-bottom:2rem}
+}
+@media(max-width:900px){
+  #landing-navbar{display:flex;height:auto;min-height:var(--landing-nav-h)}
+  #landing-navbar .landing-logo{margin-right:auto}
+  #landing-navbar .landing-nav-actions{margin-left:auto}
+  .landing-route{overflow-y:auto}
+  #landing-hero{height:auto;min-height:calc(100vh - var(--landing-nav-h));overflow:visible}
+  .landing-hero-grid{grid-template-columns:1fr;gap:1.5rem;text-align:center}
+  .landing-hero-text{justify-self:center}
+  .landing-hero-visual{justify-self:center;min-height:0}
+  .public-services-grid,.public-advisory-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .public-about-grid,.public-contact-layout{grid-template-columns:1fr}
+  .landing-static-page{height:auto;min-height:calc(100vh - var(--landing-nav-h));overflow:visible}
+  .landing-static-inner{height:auto;min-height:calc(100vh - var(--landing-nav-h) - 4rem);justify-content:flex-start;padding-top:1rem;padding-bottom:2rem}
+}
+@media(max-width:620px){
+  .landing-nav-actions{gap:.35rem}
+  .landing-get-started{min-width:auto;padding:.48rem .85rem}
+  .landing-hero-grid{gap:1.1rem}
+  #landing-hero{padding:1.8rem 1rem 2rem}
+  .landing-hero-text h1{font-size:2rem}
+  .hero-info-carousel{min-height:360px}
+  .public-services-grid,.public-advisory-grid,.public-about-points{grid-template-columns:1fr}
+  .landing-static-page{padding:1.7rem 1rem 2.2rem}
+  .public-page-title{font-size:1.45rem}
+}
+
 @media print{
   #sidebar,.top-bar,#toast-wrap,.notif-panel,.overlay .modal-footer,#sidebar-backdrop,
   #ai-fab,#ai-panel,#back-to-top,#landing-navbar,.no-print{display:none!important}
@@ -1747,17 +1923,19 @@ tbody tr:hover td{background:var(--overlay)}
 <div id="auth-wrap">
 
 <nav id="landing-navbar">
-    <div class="landing-logo"><div class="landing-logo-icon">🏥</div>CampusCare<span style="font-weight:500;font-size:.7rem;opacity:.7;margin-left:.4rem;letter-spacing:.2px">CTU MAIN CAMPUS</span></div>
+    <div class="landing-logo" onclick="landingNavTo('home')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();landingNavTo('home')}">
+      <div class="landing-logo-icon">🏥</div>CampusCare
+      <span style="font-weight:500;font-size:.7rem;opacity:.7;margin-left:.4rem;letter-spacing:.2px">CTU MAIN CAMPUS</span>
+    </div>
     <div class="landing-nav-links">
-      <a onclick="landingNavTo('landing-hero')">Home</a>
-      <a onclick="landingNavTo('landing-services')">Clinic Services</a>
-      <a onclick="landingNavTo('landing-about')">About the Clinic</a>
-      <a onclick="landingNavTo('landing-testimonial')">Advisory</a>
-      <a onclick="landingNavTo('landing-footer')">Contact</a>
+      <a data-landing-link="home" onclick="landingNavTo('home')">Home</a>
+      <a data-landing-link="services" onclick="landingNavTo('services')">Clinic Services</a>
+      <a data-landing-link="about" onclick="landingNavTo('about')">About the Clinic</a>
+      <a data-landing-link="advisory" onclick="landingNavTo('advisory')">Advisory</a>
+      <a data-landing-link="contact" onclick="landingNavTo('contact')">Contact</a>
     </div>
     <div class="landing-nav-actions">
-      <button class="landing-signup-btn" onclick="showAuthPage('reg')">Register</button>
-      <button class="landing-login-btn" onclick="showAuthPage('login')">Login</button>
+      <button class="landing-login-btn landing-get-started" onclick="showAuthPage('login')">Get Started</button>
       <button class="landing-nav-toggle" onclick="document.querySelector('.landing-nav-links').classList.toggle('mobile-show')" aria-label="Menu">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
@@ -1766,180 +1944,204 @@ tbody tr:hover td{background:var(--overlay)}
 
 <div id="landing-page">
 
-  <section id="landing-hero">
-    <div class="landing-hero-grid">
-      <div class="landing-hero-text">
-        <span class="eyebrow">🏥 CTU Main Medical & Dental Clinic</span>
-        <h1>Your campus clinic, <span>here for you.</span></h1>
-        <p>Free medical and dental care for every Technologist. Book a consultation, request medical certificates, view your health records, and message the clinic — anytime, from any device.</p>
-        <div class="landing-hero-ctas">
-          <button class="btn btn-primary" onclick="showAuthPage('login')">📅 Book an Appointment</button>
-          <button class="landing-signup-btn" style="border-radius:10px" onclick="document.getElementById('landing-services').scrollIntoView({behavior:'smooth'})">See Clinic Services ↓</button>
-        </div>
-        <div class="landing-stats">
-          <div><strong>Medical Clinic</strong><span>Regular: Mon–Fri, 8:00 AM – 5:00 PM</span></div>
-          <div><strong>FREE</strong><span>For students, faculty &amp; staff</span></div>
-          <div><strong>Medical + Dental</strong><span>Walk-ins &amp; appointments</span></div>
-        </div>
-      </div>
-      <div class="landing-hero-visual">
-        <div class="hero-info-card">
-          <h4>Visit the Clinic</h4>
-          <div class="hic-row"><span>📍</span><div><strong>Location</strong>Ground Floor, Education Building, CTU Main Campus</div></div>
-          <div class="hic-row"><span>🕗</span><div><strong>Medical Clinic Hours</strong>Regular: Mon–Fri 8:00 AM–5:00 PM<br>Extended: Mon–Fri 5:00 PM–9:00 PM<br>Sat 8:00 AM–9:00 PM · Sun 8:00 AM–5:00 PM</div></div>
-          <div class="hic-row"><span>⛑️</span><div><strong>Emergencies</strong>Walk in any time during clinic hours — no appointment needed</div></div>
-          <div class="hic-row"><span>🦷</span><div><strong>Dental</strong>Limited slots per day — reserve early through CampusCare</div></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <div class="landing-light">
-    <div class="landing-section-wrap" id="landing-clinic-info">
-      <div class="landing-section-title">Clinic Information &amp; Current Advisories</div>
-      <div class="landing-section-sub">Information reflected from current CTU Main Clinic notices</div>
-
-      <div class="official-clinic-grid">
-        <div class="official-info-card">
-          <h4>📍 CTU Main Medical &amp; Dental Clinic</h4>
-          <p><span class="clinic-location-pill">Ground Floor · Education Building</span></p>
-          <p style="margin-top:.65rem">CTU Main Campus, M.J. Cuenco Ave. cor. R. Palma St., Cebu City, Philippines</p>
-          <p><strong>Phone:</strong> (032) 402 4060 loc. 1142<br>
-          <strong>Email:</strong> ctumainmedclinic@gmail.com<br>
-          <strong>Facebook:</strong> CTU Main Medical Clinic</p>
-        </div>
-
-        <div class="official-info-card">
-          <h4>🕗 Posted Medical Clinic Schedule</h4>
-          <div class="official-hours">
-            <div class="official-hours-row"><strong>Regular hours</strong><span>Mon–Fri · 8:00 AM–5:00 PM</span></div>
-            <div class="official-hours-row"><strong>Extended weekdays</strong><span>Mon–Fri · 5:00 PM–9:00 PM</span></div>
-            <div class="official-hours-row"><strong>Saturday</strong><span>8:00 AM–9:00 PM</span></div>
-            <div class="official-hours-row"><strong>Sunday</strong><span>8:00 AM–5:00 PM</span></div>
+  <!-- HOME: intentionally one static viewport. -->
+  <main class="landing-route landing-route-home active" data-landing-route="home">
+    <section id="landing-hero">
+      <div class="landing-hero-grid">
+        <div class="landing-hero-text">
+          <span class="eyebrow">🏥 CTU Main Medical &amp; Dental Clinic</span>
+          <h1>Your campus clinic, <span>here for you.</span></h1>
+          <p>Free medical and dental care for every Technologist. Book a consultation, request medical certificates, view your health records, and message the clinic — anytime, from any device.</p>
+          <div class="landing-hero-ctas">
+            <button class="btn btn-primary" onclick="showAuthPage('login')">📅 Book an Appointment</button>
+            <button class="landing-signup-btn" style="border-radius:10px" onclick="landingNavTo('services')">Explore Clinic Services →</button>
           </div>
-          <p style="margin-top:.55rem">Appointment availability in CampusCare still follows the selected doctor's configured work schedule.</p>
+          <div class="landing-stats">
+            <div><strong>Medical Clinic</strong><span>Regular: Mon–Fri, 8:00 AM – 5:00 PM</span></div>
+            <div><strong>FREE</strong><span>For students, faculty &amp; staff</span></div>
+            <div><strong>Medical + Dental</strong><span>Walk-ins &amp; appointments</span></div>
+          </div>
+        </div>
+
+        <div class="landing-hero-visual">
+          <div class="hero-info-carousel" aria-label="Clinic Information and Current Advisories">
+            <div class="hero-carousel-head">
+              <h4>Clinic Information &amp; Current Advisories</h4>
+              <span id="hero-carousel-counter">1 / 4</span>
+            </div>
+            <div class="hero-carousel-viewport">
+              <div class="hero-carousel-track" id="hero-carousel-track">
+                <article class="hero-carousel-slide">
+                  <h5>Visit the Clinic</h5>
+                  <div class="hic-row"><span>📍</span><div><strong>Location</strong>Ground Floor, Education Building, CTU Main Campus</div></div>
+                  <div class="hic-row"><span>🕗</span><div><strong>Medical Clinic Hours</strong>Regular: Mon–Fri 8:00 AM–5:00 PM<br>Extended: Mon–Fri 5:00 PM–9:00 PM<br>Sat 8:00 AM–9:00 PM · Sun 8:00 AM–5:00 PM</div></div>
+                  <div class="hic-row"><span>⛑️</span><div><strong>Emergencies</strong>Walk in during clinic hours — no appointment needed.</div></div>
+                  <div class="hic-row"><span>🦷</span><div><strong>Dental</strong>Daily slots are limited; reserve early through CampusCare.</div></div>
+                </article>
+
+                <article class="hero-carousel-slide">
+                  <h5>Graduate School Medical Requirements</h5>
+                  <p>Current clinic guidance asks new graduate students to submit clear, correctly named <strong>JPEG</strong> files, each not exceeding <strong>1 MB</strong>.</p>
+                  <ul>
+                    <li>Medical Certificate / physical examination report</li>
+                    <li>Chest X-ray typewritten result</li>
+                    <li>CBC and Drug Test result</li>
+                    <li>Pregnancy documentation when applicable</li>
+                  </ul>
+                  <p><strong>Privacy:</strong> submitted information is handled confidentially in accordance with applicable CTU privacy procedures.</p>
+                </article>
+
+                <article class="hero-carousel-slide">
+                  <h5>Intramurals 2026–2027 Guidance</h5>
+                  <ol>
+                    <li>Secure the Eligibility Form from your coach.</li>
+                    <li>Complete personal information and sports event.</li>
+                    <li>Sign the Participant's Waiver and Release Agreement.</li>
+                    <li>Obtain required parent/guardian and coach signatures.</li>
+                    <li>Bring the completed form to the clinic as instructed.</li>
+                  </ol>
+                  <p><strong>Reminder:</strong> enrollment medical requirements should already be submitted before requesting the Intramurals medical certificate.</p>
+                </article>
+
+                <article class="hero-carousel-slide">
+                  <h5>Clinic Contact &amp; Referral</h5>
+                  <div class="hic-row"><span>☎️</span><div><strong>Phone</strong>(032) 402 4060 loc. 1142</div></div>
+                  <div class="hic-row"><span>✉️</span><div><strong>Email</strong>ctumainmedclinic@gmail.com</div></div>
+                  <div class="hic-row"><span>📘</span><div><strong>Facebook</strong>CTU Main Medical Clinic</div></div>
+                  <p style="margin-top:.7rem">Persistent symptoms or conditions needing further evaluation may be referred to an appropriate medical facility. For emergencies on campus, proceed directly to the clinic or alert university personnel.</p>
+                </article>
+              </div>
+            </div>
+            <div class="hero-carousel-foot">
+              <button class="hero-carousel-arrow" onclick="moveLandingCarousel(-1)" aria-label="Previous advisory">‹</button>
+              <div class="hero-carousel-dots" id="hero-carousel-dots">
+                <button class="hero-carousel-dot active" onclick="setLandingCarousel(0)" aria-label="Clinic information"></button>
+                <button class="hero-carousel-dot" onclick="setLandingCarousel(1)" aria-label="Graduate School advisory"></button>
+                <button class="hero-carousel-dot" onclick="setLandingCarousel(2)" aria-label="Intramurals advisory"></button>
+                <button class="hero-carousel-dot" onclick="setLandingCarousel(3)" aria-label="Contact and referral"></button>
+              </div>
+              <button class="hero-carousel-arrow" onclick="moveLandingCarousel(1)" aria-label="Next advisory">›</button>
+            </div>
+          </div>
         </div>
       </div>
-
-      <div class="official-clinic-grid">
-        <div class="official-advisory">
-          <h4>🎓 Graduate School Medical Requirements</h4>
-          <p>The posted medical-requirements notice instructs new graduate students to submit complete, clear, correctly named <strong>JPEG</strong> files, with each upload not exceeding <strong>1 MB</strong>.</p>
-          <ul>
-            <li>Medical Certificate / physical examination report</li>
-            <li>Chest X-ray result — submit the typewritten result, not the X-ray film</li>
-            <li>Pregnancy documentation when applicable and an X-ray result is unavailable</li>
-            <li>Complete Blood Count (CBC)</li>
-            <li>Drug Test result</li>
-          </ul>
-          <p style="margin-top:.55rem"><strong>Privacy:</strong> the posted notice states that responses are handled confidentially in accordance with the Data Privacy Act of 2012.</p>
-        </div>
-
-        <div class="official-advisory">
-          <h4>🏅 Intramurals 2026–2027 Medical Certificate Guidance</h4>
-          <ol>
-            <li>Secure the Eligibility Form from your coach.</li>
-            <li>Complete your personal information and indicate your sports event.</li>
-            <li>Sign the Participant's Waiver and Release Agreement.</li>
-            <li>Obtain the required parent/guardian and coach signatures.</li>
-            <li>Bring the completed Eligibility Form to the clinic as instructed by the Sports Director.</li>
-          </ol>
-          <p style="margin-top:.55rem"><strong>Posted reminder:</strong> students must have submitted their enrollment medical requirements to be eligible for the Intramurals medical certificate.</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="landing-section-wrap" id="landing-services">
-      <div class="landing-section-title">Clinic Services</div>
-      <div class="landing-section-sub">What the CTU Main Medical & Dental Clinic offers you — and how CampusCare makes each one easier</div>
-      <div class="landing-features-grid">
-        <div class="feature-card">
-          <div class="fc-icon">🩺</div>
-          <h4>Medical Consultation &amp; Check-ups</h4>
-          <p>Free consultations, vital signs monitoring, and health assessments with the campus physicians. Book your slot online and skip the front-desk line.</p>
-        </div>
-        <div class="feature-card">
-          <div class="fc-icon">🦷</div>
-          <h4>Dental Services</h4>
-          <p>Dental check-ups, tooth extraction, and oral health advice. Daily slots are limited — reserve yours in advance right from your phone.</p>
-        </div>
-        <div class="feature-card">
-          <div class="fc-icon">⛑️</div>
-          <h4>First Aid &amp; Emergency Care</h4>
-          <p>Immediate response to injuries, minor wounds, and sudden illness during school hours. Walk in any time — no appointment needed.</p>
-        </div>
-        <div class="feature-card">
-          <div class="fc-icon">📄</div>
-          <h4>Medical Certificates &amp; Clearances</h4>
-          <p>Certificates for OJT, sports, enrollment, and excused absences. Request them online and get notified the moment they're ready for pickup.</p>
-        </div>
-        <div class="feature-card">
-          <div class="fc-icon">📋</div>
-          <h4>Your Health Records</h4>
-          <p>Your consultations, treatments, prescriptions, and vitals in one private record you can open anytime — no more lost paper slips.</p>
-        </div>
-        <div class="feature-card">
-          <div class="fc-icon">🧠</div>
-          <h4>Mental Health &amp; Wellness</h4>
-          <p>Stress and anxiety support, referrals to counseling, and trustworthy health tips and articles for student life.</p>
-        </div>
-      </div>
-
-      <div style="margin-top:3.5rem">
-        <div class="landing-section-title" style="font-size:1.25rem">Getting started takes minutes</div>
-        <div class="landing-section-sub">How to use CampusCare as a CTU student or employee</div>
-        <div class="landing-steps">
-          <div class="step-item"><div class="step-num">1</div><h5>Create your account</h5><p>Register with your School ID or COR plus a selfie for identity verification.</p></div>
-          <div class="step-item"><div class="step-num">2</div><h5>Get verified</h5><p>Clinic staff reviews and approves your account, usually within 24–48 hours.</p></div>
-          <div class="step-item"><div class="step-num">3</div><h5>Book your visit</h5><p>Pick a doctor, date, and time slot that fits around your class schedule.</p></div>
-          <div class="step-item"><div class="step-num">4</div><h5>Skip the queue</h5><p>Get reminded before your visit, then find results and prescriptions in your records.</p></div>
-        </div>
-      </div>
-    </div>
-
-    <div id="landing-about">
-      <div class="landing-section-title">About the University Clinic</div>
-      <p>The CTU Main Medical & Dental Clinic, located on the Ground Floor of the Education Building at CTU Main Campus, looks after the health and wellbeing of students, faculty, and personnel — from routine check-ups and dental care to first aid, health counseling, and campus-wide wellness programs. CampusCare is the clinic's online companion: it brings appointment booking, health records, certificate requests, and clinic announcements to your phone, so you spend less time waiting in line and more time in class.</p>
-    </div>
-
-    <section id="landing-testimonial">
-      <div class="landing-section-title" style="font-size:1.25rem;margin-bottom:1.2rem">Referral &amp; Emergency Advisory</div>
-      <blockquote>
-        For persistent symptoms or conditions that need further evaluation, the clinic will refer you to the nearest partner medical facility and notify your emergency contact. In case of an emergency on campus, proceed directly to the clinic or alert any university personnel immediately.
-        <cite>— CTU Main Medical & Dental Clinic, CTU Main Campus</cite>
-      </blockquote>
     </section>
-  </div>
+  </main>
 
-  <footer id="landing-footer">
-    <div class="landing-contact">
-      <!-- Facebook contact placeholder -->
-      <div class="contact-item">
-        <span class="contact-icon"><i class="fa-brands fa-facebook-f" aria-hidden="true"></i></span>
-        <span class="contact-label">Facebook</span>
-        <a class="contact-value" href="#" onclick="return false;">CTU Main Medical Clinic</a>
+  <!-- CLINIC SERVICES -->
+  <main class="landing-route" data-landing-route="services">
+    <section class="landing-static-page">
+      <div class="landing-static-inner">
+        <div class="public-page-kicker">CTU Main Medical &amp; Dental Clinic</div>
+        <h2 class="public-page-title">Clinic Services</h2>
+        <p class="public-page-sub">What the clinic offers — and how CampusCare makes each service easier to access.</p>
+        <div class="public-services-grid">
+          <div class="feature-card"><div class="fc-icon">🩺</div><h4>Medical Consultation &amp; Check-ups</h4><p>Free consultations, vital signs monitoring, and health assessments with campus physicians. Book a slot online and reduce front-desk waiting.</p></div>
+          <div class="feature-card"><div class="fc-icon">🦷</div><h4>Dental Services</h4><p>Dental check-ups, tooth extraction, and oral-health advice. Daily slots are limited, so early reservation is encouraged.</p></div>
+          <div class="feature-card"><div class="fc-icon">⛑️</div><h4>First Aid &amp; Emergency Care</h4><p>Immediate response to minor injuries, wounds, and sudden illness during clinic hours. Emergency walk-ins do not require an appointment.</p></div>
+          <div class="feature-card"><div class="fc-icon">📄</div><h4>Medical Certificates &amp; Clearances</h4><p>Request certificates for OJT, sports, enrollment, and excused absence, then follow the preparation and Doctor-signature workflow online.</p></div>
+          <div class="feature-card"><div class="fc-icon">📋</div><h4>Health Records</h4><p>Consultations, treatments, prescriptions, vitals, and follow-up information are organized in one role-protected clinical record.</p></div>
+          <div class="feature-card"><div class="fc-icon">🧠</div><h4>Health Education &amp; Wellness</h4><p>Access clinic advisories and trustworthy educational resources covering stress, nutrition, first aid, vaccination, sleep, and physical activity.</p></div>
+        </div>
+        <div class="public-page-cta">
+          <button class="btn btn-primary" onclick="showAuthPage('login')">Access CampusCare</button>
+        </div>
       </div>
+    </section>
+  </main>
 
-      <!-- Phone contact placeholder -->
-      <div class="contact-item">
-        <span class="contact-icon"><i class="fa-solid fa-phone" aria-hidden="true"></i></span>
-        <span class="contact-label">Phone</span>
-        <a class="contact-value" href="tel:+63324024060">(032) 402 4060 loc. 1142</a>
+  <!-- ABOUT -->
+  <main class="landing-route" data-landing-route="about">
+    <section class="landing-static-page">
+      <div class="landing-static-inner">
+        <div class="public-page-kicker">About the Clinic</div>
+        <h2 class="public-page-title">Campus care, connected in one place</h2>
+        <p class="public-page-sub">CampusCare supports the CTU Main Medical &amp; Dental Clinic by bringing its most common student and personnel workflows into one secure system.</p>
+        <div class="public-about-grid">
+          <div class="public-story-card">
+            <h3>CTU Main Medical &amp; Dental Clinic</h3>
+            <p>Located on the Ground Floor of the Education Building at CTU Main Campus, the clinic supports students, faculty, and personnel through routine consultations, dental care, first aid, health guidance, medical certificates, fitness assessments, and wellness initiatives.</p>
+            <p>CampusCare serves as the clinic's digital companion so patients can complete common tasks before and after an in-person visit while clinic personnel keep records, workflows, and communication organized.</p>
+            <div class="public-about-points">
+              <div class="public-about-point"><strong>Role-based access</strong><span>Dedicated Patient, Doctor, Staff, and Administrator experiences.</span></div>
+              <div class="public-about-point"><strong>Responsive access</strong><span>Designed for desktop, tablet, and mobile workflows.</span></div>
+              <div class="public-about-point"><strong>Centralized records</strong><span>Appointments, treatments, certificates, fitness, and communication.</span></div>
+              <div class="public-about-point"><strong>Operational insight</strong><span>Inventory monitoring, analytics, audit logs, and scheduled processes.</span></div>
+            </div>
+          </div>
+          <div class="public-info-panel">
+            <h3>How CampusCare supports a clinic visit</h3>
+            <div class="landing-steps" style="grid-template-columns:1fr;gap:.65rem">
+              <div class="step-item" style="text-align:left;display:grid;grid-template-columns:34px 1fr;column-gap:.7rem;align-items:start"><div class="step-num">1</div><div><h5>Create or verify an account</h5><p>Patient identity and registration information are connected to the clinic record.</p></div></div>
+              <div class="step-item" style="text-align:left;display:grid;grid-template-columns:34px 1fr;column-gap:.7rem;align-items:start"><div class="step-num">2</div><div><h5>Book or coordinate the visit</h5><p>Doctor availability, appointment status, and reminders are managed digitally.</p></div></div>
+              <div class="step-item" style="text-align:left;display:grid;grid-template-columns:34px 1fr;column-gap:.7rem;align-items:start"><div class="step-num">3</div><div><h5>Document care</h5><p>Treatments, vitals, findings, certificates, and fitness assessments are recorded securely.</p></div></div>
+              <div class="step-item" style="text-align:left;display:grid;grid-template-columns:34px 1fr;column-gap:.7rem;align-items:start"><div class="step-num">4</div><div><h5>Continue after the visit</h5><p>Patients can review records, receive reminders, download issued documents, and message the clinic.</p></div></div>
+            </div>
+          </div>
+        </div>
       </div>
+    </section>
+  </main>
 
-      <!-- Existing clinic email -->
-      <div class="contact-item">
-        <span class="contact-icon"><i class="fa-solid fa-envelope" aria-hidden="true"></i></span>
-        <span class="contact-label">Email</span>
-        <a class="contact-value" href="mailto:ctumainmedclinic@gmail.com">ctumainmedclinic@gmail.com</a>
+  <!-- ADVISORIES -->
+  <main class="landing-route" data-landing-route="advisory">
+    <section class="landing-static-page">
+      <div class="landing-static-inner">
+        <div class="public-page-kicker">Clinic Information</div>
+        <h2 class="public-page-title">Current Advisories</h2>
+        <p class="public-page-sub">Quick-reference guidance currently reflected in the CampusCare prototype.</p>
+        <div class="public-advisory-grid">
+          <article class="public-advisory-card">
+            <div class="advisory-icon">🎓</div><h3>Graduate School Medical Requirements</h3>
+            <p>Submit complete, clear, correctly named <strong>JPEG</strong> files, each not exceeding <strong>1 MB</strong>.</p>
+            <ul><li>Medical Certificate / physical examination report</li><li>Chest X-ray typewritten result</li><li>Pregnancy documentation when applicable</li><li>Complete Blood Count (CBC)</li><li>Drug Test result</li></ul>
+          </article>
+          <article class="public-advisory-card">
+            <div class="advisory-icon">🏅</div><h3>Intramurals 2026–2027</h3>
+            <ol><li>Secure the Eligibility Form from your coach.</li><li>Complete personal information and sports event.</li><li>Sign the Participant's Waiver.</li><li>Obtain required parent/guardian and coach signatures.</li><li>Bring the completed form to the clinic as instructed.</li></ol>
+            <p><strong>Reminder:</strong> enrollment medical requirements should already be submitted.</p>
+          </article>
+          <article class="public-advisory-card">
+            <div class="advisory-icon">⛑️</div><h3>Referral &amp; Emergency Guidance</h3>
+            <p>For persistent symptoms or conditions that need further evaluation, the clinic may refer the patient to an appropriate medical facility and coordinate the necessary follow-up.</p>
+            <p>For an emergency on campus, proceed directly to the clinic or alert university personnel immediately.</p>
+            <p><strong>Walk-in note:</strong> emergency concerns do not require online appointment booking.</p>
+          </article>
+        </div>
       </div>
-    </div>
+    </section>
+  </main>
 
-    <p><strong>CTU Main Medical & Dental Clinic — Cebu Technological University · Main Campus</strong><br>
-    Ground Floor, Education Building, CTU Main Campus, M.J. Cuenco Ave. cor. R. Palma St., Cebu City<br>
-    Medical Clinic: Mon–Fri 8:00 AM–5:00 PM · Extended Mon–Fri 5:00 PM–9:00 PM · Sat 8:00 AM–9:00 PM · Sun 8:00 AM–5:00 PM</p>
-    <p>&copy; 2026 CampusCare · CTU Main Medical & Dental Clinic</p>
-  </footer>
+  <!-- CONTACT -->
+  <main class="landing-route" data-landing-route="contact">
+    <section class="landing-static-page">
+      <div class="landing-static-inner">
+        <div class="public-page-kicker">Contact</div>
+        <h2 class="public-page-title">Visit or contact the clinic</h2>
+        <p class="public-page-sub">CTU Main Medical &amp; Dental Clinic — Ground Floor, Education Building, CTU Main Campus.</p>
+        <div class="public-contact-layout">
+          <div class="public-contact-stack">
+            <div class="public-contact-card"><div class="contact-big-icon">📍</div><div><h3>Location</h3><p>Ground Floor, Education Building, CTU Main Campus, M.J. Cuenco Ave. cor. R. Palma St., Cebu City, Philippines</p></div></div>
+            <div class="public-contact-card"><div class="contact-big-icon">☎️</div><div><h3>Phone</h3><a href="tel:+63324024060">(032) 402 4060 loc. 1142</a></div></div>
+            <div class="public-contact-card"><div class="contact-big-icon">✉️</div><div><h3>Email</h3><a href="mailto:ctumainmedclinic@gmail.com">ctumainmedclinic@gmail.com</a></div></div>
+            <div class="public-contact-card"><div class="contact-big-icon">📘</div><div><h3>Facebook</h3><p>CTU Main Medical Clinic</p></div></div>
+          </div>
+          <div class="public-info-panel">
+            <h3>Posted Medical Clinic Schedule</h3>
+            <div class="public-hours">
+              <div class="public-hours-row"><strong>Regular hours</strong><span>Mon–Fri · 8:00 AM–5:00 PM</span></div>
+              <div class="public-hours-row"><strong>Extended weekdays</strong><span>Mon–Fri · 5:00 PM–9:00 PM</span></div>
+              <div class="public-hours-row"><strong>Saturday</strong><span>8:00 AM–9:00 PM</span></div>
+              <div class="public-hours-row"><strong>Sunday</strong><span>8:00 AM–5:00 PM</span></div>
+            </div>
+            <p style="margin-top:1rem">Appointment availability in CampusCare still follows the selected Doctor's configured work schedule.</p>
+            <div class="public-page-cta" style="justify-content:flex-start;margin-top:1rem"><button class="btn btn-primary" onclick="showAuthPage('login')">Get Started with CampusCare</button></div>
+          </div>
+        </div>
+        <div class="public-contact-footer">© 2026 CampusCare · CTU Main Medical &amp; Dental Clinic</div>
+      </div>
+    </section>
+  </main>
 
 </div><!-- /#landing-page -->
 
@@ -5648,33 +5850,106 @@ async function checkReminders(){
 // AUTH
 // ================================================================
 
+const LANDING_ROUTE_NAMES=['home','services','about','advisory','contact'];
+let landingCarouselIndex=0;
+let landingCarouselTimer=null;
+
+function setLandingCarousel(index,resetTimer=true){
+  const track=document.getElementById('hero-carousel-track');
+  const dots=[...document.querySelectorAll('.hero-carousel-dot')];
+  if(!track||!dots.length)return;
+
+  const count=dots.length;
+  landingCarouselIndex=((Number(index)||0)%count+count)%count;
+  track.style.transform=`translateX(-${landingCarouselIndex*100}%)`;
+  dots.forEach((dot,i)=>dot.classList.toggle('active',i===landingCarouselIndex));
+
+  const counter=document.getElementById('hero-carousel-counter');
+  if(counter)counter.textContent=`${landingCarouselIndex+1} / ${count}`;
+
+  if(resetTimer)startLandingCarouselTimer();
+}
+
+function moveLandingCarousel(step){
+  setLandingCarousel(landingCarouselIndex+Number(step||0));
+}
+
+function startLandingCarouselTimer(){
+  if(landingCarouselTimer)clearInterval(landingCarouselTimer);
+  landingCarouselTimer=setInterval(()=>{
+    const landing=document.getElementById('landing-page');
+    const home=document.querySelector('[data-landing-route="home"]');
+    if(landing?.style.display==='none'||!home?.classList.contains('active'))return;
+    setLandingCarousel(landingCarouselIndex+1,false);
+  },6500);
+}
+
+function setPublicNavbarMode(authMode=false){
+  const nav=document.getElementById('landing-navbar');
+  if(nav)nav.classList.toggle('auth-mode',Boolean(authMode));
+}
+
+function showLandingRoute(route='home',updateHash=true){
+  const clean=LANDING_ROUTE_NAMES.includes(route)?route:'home';
+  const landing=document.getElementById('landing-page');
+  const auth=document.getElementById('auth-page');
+
+  if(auth)auth.style.display='none';
+  if(landing)landing.style.display='block';
+  setPublicNavbarMode(false);
+
+  document.querySelectorAll('[data-landing-route]').forEach(el=>{
+    el.classList.toggle('active',el.dataset.landingRoute===clean);
+  });
+  document.querySelectorAll('[data-landing-link]').forEach(el=>{
+    el.classList.toggle('active',el.dataset.landingLink===clean);
+  });
+
+  const nl=document.querySelector('.landing-nav-links');
+  if(nl)nl.classList.remove('mobile-show');
+
+  window.scrollTo(0,0);
+  if(clean==='home')startLandingCarouselTimer();
+
+  if(updateHash){
+    const nextHash=`#page=${clean}`;
+    if(window.location.hash!==nextHash)history.pushState({landingRoute:clean},'',nextHash);
+  }
+}
+
 function showAuthPage(tab){
-  document.getElementById('landing-page').style.display='none';
-  document.getElementById('auth-page').style.display='block';
+  const landing=document.getElementById('landing-page');
+  const auth=document.getElementById('auth-page');
+  if(landing)landing.style.display='none';
+  if(auth)auth.style.display='block';
+  setPublicNavbarMode(true);
+
+  const nl=document.querySelector('.landing-nav-links');
+  if(nl)nl.classList.remove('mobile-show');
   window.scrollTo(0,0);
   authTab(tab==='reg'?'reg':'login');
 }
+
 function showLandingPage(){
-  document.getElementById('auth-page').style.display='none';
-  document.getElementById('landing-page').style.display='';
-  window.scrollTo(0,0);
+  showLandingRoute('home',true);
 }
-function landingNavTo(id){
-  const auth=document.getElementById('auth-page');
-  if(auth&&auth.style.display!=='none')showLandingPage();
-  const nl=document.querySelector('.landing-nav-links');
-  if(nl)nl.classList.remove('mobile-show');
-  setTimeout(()=>{const el=document.getElementById(id);if(el)el.scrollIntoView({behavior:'smooth'});},80);
+
+function landingNavTo(route){
+  showLandingRoute(route,true);
 }
-// Scroll-reveal for landing sections
-(function(){
-  if(!('IntersectionObserver' in window))return;
-  const io=new IntersectionObserver(es=>es.forEach(e=>{
-    if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}
-  }),{threshold:.12});
-  document.querySelectorAll('.feature-card,.step-item,#landing-about p,#landing-testimonial blockquote')
-    .forEach(t=>{t.classList.add('reveal');io.observe(t);});
-})();
+
+function initializeLandingRouting(){
+  const hash=String(window.location.hash||'');
+  const match=hash.match(/^#page=(home|services|about|advisory|contact)$/);
+  showLandingRoute(match?match[1]:'home',false);
+  setLandingCarousel(0,false);
+  startLandingCarouselTimer();
+
+  window.addEventListener('popstate',()=>{
+    const m=String(window.location.hash||'').match(/^#page=(home|services|about|advisory|contact)$/);
+    if(m)showLandingRoute(m[1],false);
+  });
+}
 
 function authTab(t){
   document.querySelectorAll('.auth-tab').forEach((b,i)=>b.classList.toggle('active',i===(t==='login'?0:1)));
@@ -6071,6 +6346,7 @@ function openForgotPassword(recoveryMode=false){
   const authPage=document.getElementById('auth-page');
   if(landing)landing.style.display='none';
   if(authPage)authPage.style.display='block';
+  setPublicNavbarMode(true);
   window.scrollTo(0,0);
 
   document.getElementById('login-section').style.display='none';
@@ -6113,6 +6389,7 @@ function resetAuthUiToLogin(){
   if(app)app.classList.remove('visible');
   if(landing)landing.style.display='none';
   if(authPage)authPage.style.display='block';
+  setPublicNavbarMode(true);
   if(authWrap)authWrap.style.display='block';
 
   authTab('login');
@@ -16657,6 +16934,7 @@ window.addEventListener('scroll',()=>{
 // Restore the real Supabase session after refresh. Supabase persists the
 // session in browser storage, so refreshing the page should not log the user out.
 document.addEventListener('DOMContentLoaded',async()=>{
+  initializeLandingRouting();
   initializeSupabaseClient();
   const restoreSkeleton=document.getElementById('session-restore-skeleton');
 
@@ -16721,7 +16999,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v53 loaded.');
+console.log('CampusCare v54 loaded.');
 </script>
 </body>
 </html>
