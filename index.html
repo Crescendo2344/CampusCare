@@ -1426,38 +1426,80 @@ tbody tr:hover td{background:var(--overlay)}
 :root{--landing-nav-h:70px}
 #landing-navbar{
   height:var(--landing-nav-h);
-  display:grid;
-  grid-template-columns:minmax(280px,1fr) minmax(440px,auto) minmax(190px,1fr);
+  display:flex;
   align-items:center;
-  padding:.65rem clamp(1.4rem,2.4vw,2.4rem);
+  gap:1.25rem;
+  padding:.65rem clamp(1.5rem,2.3vw,2.3rem);
 }
-#landing-navbar .landing-logo{justify-self:start;cursor:pointer}
-#landing-navbar .landing-nav-links{justify-self:center}
-#landing-navbar .landing-nav-actions{justify-self:end;margin-left:0}
-#landing-navbar.auth-mode .landing-get-started{display:none!important}
-.landing-nav-links{
-  flex-wrap:nowrap!important;
+#landing-navbar .landing-logo{
+  flex:0 0 auto;
+  cursor:pointer;
   white-space:nowrap;
-  gap:clamp(1.15rem,1.7vw,1.8rem);
 }
+#landing-navbar .landing-nav-links{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex:1 1 auto;
+  min-width:0;
+  margin-left:clamp(1rem,3vw,3.5rem);
+  gap:clamp(1.35rem,2.4vw,2.6rem);
+  white-space:nowrap;
+}
+#landing-navbar .landing-nav-actions{
+  flex:0 0 auto;
+  margin-left:auto;
+}
+#landing-navbar.auth-mode .landing-get-started{display:none!important}
 .landing-nav-links a{
+  position:relative;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  flex:0 0 auto;
+  flex:0 0 auto!important;
   white-space:nowrap!important;
-  word-break:keep-all;
-  overflow-wrap:normal;
+  word-break:keep-all!important;
+  overflow-wrap:normal!important;
+  width:auto!important;
+  max-width:none!important;
+  padding:6px 0;
   border:0!important;
   border-left:0!important;
   border-right:0!important;
 }
 .landing-nav-links::before,
 .landing-nav-links::after,
-.landing-nav-links a::before{content:none!important;display:none!important}
+.landing-nav-links a::before{
+  content:none!important;
+  display:none!important;
+}
 .landing-nav-links a.active{color:#fff;font-weight:700}
 .landing-nav-links a.active::after{width:100%}
 .landing-get-started{min-width:112px}
+@media(max-width:1080px){
+  #landing-navbar{display:flex}
+  #landing-navbar .landing-nav-links{
+    display:none;
+    position:absolute;
+    top:100%;
+    left:0;
+    right:0;
+    margin:0;
+    padding:1rem 1.4rem;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:.85rem;
+    background:rgba(10,20,32,.97);
+    backdrop-filter:blur(16px);
+    -webkit-backdrop-filter:blur(16px);
+    border-bottom:1px solid rgba(255,255,255,.1);
+  }
+  #landing-navbar .landing-nav-links.mobile-show{display:flex}
+  #landing-navbar .landing-nav-links a{width:auto!important}
+  #landing-navbar .landing-logo{margin-right:auto}
+  #landing-navbar .landing-nav-actions{margin-left:auto}
+  .landing-nav-toggle{display:grid}
+}
 
 #landing-page{
   height:100vh;
@@ -1501,329 +1543,300 @@ tbody tr:hover td{background:var(--overlay)}
 .landing-hero-text p{max-width:500px}
 .landing-hero-visual{justify-self:end;width:100%;min-height:390px}
 
-/* Modern Clinic Information + Advisories carousel. */
+/* Headerless infinite swipe carousel for the landing hero. */
 .hero-info-carousel{
   position:relative;
-  isolation:isolate;
-  width:min(100%,440px);
-  min-height:405px;
-  color:#eef8ff;
-  border:1px solid rgba(121,211,245,.24);
-  border-radius:26px;
+  width:min(100%,455px);
+  height:395px;
   overflow:hidden;
-  background:
-    linear-gradient(145deg,rgba(8,31,49,.91),rgba(14,33,58,.84) 55%,rgba(22,31,66,.88));
-  box-shadow:
-    0 26px 70px rgba(0,0,0,.30),
-    inset 0 1px 0 rgba(255,255,255,.08);
-  backdrop-filter:blur(22px) saturate(150%);
-  -webkit-backdrop-filter:blur(22px) saturate(150%);
+  border-radius:26px;
+  border:1px solid rgba(108,203,240,.22);
+  background:rgba(8,27,45,.66);
+  box-shadow:0 26px 68px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.07);
+  backdrop-filter:blur(18px) saturate(145%);
+  -webkit-backdrop-filter:blur(18px) saturate(145%);
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:pan-y;
+  cursor:grab;
+  isolation:isolate;
 }
+.hero-info-carousel.dragging{cursor:grabbing}
 .hero-info-carousel::before,
 .hero-info-carousel::after{
   content:'';
   position:absolute;
-  z-index:-1;
   border-radius:50%;
-  filter:blur(3px);
   pointer-events:none;
+  z-index:-1;
+  filter:blur(8px);
+  opacity:.8;
 }
 .hero-info-carousel::before{
-  width:230px;height:230px;
-  top:-135px;right:-70px;
-  background:radial-gradient(circle,rgba(61,193,241,.28),rgba(61,193,241,0) 68%);
-  animation:heroCarouselGlow 7s ease-in-out infinite alternate;
+  width:240px;height:240px;
+  right:-115px;top:-115px;
+  background:radial-gradient(circle,rgba(51,190,238,.28),rgba(51,190,238,0) 70%);
+  animation:heroAmbientOne 9s ease-in-out infinite alternate;
 }
 .hero-info-carousel::after{
-  width:190px;height:190px;
-  left:-105px;bottom:-105px;
-  background:radial-gradient(circle,rgba(113,104,232,.22),rgba(113,104,232,0) 70%);
-  animation:heroCarouselGlow 8.5s ease-in-out 1s infinite alternate-reverse;
+  width:220px;height:220px;
+  left:-120px;bottom:-120px;
+  background:radial-gradient(circle,rgba(111,95,231,.22),rgba(111,95,231,0) 72%);
+  animation:heroAmbientTwo 10s ease-in-out infinite alternate;
 }
-.hero-carousel-accent{
-  position:absolute;
-  top:0;left:0;right:0;
-  height:3px;
-  background:linear-gradient(90deg,#44c7ef,#5e8cff 55%,#9276ee);
-  box-shadow:0 0 20px rgba(68,199,239,.55);
-}
-.hero-carousel-head{
-  padding:1.2rem 1.25rem .85rem;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:.8rem;
-  border-bottom:1px solid rgba(255,255,255,.08);
-}
-.hero-carousel-brand{display:flex;align-items:center;gap:.7rem;min-width:0}
-.hero-carousel-brand-icon{
-  width:36px;height:36px;flex:0 0 36px;
-  border-radius:12px;
-  display:grid;place-items:center;
-  background:linear-gradient(145deg,rgba(55,190,235,.26),rgba(111,99,227,.22));
-  border:1px solid rgba(115,210,244,.25);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
-  font-size:1rem;
-}
-.hero-carousel-head h4{
-  font-size:.9rem;
-  margin:0;
-  color:#f3fbff;
-  line-height:1.2;
-  letter-spacing:-.1px;
-}
-.hero-carousel-head small{
-  display:block;
-  color:#86a6ba;
-  font-size:.63rem;
-  margin-top:.18rem;
-  font-weight:600;
-}
-.hero-carousel-counter{
-  flex:0 0 auto;
-  padding:.3rem .55rem;
-  border-radius:999px;
-  background:rgba(255,255,255,.07);
-  border:1px solid rgba(255,255,255,.08);
-  color:#a9dff3;
-  font-size:.64rem;
-  font-weight:800;
-  letter-spacing:.08em;
-  font-variant-numeric:tabular-nums;
-}
-.hero-carousel-progress{
-  height:2px;
-  background:rgba(255,255,255,.06);
+.hero-carousel-viewport{
+  width:100%;
+  height:100%;
   overflow:hidden;
 }
-.hero-carousel-progress span{
-  display:block;
-  width:0;
-  height:100%;
-  background:linear-gradient(90deg,#42c5ed,#628cf5,#8b76ec);
-  box-shadow:0 0 10px rgba(66,197,237,.5);
-}
-.hero-carousel-progress span.running{animation:heroCarouselProgress 6.5s linear forwards}
-.hero-carousel-viewport{overflow:hidden}
 .hero-carousel-track{
+  height:100%;
   display:flex;
-  transition:transform .62s cubic-bezier(.22,.82,.23,1);
   will-change:transform;
+  transform:translate3d(-100%,0,0);
+}
+.hero-carousel-track.animating{
+  transition:transform .62s cubic-bezier(.22,.8,.22,1);
 }
 .hero-carousel-slide{
-  min-width:100%;
-  min-height:286px;
-  padding:1rem 1.25rem .9rem;
-  opacity:.62;
-  transform:scale(.985);
-  transition:opacity .45s ease,transform .45s ease;
+  position:relative;
+  flex:0 0 100%;
+  width:100%;
+  height:100%;
+  padding:1.35rem 1.3rem 1.2rem;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  overflow:hidden;
 }
-.hero-carousel-slide.active{opacity:1;transform:scale(1)}
-.hero-slide-top{display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem}
+.hero-carousel-slide::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.7;
+}
+.hero-carousel-slide[data-tone="clinic"]::before{
+  background:linear-gradient(145deg,rgba(33,159,204,.13),transparent 46%,rgba(79,89,197,.09));
+}
+.hero-carousel-slide[data-tone="graduate"]::before{
+  background:linear-gradient(145deg,rgba(81,96,214,.13),transparent 46%,rgba(41,177,217,.08));
+}
+.hero-carousel-slide[data-tone="fitness"]::before{
+  background:linear-gradient(145deg,rgba(45,185,161,.12),transparent 48%,rgba(53,138,218,.09));
+}
+.hero-carousel-slide[data-tone="contact"]::before{
+  background:linear-gradient(145deg,rgba(45,169,214,.13),transparent 48%,rgba(115,91,220,.09));
+}
+.hero-slide-inner{
+  position:relative;
+  z-index:1;
+  width:100%;
+  animation:heroSwipeContent .48s ease both;
+}
+.hero-slide-top{
+  display:flex;
+  align-items:center;
+  gap:.8rem;
+  margin-bottom:.9rem;
+}
 .hero-slide-icon{
-  width:46px;height:46px;flex:0 0 46px;
+  width:48px;height:48px;
+  flex:0 0 48px;
+  display:grid;
+  place-items:center;
   border-radius:15px;
-  display:grid;place-items:center;
   font-size:1.35rem;
-  background:linear-gradient(145deg,rgba(52,189,234,.23),rgba(106,96,222,.22));
-  border:1px solid rgba(118,209,244,.22);
-  box-shadow:0 9px 25px rgba(0,0,0,.16),inset 0 1px 0 rgba(255,255,255,.08);
+  background:linear-gradient(145deg,rgba(70,190,231,.22),rgba(105,102,226,.20));
+  border:1px solid rgba(120,211,242,.23);
+  box-shadow:0 10px 26px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.08);
 }
-.hero-carousel-slide.active .hero-slide-icon{animation:heroIconFloat 3.4s ease-in-out infinite}
 .hero-slide-copy{min-width:0}
 .hero-slide-chip{
   display:inline-flex;
   align-items:center;
-  gap:.3rem;
-  margin-bottom:.2rem;
-  padding:.18rem .48rem;
+  margin-bottom:.25rem;
+  padding:.2rem .5rem;
   border-radius:999px;
-  background:rgba(58,192,237,.11);
-  border:1px solid rgba(80,198,238,.17);
-  color:#70d8f7;
-  font-size:.58rem;
-  font-weight:800;
+  border:1px solid rgba(91,205,240,.18);
+  background:rgba(55,190,233,.11);
+  color:#70d7f4;
+  font-size:.57rem;
+  font-weight:850;
   letter-spacing:.08em;
   text-transform:uppercase;
 }
 .hero-carousel-slide h5{
-  font-size:1.05rem;
-  color:#fff;
   margin:0;
-  line-height:1.2;
-  letter-spacing:-.2px;
+  color:#fff;
+  font-size:1.12rem;
+  line-height:1.18;
+  letter-spacing:-.22px;
 }
 .hero-slide-lead{
-  margin:0 0 .75rem;
-  color:#9fb9ca!important;
+  margin:0 0 .9rem!important;
+  color:#a5bdcb!important;
   font-size:.72rem!important;
-  line-height:1.5!important;
+  line-height:1.52!important;
 }
-.hero-mini-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem}
+.hero-mini-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:.58rem;
+}
 .hero-mini-card{
   min-width:0;
-  padding:.67rem .72rem;
-  border-radius:13px;
+  padding:.72rem .74rem;
+  border-radius:14px;
   background:rgba(255,255,255,.055);
   border:1px solid rgba(255,255,255,.075);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.025);
 }
 .hero-mini-card .mini-label{
-  display:flex;align-items:center;gap:.35rem;
-  color:#d9eef8;
-  font-size:.66rem;
+  display:flex;
+  align-items:center;
+  gap:.35rem;
+  margin-bottom:.22rem;
+  color:#dceff8;
+  font-size:.65rem;
   font-weight:800;
-  margin-bottom:.2rem;
 }
 .hero-mini-card p{
   margin:0!important;
-  color:#8fa8ba!important;
-  font-size:.64rem!important;
-  line-height:1.42!important;
+  color:#91aabc!important;
+  font-size:.63rem!important;
+  line-height:1.43!important;
 }
-.hero-requirement-list{display:grid;gap:.45rem}
+.hero-requirement-list{display:grid;gap:.46rem}
 .hero-requirement{
-  display:flex;align-items:flex-start;gap:.55rem;
-  padding:.55rem .65rem;
+  display:flex;
+  align-items:flex-start;
+  gap:.55rem;
+  padding:.59rem .65rem;
   border-radius:12px;
-  background:rgba(255,255,255,.045);
-  border:1px solid rgba(255,255,255,.06);
-  color:#a7bdcb;
-  font-size:.67rem;
-  line-height:1.4;
+  background:rgba(255,255,255,.048);
+  border:1px solid rgba(255,255,255,.065);
+  color:#a7bdca;
+  font-size:.66rem;
+  line-height:1.42;
 }
 .hero-requirement i{
-  width:21px;height:21px;flex:0 0 21px;
-  display:grid;place-items:center;
+  width:21px;height:21px;
+  flex:0 0 21px;
+  display:grid;
+  place-items:center;
   border-radius:7px;
-  background:rgba(58,192,237,.13);
-  color:#70d8f7;
+  background:rgba(60,190,233,.13);
+  color:#71daf5;
   font-style:normal;
-  font-size:.62rem;
+  font-size:.6rem;
   font-weight:900;
 }
-.hero-step-line{display:grid;gap:.47rem}
+.hero-step-line{display:grid;gap:.55rem}
 .hero-step{
   display:grid;
-  grid-template-columns:27px 1fr;
+  grid-template-columns:28px 1fr;
   align-items:start;
-  gap:.55rem;
+  gap:.6rem;
 }
 .hero-step-num{
-  width:27px;height:27px;
-  display:grid;place-items:center;
+  width:28px;height:28px;
+  display:grid;
+  place-items:center;
   border-radius:9px;
-  color:#e7f8ff;
-  font-size:.64rem;
+  color:#e6f8ff;
+  font-size:.63rem;
   font-weight:900;
-  background:linear-gradient(145deg,rgba(49,184,230,.25),rgba(93,111,232,.25));
-  border:1px solid rgba(101,199,238,.20);
+  background:linear-gradient(145deg,rgba(50,185,229,.24),rgba(93,107,229,.24));
+  border:1px solid rgba(99,202,239,.18);
 }
-.hero-step strong{display:block;color:#dceff8;font-size:.69rem;margin-bottom:.12rem}
-.hero-step span{display:block;color:#8fa7b8;font-size:.63rem;line-height:1.4}
-.hero-contact-pills{display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:.7rem}
+.hero-step strong{
+  display:block;
+  margin-bottom:.12rem;
+  color:#dceff8;
+  font-size:.69rem;
+}
+.hero-step span{
+  display:block;
+  color:#91a8b8;
+  font-size:.63rem;
+  line-height:1.42;
+}
+.hero-contact-pills{
+  display:flex;
+  gap:.48rem;
+  flex-wrap:wrap;
+  margin-bottom:.8rem;
+}
 .hero-contact-pill{
-  display:inline-flex;align-items:center;gap:.35rem;
-  padding:.42rem .58rem;
+  display:inline-flex;
+  align-items:center;
+  gap:.35rem;
+  padding:.45rem .58rem;
   border-radius:10px;
   background:rgba(255,255,255,.055);
   border:1px solid rgba(255,255,255,.075);
-  color:#b8d0dd;
-  font-size:.64rem;
+  color:#bbd1dd;
+  font-size:.63rem;
 }
 .hero-referral-note{
-  padding:.7rem .75rem;
-  border-radius:13px;
-  background:linear-gradient(135deg,rgba(61,190,232,.09),rgba(110,93,222,.08));
-  border:1px solid rgba(98,184,225,.12);
-  color:#9fb7c7;
+  padding:.78rem .8rem;
+  border-radius:14px;
+  background:linear-gradient(135deg,rgba(58,190,232,.09),rgba(106,92,220,.08));
+  border:1px solid rgba(96,187,226,.12);
+  color:#9db6c5;
   font-size:.66rem;
-  line-height:1.48;
+  line-height:1.5;
 }
-.hero-carousel-slide.active .hero-slide-top,
-.hero-carousel-slide.active .hero-slide-lead,
-.hero-carousel-slide.active .hero-mini-grid,
-.hero-carousel-slide.active .hero-requirement-list,
-.hero-carousel-slide.active .hero-step-line,
-.hero-carousel-slide.active .hero-contact-pills,
-.hero-carousel-slide.active .hero-referral-note{
-  animation:heroSlideIn .48s ease both;
-}
-.hero-carousel-slide.active .hero-slide-lead{animation-delay:.06s}
-.hero-carousel-slide.active .hero-mini-grid,
-.hero-carousel-slide.active .hero-requirement-list,
-.hero-carousel-slide.active .hero-step-line,
-.hero-carousel-slide.active .hero-contact-pills{animation-delay:.1s}
-.hero-carousel-slide.active .hero-referral-note{animation-delay:.15s}
-.hero-carousel-foot{
+.hero-swipe-hint{
+  position:absolute;
+  right:1rem;
+  bottom:.85rem;
+  z-index:3;
   display:flex;
   align-items:center;
-  justify-content:space-between;
-  gap:.7rem;
-  padding:.72rem 1rem .9rem;
-  border-top:1px solid rgba(255,255,255,.075);
-  background:rgba(4,15,25,.16);
+  gap:.35rem;
+  color:rgba(186,216,229,.58);
+  font-size:.56rem;
+  font-weight:750;
+  letter-spacing:.05em;
+  pointer-events:none;
+  transition:opacity .25s ease;
 }
-.hero-carousel-arrow{
-  width:34px;height:34px;
-  border:1px solid rgba(255,255,255,.09);
-  border-radius:11px;
-  background:rgba(255,255,255,.06);
-  color:#cceefa;
-  display:grid;place-items:center;
-  cursor:pointer;
-  font-size:1rem;
-  font-weight:900;
-  transition:transform .18s ease,background .18s ease,border-color .18s ease;
+.hero-info-carousel.dragging .hero-swipe-hint{opacity:0}
+.hero-swipe-hint span{
+  display:inline-block;
+  width:26px;
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(108,213,246,.75));
+  position:relative;
 }
-.hero-carousel-arrow:hover{
-  transform:translateY(-1px);
-  background:rgba(66,193,236,.13);
-  border-color:rgba(91,199,237,.22);
+.hero-swipe-hint span::after{
+  content:'';
+  position:absolute;
+  right:0;top:-2px;
+  width:5px;height:5px;
+  border-top:1px solid rgba(108,213,246,.8);
+  border-right:1px solid rgba(108,213,246,.8);
+  transform:rotate(45deg);
 }
-.hero-carousel-dots{display:flex;align-items:center;gap:.4rem}
-.hero-carousel-dot{
-  width:7px;height:7px;
-  border:none;border-radius:999px;
-  background:rgba(176,203,218,.30);
-  padding:0;cursor:pointer;
-  transition:width .25s ease,background .25s ease,box-shadow .25s ease;
-}
-.hero-carousel-dot.active{
-  width:25px;
-  background:linear-gradient(90deg,#45c7ee,#7587f1);
-  box-shadow:0 0 12px rgba(69,199,238,.28);
-}
-[data-theme="dark"] .hero-info-carousel{color:#eef8ff}
-
-@keyframes heroCarouselGlow{
+@keyframes heroAmbientOne{
   from{transform:translate3d(0,0,0) scale(1)}
-  to{transform:translate3d(-10px,12px,0) scale(1.08)}
+  to{transform:translate3d(-14px,13px,0) scale(1.08)}
 }
-@keyframes heroCarouselProgress{
-  from{width:0}
-  to{width:100%}
+@keyframes heroAmbientTwo{
+  from{transform:translate3d(0,0,0) scale(1.03)}
+  to{transform:translate3d(12px,-10px,0) scale(1)}
 }
-@keyframes heroSlideIn{
+@keyframes heroSwipeContent{
   from{opacity:0;transform:translateY(9px)}
   to{opacity:1;transform:translateY(0)}
 }
-@keyframes heroIconFloat{
-  0%,100%{transform:translateY(0)}
-  50%{transform:translateY(-3px)}
-}
 @media(prefers-reduced-motion:reduce){
-  .hero-info-carousel::before,.hero-info-carousel::after,
-  .hero-carousel-slide.active .hero-slide-icon,
-  .hero-carousel-slide.active .hero-slide-top,
-  .hero-carousel-slide.active .hero-slide-lead,
-  .hero-carousel-slide.active .hero-mini-grid,
-  .hero-carousel-slide.active .hero-requirement-list,
-  .hero-carousel-slide.active .hero-step-line,
-  .hero-carousel-slide.active .hero-contact-pills,
-  .hero-carousel-slide.active .hero-referral-note,
-  .hero-carousel-progress span.running{animation:none!important}
-  .hero-carousel-track{transition:none}
+  .hero-info-carousel::before,
+  .hero-info-carousel::after,
+  .hero-slide-inner{animation:none!important}
+  .hero-carousel-track.animating{transition:none!important}
 }
 /* Page-style public routes. */
 .landing-static-page{
@@ -1882,7 +1895,7 @@ tbody tr:hover td{background:var(--overlay)}
   #landing-hero{overflow-y:auto;align-items:flex-start;padding-top:2rem;padding-bottom:2rem}
 }
 @media(max-width:900px){
-  #landing-navbar{display:flex;height:auto;min-height:var(--landing-nav-h)}
+  #landing-navbar{height:auto;min-height:var(--landing-nav-h)}
   #landing-navbar .landing-logo{margin-right:auto}
   #landing-navbar .landing-nav-actions{margin-left:auto}
   .landing-route{overflow-y:auto}
@@ -1901,9 +1914,9 @@ tbody tr:hover td{background:var(--overlay)}
   .landing-hero-grid{gap:1.1rem}
   #landing-hero{padding:1.8rem 1rem 2rem}
   .landing-hero-text h1{font-size:2rem}
-  .hero-info-carousel{min-height:390px}
+  .hero-info-carousel{height:430px;min-height:430px}
   .hero-mini-grid{grid-template-columns:1fr}
-  .hero-carousel-slide{min-height:300px}
+  .hero-carousel-slide{padding:1.15rem 1rem 1rem}
   .public-services-grid,.public-advisory-grid,.public-about-points{grid-template-columns:1fr}
   .landing-static-page{padding:1.7rem 1rem 2.2rem}
   .public-page-title{font-size:1.45rem}
@@ -2277,122 +2290,93 @@ tbody tr:hover td{background:var(--overlay)}
         </div>
 
         <div class="landing-hero-visual">
-          <div class="hero-info-carousel" aria-label="Clinic Information and Current Advisories">
-            <div class="hero-carousel-accent"></div>
 
-            <div class="hero-carousel-head">
-              <div class="hero-carousel-brand">
-                <div class="hero-carousel-brand-icon">✦</div>
-                <div>
-                  <h4>Clinic Information &amp; Current Advisories</h4>
-                  <small>Live campus clinic highlights</small>
-                </div>
-              </div>
-              <span class="hero-carousel-counter" id="hero-carousel-counter">01 / 04</span>
-            </div>
-
-            <div class="hero-carousel-progress" aria-hidden="true">
-              <span id="hero-carousel-progress"></span>
-            </div>
-
+          <div class="hero-info-carousel" id="landing-swipe-carousel" aria-label="Clinic Information and Current Advisories" tabindex="0">
             <div class="hero-carousel-viewport">
               <div class="hero-carousel-track" id="hero-carousel-track">
 
-                <article class="hero-carousel-slide active">
-                  <div class="hero-slide-top">
-                    <div class="hero-slide-icon">🏥</div>
-                    <div class="hero-slide-copy">
-                      <span class="hero-slide-chip">Clinic Overview</span>
-                      <h5>Visit the Clinic</h5>
+                <!-- clone of the final slide for seamless backward looping -->
+                <article class="hero-carousel-slide" data-clone="last" data-tone="contact">
+                  <div class="hero-slide-inner">
+                    <div class="hero-slide-top"><div class="hero-slide-icon">☎️</div><div class="hero-slide-copy"><span class="hero-slide-chip">Contact &amp; Referral</span><h5>Reach the Clinic</h5></div></div>
+                    <p class="hero-slide-lead">Official channels for questions, follow-up coordination, and referrals.</p>
+                    <div class="hero-contact-pills">
+                      <span class="hero-contact-pill">☎️ (032) 402 4060 loc. 1142</span>
+                      <span class="hero-contact-pill">✉️ ctumainmedclinic@gmail.com</span>
+                      <span class="hero-contact-pill">📘 CTU Main Medical Clinic</span>
                     </div>
+                    <div class="hero-referral-note">Persistent symptoms or conditions needing further evaluation may be referred to an appropriate medical facility. For emergencies on campus, proceed directly to the clinic or alert university personnel.</div>
                   </div>
-                  <p class="hero-slide-lead">Quick information for visiting the CTU Main Medical &amp; Dental Clinic.</p>
-                  <div class="hero-mini-grid">
-                    <div class="hero-mini-card">
-                      <div class="mini-label">📍 Location</div>
-                      <p>Ground Floor, Education Building, CTU Main Campus</p>
-                    </div>
-                    <div class="hero-mini-card">
-                      <div class="mini-label">🕗 Medical Hours</div>
-                      <p>Mon–Fri 8 AM–5 PM · Extended until 9 PM · Weekend hours posted</p>
-                    </div>
-                    <div class="hero-mini-card">
-                      <div class="mini-label">⛑️ Emergencies</div>
-                      <p>Walk in during clinic hours. Emergency concerns do not require booking.</p>
-                    </div>
-                    <div class="hero-mini-card">
-                      <div class="mini-label">🦷 Dental</div>
-                      <p>Daily slots are limited. Reserve early through CampusCare.</p>
+                </article>
+
+                <article class="hero-carousel-slide" data-real-index="0" data-tone="clinic">
+                  <div class="hero-slide-inner">
+                    <div class="hero-slide-top"><div class="hero-slide-icon">🏥</div><div class="hero-slide-copy"><span class="hero-slide-chip">Clinic Overview</span><h5>Visit the Clinic</h5></div></div>
+                    <p class="hero-slide-lead">Quick information for visiting the CTU Main Medical &amp; Dental Clinic.</p>
+                    <div class="hero-mini-grid">
+                      <div class="hero-mini-card"><div class="mini-label">📍 Location</div><p>Ground Floor, Education Building, CTU Main Campus</p></div>
+                      <div class="hero-mini-card"><div class="mini-label">🕗 Medical Hours</div><p>Mon–Fri 8 AM–5 PM · Extended until 9 PM · Weekend hours posted</p></div>
+                      <div class="hero-mini-card"><div class="mini-label">⛑️ Emergencies</div><p>Walk in during clinic hours. Emergency concerns do not require booking.</p></div>
+                      <div class="hero-mini-card"><div class="mini-label">🦷 Dental</div><p>Daily slots are limited. Reserve early through CampusCare.</p></div>
                     </div>
                   </div>
                 </article>
 
-                <article class="hero-carousel-slide">
-                  <div class="hero-slide-top">
-                    <div class="hero-slide-icon">🎓</div>
-                    <div class="hero-slide-copy">
-                      <span class="hero-slide-chip">Graduate School</span>
-                      <h5>Medical Requirements</h5>
+                <article class="hero-carousel-slide" data-real-index="1" data-tone="graduate">
+                  <div class="hero-slide-inner">
+                    <div class="hero-slide-top"><div class="hero-slide-icon">🎓</div><div class="hero-slide-copy"><span class="hero-slide-chip">Graduate School</span><h5>Medical Requirements</h5></div></div>
+                    <p class="hero-slide-lead">Prepare clear, correctly named JPEG files, each not exceeding 1 MB.</p>
+                    <div class="hero-requirement-list">
+                      <div class="hero-requirement"><i>01</i><span>Medical Certificate / physical examination report</span></div>
+                      <div class="hero-requirement"><i>02</i><span>Chest X-ray typewritten result</span></div>
+                      <div class="hero-requirement"><i>03</i><span>Complete Blood Count (CBC) and Drug Test result</span></div>
+                      <div class="hero-requirement"><i>04</i><span>Pregnancy documentation when applicable</span></div>
                     </div>
-                  </div>
-                  <p class="hero-slide-lead">Prepare clear, correctly named JPEG files, each not exceeding 1 MB.</p>
-                  <div class="hero-requirement-list">
-                    <div class="hero-requirement"><i>01</i><span>Medical Certificate / physical examination report</span></div>
-                    <div class="hero-requirement"><i>02</i><span>Chest X-ray typewritten result</span></div>
-                    <div class="hero-requirement"><i>03</i><span>Complete Blood Count (CBC) and Drug Test result</span></div>
-                    <div class="hero-requirement"><i>04</i><span>Pregnancy documentation when applicable</span></div>
                   </div>
                 </article>
 
-                <article class="hero-carousel-slide">
-                  <div class="hero-slide-top">
-                    <div class="hero-slide-icon">🏅</div>
-                    <div class="hero-slide-copy">
-                      <span class="hero-slide-chip">Intramurals 2026–2027</span>
-                      <h5>Fitness &amp; Clearance Guide</h5>
+                <article class="hero-carousel-slide" data-real-index="2" data-tone="fitness">
+                  <div class="hero-slide-inner">
+                    <div class="hero-slide-top"><div class="hero-slide-icon">🏅</div><div class="hero-slide-copy"><span class="hero-slide-chip">Intramurals 2026–2027</span><h5>Fitness &amp; Clearance Guide</h5></div></div>
+                    <p class="hero-slide-lead">Complete the eligibility requirements before bringing the form to the clinic.</p>
+                    <div class="hero-step-line">
+                      <div class="hero-step"><div class="hero-step-num">1</div><div><strong>Get your Eligibility Form</strong><span>Secure the official form from your coach and complete your personal/sports information.</span></div></div>
+                      <div class="hero-step"><div class="hero-step-num">2</div><div><strong>Complete required signatures</strong><span>Sign the waiver and obtain the required parent/guardian and coach signatures.</span></div></div>
+                      <div class="hero-step"><div class="hero-step-num">3</div><div><strong>Visit the clinic</strong><span>Bring the completed form after your enrollment medical requirements have been submitted.</span></div></div>
                     </div>
-                  </div>
-                  <p class="hero-slide-lead">Complete the eligibility requirements before bringing the form to the clinic.</p>
-                  <div class="hero-step-line">
-                    <div class="hero-step"><div class="hero-step-num">1</div><div><strong>Get your Eligibility Form</strong><span>Secure the official form from your coach and complete your personal/sports information.</span></div></div>
-                    <div class="hero-step"><div class="hero-step-num">2</div><div><strong>Complete required signatures</strong><span>Sign the waiver and obtain the required parent/guardian and coach signatures.</span></div></div>
-                    <div class="hero-step"><div class="hero-step-num">3</div><div><strong>Visit the clinic</strong><span>Bring the completed form after your enrollment medical requirements have been submitted.</span></div></div>
                   </div>
                 </article>
 
-                <article class="hero-carousel-slide">
-                  <div class="hero-slide-top">
-                    <div class="hero-slide-icon">☎️</div>
-                    <div class="hero-slide-copy">
-                      <span class="hero-slide-chip">Contact &amp; Referral</span>
-                      <h5>Reach the Clinic</h5>
+                <article class="hero-carousel-slide" data-real-index="3" data-tone="contact">
+                  <div class="hero-slide-inner">
+                    <div class="hero-slide-top"><div class="hero-slide-icon">☎️</div><div class="hero-slide-copy"><span class="hero-slide-chip">Contact &amp; Referral</span><h5>Reach the Clinic</h5></div></div>
+                    <p class="hero-slide-lead">Official channels for questions, follow-up coordination, and referrals.</p>
+                    <div class="hero-contact-pills">
+                      <span class="hero-contact-pill">☎️ (032) 402 4060 loc. 1142</span>
+                      <span class="hero-contact-pill">✉️ ctumainmedclinic@gmail.com</span>
+                      <span class="hero-contact-pill">📘 CTU Main Medical Clinic</span>
                     </div>
+                    <div class="hero-referral-note">Persistent symptoms or conditions needing further evaluation may be referred to an appropriate medical facility. For emergencies on campus, proceed directly to the clinic or alert university personnel.</div>
                   </div>
-                  <p class="hero-slide-lead">Use the official clinic contact channels for questions and follow-up coordination.</p>
-                  <div class="hero-contact-pills">
-                    <span class="hero-contact-pill">☎️ (032) 402 4060 loc. 1142</span>
-                    <span class="hero-contact-pill">✉️ ctumainmedclinic@gmail.com</span>
-                    <span class="hero-contact-pill">📘 CTU Main Medical Clinic</span>
-                  </div>
-                  <div class="hero-referral-note">
-                    Persistent symptoms or conditions needing further evaluation may be referred to an appropriate medical facility. For emergencies on campus, proceed directly to the clinic or alert university personnel.
+                </article>
+
+                <!-- clone of the first slide for seamless forward looping -->
+                <article class="hero-carousel-slide" data-clone="first" data-tone="clinic">
+                  <div class="hero-slide-inner">
+                    <div class="hero-slide-top"><div class="hero-slide-icon">🏥</div><div class="hero-slide-copy"><span class="hero-slide-chip">Clinic Overview</span><h5>Visit the Clinic</h5></div></div>
+                    <p class="hero-slide-lead">Quick information for visiting the CTU Main Medical &amp; Dental Clinic.</p>
+                    <div class="hero-mini-grid">
+                      <div class="hero-mini-card"><div class="mini-label">📍 Location</div><p>Ground Floor, Education Building, CTU Main Campus</p></div>
+                      <div class="hero-mini-card"><div class="mini-label">🕗 Medical Hours</div><p>Mon–Fri 8 AM–5 PM · Extended until 9 PM · Weekend hours posted</p></div>
+                      <div class="hero-mini-card"><div class="mini-label">⛑️ Emergencies</div><p>Walk in during clinic hours. Emergency concerns do not require booking.</p></div>
+                      <div class="hero-mini-card"><div class="mini-label">🦷 Dental</div><p>Daily slots are limited. Reserve early through CampusCare.</p></div>
+                    </div>
                   </div>
                 </article>
 
               </div>
             </div>
-
-            <div class="hero-carousel-foot">
-              <button class="hero-carousel-arrow" onclick="moveLandingCarousel(-1)" aria-label="Previous slide">‹</button>
-              <div class="hero-carousel-dots" id="hero-carousel-dots">
-                <button class="hero-carousel-dot active" onclick="setLandingCarousel(0)" aria-label="Clinic overview"></button>
-                <button class="hero-carousel-dot" onclick="setLandingCarousel(1)" aria-label="Graduate School requirements"></button>
-                <button class="hero-carousel-dot" onclick="setLandingCarousel(2)" aria-label="Intramurals guidance"></button>
-                <button class="hero-carousel-dot" onclick="setLandingCarousel(3)" aria-label="Contact and referral"></button>
-              </div>
-              <button class="hero-carousel-arrow" onclick="moveLandingCarousel(1)" aria-label="Next slide">›</button>
-            </div>
-          </div>
+            <div class="hero-swipe-hint"><span></span> DRAG / SWIPE</div>
           </div>
         </div>
       </div>
@@ -6189,41 +6173,47 @@ async function checkReminders(){
 // ================================================================
 
 const LANDING_ROUTE_NAMES=['home','services','about','contact'];
-let landingCarouselIndex=0;
+let landingCarouselIndex=1; // track index: 0 clone-last, 1..4 real, 5 clone-first
 let landingCarouselTimer=null;
+let landingCarouselDragging=false;
+let landingCarouselStartX=0;
+let landingCarouselDeltaX=0;
+let landingCarouselStartTime=0;
 
-function setLandingCarousel(index,resetTimer=true){
-  const track=document.getElementById('hero-carousel-track');
-  const dots=[...document.querySelectorAll('.hero-carousel-dot')];
-  const slides=[...document.querySelectorAll('.hero-carousel-slide')];
-  if(!track||!dots.length)return;
-
-  const count=dots.length;
-  landingCarouselIndex=((Number(index)||0)%count+count)%count;
-  track.style.transform=`translateX(-${landingCarouselIndex*100}%)`;
-
-  dots.forEach((dot,i)=>dot.classList.toggle('active',i===landingCarouselIndex));
-  slides.forEach((slide,i)=>slide.classList.toggle('active',i===landingCarouselIndex));
-
-  const counter=document.getElementById('hero-carousel-counter');
-  if(counter){
-    const current=String(landingCarouselIndex+1).padStart(2,'0');
-    const total=String(count).padStart(2,'0');
-    counter.textContent=`${current} / ${total}`;
-  }
-
-  const progress=document.getElementById('hero-carousel-progress');
-  if(progress){
-    progress.classList.remove('running');
-    void progress.offsetWidth;
-    progress.classList.add('running');
-  }
-
-  if(resetTimer)startLandingCarouselTimer();
+function getLandingCarouselParts(){
+  return {
+    carousel:document.getElementById('landing-swipe-carousel'),
+    track:document.getElementById('hero-carousel-track'),
+    slides:[...document.querySelectorAll('#hero-carousel-track .hero-carousel-slide')]
+  };
 }
 
-function moveLandingCarousel(step){
-  setLandingCarousel(landingCarouselIndex+Number(step||0));
+function positionLandingCarousel(index,{animate=true,pixels=0}={}){
+  const {carousel,track}=getLandingCarouselParts();
+  if(!carousel||!track)return;
+
+  const width=carousel.clientWidth||1;
+  landingCarouselIndex=index;
+
+  track.classList.toggle('animating',Boolean(animate));
+  const x=-(landingCarouselIndex*width)+Number(pixels||0);
+  track.style.transform=`translate3d(${x}px,0,0)`;
+}
+
+function normalizeLandingCarouselLoop(){
+  const {track}=getLandingCarouselParts();
+  if(!track)return;
+
+  if(landingCarouselIndex===5){
+    positionLandingCarousel(1,{animate:false});
+  }else if(landingCarouselIndex===0){
+    positionLandingCarousel(4,{animate:false});
+  }
+}
+
+function moveLandingCarousel(step=1){
+  if(landingCarouselDragging)return;
+  positionLandingCarousel(landingCarouselIndex+Number(step||0),{animate:true});
 }
 
 function startLandingCarouselTimer(){
@@ -6231,36 +6221,94 @@ function startLandingCarouselTimer(){
   landingCarouselTimer=setInterval(()=>{
     const landing=document.getElementById('landing-page');
     const home=document.querySelector('[data-landing-route="home"]');
-    if(landing?.style.display==='none'||!home?.classList.contains('active'))return;
-    setLandingCarousel(landingCarouselIndex+1,false);
-  },6500);
+    if(landing?.style.display==='none'||!home?.classList.contains('active')||landingCarouselDragging)return;
+    moveLandingCarousel(1);
+  },5200);
+}
+
+function pauseLandingCarouselTimer(){
+  if(landingCarouselTimer){
+    clearInterval(landingCarouselTimer);
+    landingCarouselTimer=null;
+  }
 }
 
 function initializeLandingCarouselInteractions(){
-  const carousel=document.querySelector('.hero-info-carousel');
-  if(!carousel||carousel.dataset.interactionsReady==='1')return;
+  const {carousel,track}=getLandingCarouselParts();
+  if(!carousel||!track||carousel.dataset.interactionsReady==='1')return;
+
   carousel.dataset.interactionsReady='1';
 
-  const pause=()=>{
-    if(landingCarouselTimer){
-      clearInterval(landingCarouselTimer);
-      landingCarouselTimer=null;
-    }
-    document.getElementById('hero-carousel-progress')?.classList.remove('running');
-  };
-  const resume=()=>{
-    const home=document.querySelector('[data-landing-route="home"]');
-    if(home?.classList.contains('active')){
-      setLandingCarousel(landingCarouselIndex,false);
-      startLandingCarouselTimer();
-    }
+  // Start on the first real slide, not on a clone.
+  requestAnimationFrame(()=>positionLandingCarousel(1,{animate:false}));
+
+  track.addEventListener('transitionend',()=>{
+    normalizeLandingCarouselLoop();
+  });
+
+  const pointerX=e=>e.clientX ?? (e.touches?.[0]?.clientX||0);
+
+  const beginDrag=e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    landingCarouselDragging=true;
+    landingCarouselStartX=pointerX(e);
+    landingCarouselDeltaX=0;
+    landingCarouselStartTime=performance.now();
+    carousel.classList.add('dragging');
+    track.classList.remove('animating');
+    pauseLandingCarouselTimer();
+    try{carousel.setPointerCapture?.(e.pointerId);}catch(_){}
   };
 
-  carousel.addEventListener('mouseenter',pause);
-  carousel.addEventListener('mouseleave',resume);
-  carousel.addEventListener('focusin',pause);
-  carousel.addEventListener('focusout',e=>{
-    if(!carousel.contains(e.relatedTarget))resume();
+  const drag=e=>{
+    if(!landingCarouselDragging)return;
+    landingCarouselDeltaX=pointerX(e)-landingCarouselStartX;
+
+    // Add a small resistance so the slide remains controlled during a fast drag.
+    const width=carousel.clientWidth||1;
+    const limited=Math.max(-width*.92,Math.min(width*.92,landingCarouselDeltaX));
+    positionLandingCarousel(landingCarouselIndex,{animate:false,pixels:limited});
+
+    if(e.cancelable&&Math.abs(landingCarouselDeltaX)>8)e.preventDefault();
+  };
+
+  const endDrag=e=>{
+    if(!landingCarouselDragging)return;
+    landingCarouselDragging=false;
+    carousel.classList.remove('dragging');
+
+    const width=carousel.clientWidth||1;
+    const elapsed=Math.max(1,performance.now()-landingCarouselStartTime);
+    const velocity=Math.abs(landingCarouselDeltaX)/elapsed;
+    const shouldChange=Math.abs(landingCarouselDeltaX)>width*.16||velocity>.55;
+
+    if(shouldChange){
+      moveLandingCarousel(landingCarouselDeltaX<0?1:-1);
+    }else{
+      positionLandingCarousel(landingCarouselIndex,{animate:true});
+    }
+
+    landingCarouselDeltaX=0;
+    startLandingCarouselTimer();
+    try{carousel.releasePointerCapture?.(e.pointerId);}catch(_){}
+  };
+
+  carousel.addEventListener('pointerdown',beginDrag);
+  carousel.addEventListener('pointermove',drag);
+  carousel.addEventListener('pointerup',endDrag);
+  carousel.addEventListener('pointercancel',endDrag);
+  carousel.addEventListener('mouseleave',e=>{
+    if(landingCarouselDragging&&e.buttons===0)endDrag(e);
+  });
+
+  // Keyboard access remains available even though visible arrow controls were removed.
+  carousel.addEventListener('keydown',e=>{
+    if(e.key==='ArrowLeft'){e.preventDefault();pauseLandingCarouselTimer();moveLandingCarousel(-1);startLandingCarouselTimer();}
+    if(e.key==='ArrowRight'){e.preventDefault();pauseLandingCarouselTimer();moveLandingCarousel(1);startLandingCarouselTimer();}
+  });
+
+  window.addEventListener('resize',()=>{
+    if(!landingCarouselDragging)positionLandingCarousel(landingCarouselIndex,{animate:false});
   });
 }
 
@@ -6289,7 +6337,12 @@ function showLandingRoute(route='home',updateHash=true){
   if(nl)nl.classList.remove('mobile-show');
 
   window.scrollTo(0,0);
-  if(clean==='home')startLandingCarouselTimer();
+  if(clean==='home'){
+    initializeLandingCarouselInteractions();
+    startLandingCarouselTimer();
+  }else{
+    pauseLandingCarouselTimer();
+  }
 
   if(updateHash){
     const nextHash=`#page=${clean}`;
@@ -6322,7 +6375,6 @@ function initializeLandingRouting(){
   const hash=String(window.location.hash||'');
   const match=hash.match(/^#page=(home|services|about|contact)$/);
   showLandingRoute(match?match[1]:'home',false);
-  setLandingCarousel(0,false);
   initializeLandingCarouselInteractions();
   startLandingCarouselTimer();
 
@@ -17380,7 +17432,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v55 loaded.');
+console.log('CampusCare v56 loaded.');
 </script>
 </body>
 </html>
