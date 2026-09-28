@@ -1570,6 +1570,69 @@ tbody tr:hover td{background:var(--overlay)}
   .approval-preview-body{height:260px}
 }
 
+
+/* v66 attention badges + date-first booking */
+.tab-task-count{
+  min-width:18px;
+  height:18px;
+  margin-left:.32rem;
+  padding:0 5px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  background:var(--overlay-strong);
+  border:1px solid var(--glass-border-soft);
+  color:var(--ink-muted);
+  font-size:.58rem;
+  font-weight:850;
+  line-height:1;
+  font-variant-numeric:tabular-nums;
+  vertical-align:middle;
+}
+.tab-task-count.attention{
+  background:var(--danger);
+  border-color:rgba(255,255,255,.28);
+  color:#fff;
+  box-shadow:0 3px 10px rgba(198,40,40,.24);
+}
+.booking-readonly-patient{
+  min-height:42px;
+  display:flex;
+  align-items:center;
+  gap:.62rem;
+  padding:.58rem .7rem;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--overlay);
+}
+.booking-readonly-patient .booking-patient-icon{
+  width:30px;height:30px;
+  flex:0 0 30px;
+  display:grid;place-items:center;
+  border-radius:9px;
+  background:var(--primary-soft);
+  color:var(--primary);
+}
+.booking-readonly-patient strong{
+  display:block;
+  color:var(--ink);
+  font-size:.77rem;
+  line-height:1.25;
+}
+.booking-readonly-patient small{
+  display:block;
+  color:var(--ink-muted);
+  font-size:.62rem;
+  margin-top:.12rem;
+}
+.booking-doctor-note{
+  margin-top:.3rem;
+  color:var(--ink-muted);
+  font-size:.64rem;
+  line-height:1.4;
+}
+
 /* ===RESPONSIVE=== */
 @media(max-width:768px){
   #sidebar{transform:translateX(-100%);transition:.25s;box-shadow:var(--glass-shadow-lg)}
@@ -6954,8 +7017,15 @@ async function syncRealNotifications(){
 }
 
 function notificationPageFor(n){
-  if(n.actionPage==='privacy-center')return 'my-account';
-  if(n.actionPage)return n.actionPage;
+  const action=String(n.actionPage||'').trim();
+  const aliases={
+    'privacy-center':'my-account',
+    'certificate-signatures':'cert-requests',
+    'certificate-requests':'cert-requests',
+    'patient-messages':'messages',
+    'my-messages':'messages'
+  };
+  if(action)return aliases[action]||action;
 
   const type=String(n.type||'').toLowerCase();
   if(type.includes('appointment'))return currentUser.role==='Patient'?'my-appointments':'appointments';
@@ -8951,8 +9021,30 @@ const NAV_CONFIG={
 
 
 let navTaskCounts={};
+let navTaskItems={};
+let navTaskSeen={};
 let navBadgeTimer=null;
 let navBadgeLastFetch=0;
+
+function taskBadgeSeenKey(){
+  if(!currentUser)return 'campuscare-task-seen-anon';
+  const uid=currentUser.dbUserId||currentUser.id||currentUser.email||'user';
+  return `campuscare-task-seen-${uid}`;
+}
+
+function loadTaskBadgeSeen(){
+  try{
+    const parsed=JSON.parse(localStorage.getItem(taskBadgeSeenKey())||'{}');
+    navTaskSeen=parsed&&typeof parsed==='object'?parsed:{};
+  }catch(_){
+    navTaskSeen={};
+  }
+}
+
+function saveTaskBadgeSeen(){
+  try{localStorage.setItem(taskBadgeSeenKey(),JSON.stringify(navTaskSeen||{}));}
+  catch(_){}
+}
 
 function navNotificationCounts(){
   const counts={};
@@ -8965,41 +9057,65 @@ function navNotificationCounts(){
   return counts;
 }
 
-function demoTaskBadgeCounts(){
-  if(!currentUser)return {};
+function demoTaskBadgeSnapshot(){
+  if(!currentUser)return {counts:{},items:{}};
   const role=currentUser.role;
-  const counts={};
+  const counts={},items={};
+  const set=(page,rows,tokenFn)=>{
+    items[page]=(rows||[]).map(tokenFn);
+    counts[page]=items[page].length;
+  };
 
-  counts.messages=messageRecords().filter(
-    m=>m.toUserId===currentUser.id&&!m.isRead&&!m.deleted
-  ).length;
+  set('messages',
+    messageRecords().filter(m=>m.toUserId===currentUser.id&&!m.isRead&&!m.deleted),
+    m=>`message:${m.id}`
+  );
 
   if(role==='Administrator'||role==='Staff'){
-    counts.approvals=(DB.users||[]).filter(u=>u.role==='Patient'&&u.status==='Pending').length;
-    counts['cert-requests']=certificateRecords().filter(r=>r.status==='Pending').length;
-    counts.fitness=fitnessRecords().filter(r=>r.status==='Requested').length;
-    counts.inventory=inventoryRecords().filter(
-      i=>!i.archived&&Number(i.quantity)<=Number(i.threshold)
-    ).length;
+    set('approvals',
+      (DB.users||[]).filter(u=>u.role==='Patient'&&u.status==='Pending'),
+      u=>`approval:${u.id}:${u.createdAt||''}`
+    );
+    set('cert-requests',
+      certificateRecords().filter(r=>r.status==='Pending'),
+      r=>`certificate:${r.id}:${r.updatedAt||r.requestedAt||''}`
+    );
+    set('fitness',
+      fitnessRecords().filter(r=>r.status==='Requested'),
+      r=>`fitness:${r.id}:${r.updatedAt||r.requestedAt||''}`
+    );
+    set('inventory',
+      inventoryRecords().filter(i=>!i.archived&&Number(i.quantity)<=Number(i.threshold)),
+      i=>`inventory:${i.id}:${i.updatedAt||i.quantity}`
+    );
   }
 
   if(role==='Doctor'){
-    counts['cert-requests']=certificateRecords().filter(
-      r=>r.status==='Awaiting Signature'&&r.doctorId===currentUser.id
-    ).length;
-    counts.fitness=fitnessRecords().filter(
-      r=>(r.status==='Requested'&&!r.doctorId)||
-        (r.status==='In Assessment'&&r.doctorId===currentUser.id)
-    ).length;
+    set('cert-requests',
+      certificateRecords().filter(r=>r.status==='Awaiting Signature'&&r.doctorId===currentUser.id),
+      r=>`certificate:${r.id}:${r.updatedAt||r.requestedAt||''}`
+    );
+    set('fitness',
+      fitnessRecords().filter(
+        r=>(r.status==='Requested'&&!r.doctorId)||
+          (r.status==='In Assessment'&&r.doctorId===currentUser.id)
+      ),
+      r=>`fitness:${r.id}:${r.updatedAt||r.requestedAt||''}`
+    );
   }
 
   if(role==='Administrator'){
-    counts['feedback-issues']=issueReportRecords().filter(
-      r=>['Open','In Review'].includes(r.status)
-    ).length;
-    counts.users=workflowRequestRecords().filter(r=>r.status==='Pending').length;
+    set('feedback-issues',
+      issueReportRecords().filter(r=>['Open','In Review'].includes(r.status)),
+      r=>`issue:${r.id}:${r.updatedAt||r.createdAt||''}`
+    );
+    set('users',
+      workflowRequestRecords().filter(r=>r.status==='Pending'),
+      r=>`workflow:${r.id}:${r.updatedAt||r.createdAt||''}`
+    );
   }
-  return counts;
+
+  return {counts,items};
 }
 
 async function taskBadgeAction(){
@@ -9016,14 +9132,20 @@ async function taskBadgeAction(){
   return result;
 }
 
-function navBadgeCountFor(id,notificationCounts=null){
-  const n=notificationCounts||navNotificationCounts();
-  const tasks=Number(navTaskCounts[id]||0);
-  const updates=Number(n[id]||0);
+function unseenTaskCount(id){
+  const current=new Set(navTaskItems[id]||[]);
+  const seen=new Set(navTaskSeen[id]||[]);
+  let total=0;
+  current.forEach(token=>{if(!seen.has(token))total+=1;});
+  return total;
+}
 
-  // A task can also have produced a notification, so use the larger count
-  // rather than double-counting the same underlying item.
-  return Math.max(tasks,updates);
+function navBadgeCountFor(id,notificationCounts=null){
+  const updates=Number((notificationCounts||navNotificationCounts())[id]||0);
+  const unseenTasks=unseenTaskCount(id);
+  // A workflow task often creates a notification too. Show the larger
+  // attention count instead of counting the same event twice.
+  return Math.max(unseenTasks,updates);
 }
 
 function applyNavBadges(){
@@ -9045,11 +9167,54 @@ function applyNavBadges(){
         btn.appendChild(badge);
       }
       badge.textContent=count>99?'99+':String(count);
-      badge.title=`${count} pending task${count===1?'':'s'} or new update${count===1?'':'s'}`;
+      badge.title=`${count} new item${count===1?'':'s'} requiring attention`;
       badge.setAttribute('aria-label',badge.title);
     }else if(badge){
       badge.remove();
     }
+  }
+}
+
+async function acknowledgeNavAttention(id){
+  if(!currentUser||!id)return;
+
+  const current=navTaskItems[id]||[];
+  if(current.length){
+    const seen=new Set(navTaskSeen[id]||[]);
+    current.forEach(token=>seen.add(token));
+    navTaskSeen[id]=[...seen].slice(-500);
+    saveTaskBadgeSeen();
+  }
+
+  // Opening a page also acknowledges unread notifications that lead
+  // to that page. Exact unresolved task counts remain visible inside
+  // the page itself (for example on certificate status tabs).
+  const related=notificationRecords().filter(
+    n=>n.userId===currentUser.id&&!n.read&&notificationPageFor(n)===id
+  );
+
+  related.forEach(n=>{n.read=true;});
+  applyNavBadges();
+  renderNotifList();
+
+  const count=document.getElementById('notif-count');
+  const unread=notificationRecords().filter(n=>n.userId===currentUser.id&&!n.read);
+  if(count){
+    if(unread.length){
+      count.textContent=unread.length>99?'99+':String(unread.length);
+      count.hidden=false;
+    }else{
+      count.textContent='';
+      count.hidden=true;
+    }
+  }
+
+  if(currentUser._realSupabase&&related.length){
+    Promise.allSettled(
+      related
+        .filter(n=>n.dbNotificationId)
+        .map(n=>notificationCenterAction({action:'read',notification_id:n.dbNotificationId}))
+    ).catch(()=>{});
   }
 }
 
@@ -9062,19 +9227,40 @@ async function refreshTaskBadges(force=false){
   }
 
   try{
-    navTaskCounts=currentUser._realSupabase
-      ? (await taskBadgeAction()).counts||{}
-      : demoTaskBadgeCounts();
+    if(currentUser._realSupabase){
+      const result=await taskBadgeAction();
+      navTaskCounts=result.counts||{};
+      navTaskItems=result.items||{};
+    }else{
+      const snapshot=demoTaskBadgeSnapshot();
+      navTaskCounts=snapshot.counts;
+      navTaskItems=snapshot.items;
+    }
     navBadgeLastFetch=Date.now();
+
+    // If the user is already viewing a task page while the first/next
+    // refresh arrives, those current items are considered seen. The
+    // unresolved total remains visible inside the page itself.
+    if(campusActivePageId&&(navTaskItems[campusActivePageId]||[]).length){
+      const seen=new Set(navTaskSeen[campusActivePageId]||[]);
+      (navTaskItems[campusActivePageId]||[]).forEach(token=>seen.add(token));
+      navTaskSeen[campusActivePageId]=[...seen].slice(-500);
+      saveTaskBadgeSeen();
+    }
   }catch(e){
     console.error('Task badge refresh:',e);
-    if(!currentUser._realSupabase)navTaskCounts=demoTaskBadgeCounts();
+    if(!currentUser._realSupabase){
+      const snapshot=demoTaskBadgeSnapshot();
+      navTaskCounts=snapshot.counts;
+      navTaskItems=snapshot.items;
+    }
   }
   applyNavBadges();
 }
 
 function startTaskBadgeRefresh(){
   if(navBadgeTimer)clearInterval(navBadgeTimer);
+  loadTaskBadgeSeen();
   refreshTaskBadges(true);
   navBadgeTimer=setInterval(()=>{
     if(currentUser)refreshTaskBadges(true);
@@ -9148,6 +9334,7 @@ function navTo(id){
     messages:'Messages'
   }[id]||id;
   renderPage(id);
+  void acknowledgeNavAttention(id);
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -16530,7 +16717,7 @@ function certEditorToolbarHtml(){
   </div>`;
 }
 
-async function renderCertRequests(filter='Pending'){
+async function renderCertRequests(filter=null){
   const c=document.getElementById('app-content');
   if(!c)return;
   const pageToken=captureCampusPageToken();
@@ -16551,15 +16738,26 @@ async function renderCertRequests(filter='Pending'){
   const canPrepare=currentUser.role==='Staff'||currentUser.role==='Administrator';
   const canSign=currentUser.role==='Doctor';
 
+  if(!filter)filter=currentUser.role==='Doctor'?'Awaiting Signature':'Pending';
+
   let all=certificateRecords().slice().sort((a,b)=>String(b.requestedAt).localeCompare(String(a.requestedAt))||b.id-a.id);
   if(currentUser.role==='Doctor')all=all.filter(r=>r.doctorId===currentUser.id);
 
   const list=filter==='all'?all:all.filter(r=>r.status===filter);
   const tabs=['Pending','Awaiting Signature','Issued','Declined','Cancelled','all'];
+  const tabCounts={};
+  for(const t of tabs){
+    tabCounts[t]=t==='all'?all.length:all.filter(r=>r.status===t).length;
+  }
+  const actionableStatus=currentUser.role==='Doctor'?'Awaiting Signature':'Pending';
 
   c.innerHTML=`<div class="card">
     <div class="card-header"><div><h3>Medical Certificate Requests</h3><div class="text-muted">${currentUser.role==='Doctor'?'Review the prepared document and add your signature.':currentUser.role==='Staff'?'Prepare the certificate document and send it to the assigned doctor.':'Prepare certificates and monitor doctor signatures.'}</div></div></div>
-    <div class="tabs">${tabs.map(t=>`<button class="tab ${t===filter?'active':''}" onclick="renderCertRequests('${t}')">${t==='all'?'All':t}</button>`).join('')}</div>
+    <div class="tabs">${tabs.map(t=>{
+      const count=tabCounts[t]||0;
+      const badge=count?`<span class="tab-task-count ${t===actionableStatus?'attention':''}">${count>99?'99+':count}</span>`:'';
+      return `<button class="tab ${t===filter?'active':''}" onclick="renderCertRequests('${t}')">${t==='all'?'All':t}${badge}</button>`;
+    }).join('')}</div>
     ${list.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>Purpose</th><th>Physician</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead><tbody>${list.map(r=>{
       const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null,physician=getUserById(r.doctorId);
       const prepareBtn=canPrepare&&(r.status==='Pending'||r.status==='Awaiting Signature'||r.status==='Issued')?`<button class="btn btn-xs btn-info" onclick="openEditCertModal(${r.id})">${r.status==='Issued'?'Edit / Re-sign':'✎ Prepare / Edit'}</button>`:'';
@@ -17069,7 +17267,8 @@ function zoomImageStep(delta){
 const modernCalendarState={};
 function initModernCalendar(id,selectedDate=TODAY,minDate='',callbackName='',options={}){
   const base=(selectedDate||TODAY);
-  modernCalendarState[id]={selected:base,minDate:minDate||'',callbackName,viewMonth:base.slice(0,7),...options};
+  const selected=options.allowEmptySelection?(selectedDate||''):base;
+  modernCalendarState[id]={selected,minDate:minDate||'',callbackName,viewMonth:base.slice(0,7),...options};
   renderModernCalendar(id);
 }
 function modernCalendarShift(id,delta){
@@ -17096,6 +17295,7 @@ function modernCalendarGoToday(id){
   const target=st.minDate&&TODAY<st.minDate?st.minDate:TODAY;
   st.viewMonth=target.slice(0,7);
   st.selected=target;
+  if(st.callbackName&&typeof window[st.callbackName]==='function')window[st.callbackName](target);
   renderModernCalendar(id);
 }
 function modernCalendarSelect(id,date){
@@ -17321,14 +17521,90 @@ function openAssistedPatientCamera(kind){
 }
 
 // ── Book Appointment ──
+let activeBookingEditId=null;
+
+function doctorOpenSlotCount(doc,date){
+  if(!doc||!date)return 0;
+  if(DB.doctorLeaves.some(l=>l.doctorId===doc.id&&l.date===date))return 0;
+
+  const dayName=dayOfWeek(date);
+  const workDays=doc.workDays||['Mon','Tue','Wed','Thu','Fri'];
+  if(!workDays.includes(dayName))return 0;
+
+  const taken=new Set(
+    appointmentRecords()
+      .filter(a=>
+        a.id!==Number(activeBookingEditId) &&
+        a.doctorId===doc.id &&
+        a.date===date &&
+        a.status!=='Cancelled'
+      )
+      .map(a=>a.time)
+  );
+
+  return appointmentSlotBaseTimes(doc).filter(t=>{
+    if(taken.has(t))return false;
+    const state=slotAvailabilityState(doc,date,t);
+    return !state.blocked;
+  }).length;
+}
+
+function refreshAvailableDoctorsForDate(preferredDoctorId=null){
+  const date=(document.getElementById('b-date')||{}).value||'';
+  const clinic=(document.getElementById('b-clinic')||{}).value||'Medical Clinic';
+  const docSelect=document.getElementById('b-doc');
+  const note=document.getElementById('b-doctor-note');
+  const time=document.getElementById('b-time');
+  if(!docSelect)return;
+
+  if(time)time.value='';
+
+  if(!date){
+    docSelect.innerHTML='<option value="">Select an appointment date first</option>';
+    docSelect.disabled=true;
+    if(note)note.textContent='Choose a date to see doctors who are actually available that day.';
+    loadTimeSlots();
+    return;
+  }
+
+  const baseDoctors=clinic==='Dental Clinic'?getDentalDoctors():getMedDoctors();
+  const available=baseDoctors
+    .map(d=>({doctor:d,slots:doctorOpenSlotCount(d,date)}))
+    .filter(x=>x.slots>0);
+
+  if(!available.length){
+    docSelect.innerHTML='<option value="">No doctors available on this date</option>';
+    docSelect.disabled=true;
+    if(note)note.textContent=`No ${clinic==='Dental Clinic'?'dental':'medical'} doctor has an open appointment slot on ${fmtDate(date)}. Please choose another date.`;
+    loadTimeSlots();
+    return;
+  }
+
+  docSelect.disabled=false;
+  docSelect.innerHTML=available.map(({doctor,slots})=>
+    `<option value="${doctor.id}">${escapeHtml(docName(doctor))} — ${escapeHtml(doctor.specialty||'General Medicine')} · ${slots} open slot${slots===1?'':'s'}</option>`
+  ).join('');
+
+  const preferred=Number(preferredDoctorId||0);
+  if(preferred&&available.some(x=>x.doctor.id===preferred))docSelect.value=String(preferred);
+  else docSelect.value=String(available[0].doctor.id);
+
+  if(note){
+    note.textContent=available.length===1
+      ? `${docName(available[0].doctor)} is available on ${fmtDate(date)}.`
+      : `${available.length} doctors have open slots on ${fmtDate(date)}. Choose the doctor you prefer.`;
+  }
+
+  loadTimeSlots();
+}
+
 function openBookApptModal(apptId=null){
-  const editing=apptId?appointmentRecords().find(a=>a.id===apptId):null;
+  activeBookingEditId=apptId?Number(apptId):null;
+  const editing=apptId?appointmentRecords().find(a=>a.id===Number(apptId)):null;
   const isPt=currentUser.role==='Patient';
   const pt=isPt?currentPatient:null;
-  const patientOptions=isPt?`<option value="${pt?pt.id:''}">${pt?pt.fname+' '+pt.lname:'No record'}</option>`:
-    DB.patients.map(p=>`<option value="${p.id}" ${editing&&editing.patientId===p.id?'selected':''}>${p.fname} ${p.lname} (${p.college})</option>`).join('');
-  const realDoctors=getDoctors();
-  const doctorOptions=realDoctors.map(d=>`<option value="${d.id}" data-specialty="${d.specialty||'General'}" ${editing&&editing.doctorId===d.id?'selected':''}>${docName(d)} – ${d.specialty||'General'}</option>`).join('');
+  const selectedDate=editing?editing.date:'';
+
   openModal(`<div class="modal">
     <div class="modal-header"><h3>${editing?'Reschedule':'Book'} Appointment</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
     <div class="modal-body">
@@ -17337,47 +17613,75 @@ function openBookApptModal(apptId=null){
       <div class="alert alert-info show" style="font-size:.77rem">
         📍 <strong>Clinic location:</strong> Ground Floor, Education Building, CTU Main Campus.<br>
         🕗 <strong>Posted Medical Clinic hours:</strong> Mon–Fri 8:00 AM–5:00 PM; extended Mon–Fri 5:00 PM–9:00 PM; Sat 8:00 AM–9:00 PM; Sun 8:00 AM–5:00 PM.<br>
-        Appointment slots below are based on the selected doctor's actual CampusCare schedule.
+        Select an appointment date first. CampusCare will then show only doctors with open slots on that day.
       </div>
+
       <div class="form-row">
-        <div class="form-group ${isPt?'full':''}"><label>Patient <span class="required">*</span></label>
-          ${isPt?`<select id="b-pt" disabled>${patientOptions}</select>`:`<input type="hidden" id="b-pt" value="${editing?editing.patientId:''}"><div class="patient-combobox"><input type="search" id="b-pt-search" autocomplete="off" placeholder="Search patient by name, ID, or college…" value="${editing?(()=>{const p=getPatientById(editing.patientId);return p?escapeHtml(p.fname+' '+p.lname):''})():''}" oninput="filterBookPatients(this.value)"><div class="patient-combobox-list" id="b-pt-results"></div></div>`}
+        <div class="form-group ${isPt?'full':''}">
+          <label>Patient <span class="required">*</span></label>
+          ${isPt
+            ?`<input type="hidden" id="b-pt" value="${pt?pt.id:''}">
+              <div class="booking-readonly-patient">
+                <span class="booking-patient-icon"><i class="bi bi-person-check"></i></span>
+                <div><strong>${pt?escapeHtml(pt.fname+' '+pt.lname):'No patient record linked'}</strong><small>Your signed-in patient profile is used automatically.</small></div>
+              </div>`
+            :`<input type="hidden" id="b-pt" value="${editing?editing.patientId:''}">
+              <div class="patient-combobox">
+                <input type="search" id="b-pt-search" autocomplete="off" placeholder="Search patient by name, ID, or college…" value="${editing?(()=>{const p=getPatientById(editing.patientId);return p?escapeHtml(p.fname+' '+p.lname):''})():''}" oninput="filterBookPatients(this.value)">
+                <div class="patient-combobox-list" id="b-pt-results"></div>
+              </div>`}
         </div>
         ${!isPt?`<div class="form-group"><label>Priority</label>
           <select id="b-priority"><option>Student</option><option>Teaching</option><option>Non-Teaching</option></select>
         </div>`:''}
       </div>
+
       <div class="form-row">
         <div class="form-group"><label>Clinic <span class="required">*</span></label>
-          <select id="b-clinic" onchange="onClinicChange()"${isPt?' ':''}>
+          <select id="b-clinic" onchange="onClinicChange()">
             <option value="Medical Clinic" ${editing&&editing.clinic==='Medical Clinic'?'selected':''}>Medical Clinic</option>
             <option value="Dental Clinic" ${editing&&editing.clinic==='Dental Clinic'?'selected':''}>Dental Clinic</option>
           </select>
         </div>
         <div class="form-group"><label>Service <span class="required">*</span></label>
-          <select id="b-service">
-            <option>General Checkup</option><option>Follow-up</option><option>Consultation</option><option>Physical Exam</option>
-            <option>Dental Checkup</option><option>Tooth Extraction</option><option>Dental Cleaning</option><option>Dental X-ray</option>
-          </select>
+          <select id="b-service"></select>
         </div>
       </div>
-      <div class="form-row">
-        <div class="form-group"><label>Doctor <span class="required">*</span></label>
-          <select id="b-doc" onchange="loadTimeSlots()">${doctorOptions||'<option value="">No active doctors available</option>'}</select>
-        </div>
-        <div class="form-group"><label>Selected Date <span class="required">*</span></label>
-          <input type="hidden" id="b-date" value="${editing?editing.date:TODAY}">
-          <div class="modern-date-btn" style="cursor:default;justify-content:flex-start"><i class="bi bi-calendar3"></i><span id="b-date-label">${fmtDate(editing?editing.date:TODAY)}</span></div>
+
+      <div class="form-group full">
+        <label>Selected Date <span class="required">*</span></label>
+        <input type="hidden" id="b-date" value="${selectedDate}">
+        <div class="modern-date-btn" style="cursor:default;justify-content:flex-start">
+          <i class="bi bi-calendar3"></i>
+          <span id="b-date-label">${selectedDate?fmtDate(selectedDate):'Select appointment date'}</span>
         </div>
       </div>
-      <div class="form-group full"><label>Choose Appointment Date</label><div class="booking-calendar-wrap"><div id="booking-modern-calendar"></div></div></div>
-      <div class="form-group"><div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap"><label>Available Time Slots</label>${['Staff','Administrator'].includes(currentUser.role)?`<button type="button" class="btn btn-xs" onclick="openManageDateSlots()"><i class="bi bi-clock"></i> Manage slots for this date</button>`:''}</div>
-        <div id="slot-grid" class="slot-grid" style="min-height:40px"><span class="text-muted" style="font-size:.78rem">Select a doctor and date to see available slots.</span></div>
+
+      <div class="form-group full">
+        <label>Choose Appointment Date</label>
+        <div class="booking-calendar-wrap"><div id="booking-modern-calendar"></div></div>
+      </div>
+
+      <div class="form-group full">
+        <label>Available Doctor <span class="required">*</span></label>
+        <select id="b-doc" onchange="loadTimeSlots()" disabled>
+          <option value="">Select an appointment date first</option>
+        </select>
+        <div class="booking-doctor-note" id="b-doctor-note">Choose a date to see doctors who are actually available that day.</div>
+      </div>
+
+      <div class="form-group">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
+          <label>Available Time Slots</label>
+          ${['Staff','Administrator'].includes(currentUser.role)?`<button type="button" class="btn btn-xs" onclick="openManageDateSlots()"><i class="bi bi-clock"></i> Manage slots for this date</button>`:''}
+        </div>
+        <div id="slot-grid" class="slot-grid" style="min-height:40px"><span class="text-muted" style="font-size:.78rem">Select an appointment date to see available doctors and time slots.</span></div>
         <div class="form-note">Booked, past, lunch-break, and manually unavailable slots are clearly marked and cannot be selected.</div>
         <input type="hidden" id="b-time" value="${editing?editing.time:''}">
       </div>
+
       <div class="form-group full"><label>Reason / Chief Complaint</label>
-        <textarea id="b-reason" rows="2">${editing?editing.reason:''}</textarea>
+        <textarea id="b-reason" rows="2">${editing?escapeHtml(editing.reason||''):''}</textarea>
       </div>
     </div>
     <div class="modal-footer">
@@ -17385,36 +17689,60 @@ function openBookApptModal(apptId=null){
       <button class="btn btn-primary" onclick="saveAppt(${apptId||'null'})">Confirm Booking</button>
     </div>
   </div>`);
-  initModernCalendar('booking-modern-calendar',editing?editing.date:TODAY,TODAY,'chooseBookingDate');
-  if(editing)loadTimeSlots();
-  onClinicChange();
+
+  initModernCalendar(
+    'booking-modern-calendar',
+    selectedDate,
+    TODAY,
+    'chooseBookingDate',
+    {allowEmptySelection:!selectedDate}
+  );
+
+  onClinicChange(editing?.doctorId||null);
+
+  if(editing){
+    const service=document.getElementById('b-service');
+    if(service&&Array.from(service.options).some(o=>o.value===editing.service||o.text===editing.service)){
+      service.value=editing.service;
+    }
+    refreshAvailableDoctorsForDate(editing.doctorId);
+    const time=document.getElementById('b-time');
+    if(time)time.value=editing.time||'';
+    loadTimeSlots();
+  }
+
   checkDentalWarn();
 }
 
-function chooseBookingDate(date){
+function chooseBookingDate(date,preferredDoctorId=null){
   const input=document.getElementById('b-date');
   const label=document.getElementById('b-date-label');
   const time=document.getElementById('b-time');
+
   if(input)input.value=date;
   if(label)label.textContent=fmtDate(date);
   if(time)time.value='';
-  loadTimeSlots();
+
+  refreshAvailableDoctorsForDate(preferredDoctorId);
 }
 
-function onClinicChange(){
+function onClinicChange(preferredDoctorId=null){
   const clinic=document.getElementById('b-clinic');
   const svc=document.getElementById('b-service');
   const doc=document.getElementById('b-doc');
   if(!clinic||!svc||!doc)return;
+
   const isDental=clinic.value==='Dental Clinic';
   const medSvcs=['General Checkup','Follow-up','Consultation','Physical Exam'];
   const dentSvcs=['Dental Checkup','Tooth Extraction','Dental Cleaning','Dental X-ray'];
   const svcs=isDental?dentSvcs:medSvcs;
+  const previousService=svc.value;
+
   svc.innerHTML=svcs.map(s=>`<option>${s}</option>`).join('');
-  const docs=isDental?getDentalDoctors():getMedDoctors();
-  doc.innerHTML=docs.map(d=>`<option value="${d.id}">${docName(d)} – ${d.specialty}</option>`).join('');
+  if(svcs.includes(previousService))svc.value=previousService;
+
   checkDentalWarn();
-  loadTimeSlots();
+  refreshAvailableDoctorsForDate(preferredDoctorId);
 }
 
 function checkDentalWarn(){
@@ -17506,8 +17834,7 @@ async function saveManagedDateSlots(docId,date){
       const pt=document.getElementById('b-pt'),clinic=document.getElementById('b-clinic'),docEl=document.getElementById('b-doc'),reason=document.getElementById('b-reason');
       if(pt&&!pt.disabled)pt.value=draft.patientId;
       if(clinic){clinic.value=draft.clinic;onClinicChange();}
-      if(docEl)docEl.value=draft.doctorId;
-      chooseBookingDate(draft.date);
+      chooseBookingDate(draft.date,Number(draft.doctorId));
       const svc=document.getElementById('b-service');
       if(svc&&Array.from(svc.options).some(o=>o.value===draft.service||o.text===draft.service))svc.value=draft.service;
       if(reason)reason.value=draft.reason;
@@ -17523,14 +17850,24 @@ function loadTimeSlots(){
   const date=(document.getElementById('b-date')||{}).value;
   const grid=document.getElementById('slot-grid');
   if(!grid)return;
-  if(!docId||!date){grid.innerHTML='<span class="text-muted" style="font-size:.78rem">Select doctor and date.</span>';return;}
+  if(!date){grid.innerHTML='<span class="text-muted" style="font-size:.78rem">Select an appointment date first.</span>';return;}
+  if(!docId){grid.innerHTML='<span class="text-muted" style="font-size:.78rem">No doctor is available for the selected date and clinic.</span>';return;}
   const doc=getUserById(docId); if(!doc)return;
   const leave=DB.doctorLeaves.find(l=>l.doctorId===docId&&l.date===date);
   if(leave){grid.innerHTML=`<span class="text-muted" style="font-size:.78rem">Dr. ${doc.lname} is on leave on ${fmtDate(date)}${leave.reason?' ('+escapeHtml(leave.reason)+')':''}. Please pick another date.</span>`;return;}
   const dayName=dayOfWeek(date),workDays=doc.workDays||['Mon','Tue','Wed','Thu','Fri'];
   if(!workDays.includes(dayName)){grid.innerHTML=`<span class="text-muted" style="font-size:.78rem">Dr. ${doc.lname} does not work on ${dayName}s.</span>`;return;}
   const slots=appointmentSlotBaseTimes(doc);
-  const takenSlots=new Set(appointmentRecords().filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time));
+  const takenSlots=new Set(
+    appointmentRecords()
+      .filter(a=>
+        a.id!==Number(activeBookingEditId) &&
+        a.doctorId===docId &&
+        a.date===date &&
+        a.status!=='Cancelled'
+      )
+      .map(a=>a.time)
+  );
   const selectedTime=(document.getElementById('b-time')||{}).value;
   grid.innerHTML=slots.map(t=>{
     const taken=takenSlots.has(t),state=slotAvailabilityState(doc,date,t),disabled=taken||state.blocked;
@@ -19055,7 +19392,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v65 loaded.');
+console.log('CampusCare v66 loaded.');
 </script>
 </body>
 </html>
