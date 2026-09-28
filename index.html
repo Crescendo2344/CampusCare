@@ -1386,8 +1386,18 @@ tbody tr:hover td{background:var(--overlay)}
 
 
 /* v63 auth/public navigation cleanup */
-#landing-navbar.auth-mode .landing-nav-links a::after{width:0!important;opacity:0!important}
-#landing-navbar.auth-mode .landing-nav-links a.active{color:inherit;font-weight:inherit}
+#landing-navbar.auth-mode .landing-nav-links a::after{
+  width:0!important;
+  opacity:0!important;
+}
+#landing-navbar.auth-mode .landing-nav-links a:hover::after{
+  width:100%!important;
+  opacity:1!important;
+}
+#landing-navbar.auth-mode .landing-nav-links a.active{
+  color:inherit;
+  font-weight:inherit;
+}
 #login-section>.btn-primary,
 #reg-section>.btn-primary{
   display:flex;
@@ -1568,7 +1578,8 @@ tbody tr:hover td{background:var(--overlay)}
   margin:0 auto;
   grid-template-columns:minmax(430px,520px) minmax(350px,420px);
   justify-content:space-between;
-  gap:clamp(5rem,10vw,11rem);
+  column-gap:clamp(5rem,10vw,11rem);
+  row-gap:clamp(.65rem,1.4vh,1rem);
 }
 .landing-hero-text{justify-self:start;max-width:520px}
 .landing-hero-text p{max-width:500px}
@@ -1942,23 +1953,46 @@ tbody tr:hover td{background:var(--overlay)}
 .public-about-point span,.public-hours-row{color:var(--ink-muted)}
 .public-services-grid .feature-card,
 .public-story-card,.public-info-panel,.public-advisory-card,.public-contact-card{
-  background:rgba(255,255,255,.58);
-  border-color:rgba(33,72,96,.14);
-  box-shadow:0 14px 35px rgba(38,74,96,.09),inset 0 1px 0 rgba(255,255,255,.52);
+  background:rgba(255,255,255,.76);
+  border-color:rgba(33,72,96,.17);
+  box-shadow:
+    0 14px 35px rgba(38,74,96,.10),
+    inset 0 1px 0 rgba(255,255,255,.70);
+  backdrop-filter:blur(15px) saturate(110%);
+  -webkit-backdrop-filter:blur(15px) saturate(110%);
 }
 .public-about-point{
-  background:rgba(255,255,255,.46);
-  border-color:rgba(33,72,96,.13);
+  background:rgba(255,255,255,.72);
+  border-color:rgba(33,72,96,.16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.62);
 }
 .public-hours-row{border-bottom-color:var(--line)}
 .public-contact-card a{color:var(--primary-dark)}
 .public-contact-footer{color:var(--ink-muted)}
 
 .public-visit-step,.public-bring-card,.public-rights-card,.public-faq details{
-  background:rgba(255,255,255,.52);
-  border-color:rgba(33,72,96,.13);
+  background:rgba(255,255,255,.82);
+  border-color:rgba(38,78,103,.18);
+  box-shadow:
+    0 10px 26px rgba(42,82,105,.08),
+    inset 0 1px 0 rgba(255,255,255,.72);
+  backdrop-filter:blur(16px) saturate(112%);
+  -webkit-backdrop-filter:blur(16px) saturate(112%);
 }
-.public-achievement-year{background:rgba(255,255,255,.52)}
+.public-faq details{
+  background:rgba(255,255,255,.88);
+}
+.public-faq details[open]{
+  background:rgba(255,255,255,.94);
+  border-color:rgba(34,116,160,.23);
+  box-shadow:
+    0 12px 30px rgba(42,82,105,.10),
+    inset 0 1px 0 rgba(255,255,255,.82);
+}
+.public-achievement-year{
+  background:rgba(255,255,255,.82);
+  border-color:rgba(38,78,103,.16);
+}
 
 [data-theme="dark"] .landing-static-page{
   background:
@@ -2547,21 +2581,35 @@ tbody tr:hover td{background:var(--overlay)}
 .notif-btn .bi{font-size:17px}
 .sb-logout .bi{font-size:15px;margin-right:.35rem}
 .theme-toggle .bi{font-size:16px}
-.public-contact-footer /* v62 public clinic guide + achievements */
+
+@media(max-height:760px) and (min-width:1101px){
+  #landing-hero{
+    padding-top:1.6rem;
+    padding-bottom:1.2rem;
+    overflow-y:auto;
+  }
+  .hero-info-carousel{height:390px}
+  .landing-impact-item{padding:.52rem .62rem}
+  .landing-impact-copy strong{font-size:.71rem}
+  .landing-impact-copy span{font-size:.55rem}
+}
+
+/* v62 public clinic guide + achievements */
 .landing-impact-strip{
   grid-column:1/-1;
   display:grid;
   grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:.65rem;
-  margin-top:.25rem;
+  gap:.6rem;
+  margin-top:0;
+  align-self:end;
 }
 .landing-impact-item{
   min-width:0;
   display:flex;
   align-items:center;
   gap:.65rem;
-  padding:.7rem .8rem;
-  border-radius:14px;
+  padding:.58rem .68rem;
+  border-radius:13px;
   background:rgba(255,255,255,.09);
   border:1px solid rgba(255,255,255,.14);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
@@ -2960,7 +3008,7 @@ tbody tr:hover td{background:var(--overlay)}
             <div class="landing-impact-copy"><strong>Extended Access</strong><span>Medical clinic hours extend into evenings and weekends based on the posted schedule.</span></div>
           </div>
           <div class="landing-impact-item">
-            <div class="landing-impact-icon"><i class="bi bi-persons-class" aria-hidden="true"></i></div>
+            <div class="landing-impact-icon"><i class="bi bi-people" aria-hidden="true"></i></div>
             <div class="landing-impact-copy"><strong>Campus-wide Service</strong><span>Supports students, faculty, and personnel through medical and dental care.</span></div>
           </div>
           <div class="landing-impact-item">
@@ -18567,7 +18615,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v63 loaded.');
+console.log('CampusCare v64 loaded.');
 </script>
 </body>
 </html>
