@@ -697,7 +697,30 @@ nav a:hover svg,nav button:hover svg{transform:scale(1.15)}
 nav a.active,nav button.active{background:linear-gradient(120deg,rgba(10,126,168,.2),rgba(58,168,216,.1));color:var(--primary-dark);font-weight:600;box-shadow:0 1px 0 rgba(255,255,255,.4) inset}
 nav a.active::before,nav button.active::before{content:'';position:absolute;left:0;top:.35rem;bottom:.35rem;width:3px;background:linear-gradient(var(--primary-mid),var(--primary-dark));border-radius:0 3px 3px 0}
 nav svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
-.nav-badge{margin-left:auto;background:var(--danger);color:#fff;border-radius:10px;padding:0 5px;font-size:.65rem;min-width:16px;text-align:center;box-shadow:0 1px 4px rgba(198,40,40,.4)}
+.nav-badge{
+  margin-left:auto;
+  min-width:18px;
+  height:18px;
+  padding:0 5px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  background:var(--danger);
+  color:#fff;
+  border:2px solid var(--glass-surface);
+  font-size:.6rem;
+  line-height:1;
+  font-weight:850;
+  font-variant-numeric:tabular-nums;
+  box-shadow:0 3px 10px rgba(198,40,40,.28);
+}
+.nav-badge.nav-badge-new{animation:navBadgePop .3s ease}
+@keyframes navBadgePop{
+  0%{transform:scale(.72);opacity:.2}
+  70%{transform:scale(1.08)}
+  100%{transform:scale(1);opacity:1}
+}
 .sb-bottom{margin-top:auto;border-top:1px solid var(--line-soft);padding:.6rem;display:flex;gap:.5rem;align-items:center}
 .sb-logout{display:flex;align-items:center;justify-content:center;gap:.4rem;flex:1;padding:.32rem .5rem;border:1px solid var(--glass-border-soft);border-radius:9px;background:var(--overlay);cursor:pointer;font-size:.74rem;color:var(--ink);transition:.15s}
 .sb-logout svg{width:13px;height:13px}
@@ -1407,6 +1430,144 @@ tbody tr:hover td{background:var(--overlay)}
 }
 @media(min-width:769px){
   #auth-page-back{display:none!important}
+}
+
+
+/* v65 registration review */
+.approval-review-modal{max-width:1080px}
+.approval-review-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.05fr) minmax(320px,.95fr);
+  gap:1rem;
+  align-items:start;
+}
+.approval-review-section{
+  padding:.9rem;
+  border:1px solid var(--glass-border-soft);
+  border-radius:14px;
+  background:var(--glass-surface-soft);
+}
+.approval-review-section h4{
+  margin:0 0 .7rem;
+  color:var(--ink);
+  font-size:.78rem;
+}
+.approval-data-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:.55rem;
+}
+.approval-data-field{
+  min-width:0;
+  padding:.58rem .62rem;
+  border-radius:11px;
+  border:1px solid var(--glass-border-soft);
+  background:var(--overlay);
+}
+.approval-data-field.wide{grid-column:1/-1}
+.approval-data-field span{
+  display:block;
+  margin-bottom:.18rem;
+  color:var(--ink-muted);
+  font-size:.57rem;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+.approval-data-field strong{
+  display:block;
+  color:var(--ink);
+  font-size:.7rem;
+  line-height:1.4;
+  overflow-wrap:anywhere;
+}
+.approval-compare{
+  display:grid;
+  grid-template-columns:minmax(130px,.48fr) minmax(0,1fr);
+  gap:.7rem;
+}
+.approval-preview-card{
+  min-width:0;
+  border:1px solid var(--glass-border-soft);
+  border-radius:13px;
+  background:var(--overlay);
+  overflow:hidden;
+}
+.approval-preview-title{
+  padding:.5rem .62rem;
+  border-bottom:1px solid var(--glass-border-soft);
+  color:var(--ink);
+  font-size:.64rem;
+  font-weight:800;
+}
+.approval-preview-body{
+  height:310px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  background:rgba(8,18,28,.04);
+}
+.approval-preview-body img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+.approval-preview-body iframe{
+  width:100%;
+  height:100%;
+  border:0;
+  background:#fff;
+}
+.approval-selfie .approval-preview-body{height:210px}
+.approval-selfie .approval-preview-body img{object-fit:cover}
+.approval-review-banner{
+  margin-bottom:.85rem;
+  padding:.7rem .8rem;
+  border-radius:12px;
+  border:1px solid var(--info-border);
+  background:var(--info-bg);
+  color:var(--info);
+  font-size:.68rem;
+  line-height:1.48;
+}
+.approval-doc-actions{
+  display:flex;
+  gap:.45rem;
+  flex-wrap:wrap;
+  margin-top:.55rem;
+}
+.approval-applicant{
+  display:flex;
+  align-items:center;
+  gap:.6rem;
+}
+.approval-applicant img,.approval-applicant-avatar{
+  width:38px;height:38px;
+  flex:0 0 38px;
+  border-radius:50%;
+  object-fit:cover;
+  background:var(--overlay);
+  border:1px solid var(--glass-border-soft);
+}
+.approval-applicant-avatar{
+  display:grid;
+  place-items:center;
+  color:var(--ink-muted);
+  font-size:.65rem;
+  font-weight:800;
+}
+.approval-applicant small{
+  display:block;
+  color:var(--ink-muted);
+  margin-top:.1rem;
+  font-size:.62rem;
+}
+@media(max-width:820px){
+  .approval-review-grid,.approval-compare{grid-template-columns:1fr}
+  .approval-data-grid{grid-template-columns:1fr}
+  .approval-data-field.wide{grid-column:auto}
+  .approval-preview-body{height:260px}
 }
 
 /* ===RESPONSIVE=== */
@@ -5656,6 +5817,7 @@ function capitalizeName(s){
     if(/^[A-Za-zÀ-ÿ]/.test(part))return part.charAt(0).toUpperCase()+part.slice(1).toLowerCase();
     return part;
   }).join('');
+  applyNavBadges();
 }
 
 function handleOcrResult(){
@@ -6849,6 +7011,7 @@ async function updateNotifUI(){
   if(dot)dot.style.display='none';
 
   renderNotifList();
+  applyNavBadges();
 }
 
 // ================================================================
@@ -8568,6 +8731,7 @@ function initApp(){
   window.addEventListener('resize',updateTopDate);
   buildNav();
   updateNotifUI();
+  startTaskBadgeRefresh();
   const firstNav = NAV_CONFIG[currentUser.role]?.find(item => item.id);
   if(firstNav) navTo(firstNav.id);
 }
@@ -8784,6 +8948,138 @@ const NAV_CONFIG={
     {id:'my-account',label:'Account Settings'},
   ],
 };
+
+
+let navTaskCounts={};
+let navBadgeTimer=null;
+let navBadgeLastFetch=0;
+
+function navNotificationCounts(){
+  const counts={};
+  if(!currentUser)return counts;
+  for(const n of notificationRecords().filter(x=>x.userId===currentUser.id&&!x.read)){
+    const page=notificationPageFor(n);
+    if(!page)continue;
+    counts[page]=(counts[page]||0)+1;
+  }
+  return counts;
+}
+
+function demoTaskBadgeCounts(){
+  if(!currentUser)return {};
+  const role=currentUser.role;
+  const counts={};
+
+  counts.messages=messageRecords().filter(
+    m=>m.toUserId===currentUser.id&&!m.isRead&&!m.deleted
+  ).length;
+
+  if(role==='Administrator'||role==='Staff'){
+    counts.approvals=(DB.users||[]).filter(u=>u.role==='Patient'&&u.status==='Pending').length;
+    counts['cert-requests']=certificateRecords().filter(r=>r.status==='Pending').length;
+    counts.fitness=fitnessRecords().filter(r=>r.status==='Requested').length;
+    counts.inventory=inventoryRecords().filter(
+      i=>!i.archived&&Number(i.quantity)<=Number(i.threshold)
+    ).length;
+  }
+
+  if(role==='Doctor'){
+    counts['cert-requests']=certificateRecords().filter(
+      r=>r.status==='Awaiting Signature'&&r.doctorId===currentUser.id
+    ).length;
+    counts.fitness=fitnessRecords().filter(
+      r=>(r.status==='Requested'&&!r.doctorId)||
+        (r.status==='In Assessment'&&r.doctorId===currentUser.id)
+    ).length;
+  }
+
+  if(role==='Administrator'){
+    counts['feedback-issues']=issueReportRecords().filter(
+      r=>['Open','In Review'].includes(r.status)
+    ).length;
+    counts.users=workflowRequestRecords().filter(r=>r.status==='Pending').length;
+  }
+  return counts;
+}
+
+async function taskBadgeAction(){
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired.');
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/task-badges`,{
+    headers:{
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:`Bearer ${session.access_token}`
+    }
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Unable to refresh task badges.');
+  return result;
+}
+
+function navBadgeCountFor(id,notificationCounts=null){
+  const n=notificationCounts||navNotificationCounts();
+  const tasks=Number(navTaskCounts[id]||0);
+  const updates=Number(n[id]||0);
+
+  // A task can also have produced a notification, so use the larger count
+  // rather than double-counting the same underlying item.
+  return Math.max(tasks,updates);
+}
+
+function applyNavBadges(){
+  if(!currentUser)return;
+  const updates=navNotificationCounts();
+
+  for(const item of (NAV_CONFIG[currentUser.role]||[])){
+    if(!item.id)continue;
+    const btn=document.getElementById(`nav-${item.id}`);
+    if(!btn)continue;
+
+    const count=navBadgeCountFor(item.id,updates);
+    let badge=btn.querySelector('.nav-badge');
+
+    if(count>0){
+      if(!badge){
+        badge=document.createElement('span');
+        badge.className='nav-badge nav-badge-new';
+        btn.appendChild(badge);
+      }
+      badge.textContent=count>99?'99+':String(count);
+      badge.title=`${count} pending task${count===1?'':'s'} or new update${count===1?'':'s'}`;
+      badge.setAttribute('aria-label',badge.title);
+    }else if(badge){
+      badge.remove();
+    }
+  }
+}
+
+async function refreshTaskBadges(force=false){
+  if(!currentUser)return;
+  const now=Date.now();
+  if(!force&&now-navBadgeLastFetch<10000){
+    applyNavBadges();
+    return;
+  }
+
+  try{
+    navTaskCounts=currentUser._realSupabase
+      ? (await taskBadgeAction()).counts||{}
+      : demoTaskBadgeCounts();
+    navBadgeLastFetch=Date.now();
+  }catch(e){
+    console.error('Task badge refresh:',e);
+    if(!currentUser._realSupabase)navTaskCounts=demoTaskBadgeCounts();
+  }
+  applyNavBadges();
+}
+
+function startTaskBadgeRefresh(){
+  if(navBadgeTimer)clearInterval(navBadgeTimer);
+  refreshTaskBadges(true);
+  navBadgeTimer=setInterval(()=>{
+    if(currentUser)refreshTaskBadges(true);
+  },60000);
+}
 
 function buildNav(){
   const nav=document.getElementById('sidebar-nav');
@@ -13190,9 +13486,9 @@ function sendApptNotif(id){
 let realPendingApprovals=[];
 
 async function fetchRealPendingApprovals(){
-  if(currentUser?.role!=='Administrator')return [];
+  if(!['Administrator','Staff'].includes(currentUser?.role))return [];
   const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session)throw new Error('Your administrator session has expired.');
+  if(!session)throw new Error('Your approval-review session has expired.');
 
   const response=await fetch(`${SUPABASE_URL}/functions/v1/admin-approvals`,{
     headers:{
@@ -13219,6 +13515,17 @@ function realApprovalUiUser(u){
     idNo:u.id_number||'',
     dob:u.birth_date||'',
     sex:u.sex||'',
+    bloodType:u.blood_type||'',
+    address:u.address||'',
+    emergencyName:u.emergency_contact_name||'',
+    emergencyContact:u.emergency_contact_number||'',
+    medicalHistory:u.medical_history||'',
+    allergies:u.allergies||'',
+    verificationDocumentType:u.verification_document_type||(
+      u.person_type==='Student'?'School ID or COR':'Employee ID'
+    ),
+    registrationContext:u.registration_context||'public',
+    emailConfirmedAt:u.email_confirmed_at||'',
     profilePhoto:u.profile_signed_url||'',
     idFileData:u.verification_signed_url||'',
     idFile:u.id_file_url?u.id_file_url.split('/').pop():'Verification document',
@@ -13238,7 +13545,7 @@ function syncRealPendingIntoDemoDB(rows){
 }
 
 async function refreshRealApprovalQueue(renderPage=false){
-  if(currentUser?.role!=='Administrator')return [];
+  if(!['Administrator','Staff'].includes(currentUser?.role))return [];
   const rows=await fetchRealPendingApprovals();
   realPendingApprovals=rows;
   syncRealPendingIntoDemoDB(rows);
@@ -13265,41 +13572,172 @@ async function renderApprovals(loadRemote=true) {
   }
 
   const pending=realPendingApprovals.map(realApprovalUiUser);
+  navTaskCounts.approvals=pending.length;
+  applyNavBadges();
+
   c.innerHTML=`
     <div class="card">
       <div class="card-header">
-        <h3>Pending Registration Approvals</h3>
+        <div>
+          <h3>Pending Registration Approvals</h3>
+          <div class="text-muted">Review the applicant's entered information beside the submitted verification document before making a decision.</div>
+        </div>
         <div style="display:flex;gap:.45rem;align-items:center">
           <span class="badge badge-warning">${pending.length} pending</span>
-          <button class="btn btn-xs" onclick="renderApprovals(true)">↻ Refresh</button>
+          <button class="btn btn-xs" onclick="renderApprovals(true)"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
         </div>
       </div>
       ${pending.length?`<div class="table-wrap"><table><thead><tr>
-        <th>Selfie</th><th>Name</th><th>Username</th><th>Email</th><th>DOB</th><th>Type</th><th>College</th><th>ID No.</th><th>ID/COR</th><th>Submitted</th><th>Actions</th>
+        <th>Applicant</th><th>Person Type</th><th>College / Department</th><th>ID No.</th><th>Submitted</th><th>Actions</th>
       </tr></thead><tbody>${
-        pending.map(u=>`<tr>
-          <td>${u.profilePhoto?`<img src="${u.profilePhoto}" style="width:34px;height:34px;border-radius:50%;object-fit:cover;display:block;cursor:pointer" onclick="showFilePreview('${jsAttrSafe(u.fname)} ${jsAttrSafe(u.lname)} - Selfie','${u.profilePhoto}')">`:'—'}</td>
-          <td><strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong></td>
-          <td>${escapeHtml(u.username)}</td>
-          <td>${escapeHtml(u.email)}</td>
-          <td>${u.dob?fmtDate(u.dob):'—'}</td>
-          <td>${priorityBadge(u.personType||'Patient')}</td>
-          <td>${collegeBadge(u.college)}</td>
-          <td>${escapeHtml(u.idNo||'-')}</td>
-          <td>${u.idFileData?`<button class="btn btn-xs btn-info" onclick="showFilePreview('${jsAttrSafe(u.idFile)}','${u.idFileData}')">📄 View document</button>`:'—'}</td>
-          <td>${u.createdAt?fmtDateTime(u.createdAt):'—'}</td>
-          <td><div class="td-actions">
-            <button class="btn btn-xs btn-success" onclick="approveUser(${u.id})">Approve</button>
-            <button class="btn btn-xs btn-danger" onclick="rejectUser(${u.id})">Reject</button>
-          </div></td>
-        </tr>`).join('')
+        pending.map(u=>{
+          const initials=((u.fname?.[0]||'')+(u.lname?.[0]||'')).toUpperCase()||'P';
+          return `<tr>
+            <td>
+              <div class="approval-applicant">
+                ${u.profilePhoto
+                  ?`<img src="${escapeHtml(u.profilePhoto)}" alt="" onerror="this.outerHTML='<span class=&quot;approval-applicant-avatar&quot;>${initials}</span>'">`
+                  :`<span class="approval-applicant-avatar">${initials}</span>`}
+                <div><strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong><small>${escapeHtml(u.email||u.username||'')}</small></div>
+              </div>
+            </td>
+            <td>${priorityBadge(u.personType||'Patient')}</td>
+            <td>${escapeHtml(u.college||'—')}</td>
+            <td><strong>${escapeHtml(u.idNo||'—')}</strong></td>
+            <td>${u.createdAt?fmtDateTime(u.createdAt):'—'}</td>
+            <td><div class="td-actions">
+              <button class="btn btn-xs btn-info" onclick="reviewApproval(${u.id})"><i class="bi bi-eye"></i> Review</button>
+              <button class="btn btn-xs btn-success" onclick="approveUser(${u.id})">Approve</button>
+              <button class="btn btn-xs btn-danger" onclick="rejectUser(${u.id})">Reject</button>
+            </div></td>
+          </tr>`;
+        }).join('')
       }</tbody></table></div>`:'<div class="empty-state"><p>No pending approvals.</p></div>'}
     </div>`;
 }
 
+function approvalDisplayValue(value,fallback='Not provided'){
+  const v=String(value??'').trim();
+  return v?escapeHtml(v):`<span class="text-muted">${escapeHtml(fallback)}</span>`;
+}
+
+function approvalDataField(label,value,wide=false){
+  return `<div class="approval-data-field ${wide?'wide':''}">
+    <span>${escapeHtml(label)}</span>
+    <strong>${approvalDisplayValue(value)}</strong>
+  </div>`;
+}
+
+function approvalDocumentPreview(u){
+  if(!u.idFileData){
+    return `<div class="approval-preview-body"><span class="text-muted">No verification document available.</span></div>`;
+  }
+  const isPdf=/\.pdf(?:$|\?)/i.test(String(u.idFile||''))||
+    /application\/pdf/i.test(String(u.idFile||''));
+  if(isPdf){
+    return `<div class="approval-preview-body"><iframe src="${escapeHtml(u.idFileData)}" title="Submitted verification document"></iframe></div>`;
+  }
+  return `<div class="approval-preview-body"><img src="${escapeHtml(u.idFileData)}" alt="Submitted verification document"></div>`;
+}
+
+function reviewApproval(id){
+  const u=realPendingApprovals.map(realApprovalUiUser).find(x=>x.id===Number(id));
+  if(!u)return;
+
+  const initials=((u.fname?.[0]||'')+(u.lname?.[0]||'')).toUpperCase()||'P';
+  const emailState=u.emailConfirmedAt?'Confirmed':'Not yet confirmed';
+  const submitted=u.createdAt?fmtDateTime(u.createdAt):'—';
+
+  openModal(`<div class="modal modal-xl approval-review-modal">
+    <div class="modal-header">
+      <div>
+        <h3>Registration Review</h3>
+        <div class="text-muted">${escapeHtml(u.fname)} ${escapeHtml(u.lname)} · submitted ${escapeHtml(submitted)}</div>
+      </div>
+      <button class="close-btn" onclick="closeAllModals()">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="approval-review-banner">
+        Compare the applicant's typed information with the selfie and <strong>${escapeHtml(u.verificationDocumentType)}</strong>.
+        Approval confirms that clinic personnel reviewed the submitted identity evidence.
+      </div>
+
+      <div class="approval-review-grid">
+        <div style="display:grid;gap:.8rem">
+          <section class="approval-review-section">
+            <h4>Registration Information</h4>
+            <div class="approval-data-grid">
+              ${approvalDataField('First Name',u.fname)}
+              ${approvalDataField('Last Name',u.lname)}
+              ${approvalDataField('Username',u.username)}
+              ${approvalDataField('Email',u.email)}
+              ${approvalDataField('Email Status',emailState)}
+              ${approvalDataField('Contact Number',u.contact)}
+              ${approvalDataField('Person Type',u.personType)}
+              ${approvalDataField('College / Department',u.college)}
+              ${approvalDataField(u.personType==='Student'?'Student ID No.':'Employee ID No.',u.idNo)}
+              ${approvalDataField('Date of Birth',u.dob?fmtDate(u.dob):'')}
+              ${approvalDataField('Sex',u.sex)}
+              ${approvalDataField('Verification Document',u.verificationDocumentType)}
+            </div>
+          </section>
+
+          <section class="approval-review-section">
+            <h4>Additional Patient Information</h4>
+            <div class="approval-data-grid">
+              ${approvalDataField('Address',u.address,true)}
+              ${approvalDataField('Emergency Contact Name',u.emergencyName)}
+              ${approvalDataField('Emergency Contact Number',u.emergencyContact)}
+              ${approvalDataField('Blood Type',u.bloodType)}
+              ${approvalDataField('Allergies',u.allergies)}
+              ${approvalDataField('Medical History',u.medicalHistory,true)}
+            </div>
+          </section>
+        </div>
+
+        <section class="approval-review-section">
+          <h4>Identity Comparison</h4>
+          <div class="approval-compare">
+            <div class="approval-preview-card approval-selfie">
+              <div class="approval-preview-title">Submitted Selfie</div>
+              <div class="approval-preview-body">
+                ${u.profilePhoto
+                  ?`<img src="${escapeHtml(u.profilePhoto)}" alt="Applicant selfie">`
+                  :`<span class="approval-applicant-avatar" style="width:72px;height:72px">${initials}</span>`}
+              </div>
+            </div>
+            <div class="approval-preview-card">
+              <div class="approval-preview-title">${escapeHtml(u.verificationDocumentType||u.idFile||'Verification Document')}</div>
+              ${approvalDocumentPreview(u)}
+            </div>
+          </div>
+
+          <div class="approval-doc-actions">
+            ${u.profilePhoto?`<button class="btn btn-xs" onclick="showFilePreview('${jsAttrSafe(u.fname)} ${jsAttrSafe(u.lname)} - Selfie','${u.profilePhoto}')"><i class="bi bi-arrows-fullscreen"></i> Open Selfie</button>`:''}
+            ${u.idFileData?`<button class="btn btn-xs btn-info" onclick="showFilePreview('${jsAttrSafe(u.idFile)}','${u.idFileData}')"><i class="bi bi-arrows-fullscreen"></i> Open Document</button>`:''}
+          </div>
+
+          <div class="alert alert-info show" style="margin-top:.8rem;font-size:.68rem">
+            Verify the name, Student/Employee ID number, person type, and visible identity information before approval.
+            If details do not match or the document is unclear, reject the registration and include a reason.
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="closeAllModals()">Close</button>
+      <button class="btn btn-danger" onclick="closeAllModals();rejectUser(${u.id})">Reject</button>
+      <button class="btn btn-success" onclick="closeAllModals();approveUser(${u.id})"><i class="bi bi-check2-circle"></i> Approve Registration</button>
+    </div>
+  </div>`);
+}
+
+
 async function submitRealApprovalDecision(id,action,reason=''){
   const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session)throw new Error('Your administrator session has expired.');
+  if(!session)throw new Error('Your approval-review session has expired.');
   const response=await fetch(`${SUPABASE_URL}/functions/v1/admin-approvals`,{
     method:'POST',
     headers:{
@@ -13326,6 +13764,7 @@ function approveUser(id){
         await submitRealApprovalDecision(id,'approve');
         toast(`${u.fname} ${u.lname} approved.`,'success');
         await renderApprovals(true);
+        await refreshTaskBadges(true);
       }catch(e){toast(e?.message||'Approval failed.','error');}
     }
   });
@@ -13356,6 +13795,7 @@ async function confirmRejectUser(id){
     await submitRealApprovalDecision(id,'reject',reason);
     toast(`${u.fname} ${u.lname} rejected.`,'warning');
     await renderApprovals(true);
+    await refreshTaskBadges(true);
   }catch(e){toast(e?.message||'Rejection failed.','error');}
 }
 
@@ -15133,7 +15573,7 @@ function generateReport(){
 
 async function adminUserAction(payload){
   const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session)throw new Error('Your administrator session has expired.');
+  if(!session)throw new Error('Your approval-review session has expired.');
   const response=await fetch(`${SUPABASE_URL}/functions/v1/admin-users`,{
     method:'POST',
     headers:{
@@ -18615,7 +19055,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v64 loaded.');
+console.log('CampusCare v65 loaded.');
 </script>
 </body>
 </html>
