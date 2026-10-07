@@ -44,7 +44,7 @@ export default defineConfig(()=>{
         const bindings=runtimeBindings(source);
         // Accessors keep bootstrap/session.js and inline handlers connected to the same live state.
         const bridge=bindings.map(({name,mutable,kind})=>kind==='function'?`window[${JSON.stringify(name)}]=${name};`:`Object.defineProperty(window,${JSON.stringify(name)},{configurable:true,get:()=>${name}${mutable?`,set:value=>{${name}=value}`:''}});`).join('\n');
-        return `import { scheduleRules, createDraftStorage, formatters, displayMarkup, sanitizeValue, inventoryData, createInventoryService, appointmentData, createAppointmentService, treatmentData, createTreatmentService, patientData, createPatientService } from ${JSON.stringify(path.join(root,"src/legacy-dependencies.js"))};\n// Compatibility bridge for the existing CampusCare interface.\n${bridge}\n${modules.join('\n')}`;
+        return `import { scheduleRules, createDraftStorage, formatters, displayMarkup, sanitizeValue, inventoryData, createInventoryService, appointmentData, createAppointmentService, treatmentData, createTreatmentService, patientData, createPatientService, notificationData, createNotificationService } from ${JSON.stringify(path.join(root,"src/legacy-dependencies.js"))};\n// Compatibility bridge for the existing CampusCare interface.\n${bridge}\n${modules.join('\n')}`;
       },
       transformIndexHtml:{order:'pre',handler(html){
         const assembled=html.replace(/<!-- campuscare:component:([a-z-]+) -->/g,(_,name)=>fs.readFileSync(path.join(root,'src/components',name+'.html'),'utf8'));
