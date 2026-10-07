@@ -7,10 +7,14 @@
 <script>
 (function(){
   try{
-    var t=localStorage.getItem('campuscare_theme');
-    if(!t){ t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
-    if(t==='dark') document.documentElement.setAttribute('data-theme','dark');
-  }catch(e){}
+    var hour=(new Date()).getHours();
+    var mode=(hour>=18||hour<6)?'dark':'light';
+    if(mode==='dark')document.documentElement.setAttribute('data-theme','dark');
+    else document.documentElement.removeAttribute('data-theme');
+  }catch(e){
+    // Default to light if local time cannot be read.
+    document.documentElement.removeAttribute('data-theme');
+  }
 })();
 
 // === LOGIN SESSION UI SYNC ===
@@ -54,6 +58,8 @@ async function syncCampusCareSessionUI(){
 
     const hydratedProfile=await hydrateCurrentUserProfilePhoto(profile);
     currentUser=normalizeSupabaseUser(hydratedProfile);
+    currentUser.lastLogin=session.user.last_sign_in_at||profile.last_login_at||currentUser.lastLogin||'';
+    currentUser.emailConfirmedAt=session.user.email_confirmed_at||null;
 
     if(String(currentUser.status).toLowerCase()!=='active'){
       await supabaseClient.auth.signOut();
@@ -110,6 +116,9 @@ async function syncCampusCareSessionUI(){
       syncCurrentPatientFromSupabase()
         .then(()=>syncPublicSystemSettings())
         .then(()=>syncRealDoctorDirectory())
+        .then(()=>syncRealAppointments())
+        .then(()=>syncClinicSurveys())
+        .then(()=>{rebuildConditionalNavigation();})
         .then(()=>syncRealMessages())
         .then(()=>syncRealHealthResources())
         .then(()=>syncRealIssueReports())
@@ -1978,6 +1987,58 @@ tbody tr:hover td{background:var(--overlay)}
   .dental-check-grid{grid-template-columns:1fr}
 }
 
+
+/* v69 complete User Management detail view */
+.user-detail-modal{max-width:1080px}
+.user-detail-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.05fr) minmax(320px,.95fr);
+  gap:.9rem;
+  align-items:start;
+}
+.user-detail-section{
+  padding:.85rem;
+  border:1px solid var(--glass-border-soft);
+  border-radius:14px;
+  background:var(--glass-surface-soft);
+}
+.user-detail-section h4{margin:0 0 .65rem;color:var(--ink);font-size:.77rem}
+.user-detail-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}
+.user-detail-field{
+  min-width:0;padding:.55rem .6rem;border-radius:10px;
+  border:1px solid var(--glass-border-soft);background:var(--overlay)
+}
+.user-detail-field.wide{grid-column:1/-1}
+.user-detail-field span{
+  display:block;color:var(--ink-muted);font-size:.55rem;font-weight:750;
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:.16rem
+}
+.user-detail-field strong{
+  display:block;color:var(--ink);font-size:.68rem;line-height:1.42;overflow-wrap:anywhere
+}
+.user-detail-docs{display:grid;grid-template-columns:.72fr 1.28fr;gap:.6rem}
+.user-detail-preview{
+  overflow:hidden;border:1px solid var(--glass-border-soft);
+  border-radius:12px;background:var(--overlay)
+}
+.user-detail-preview h5{
+  margin:0;padding:.5rem .58rem;border-bottom:1px solid var(--glass-border-soft);
+  color:var(--ink);font-size:.62rem
+}
+.user-detail-preview-body{
+  height:300px;display:flex;align-items:center;justify-content:center;overflow:hidden
+}
+.user-detail-preview.selfie .user-detail-preview-body{height:210px}
+.user-detail-preview img{width:100%;height:100%;object-fit:contain}
+.user-detail-preview.selfie img{object-fit:cover}
+.user-detail-preview iframe{width:100%;height:100%;border:0;background:#fff}
+.user-detail-row-click{cursor:pointer}
+.user-detail-row-click:hover{background:var(--overlay)!important}
+@media(max-width:820px){
+  .user-detail-grid,.user-detail-docs,.user-detail-fields{grid-template-columns:1fr}
+  .user-detail-field.wide{grid-column:auto}
+}
+
 /* ===RESPONSIVE=== */
 @media(max-width:768px){
   #sidebar{transform:translateX(-100%);transition:.25s;box-shadow:var(--glass-shadow-lg)}
@@ -3803,7 +3864,10 @@ tbody tr:hover td{background:var(--overlay)}
       <div class="alert alert-danger" id="login-err"></div>
       <div class="form-group"><label>Username or Email</label><input id="li-user" type="text" placeholder="Enter username or email" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
       <div class="form-group"><label>Password</label><input id="li-pass" type="password" placeholder="Enter password" oninput="sanitizeInput(this,'password')" onkeydown="if(event.key==='Enter')doLogin()"></div>
-      <p style="text-align:right;margin:-.2rem 0 .2rem"><a href="#" style="font-size:.78rem;color:var(--primary);text-decoration:none" onclick="openForgotPassword();return false;">Forgot password?</a></p>
+      <div style="display:flex;justify-content:space-between;gap:.7rem;flex-wrap:wrap;margin:-.2rem 0 .2rem">
+        <a href="#" style="font-size:.75rem;color:var(--primary);text-decoration:none" onclick="openResendVerification();return false;">Resend verification email</a>
+        <a href="#" style="font-size:.75rem;color:var(--primary);text-decoration:none" onclick="openForgotPassword();return false;">Forgot password?</a>
+      </div>
       <button class="btn btn-primary" style="width:100%;margin-top:.3rem" onclick="doLogin()">Login to CampusCare</button>
     </div>
 
@@ -3907,7 +3971,10 @@ tbody tr:hover td{background:var(--overlay)}
         <strong>What happens next?</strong>
         Staff will cross-check your uploaded ID/COR against your selfie and details. Try logging in again after 24–48 hours — you don't need to resubmit anything.
       </div>
-      <button class="btn btn-primary" style="width:100%;margin-top:.9rem" onclick="closePendingPanel()">Close</button>
+      <div style="display:grid;gap:.5rem;margin-top:.9rem">
+        <button class="btn btn-info" style="width:100%" onclick="openResendVerification(pendingRegistrationEmail||'')"><i class="bi bi-envelope-check"></i> Resend Verification Email</button>
+        <button class="btn btn-primary" style="width:100%" onclick="closePendingPanel()">Close</button>
+      </div>
     </div>
 
     <!-- FORGOT PASSWORD -->
@@ -4337,578 +4404,6 @@ function loadDB(){
     }
     return true;
   }catch(e){ console.warn('CampusCare: could not load local data.',e); return false; }
-}
-
-// ================================================================
-// QA / USER ACCEPTANCE TESTING CENTER
-// ================================================================
-const UAT_CASES=[
-  {key:'AUTH-01',role:'All Roles',device:'Desktop',title:'Login, logout, and session recovery',steps:'Sign in with a valid account, refresh the page, confirm the session restores, then log out and confirm CampusCare returns to the login screen.'},
-  {key:'AUTH-02',role:'All Roles',device:'Desktop',title:'Password reset and change-password flow',steps:'Request a password-reset email, return through the recovery link, verify the password rules/cooldown, and confirm the new password can sign in.'},
-  {key:'PAT-01',role:'Patient',device:'Mobile',title:'Book a valid appointment',steps:'Open My Appointments, select an available future date/time, complete the booking, and verify the COR reminder and notification.'},
-  {key:'PAT-02',role:'Patient',device:'Mobile',title:'Reschedule and cancel appointment',steps:'Reschedule an eligible appointment, verify unavailable/past slots are blocked, then cancel and confirm the status/notification updates.'},
-  {key:'PAT-03',role:'Patient',device:'Tablet',title:'Health records, certificates, and fitness',steps:'Open My Health Records, Medical Certificates, and Fitness to Compete. Verify records load correctly and certificate tables can scroll/download on tablet.'},
-  {key:'PAT-04',role:'Patient',device:'Tablet',title:'Patient clinic messaging',steps:'Open Messages, verify Doctors, Staff, and Administrators are available but other Patients are not, send text and one allowed attachment, then confirm incoming Admin/Staff messages appear in the conversation list and the one-pane tablet flow remains usable.'},
-  {key:'DOC-01',role:'Doctor',device:'Desktop',title:'Doctor schedule and day-off request',steps:'Open My Schedule, verify real availability, submit a future schedule/day-off request, and confirm the request appears for Admin review.'},
-  {key:'DOC-02',role:'Doctor',device:'Desktop',title:'Appointment completion and treatment recording',steps:'Open an assigned appointment, record a treatment, verify the appointment becomes Completed, and confirm the treatment appears in the patient history.'},
-  {key:'DOC-03',role:'Doctor',device:'Tablet',title:'Fitness assessment and certificate signing',steps:'Claim/complete a fitness assessment and sign an assigned medical certificate using the responsive tablet interface.'},
-  {key:'DOC-04',role:'Doctor',device:'Tablet',title:'Patient messaging',steps:'Open Patient Messages, verify only permitted contacts are available, reply to a patient, and confirm the tablet one-pane chat layout.'},
-  {key:'STF-01',role:'Staff',device:'Desktop',title:'Clinic-assisted patient registration',steps:'Register a patient with required profile photo and ID/COR, verify the real patient record appears, and confirm the password-setup guidance.'},
-  {key:'STF-02',role:'Staff',device:'Desktop',title:'Appointment and certificate preparation',steps:'Manage an appointment, prepare a medical certificate for Doctor signature, and verify the assigned Doctor receives the request.'},
-  {key:'STF-03',role:'Staff',device:'Tablet',title:'Inventory workflow',steps:'Add/update an inventory item, record stock-in or disbursement, verify quantity/history, and review the responsive inventory tables.'},
-  {key:'STF-04',role:'Staff',device:'Desktop',title:'Health Education publishing workflow',steps:'Create or edit a Health Education article, publish/unpublish it, and verify patient-visible content only shows published resources.'},
-  {key:'ADM-01',role:'Administrator',device:'Desktop',title:'Approval queue and user management',steps:'Review a pending registration/workflow request, perform an allowed approval/rejection, and verify notifications and Activity Log entries.'},
-  {key:'ADM-02',role:'Administrator',device:'Desktop',title:'Reports, analytics, and filters',steps:'Open Reports & Analytics, change date/college filters, verify real IDs/details, and confirm trend/service/diagnosis widgets load without demo contamination.'},
-  {key:'ADM-03',role:'Administrator',device:'Desktop',title:'Backup, email, and security operations',steps:'Open System Settings and Security & Integrity. Verify backup status, email queue state, session timeout, and run the server integrity scan.'},
-  {key:'ADM-04',role:'Administrator',device:'Tablet',title:'Feedback, privacy, and issue tracking',steps:'Open Feedback & Issues and System Settings on tablet, review the privacy summary, then open Account Settings → Privacy & Personal Data and confirm the Privacy Notice/request flow works without horizontal overlap.'},
-  {key:'RSP-01',role:'All Roles',device:'Mobile',title:'Core navigation at phone width',steps:'At approximately 390px width, open every visible sidebar page for the role and confirm no page creates unintended horizontal clipping.'},
-  {key:'RSP-02',role:'All Roles',device:'Tablet',title:'Tablet navigation and messaging layout',steps:'At 768–1100px width, rotate portrait/landscape and verify sidebar, top bar, tables, and Messenger remain usable without overlap.'},
-  {key:'RSP-03',role:'All Roles',device:'Mobile',title:'Forms, modals, and touch targets',steps:'Open representative forms/modals, test date pickers and scrolling, and verify primary actions remain reachable without content being hidden off-screen.'}
-];
-
-async function uatAction(payload){
-  const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session)throw new Error('Your session has expired. Please log in again.');
-
-  const response=await fetch(`${SUPABASE_URL}/functions/v1/uat-actions`,{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      apikey:SUPABASE_PUBLISHABLE_KEY,
-      Authorization:`Bearer ${session.access_token}`
-    },
-    body:JSON.stringify(payload)
-  });
-
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.ok)throw new Error(result.error||'UAT action failed.');
-  return result;
-}
-
-async function syncUATCenter(action='list'){
-  if(!currentUser?._realSupabase||currentUser.role!=='Administrator')return null;
-  const result=await uatAction({action});
-  DB.uatState=result;
-  return result;
-}
-
-function uatStatusBadge(status){
-  const cls=status==='Pass'?'badge-success':status==='Fail'?'badge-danger':status==='Blocked'?'badge-warning':'badge-gray';
-  return `<span class="badge ${cls}">${escapeHtml(status||'Not Tested')}</span>`;
-}
-
-function uatResultMap(){
-  const map=new Map();
-  (DB.uatState?.results||[]).forEach(r=>map.set(r.case_key,r));
-  return map;
-}
-
-function uatFilteredCases(){
-  const role=document.getElementById('uat-role-filter')?.value||'';
-  const device=document.getElementById('uat-device-filter')?.value||'';
-  const status=document.getElementById('uat-status-filter')?.value||'';
-  const q=(document.getElementById('uat-search')?.value||'').trim().toLowerCase();
-  const results=uatResultMap();
-
-  return UAT_CASES.filter(tc=>{
-    const saved=results.get(tc.key);
-    const current=saved?.status||'Not Tested';
-    if(role&&tc.role!==role)return false;
-    if(device&&tc.device!==device)return false;
-    if(status&&current!==status)return false;
-    if(q&&!`${tc.key} ${tc.title} ${tc.role} ${tc.device} ${tc.steps}`.toLowerCase().includes(q))return false;
-    return true;
-  });
-}
-
-function renderUATCases(){
-  const el=document.getElementById('uat-cases');
-  if(!el)return;
-  const results=uatResultMap();
-  const cases=uatFilteredCases();
-
-  if(!cases.length){
-    el.innerHTML='<div class="empty-state"><p>No UAT cases match the current filters.</p></div>';
-    return;
-  }
-
-  el.innerHTML=`<div class="table-wrap"><table>
-    <thead><tr><th>Case</th><th>Role</th><th>Device</th><th>Test</th><th>Status</th><th>Last Tested</th><th>Action</th></tr></thead>
-    <tbody>${cases.map(tc=>{
-      const saved=results.get(tc.key);
-      const status=saved?.status||'Not Tested';
-      return `<tr>
-        <td><strong>${escapeHtml(tc.key)}</strong></td>
-        <td>${escapeHtml(tc.role)}</td>
-        <td>${escapeHtml(tc.device)}</td>
-        <td style="max-width:390px;white-space:normal"><strong>${escapeHtml(tc.title)}</strong><div class="text-muted" style="font-size:.7rem;margin-top:.18rem">${escapeHtml(tc.steps)}</div>${saved?.notes?`<div class="tech-note" style="margin-top:.35rem"><strong>Tester notes:</strong> ${escapeHtml(saved.notes)}</div>`:''}</td>
-        <td>${uatStatusBadge(status)}</td>
-        <td>${saved?.tested_at?new Date(saved.tested_at).toLocaleString('en-PH'):'—'}</td>
-        <td><button class="btn btn-xs btn-info" onclick="openUATResultModal('${jsAttrSafe(tc.key)}')">${status==='Not Tested'?'Record Result':'Update'}</button></td>
-      </tr>`;
-    }).join('')}</tbody>
-  </table></div>`;
-}
-
-async function renderUATCenter(){
-  const c=document.getElementById('app-content');if(!c)return;
-
-  if(currentUser.role!=='Administrator'){
-    c.innerHTML='<div class="alert alert-danger show">Administrator access required.</div>';
-    return;
-  }
-
-  const pageToken=captureCampusPageToken();
-  showDatabaseSkeleton('table');
-
-  try{
-    await Promise.all([
-      syncUATCenter('list'),
-      syncEmailDeliveryStatus().catch(e=>{console.error('UAT email status:',e);return null;})
-    ]);
-  }catch(e){
-    if(!isCampusPageCurrent('uat-center',pageToken))return;
-    c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load QA/UAT status.')}</div>
-      <button class="btn btn-sm" onclick="renderUATCenter()">Retry</button>`;
-    return;
-  }
-
-  if(!isCampusPageCurrent('uat-center',pageToken))return;
-
-  const state=DB.uatState||{};
-  const autoChecks=state.automated?.checks||[];
-  const results=uatResultMap();
-  const counts={Pass:0,Fail:0,Blocked:0,'Not Tested':0};
-  UAT_CASES.forEach(tc=>{
-    const status=results.get(tc.key)?.status||'Not Tested';
-    counts[status]=(counts[status]||0)+1;
-  });
-
-  const completed=counts.Pass+counts.Fail+counts.Blocked;
-  const percent=Math.round((counts.Pass/UAT_CASES.length)*100);
-  const autoPass=autoChecks.filter(x=>x.status==='Pass').length;
-  const autoFail=autoChecks.filter(x=>x.status==='Fail').length;
-  const emailConfigured=Boolean(DB.emailDeliveryStatus?.configured);
-
-  c.innerHTML=`
-    <div class="card">
-      <div class="card-header">
-        <div>
-          <h3>QA / User Acceptance Testing Center</h3>
-          <div class="tech-note">Automated server checks plus a persistent role/device UAT matrix for final CampusCare validation before production release.</div>
-        </div>
-        <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-          <button class="btn btn-sm" onclick="exportUATCsv()">Export UAT CSV</button>
-          <button class="btn btn-primary btn-sm" id="uat-run-btn" onclick="runUATAutomatedChecks()">Run Automated Checks</button>
-        </div>
-      </div>
-
-      <div class="grid-4">
-        <div class="stat-card"><div class="stat-val">${autoPass}/${autoChecks.length}</div><div class="stat-lbl">Automated Checks Passed</div></div>
-        <div class="stat-card"><div class="stat-val">${counts.Pass}</div><div class="stat-lbl">Manual UAT Passed</div></div>
-        <div class="stat-card"><div class="stat-val text-danger">${counts.Fail}</div><div class="stat-lbl">Failed Cases</div></div>
-        <div class="stat-card"><div class="stat-val">${percent}%</div><div class="stat-lbl">Manual Pass Progress</div></div>
-      </div>
-
-      <div style="margin-top:.75rem;height:9px;border-radius:999px;background:var(--overlay-strong);overflow:hidden">
-        <div style="height:100%;width:${percent}%;background:var(--success);transition:width .2s ease"></div>
-      </div>
-
-      <div class="alert ${autoFail?'alert-warning':'alert-success'} show" style="margin-top:.8rem">
-        <strong>${autoFail?'Automated review requires attention':'Automated backend checks are currently passing'}.</strong>
-        ${autoFail?`${autoFail} automated check${autoFail===1?'':'s'} failed.`:`${autoPass} server-side QA checks passed in the latest run.`}
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><div><h3>Automated Backend QA</h3><div class="tech-note">These checks run against the live Supabase project without changing patient/clinical data.</div></div></div>
-      <div class="grid-2">
-        ${autoChecks.map(ch=>`<div class="official-info-card">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem">
-            <h4 style="margin:0">${escapeHtml(ch.title||ch.id||'Check')}</h4>
-            ${uatStatusBadge(ch.status==='Warning'?'Blocked':ch.status)}
-          </div>
-          <p>${escapeHtml(ch.detail||'')}</p>
-        </div>`).join('')}
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><div><h3>Build-Time Frontend QA</h3><div class="tech-note">Static checks performed against this v49 file before delivery.</div></div></div>
-      <div class="grid-2">
-        <div class="official-info-card"><h4>✓ JavaScript syntax</h4><p>All inline scripts pass Node.js syntax validation.</p></div>
-        <div class="official-info-card"><h4>✓ Navigation mapping</h4><p>Every configured role-navigation page has a matching renderer.</p></div>
-        <div class="official-info-card"><h4>✓ Inline action handlers</h4><p>No missing CampusCare function references were detected in the inline UI event handlers.</p></div>
-        <div class="official-info-card"><h4>✓ Hardened browser writes</h4><p>No direct frontend writes were detected for the protected clinical/business tables locked in v48.</p></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><div><h3>Production Readiness Items</h3><div class="tech-note">These are configuration items that cannot be proven solely by browser QA.</div></div></div>
-      <div class="grid-2">
-        <div class="official-info-card">
-          <div style="display:flex;justify-content:space-between;gap:.5rem"><h4 style="margin:0">External Email Provider</h4>${emailConfigured?'<span class="badge badge-success">Configured</span>':'<span class="badge badge-warning">Pending</span>'}</div>
-          <p>${emailConfigured?'Operational email delivery reports a configured provider.':'The email queue is functional, but production sending still requires the protected provider secrets configured in Supabase.'}</p>
-        </div>
-        <div class="official-info-card">
-          <div style="display:flex;justify-content:space-between;gap:.5rem"><h4 style="margin:0">Leaked Password Protection</h4><span class="badge badge-warning">Verify in Supabase Auth</span></div>
-          <p>The current Supabase Security Advisor reports leaked-password protection as disabled. Enable it in the Auth password-security settings before final production release.</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div><h3>Manual UAT Matrix</h3><div class="tech-note">${completed} of ${UAT_CASES.length} cases have a recorded result. Test each case using the stated role and device class.</div></div>
-        <button class="btn btn-xs btn-danger" onclick="resetUATResults()">Reset Results</button>
-      </div>
-      <div class="toolbar">
-        <input type="search" id="uat-search" placeholder="Search UAT cases..." oninput="renderUATCases()">
-        <select id="uat-role-filter" onchange="renderUATCases()">
-          <option value="">All Roles</option>
-          ${[...new Set(UAT_CASES.map(x=>x.role))].map(v=>`<option>${escapeHtml(v)}</option>`).join('')}
-        </select>
-        <select id="uat-device-filter" onchange="renderUATCases()">
-          <option value="">All Devices</option>
-          ${[...new Set(UAT_CASES.map(x=>x.device))].map(v=>`<option>${escapeHtml(v)}</option>`).join('')}
-        </select>
-        <select id="uat-status-filter" onchange="renderUATCases()">
-          <option value="">All Statuses</option>
-          <option>Not Tested</option><option>Pass</option><option>Fail</option><option>Blocked</option>
-        </select>
-      </div>
-      <div id="uat-cases"></div>
-    </div>`;
-
-  renderUATCases();
-}
-
-async function runUATAutomatedChecks(){
-  const btn=document.getElementById('uat-run-btn');
-  const old=btn?.textContent;
-  if(btn){btn.disabled=true;btn.textContent='Running…';}
-
-  try{
-    await syncUATCenter('run');
-    toast('Automated QA checks completed.','success');
-    await renderUATCenter();
-  }catch(e){
-    toast(e?.message||'Automated QA checks failed.','error');
-  }finally{
-    if(btn&&document.body.contains(btn)){
-      btn.disabled=false;btn.textContent=old||'Run Automated Checks';
-    }
-  }
-}
-
-function openUATResultModal(caseKey){
-  const tc=UAT_CASES.find(x=>x.key===caseKey);if(!tc)return;
-  const saved=uatResultMap().get(caseKey);
-  const status=saved?.status||'Not Tested';
-
-  openModal(`<div class="modal modal-sm">
-    <div class="modal-header"><div><h3>${escapeHtml(tc.key)} — UAT Result</h3><div class="text-muted">${escapeHtml(tc.role)} · ${escapeHtml(tc.device)}</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
-    <div class="modal-body">
-      <h4 style="margin-bottom:.35rem">${escapeHtml(tc.title)}</h4>
-      <p class="text-muted" style="font-size:.78rem;line-height:1.55">${escapeHtml(tc.steps)}</p>
-      <div class="form-group" style="margin-top:.8rem"><label>Result</label>
-        <select id="uat-result-status">
-          ${['Not Tested','Pass','Fail','Blocked'].map(v=>`<option ${status===v?'selected':''}>${v}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group"><label>Tester Notes</label><textarea id="uat-result-notes" maxlength="4000" rows="4" placeholder="What was tested? Record any bug, device behavior, or reproduction details.">${escapeHtml(saved?.notes||'')}</textarea></div>
-    </div>
-    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" onclick="saveUATResult('${jsAttrSafe(caseKey)}')">Save Result</button></div>
-  </div>`);
-}
-
-async function saveUATResult(caseKey){
-  const tc=UAT_CASES.find(x=>x.key===caseKey);if(!tc)return;
-  const status=document.getElementById('uat-result-status')?.value||'Not Tested';
-  const notes=document.getElementById('uat-result-notes')?.value.trim()||'';
-
-  try{
-    const result=await uatAction({
-      action:'save',
-      case_key:tc.key,
-      title:tc.title,
-      role_name:tc.role,
-      device:tc.device,
-      status,
-      notes
-    });
-    DB.uatState=result;
-    closeAllModals();
-    toast(`UAT case ${tc.key} saved as ${status}.`,status==='Fail'?'warning':'success');
-    await renderUATCenter();
-  }catch(e){
-    toast(e?.message||'Unable to save the UAT result.','error');
-  }
-}
-
-function resetUATResults(){
-  showConfirmDialog({
-    title:'Reset UAT Results',
-    message:'Reset all saved manual UAT results to <strong>Not Tested</strong>? Automated QA results are not affected.',
-    confirmLabel:'Reset Results',
-    danger:true,
-    onConfirm:async()=>{
-      try{
-        DB.uatState=await uatAction({action:'reset'});
-        toast('Manual UAT results reset.','success');
-        await renderUATCenter();
-      }catch(e){
-        toast(e?.message||'Unable to reset UAT results.','error');
-      }
-    }
-  });
-}
-
-function exportUATCsv(){
-  const results=uatResultMap();
-  const rows=[
-    ['Case','Role','Device','Title','Status','Tested At','Notes'],
-    ...UAT_CASES.map(tc=>{
-      const r=results.get(tc.key);
-      return [tc.key,tc.role,tc.device,tc.title,r?.status||'Not Tested',r?.tested_at||'',r?.notes||''];
-    })
-  ];
-  const csv=rows.map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download=`CampusCare_UAT_${TODAY}.csv`;
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-  toast('UAT CSV exported.','success');
-}
-
-// ================================================================
-// SECURITY & DATA INTEGRITY CENTER
-// ================================================================
-async function securityIntegrityAction(payload){
-  const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session)throw new Error('Your session has expired. Please log in again.');
-
-  const response=await fetch(`${SUPABASE_URL}/functions/v1/security-integrity`,{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      apikey:SUPABASE_PUBLISHABLE_KEY,
-      Authorization:`Bearer ${session.access_token}`
-    },
-    body:JSON.stringify(payload)
-  });
-
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.ok)throw new Error(result.error||'Security check failed.');
-  return result;
-}
-
-async function syncSecurityIntegrity(action='status'){
-  if(!currentUser?._realSupabase||currentUser.role!=='Administrator')return null;
-  const result=await securityIntegrityAction({action});
-  DB.securityIntegrity=result;
-  DB.settings.sessionTimeoutMinutes=Number(result.session_timeout_minutes||DB.settings.sessionTimeoutMinutes||30);
-  configureSessionGuard(DB.settings.sessionTimeoutMinutes);
-  return result;
-}
-
-function securitySeverityBadge(severity){
-  const value=String(severity||'info').toLowerCase();
-  const cls=value==='critical'?'badge-danger':value==='warning'?'badge-warning':'badge-info';
-  return `<span class="badge ${cls}">${escapeHtml(value.toUpperCase())}</span>`;
-}
-
-function securityEventDetails(details){
-  if(!details)return '—';
-  if(typeof details==='string')return details;
-  try{
-    return Object.entries(details)
-      .map(([k,v])=>`${k.replace(/_/g,' ')}: ${typeof v==='object'?JSON.stringify(v):v}`)
-      .join(' · ');
-  }catch(_){
-    return String(details);
-  }
-}
-
-async function renderSecurityIntegrity(){
-  const c=document.getElementById('app-content');if(!c)return;
-
-  if(currentUser.role!=='Administrator'){
-    c.innerHTML='<div class="alert alert-danger show">Administrator access required.</div>';
-    return;
-  }
-
-  const pageToken=captureCampusPageToken();
-  showDatabaseSkeleton('table');
-
-  try{
-    await syncSecurityIntegrity('status');
-  }catch(e){
-    if(!isCampusPageCurrent('security-integrity',pageToken))return;
-    c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load security status.')}</div>
-      <button class="btn btn-sm" onclick="renderSecurityIntegrity()">Retry</button>`;
-    return;
-  }
-
-  if(!isCampusPageCurrent('security-integrity',pageToken))return;
-
-  const state=DB.securityIntegrity||{};
-  const report=state.report||{};
-  const summary=report.summary||{};
-  const issues=report.issues||[];
-  const events=state.recent_security_events||[];
-  const timeout=Number(state.session_timeout_minutes||30);
-  const healthy=Number(summary.integrity_issue_count||0)===0&&Number(summary.direct_write_policies||0)===0;
-
-  c.innerHTML=`
-    <div class="card">
-      <div class="card-header">
-        <div>
-          <h3>Security &amp; Data Integrity</h3>
-          <div class="tech-note">Server-side checks for access-control coverage, protected write paths, record consistency, workflow state, and security events.</div>
-        </div>
-        <button class="btn btn-primary btn-sm" id="security-scan-btn" onclick="runSecurityIntegrityScan()">Run Integrity Scan</button>
-      </div>
-
-      <div class="alert ${healthy?'alert-success':'alert-warning'} show">
-        <strong>${healthy?'Security baseline healthy':'Review required'}.</strong>
-        ${healthy
-          ? 'Current integrity checks found no flagged data inconsistencies, and protected business tables have no direct browser write policies.'
-          : `${Number(summary.integrity_issue_count||0)} integrity/security check${Number(summary.integrity_issue_count||0)===1?'':'s'} currently require review.`}
-      </div>
-
-      <div class="grid-4">
-        <div class="stat-card">
-          <div class="stat-val">${Number(summary.rls_enabled_tables||0)}/${Number(summary.public_tables||0)}</div>
-          <div class="stat-lbl">Public Tables with RLS</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-val">${Number(summary.direct_write_policies||0)}</div>
-          <div class="stat-lbl">Protected Direct-Write Policies</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-val">${Number(summary.integrity_issue_count||0)}</div>
-          <div class="stat-lbl">Integrity Flags</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-val">${Number(summary.security_events_24h||0)}</div>
-          <div class="stat-lbl">Security Events · 24h</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-header"><div><h3>Session Protection</h3><div class="tech-note">Automatically signs out inactive browser sessions that may expose clinic or patient information.</div></div></div>
-        <div class="form-group">
-          <label>Inactivity timeout</label>
-          <select id="security-timeout">
-            ${[10,15,30,45,60,90,120,180,240].map(m=>`<option value="${m}" ${timeout===m?'selected':''}>${m} minutes</option>`).join('')}
-          </select>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="saveSecurityTimeout()">Update Timeout</button>
-        <div class="form-note" style="margin-top:.55rem">Users receive an inactivity warning about 2 minutes before automatic sign-out.</div>
-      </div>
-
-      <div class="card">
-        <div class="card-header"><div><h3>Operational Integrity</h3><div class="tech-note">Background jobs and operational queues that can affect data consistency.</div></div></div>
-        <div style="display:grid;gap:.55rem;font-size:.82rem">
-          <div style="display:flex;justify-content:space-between;gap:.6rem"><span>Failed operational emails</span><strong>${Number(summary.failed_emails||0)}</strong></div>
-          <div style="display:flex;justify-content:space-between;gap:.6rem"><span>Due approved schedule changes</span><strong>${Number(summary.due_workflows||0)}</strong></div>
-          <div style="display:flex;justify-content:space-between;gap:.6rem"><span>Protected direct-write paths</span><strong>${Number(summary.direct_write_policies||0)===0?'Locked':'Review'}</strong></div>
-        </div>
-        ${Number(summary.due_workflows||0)>0?`<button class="btn btn-sm btn-warning" style="margin-top:.75rem" onclick="applyDueSecurityWorkflows()">Apply Due Schedule Changes</button>`:''}
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><h3>Integrity Scan Findings</h3><span class="text-muted" style="font-size:.72rem">Generated ${report.generated_at?new Date(report.generated_at).toLocaleString('en-PH'):'—'}</span></div>
-      ${issues.length?`<div style="display:grid;gap:.55rem">
-        ${issues.map(item=>`<div class="intel-alert-item">
-          <div class="intel-alert-icon">${String(item.severity).toLowerCase()==='critical'?'⚠️':'!'}</div>
-          <div class="intel-alert-copy">
-            <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap"><strong>${escapeHtml(item.title||'Security finding')}</strong>${securitySeverityBadge(item.severity)}<span class="badge badge-gray">${Number(item.count||0)}</span></div>
-            <span>Code: ${escapeHtml(item.code||'CHECK')}</span>
-          </div>
-        </div>`).join('')}
-      </div>`:`<div class="empty-state"><p>✓ No integrity issues are currently flagged by the server-side checks.</p></div>`}
-    </div>
-
-    <div class="card">
-      <div class="card-header"><div><h3>Security Hardening Applied</h3><div class="tech-note">These controls are enforced in the database/backend, not only hidden in the user interface.</div></div></div>
-      <div class="grid-2" style="font-size:.8rem">
-        <div class="official-info-card"><h4>Protected Write Paths</h4><p>Appointments, treatments, certificates, fitness assessments, inventory changes, health resources, doctor leave, messages, and notification state changes now use protected backend workflows instead of direct browser writes.</p></div>
-        <div class="official-info-card"><h4>Database Integrity Guards</h4><p>PostgreSQL validates active Doctor/patient relationships, treatment dates, follow-up dates, and appointment-to-treatment linkage before records are accepted.</p></div>
-        <div class="official-info-card"><h4>Row Level Security</h4><p>Server scanning verifies RLS coverage across CampusCare public tables and reports any table that unexpectedly loses row-level protection.</p></div>
-        <div class="official-info-card"><h4>Auditability</h4><p>Security scans, password actions, logins/logouts, privacy events, backups, archive actions, FHIR access, and Clinical Copilot access remain traceable through the immutable application audit trail.</p></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><h3>Recent Security-Relevant Events</h3></div>
-      ${events.length?`<div class="table-wrap"><table>
-        <thead><tr><th>Date / Time</th><th>User</th><th>Role</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
-        <tbody>${events.slice(0,100).map(ev=>`<tr>
-          <td>${new Date(ev.created_at).toLocaleString('en-PH')}</td>
-          <td>${escapeHtml(ev.actor_name||'System')}</td>
-          <td>${escapeHtml(ev.actor_role||'System')}</td>
-          <td><span class="badge badge-info">${escapeHtml(ev.action||'')}</span></td>
-          <td>${escapeHtml(ev.entity_type||'—')}${ev.entity_id!=null?` #${escapeHtml(String(ev.entity_id))}`:''}</td>
-          <td style="max-width:360px;white-space:normal">${escapeHtml(securityEventDetails(ev.details))}</td>
-        </tr>`).join('')}</tbody>
-      </table></div>`:'<div class="empty-state"><p>No security-relevant audit events are available yet.</p></div>'}
-    </div>`;
-}
-
-async function runSecurityIntegrityScan(){
-  const btn=document.getElementById('security-scan-btn');
-  const old=btn?.textContent;
-  if(btn){btn.disabled=true;btn.textContent='Scanning…';}
-  try{
-    await syncSecurityIntegrity('scan');
-    toast('Security and integrity scan completed.','success');
-    await renderSecurityIntegrity();
-  }catch(e){
-    toast(e?.message||'Security scan failed.','error');
-  }finally{
-    if(btn&&document.body.contains(btn)){
-      btn.disabled=false;btn.textContent=old||'Run Integrity Scan';
-    }
-  }
-}
-
-function saveSecurityTimeout(){
-  const minutes=Number(document.getElementById('security-timeout')?.value||30);
-  showConfirmDialog({
-    title:'Update Session Timeout',
-    message:`Automatically sign out inactive CampusCare sessions after <strong>${minutes} minutes</strong>?`,
-    confirmLabel:'Update Timeout',
-    onConfirm:async()=>{
-      try{
-        const result=await securityIntegrityAction({action:'set_timeout',minutes});
-        DB.settings.sessionTimeoutMinutes=Number(result.session_timeout_minutes||minutes);
-        configureSessionGuard(DB.settings.sessionTimeoutMinutes);
-        toast(`Session inactivity timeout updated to ${DB.settings.sessionTimeoutMinutes} minutes.`,'success');
-        await renderSecurityIntegrity();
-      }catch(e){
-        toast(e?.message||'Unable to update the session timeout.','error');
-      }
-    }
-  });
-}
-
-async function applyDueSecurityWorkflows(){
-  try{
-    const result=await securityIntegrityAction({action:'apply_due_workflows'});
-    toast(`${Number(result.applied||0)} due schedule change${Number(result.applied||0)===1?' was':'s were'} applied.`,'success');
-    await Promise.all([syncAdminDirectoryFromSupabase(),syncRealWorkflowRequests()]);
-    await renderSecurityIntegrity();
-  }catch(e){
-    toast(e?.message||'Unable to apply due schedule changes.','error');
-  }
 }
 
 // ================================================================
@@ -5620,23 +5115,66 @@ loadDB();
 // ================================================================
 // THEME (light / dark)
 // ================================================================
-const THEME_KEY='campuscare_theme';
+let campusThemeManualOverride=null;
+let campusThemeClockTimer=null;
+
+function automaticThemeForLocalTime(date=new Date()){
+  try{
+    const hour=date.getHours();
+    return (hour>=18||hour<6)?'dark':'light';
+  }catch(_){
+    return 'light';
+  }
+}
+
+function currentThemeOverride(){
+  return campusThemeManualOverride;
+}
+
 function applyThemeIcons(){
   const dark=document.documentElement.getAttribute('data-theme')==='dark';
-  ['theme-icon-moon','auth-theme-icon-moon'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=dark?'none':'';});
-  ['theme-icon-sun','auth-theme-icon-sun'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=dark?'':'none';});
+  ['theme-icon-moon','auth-theme-icon-moon'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.style.display=dark?'none':'';
+  });
+  ['theme-icon-sun','auth-theme-icon-sun'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.style.display=dark?'':'none';
+  });
+
+  const auto=!currentThemeOverride();
+  ['theme-toggle-btn','auth-theme-toggle-btn'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.title=auto
+      ? `Appearance follows local time (${dark?'Dark':'Light'} now). Click to temporarily override.`
+      : `Temporary ${dark?'Dark':'Light'} override. Reload CampusCare to return to automatic appearance.`;
+  });
 }
-function setTheme(mode){
-  if(mode==='dark') document.documentElement.setAttribute('data-theme','dark');
+
+function setTheme(mode,{manual=false}={}){
+  const next=mode==='dark'?'dark':'light';
+  if(next==='dark')document.documentElement.setAttribute('data-theme','dark');
   else document.documentElement.removeAttribute('data-theme');
-  try{localStorage.setItem(THEME_KEY,mode);}catch(e){}
+  if(manual)campusThemeManualOverride=next;
   applyThemeIcons();
 }
+
+function applyAutomaticTheme(){
+  if(currentThemeOverride())return;
+  setTheme(automaticThemeForLocalTime(),{manual:false});
+}
+
 function toggleTheme(){
   const isDark=document.documentElement.getAttribute('data-theme')==='dark';
-  setTheme(isDark?'light':'dark');
+  setTheme(isDark?'light':'dark',{manual:true});
 }
-applyThemeIcons();
+
+function startAutomaticThemeClock(){
+  applyAutomaticTheme();
+  if(campusThemeClockTimer)clearInterval(campusThemeClockTimer);
+  campusThemeClockTimer=setInterval(applyAutomaticTheme,60000);
+}
+startAutomaticThemeClock();
 
 function toast(msg, type='info', dur=3000){
   persistDB();
@@ -8180,7 +7718,8 @@ async function doLogin(){
     }
 
     currentUser=normalizeSupabaseUser(profile);
-try{ await supabaseClient.from('users').update({last_login_at:new Date().toISOString()}).eq('user_id',profile.user_id); }catch(_){}
+    currentUser.lastLogin=data.user?.last_sign_in_at||new Date().toISOString();
+    currentUser.emailConfirmedAt=data.user?.email_confirmed_at||null;
     try{await auditAction({action:'record_session',event:'LOGIN'});}catch(e){console.error('Login audit:',e);}
     await syncCampusCareSessionUI();
     if(profile.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
@@ -8523,7 +8062,10 @@ async function doRegister() {
   }
 }
 
+let pendingRegistrationEmail='';
+
 function showPendingPanel(user){
+  pendingRegistrationEmail=String(user?.email||'').trim();
   document.getElementById('login-section').style.display='none';
   document.getElementById('reg-section').style.display='none';
   document.getElementById('auth-tabs').style.display='none';
@@ -8537,6 +8079,81 @@ function closePendingPanel(){
   document.getElementById('li-user').value='';
   document.getElementById('li-pass').value='';
   authTab('login');
+}
+
+function maskVerificationEmail(email){
+  const raw=String(email||'').trim();
+  const parts=raw.split('@');
+  if(parts.length!==2)return raw;
+  const local=parts[0];
+  const visible=local.length<=2?local.slice(0,1):local.slice(0,2);
+  return `${visible}${'*'.repeat(Math.max(2,local.length-visible.length))}@${parts[1]}`;
+}
+
+async function resolveCampusCareEmail(identifier){
+  const raw=String(identifier||'').trim().toLowerCase();
+  if(!raw)throw new Error('Enter your registered username or email.');
+  if(raw.includes('@'))return raw;
+
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/resolve-login`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json',apikey:SUPABASE_PUBLISHABLE_KEY},
+    body:JSON.stringify({identifier:raw})
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.email)throw new Error('Unable to find a matching CampusCare registration.');
+  return result.email;
+}
+
+function openResendVerification(prefill=''){
+  const initial=String(prefill||document.getElementById('li-user')?.value||'').trim();
+  openModal(`<div class="modal modal-sm">
+    <div class="modal-header"><div><h3>Resend Verification Email</h3><div class="text-muted">For newly registered accounts whose confirmation link expired.</div></div><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body">
+      <div id="resend-verify-msg"></div>
+      <div class="form-group"><label>Username or Email</label><input id="resend-verify-id" maxlength="150" autocomplete="username" value="${escapeHtml(initial)}" placeholder="Enter your username or registered email"></div>
+      <div class="alert alert-info show" style="font-size:.7rem">
+        This requests a new signup-verification message. It does not create another registration and does not reset your password.
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Cancel</button><button class="btn btn-primary" id="resend-verify-btn" onclick="sendVerificationEmailAgain()">Send New Verification Email</button></div>
+  </div>`);
+}
+
+async function sendVerificationEmailAgain(){
+  const msg=document.getElementById('resend-verify-msg');
+  const btn=document.getElementById('resend-verify-btn');
+  const identifier=document.getElementById('resend-verify-id')?.value||'';
+  if(!initializeSupabaseClient()){
+    showAlert(msg,'CampusCare could not connect to the authentication service.');
+    return;
+  }
+
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Sending…';}
+    const email=await resolveCampusCareEmail(identifier);
+    const {error}=await supabaseClient.auth.resend({
+      type:'signup',
+      email,
+      options:{emailRedirectTo:`${CAMPUSCARE_APP_URL}?auth=confirmed`}
+    });
+    if(error)throw error;
+    showAlert(
+      msg,
+      `A new verification message was requested for ${maskVerificationEmail(email)}. Open the newest CampusCare email and use that link; older expired links can be ignored.`,
+      'success'
+    );
+  }catch(e){
+    const message=String(e?.message||'Unable to resend the verification email.');
+    showAlert(
+      msg,
+      /rate|too many|seconds/i.test(message)
+        ? 'Please wait a short time before requesting another verification email.'
+        : message
+    );
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Send New Verification Email';}
+  }
 }
 
 // ================================================================
@@ -9311,8 +8928,6 @@ const NAV_UI_ICONS={
   'feedback-issues':'bi-chat-dots',
   fitness:'bi-heart-pulse',
   'activity-log':'bi-clock-history',
-  'security-integrity':'bi-shield-check',
-  'uat-center':'bi-clipboard2-check',
   'dental-survey':'bi-ui-checks-grid',
   'survey-results':'bi-clipboard-data'
 };
@@ -9384,8 +8999,6 @@ const NAV_CONFIG={
     {id:'reports',label:'Reports & Analytics'},
     {id:'feedback-issues',label:'Feedback &amp; Issues'},
     {id:'settings',label:'System Settings'},
-    {id:'security-integrity',label:'Security & Integrity'},
-    {id:'uat-center',label:'QA / UAT Center'},
     {id:'activity-log',label:'Activity Log'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
@@ -9642,7 +9255,22 @@ function startTaskBadgeRefresh(){
 
 function buildNav(){
   const nav=document.getElementById('sidebar-nav');
-  const items=NAV_CONFIG[currentUser.role]||[];
+  const source=NAV_CONFIG[currentUser.role]||[];
+  const items=[];
+
+  for(let i=0;i<source.length;i++){
+    const item=source[i];
+    if(item.section){
+      let hasVisibleItem=false;
+      for(let j=i+1;j<source.length&&!source[j].section;j++){
+        if(shouldShowNavItem(source[j])){hasVisibleItem=true;break;}
+      }
+      if(hasVisibleItem)items.push(item);
+      continue;
+    }
+    if(shouldShowNavItem(item))items.push(item);
+  }
+
   nav.innerHTML=items.map(item=>{
     if(item.section)return`<div class="sb-section">${item.section}</div>`;
     const icon=NAV_UI_ICONS[item.id]||NAV_UI_ICONS.dashboard;
@@ -9703,7 +9331,6 @@ function navTo(id){
     reports:'Reports & Analytics',users:'User Management',settings:'System Settings',
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',
     'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log',
-    'security-integrity':'Security & Integrity','uat-center':'QA / UAT Center',
     'dental-survey':'Dental Clinic Survey','survey-results':'Survey Results',
     messages:'Messages'
   }[id]||id;
@@ -10884,8 +10511,6 @@ function renderPage(id){
     'feedback-issues':()=>renderFeedbackIssues(),
     fitness:()=>renderFitnessAssessments(),
     'activity-log':()=>renderActivityLog(),
-    'security-integrity':()=>renderSecurityIntegrity(),
-    'uat-center':()=>renderUATCenter(),
     'dental-survey':()=>renderDentalSurvey(),
     'survey-results':()=>renderSurveyResults(),
   };
@@ -11762,6 +11387,16 @@ async function renderMyRecords(){
 // ================================================================
 // MY ACCOUNT
 // ================================================================
+function formatLastLogin(value){
+  if(!value)return 'Never';
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime()))return escapeHtml(String(value));
+  return d.toLocaleString('en-PH',{
+    year:'numeric',month:'short',day:'numeric',
+    hour:'numeric',minute:'2-digit'
+  });
+}
+
 function openProfileDetails(){
   const u=currentUser;
   const pt=currentPatient;
@@ -11784,7 +11419,7 @@ function openProfileDetails(){
       ${pt?`<div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
       <div class="info-row"><span class="info-label">Type</span><span class="info-val">${priorityBadge(pt.personType)}</span></div>`:''}
       <div class="info-row"><span class="info-label">Status</span><span class="info-val">${statusBadge(u.status)}</span></div>
-      <div class="info-row"><span class="info-label">Last Login</span><span class="info-val">${u.lastLogin||'—'}</span></div>
+      <div class="info-row"><span class="info-label">Last Login</span><span class="info-val">${formatLastLogin(u.lastLogin)}</span></div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeAllModals()">Close</button>
@@ -11873,7 +11508,8 @@ function renderMyAccount(){
           <div class="info-row"><span class="info-label">Username</span><span class="info-val">${u.username}</span></div>
           <div class="info-row"><span class="info-label">Role</span><span class="info-val">${u.role}</span></div>
           <div class="info-row"><span class="info-label">Status</span><span class="info-val">${statusBadge(u.status)}</span></div>
-          <div class="info-row"><span class="info-label">Last Login</span><span class="info-val">${u.lastLogin||'—'}</span></div>
+          <div class="info-row"><span class="info-label">Email Verification</span><span class="info-val">${u.emailConfirmedAt?'<span class="badge badge-success">Confirmed</span>':'<span class="badge badge-warning">Not confirmed</span>'}</span></div>
+          <div class="info-row"><span class="info-label">Last Login</span><span class="info-val">${formatLastLogin(u.lastLogin)}</span></div>
           ${pt?`<div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
           <div class="info-row"><span class="info-label">Person Type</span><span class="info-val">${priorityBadge(pt.personType)}</span></div>
           <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${pt.idNo}</span></div>`:''}
@@ -14414,6 +14050,47 @@ function clinicSurveyRecords(){
   return DB.clinicSurveys;
 }
 
+function completedDentalSurveyAppointments(){
+  if(!currentUser||currentUser.role!=='Patient'||!currentPatient)return [];
+
+  const surveyedAppointmentIds=new Set(
+    clinicSurveyRecords()
+      .filter(s=>s.patientId===currentPatient.id&&s.appointmentId)
+      .map(s=>Number(s.appointmentId))
+  );
+
+  return appointmentRecords()
+    .filter(a=>
+      a.patientId===currentPatient.id &&
+      a.clinic==='Dental Clinic' &&
+      a.status==='Completed' &&
+      !surveyedAppointmentIds.has(Number(a.id))
+    )
+    .sort((a,b)=>
+      String(b.date).localeCompare(String(a.date)) ||
+      String(b.time).localeCompare(String(a.time))
+    );
+}
+
+function canShowDentalSurveyNav(){
+  return currentUser?.role==='Patient' && completedDentalSurveyAppointments().length>0;
+}
+
+function shouldShowNavItem(item){
+  if(!item?.id)return true;
+  if(item.id==='dental-survey')return canShowDentalSurveyNav();
+  return true;
+}
+
+function rebuildConditionalNavigation(){
+  if(!currentUser)return;
+  const active=campusActivePageId;
+  buildNav();
+  const btn=document.getElementById(`nav-${active}`);
+  if(btn)btn.classList.add('active');
+  applyNavBadges();
+}
+
 async function surveyAction(payload){
   const {data:{session}}=await supabaseClient.auth.getSession();
   if(!session)throw new Error('Your session has expired. Please log in again.');
@@ -14505,9 +14182,17 @@ async function renderDentalSurvey(){
 
   const pt=currentPatient;
   const surveys=clinicSurveyRecords().filter(s=>!pt||s.patientId===pt.id||!s.patientId);
-  const dentalAppts=appointmentRecords()
-    .filter(a=>a.patientId===pt?.id&&a.clinic==='Dental Clinic'&&a.status==='Completed')
-    .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const dentalAppts=completedDentalSurveyAppointments();
+
+  if(!dentalAppts.length){
+    rebuildConditionalNavigation();
+    c.innerHTML=`<div class="card"><div class="empty-state">
+      <i class="bi bi-ui-checks-grid" style="font-size:1.6rem;color:var(--primary)"></i>
+      <h3 style="margin:.6rem 0 .25rem">Survey becomes available after a completed dental service</h3>
+      <p>CampusCare only opens the Dental Clinic Survey after the clinic marks a Dental Clinic appointment as Completed. Each completed appointment can be surveyed once.</p>
+    </div></div>`;
+    return;
+  }
 
   const groupDefault=pt?.personType==='Student'?'Student':'Organic Personnel';
 
@@ -14525,11 +14210,11 @@ async function renderDentalSurvey(){
           <div class="survey-section">
             <h4>Visit Information</h4>
             <div class="form-row">
-              <div class="form-group"><label>Related Dental Appointment</label>
+              <div class="form-group"><label>Completed Dental Service <span class="required">*</span></label>
                 <select id="survey-appt">
-                  <option value="">General dental clinic visit / not linked</option>
                   ${dentalAppts.map(a=>`<option value="${a.id}">${fmtDate(a.date)} · ${escapeHtml(a.service)} · ${fmtTime(a.time)}</option>`).join('')}
                 </select>
+                <p class="form-note">Only completed Dental Clinic appointments that have not already been surveyed are listed.</p>
               </div>
               ${surveySelect('survey-group','Which group do you belong to?',['Student','Organic Personnel','In-organic Personnel'],groupDefault)}
             </div>
@@ -14617,7 +14302,12 @@ async function submitDentalSurvey(){
   }
 
   const apptId=Number(document.getElementById('survey-appt')?.value||0);
-  const surveyAppt=apptId?appointmentRecords().find(a=>a.id===apptId):null;
+  const surveyAppt=apptId?completedDentalSurveyAppointments().find(a=>a.id===apptId):null;
+  if(!surveyAppt){
+    showAlert(msg,'This survey requires a completed Dental Clinic service that has not already been surveyed.');
+    rebuildConditionalNavigation();
+    return;
+  }
   const payload={
     action:'submit',
     appointment_id:apptId?(surveyAppt?.dbAppointmentId||apptId):null,
@@ -14662,7 +14352,12 @@ async function submitDentalSurvey(){
       persistDB();
     }
     toast('Thank you. Your dental clinic survey was submitted.','success');
-    await renderDentalSurvey();
+    rebuildConditionalNavigation();
+    if(completedDentalSurveyAppointments().length){
+      await renderDentalSurvey();
+    }else{
+      navTo('dashboard');
+    }
   }catch(e){
     showAlert(msg,e?.message||'Unable to submit the survey.');
   }
@@ -16529,6 +16224,149 @@ function userAvatarHtml(u,size=34){
   return fallback;
 }
 
+
+function userDetailField(label,value,wide=false){
+  const raw=String(value??'').trim();
+  return `<div class="user-detail-field ${wide?'wide':''}">
+    <span>${escapeHtml(label)}</span>
+    <strong>${raw?escapeHtml(raw):'<span class="text-muted">Not provided</span>'}</strong>
+  </div>`;
+}
+
+function userVerificationPreview(detail){
+  const u=detail?.user||{};
+  const url=u.verification_signed_url||'';
+  if(!url)return '<div class="user-detail-preview-body"><span class="text-muted">No submitted School ID / Employee ID / COR is stored for this account.</span></div>';
+  const clean=String(u.id_file_url||'').split('?')[0].toLowerCase();
+  const isPdf=/\.pdf$/i.test(clean);
+  return isPdf
+    ? `<div class="user-detail-preview-body"><iframe src="${escapeHtml(url)}" title="Submitted verification document"></iframe></div>`
+    : `<div class="user-detail-preview-body"><img src="${escapeHtml(url)}" alt="Submitted verification document"></div>`;
+}
+
+async function openUserDetails(id){
+  const u=DB.users.find(x=>x.id===Number(id));
+  if(!u||currentUser?.role!=='Administrator')return;
+
+  openModal(`<div class="modal modal-lg"><div class="modal-header"><h3>User Information</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+    <div class="modal-body"><div class="db-skeleton-shimmer" style="height:340px;border-radius:14px"></div></div></div>`);
+
+  try{
+    let detail;
+    if(u._realSupabase){
+      detail=await adminUserAction({action:'detail',user_id:u.dbUserId});
+    }else{
+      const pt=DB.patients.find(p=>p.userId===u.id)||null;
+      detail={
+        user:{
+          first_name:u.fname,last_name:u.lname,username:u.username,email:u.email,contact_number:u.contact,
+          role:u.role,status:u.status,verified:u.verified,person_type:u.personType,college:u.college,id_number:u.idNo,
+          profile_signed_url:u.profilePhoto||'',verification_signed_url:u.idFileData||'',
+          verification_document_type:u.personType==='Student'?'School ID or COR':u.role==='Patient'?'Employee ID':'Not required',
+          specialty:u.specialty,last_sign_in_at:u.lastLogin,created_at:u.createdAt,email_confirmed_at:u.emailConfirmedAt||null,
+          work_days:u.workDays,start_time:u.startTime,end_time:u.endTime,max_patients:u.maxPatients
+        },
+        patient:pt?{
+          birth_date:pt.birthDate||'',sex:pt.gender||'',blood_type:pt.blood||'',address:pt.address||'',
+          emergency_contact_name:pt.emergencyName||'',emergency_contact_number:pt.emergencyContact||'',
+          medical_history:pt.medHistory||'',allergies:pt.allergies||''
+        }:null
+      };
+    }
+
+    const d=detail.user||{},p=detail.patient||{};
+    const fullName=`${d.first_name||''} ${d.last_name||''}`.trim();
+    const initials=((d.first_name?.[0]||'')+(d.last_name?.[0]||'')).toUpperCase()||'U';
+    const documentTitle=d.verification_document_type||(
+      d.person_type==='Student'?'School ID or COR':
+      d.role==='Patient'?'Employee ID':'Verification Document'
+    );
+    const emailStatus=d.email_confirmed_at?'Confirmed':'Not confirmed';
+    const roleSchedule=d.role==='Doctor'
+      ? `${Array.isArray(d.work_days)?d.work_days.join(', '):'—'} · ${String(d.start_time||'').slice(0,5)||'—'}–${String(d.end_time||'').slice(0,5)||'—'}`
+      : '';
+
+    openModal(`<div class="modal modal-xl user-detail-modal">
+      <div class="modal-header">
+        <div><h3>${escapeHtml(fullName||'User Information')}</h3><div class="text-muted">${escapeHtml(d.role||'')} · ${escapeHtml(d.status||'')}</div></div>
+        <button class="close-btn" onclick="closeAllModals()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="user-detail-grid">
+          <div style="display:grid;gap:.75rem">
+            <section class="user-detail-section">
+              <h4>Account &amp; Registration Information</h4>
+              <div class="user-detail-fields">
+                ${userDetailField('First Name',d.first_name)}
+                ${userDetailField('Last Name',d.last_name)}
+                ${userDetailField('Username',d.username)}
+                ${userDetailField('Email',d.email)}
+                ${userDetailField('Email Verification',emailStatus)}
+                ${userDetailField('Contact Number',d.contact_number)}
+                ${userDetailField('Role',d.role)}
+                ${userDetailField('Status',d.status)}
+                ${userDetailField('Person Type',d.person_type)}
+                ${userDetailField('College / Department',d.college)}
+                ${userDetailField(d.person_type==='Student'?'Student ID No.':'Employee ID No.',d.id_number)}
+                ${userDetailField('Verification Document',documentTitle)}
+                ${userDetailField('Account Created',formatLastLogin(d.auth_created_at||d.created_at))}
+                ${userDetailField('Last Login',formatLastLogin(d.last_sign_in_at||d.last_login_at))}
+                ${d.role==='Doctor'?userDetailField('Doctor Specialty',d.specialty):''}
+                ${d.role==='Doctor'?userDetailField('Work Schedule',roleSchedule,true):''}
+              </div>
+            </section>
+
+            ${p&&Object.keys(p).length?`<section class="user-detail-section">
+              <h4>Patient / Health Profile</h4>
+              <div class="user-detail-fields">
+                ${userDetailField('Date of Birth',p.birth_date)}
+                ${userDetailField('Sex',p.sex)}
+                ${userDetailField('Blood Type',p.blood_type)}
+                ${userDetailField('Address',p.address,true)}
+                ${userDetailField('Emergency Contact Name',p.emergency_contact_name)}
+                ${userDetailField('Emergency Contact Number',p.emergency_contact_number)}
+                ${userDetailField('Allergies',p.allergies)}
+                ${userDetailField('Medical History',p.medical_history,true)}
+              </div>
+            </section>`:''}
+          </div>
+
+          <section class="user-detail-section">
+            <h4>Submitted Identity Documents</h4>
+            <div class="user-detail-docs">
+              <div class="user-detail-preview selfie">
+                <h5>Registration Selfie / Profile Photo</h5>
+                <div class="user-detail-preview-body">
+                  ${d.profile_signed_url
+                    ?`<img src="${escapeHtml(d.profile_signed_url)}" alt="Registration selfie">`
+                    :`<div class="approval-applicant-avatar" style="width:78px;height:78px">${initials}</div>`}
+                </div>
+              </div>
+              <div class="user-detail-preview">
+                <h5>${escapeHtml(documentTitle)}</h5>
+                ${userVerificationPreview(detail)}
+              </div>
+            </div>
+            <div style="display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.6rem">
+              ${d.profile_signed_url?`<button class="btn btn-xs" onclick="showFilePreview('${jsAttrSafe(fullName)} - Registration Selfie','${d.profile_signed_url}')"><i class="bi bi-arrows-fullscreen"></i> Open Selfie</button>`:''}
+              ${d.verification_signed_url?`<button class="btn btn-xs btn-info" onclick="showFilePreview('${jsAttrSafe(documentTitle)}','${d.verification_signed_url}')"><i class="bi bi-arrows-fullscreen"></i> Open Submitted Document</button>`:''}
+            </div>
+            <p class="form-note" style="margin-top:.55rem">Sensitive registration files use temporary signed links and remain in private CampusCare storage.</p>
+          </section>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeAllModals()">Close</button>
+        <button class="btn btn-primary" onclick="closeAllModals();openEditUserModal(${u.id})">Edit User</button>
+      </div>
+    </div>`);
+  }catch(e){
+    openModal(`<div class="modal modal-sm"><div class="modal-header"><h3>User Information</h3><button class="close-btn" onclick="closeAllModals()">✕</button></div>
+      <div class="modal-body"><div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load this user.')}</div></div>
+      <div class="modal-footer"><button class="btn" onclick="closeAllModals()">Close</button></div></div>`);
+  }
+}
+
 async function renderUsers(){
   const c=document.getElementById('app-content');
   const pageToken=captureCampusPageToken();
@@ -16662,16 +16500,16 @@ function renderUserTable(){
   const el=document.getElementById('user-table');
   if(!el)return;
   el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>#</th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Type/Dept</th><th>Last Login</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
-    users.map(u=>`<tr ${u.archived?'style="opacity:.6"':''}>
+    users.map(u=>`<tr class="user-detail-row-click" ${u.archived?'style="opacity:.6"':''} onclick="openUserDetails(${u.id})" title="Open complete user information">
       <td>${userAvatarHtml(u,32)}</td>
       <td>${u._realSupabase?(u.dbUserId??u.id):u.id}</td>
       <td><strong>${u.fname} ${u.lname}</strong><br><span class="text-muted">${u.idNo||''}</span>${u.archived?' <span class="badge badge-gray">Archived</span>':''}</td>
       <td>${u.username}</td><td style="font-size:.78rem">${u.email}</td>
       <td><span class="badge badge-info">${u.role}</span></td>
       <td>${u.personType||u.specialty||u.department||'-'}<br>${collegeBadge(u.college)}</td>
-      <td class="text-muted">${u.lastLogin||'Never'}</td>
+      <td class="text-muted">${formatLastLogin(u.lastLogin)}</td>
       <td>${u.archived?'<span class="badge badge-gray">Archived</span>':statusBadge(u.status)}</td>
-      <td><div class="td-actions">
+      <td><div class="td-actions" onclick="event.stopPropagation()">
         ${!u.archived?`<button class="btn btn-xs" onclick="openEditUserModal(${u.id})">Edit</button>`:''}
         ${!u.archived&&u.status==='Active'&&u.id!==currentUser.id?`<button class="btn btn-xs btn-warning" onclick="suspendUser(${u.id})">Suspend</button>`:''}
         ${!u.archived&&u.status==='Pending'?`<button class="btn btn-xs btn-success" onclick="approveUser(${u.id})">Approve</button><button class="btn btn-xs btn-danger" onclick="rejectUser(${u.id})">Reject</button>`:''}
@@ -20461,7 +20299,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
 });
 
-console.log('CampusCare v68 loaded.');
+console.log('CampusCare v69 loaded.');
 </script>
 </body>
 </html>
