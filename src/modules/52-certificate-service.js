@@ -1,84 +1,17 @@
-// ================================================================
-// REAL SUPABASE MEDICAL CERTIFICATES
-// ================================================================
-function certificateRecords(){
-  if(currentUser?._realSupabase)return (DB.certRequests||[]).filter(r=>r._realSupabase);
-  return DB.certRequests||[];
+// Preserve legacy handlers while certificate data access lives in independent modules.
+function certificateRecords(){return certificateData.certificateRecords(DB,currentUser);}
+function certificateDisplayId(r){return certificateData.certificateDisplayId(r);}
+function certificateNumberFor(r){return certificateData.certificateNumberFor(r);}
+function realCertificateToUi(r){return certificateData.realCertificateToUi(r);}
+function certificateService(){
+  return createCertificateService({getClient:()=>supabaseClient,request:(...args)=>fetch(...args),
+    baseUrl:SUPABASE_URL,publishableKey:SUPABASE_PUBLISHABLE_KEY});
 }
-
-function certificateDisplayId(r){
-  const id=Number(r?.dbCertificateId??r?.id??0);
-  return String(id).padStart(6,'0');
-}
-
-function certificateNumberFor(r){
-  if(r?.certNo)return r.certNo;
-  const id=Number(r?.dbCertificateId??r?.id??0);
-  return `CTU-MC-${new Date().getFullYear()}-${String(id).padStart(6,'0')}`;
-}
-
-async function certificateAction(payload){
-  const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session)throw new Error('Your session has expired. Please log in again.');
-
-  const response=await fetch(`${SUPABASE_URL}/functions/v1/certificate-actions`,{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      apikey:SUPABASE_PUBLISHABLE_KEY,
-      Authorization:`Bearer ${session.access_token}`
-    },
-    body:JSON.stringify(payload)
-  });
-
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.ok)throw new Error(result.error||'Certificate action failed.');
-  return result;
-}
-
-function realCertificateToUi(r){
-  return {
-    id:700000+Number(r.certificate_id),
-    dbCertificateId:Number(r.certificate_id),
-    patientId:200000+Number(r.patient_id),
-    dbPatientId:Number(r.patient_id),
-    doctorId:r.doctor_id?100000+Number(r.doctor_id):null,
-    dbDoctorId:r.doctor_id?Number(r.doctor_id):null,
-    treatmentId:r.treatment_id?500000+Number(r.treatment_id):null,
-    dbTreatmentId:r.treatment_id?Number(r.treatment_id):null,
-    purpose:r.purpose||'',
-    details:r.request_details||'',
-    status:r.status||'Pending',
-    requestedAt:r.requested_at||r.created_at||'',
-    certNo:r.certificate_no||'',
-    issuedAt:r.issued_at||'',
-    findings:r.examination_findings||'',
-    recommendations:r.remarks||'',
-    documentHtml:r.document_content||'',
-    signatureData:r.signature_url||'',
-    declineReason:r.decline_reason||'',
-    preparedById:r.prepared_by?100000+Number(r.prepared_by):null,
-    preparedAt:r.prepared_at||'',
-    signedById:r.signed_by?100000+Number(r.signed_by):null,
-    signedAt:r.signed_at||'',
-    updatedAt:r.updated_at||'',
-    _realSupabase:true
-  };
-}
-
+async function certificateAction(payload){return certificateService().action(payload);}
 async function syncRealCertificates(){
   if(!currentUser?._realSupabase)return certificateRecords();
-
-  const {data,error}=await supabaseClient
-    .from('medical_certificates')
-    .select('certificate_id,patient_id,doctor_id,treatment_id,purpose,request_details,examination_findings,diagnosis,remarks,document_content,signature_url,status,requested_at,issued_at,certificate_no,decline_reason,prepared_by,prepared_at,signed_by,signed_at,created_at,updated_at')
-    .order('requested_at',{ascending:false})
-    .order('certificate_id',{ascending:false});
-
-  if(error)throw error;
-
-  DB.certRequests=(DB.certRequests||[]).filter(r=>!r._realSupabase);
-  DB.certRequests.push(...(data||[]).map(realCertificateToUi));
+  const rows=await certificateService().loadCertificates();
+  DB.certRequests=certificateData.mergeCertificateRecords(DB.certRequests||[],rows);
   return certificateRecords();
 }
 

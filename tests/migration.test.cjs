@@ -129,7 +129,27 @@ async function checkNotificationAdapter(){
     assert.equal(w.document.getElementById('notif-count').textContent,'99+');assert.equal(w.document.querySelector('#nav-messages .nav-badge').textContent,'99+');
   }finally{w.supabaseClient=client;w.currentUser=user;w.fetch=request;w.DB.notifications=notifications;w.navTaskCounts=counts;w.navTaskItems=items;w.navTaskSeen=seen;}
 }
-(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');await checkInventoryAdapter();await checkAppointmentAdapter();await checkTreatmentAdapter();await checkPatientAdapter();await checkNotificationAdapter();
+// Verify certificate refresh, failure recovery and actions through the production adapters.
+async function checkCertificateAdapter(){
+  const client=w.supabaseClient,user=w.currentUser,patient=w.currentPatient,request=w.fetch,certificates=w.DB.certRequests;
+  let queries=0,failure=false;const actions=[];
+  const demo={id:11,patientId:4};
+  w.DB.certRequests=[demo,{id:700001,_realSupabase:true}];
+  w.supabaseClient={auth:{getSession:async()=>({data:{session:{access_token:'test-session'}}})},from(table){
+    assert.equal(table,'medical_certificates');queries++;
+    return {select(){return this;},order(){return this;},then(resolve,reject){return Promise.resolve(failure?{error:new Error('Test certificate failure')}:{data:[{certificate_id:7,patient_id:4,status:'Issued',certificate_no:'CTU-MC-2025-000007',document_content:'<p>Test document</p>'}]}).then(resolve,reject);}};
+  }};
+  w.fetch=async(url,options)=>{assert(url.endsWith('/certificate-actions'));actions.push(JSON.parse(options.body));return {ok:true,json:async()=>({ok:true})};};
+  try{
+    w.currentUser={role:'Patient',_realSupabase:false};assert.equal((await w.syncRealCertificates()).length,2);assert.equal(queries,0);
+    w.currentUser={role:'Patient',_realSupabase:true};w.currentPatient={_realSupabase:true};await w.syncCertificateContext();
+    assert.equal(queries,1);assert.equal(w.DB.certRequests[0],demo);const rows=w.certificateRecords();assert.equal(rows.length,1);
+    assert.equal(w.certificateDisplayId(rows[0]),'000007');assert.equal(w.certificateNumberFor(rows[0]),'CTU-MC-2025-000007');assert.equal(rows[0].documentHtml,'<p>Test document</p>');
+    const snapshot=w.DB.certRequests;failure=true;await assert.rejects(w.syncRealCertificates(),/Test certificate failure/);assert.equal(w.DB.certRequests,snapshot);
+    await w.certificateAction({action:'request',purpose:'Test purpose'});assert.equal(actions[0].purpose,'Test purpose');
+  }finally{w.supabaseClient=client;w.currentUser=user;w.currentPatient=patient;w.fetch=request;w.DB.certRequests=certificates;}
+}
+(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');await checkInventoryAdapter();await checkAppointmentAdapter();await checkTreatmentAdapter();await checkPatientAdapter();await checkNotificationAdapter();await checkCertificateAdapter();
 w.currentUser=w.DB.users.find(u=>u.role==='Doctor');w.buildNav();w.navTo('dashboard');assert(w.document.querySelector('#nav-schedule'));assert(!w.document.querySelector('#nav-task-center'));
 w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-draft]'));w.captureCampusDraft('schedule');w.closeAllModals();w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-resume]'));w.restoreCampusDraft('schedule');assert.equal(w.document.querySelectorAll('.scr-day:checked').length,5);
 assert.equal(w.appointmentSlotBaseTimes({startTime:'08:00',endTime:'09:15',slotDuration:60}).join(','),'08:00');assert(w.validateSchedule({...w.canonicalSchedule(w.currentUser),slotDuration:0},w.clinicToday(),w.currentUser).includes('Slot duration'));
