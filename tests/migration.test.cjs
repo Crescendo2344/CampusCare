@@ -83,7 +83,25 @@ async function checkTreatmentAdapter(){
     assert(w.DB.medReminders.some(r=>r.dbReminderId===9&&r.status==='active'));
   }finally{w.supabaseClient=client;w.currentUser=user;w.currentPatient=patient;w.fetch=request;Object.assign(w.DB,saved);}
 }
-(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');await checkInventoryAdapter();await checkAppointmentAdapter();await checkTreatmentAdapter();
+// Verify the directory adapters moved out of the early session bootstrap.
+async function checkPatientAdapter(){
+  const client=w.supabaseClient,user=w.currentUser,patient=w.currentPatient;
+  const saved={users:w.DB.users,patients:w.DB.patients};const queries=[];
+  const rows={users:[{user_id:2,auth_user_id:'test-auth',first_name:'Test',last_name:'Staff',role:'Staff',profile_image_url:'test-photo'}],patients:[{patient_id:4,user_id:2,height_cm:160}]};
+  w.supabaseClient={storage:{from(){return {createSignedUrl:async()=>({data:{signedUrl:'https://photo.test/test'}})};}},from(table){
+    queries.push(table);return {select(){return this;},order(){return this;},eq(){return this;},maybeSingle:async()=>({data:rows.patients[0]}),then(resolve,reject){return Promise.resolve({data:rows[table]}).then(resolve,reject);}};
+  }};
+  try{
+    w.currentUser={role:'Patient',id:100002,dbUserId:2,_realSupabase:true};assert.equal((await w.fetchAdminDirectory()).length,0);await w.syncAdminDirectoryFromSupabase();assert.equal(queries.length,0);
+    await w.syncCurrentPatientFromSupabase();assert.equal(w.currentPatient.dbPatientId,4);assert.equal(w.patientDisplayId(w.currentPatient),'000004');assert.equal(w.currentPatient.height,'160cm');
+    const account={role:'Staff',authUserId:'test-auth',id:100002,dbUserId:2,_realSupabase:true};w.currentUser=account;
+    await w.syncAdminDirectoryFromSupabase();assert.equal(w.currentUser,account);assert.equal(account.fname,'Test');assert.equal(account.profilePhoto,'https://photo.test/test');
+    assert(w.DB.patients.some(p=>p.dbPatientId===4&&p.userId===100002));
+    const count=queries.length;await w.syncCurrentPatientFromSupabase();assert.equal(queries.length,count);
+    assert.equal(typeof w.normalizeSupabaseUser,'function');assert.equal(typeof w.syncCampusCareSessionUI,'function');
+  }finally{w.supabaseClient=client;w.currentUser=user;w.currentPatient=patient;Object.assign(w.DB,saved);}
+}
+(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');await checkInventoryAdapter();await checkAppointmentAdapter();await checkTreatmentAdapter();await checkPatientAdapter();
 w.currentUser=w.DB.users.find(u=>u.role==='Doctor');w.buildNav();w.navTo('dashboard');assert(w.document.querySelector('#nav-schedule'));assert(!w.document.querySelector('#nav-task-center'));
 w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-draft]'));w.captureCampusDraft('schedule');w.closeAllModals();w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-resume]'));w.restoreCampusDraft('schedule');assert.equal(w.document.querySelectorAll('.scr-day:checked').length,5);
 assert.equal(w.appointmentSlotBaseTimes({startTime:'08:00',endTime:'09:15',slotDuration:60}).join(','),'08:00');assert(w.validateSchedule({...w.canonicalSchedule(w.currentUser),slotDuration:0},w.clinicToday(),w.currentUser).includes('Slot duration'));

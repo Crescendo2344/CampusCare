@@ -11,3 +11,5 @@ export * as appointmentData from './domain/appointment-records.js';
 export { createAppointmentService } from './services/appointments.js';
 export * as treatmentData from './domain/treatment-records.js';
 export { createTreatmentService } from './services/treatments.js';
+export * as patientData from './domain/patient-records.js';
+export { createPatientService } from './services/patients.js';
