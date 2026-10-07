@@ -1,5 +1,16 @@
 # Feature source map
 
+## Independent modules
+
+| File | Dependencies | Responsibility |
+|---|---|---|
+| `src/domain/schedule.js` | Records, dates and settings supplied by callers | Date/time helpers, slot generation, lunch overlap, schedule validation, conflict detection and effective schedule selection |
+| `src/services/draft-storage.js` | Injected storage and account getter | Draft keys and JSON storage, isolated by account and live/demo mode |
+
+These modules export normal ES-module APIs and can run without the DOM or Supabase. Legacy adapters in input validation, booking forms and schedule/drafts pass the current application data to them. UI rendering, event handlers and sidebar badges remain in the compatibility runtime.
+
+## Legacy feature sources
+
 These files are assembled in this exact order. Shared state remains in the compatibility runtime.
 
 | File | Responsibility |

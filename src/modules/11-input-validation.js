@@ -65,7 +65,7 @@ function fmtDateTime(d){
   return dt.toLocaleString('en-PH',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
 }
 function fmtTime(t){if(!t)return'-';const [h,m]=t.split(':');const hr=parseInt(h);return `${hr===0?12:hr>12?hr-12:hr}:${m} ${hr<12?'AM':'PM'}`;}
-function dayOfWeek(dateStr){return new Date(dateStr+'T12:00:00').toLocaleDateString('en',{weekday:'short'});}
+function dayOfWeek(dateStr){return scheduleRules.dayOfWeek(dateStr);}
 
 function statusBadge(s){
   const map={Scheduled:'info',Completed:'success',Cancelled:'danger','Pending':'warning','Active':'success','Suspended':'danger','No-show':'gray'};
