@@ -25,7 +25,21 @@ function checkInputAdapter(){
   assert(w.statusBadge('Pending').includes('badge-warning'));
 }
 
-(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');
+// Exercise the inventory adapter with a fake client and restore all application state.
+async function checkInventoryAdapter(){
+  const client=w.supabaseClient,user=w.currentUser;
+  const saved={inventory:w.DB.inventory,inventoryTransactions:w.DB.inventoryTransactions,
+    disbursements:w.DB.disbursements,inventoryForecasts:w.DB.inventoryForecasts};
+  let queries=0;
+  w.supabaseClient={from(table){queries++;return {select(){return this;},order(){return Promise.resolve({data:table==='inventory_items'?[{item_id:42,item_name:'Test Gauze',quantity:5}]:[]});}};}};
+  try{
+    w.currentUser={role:'Patient',_realSupabase:true};assert.equal((await w.syncRealInventory()).length,0);assert.equal(queries,0);
+    w.currentUser={role:'Staff',_realSupabase:true};const items=await w.syncRealInventory();
+    assert.equal(queries,3);assert.equal(items.length,1);assert.equal(items[0].dbItemId,42);
+    assert.equal(items[0].qty,5);assert.equal(w.inventoryDisplayId(items[0]),'000042');
+  }finally{w.supabaseClient=client;w.currentUser=user;Object.assign(w.DB,saved);}
+}
+(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');await checkInventoryAdapter();
 w.currentUser=w.DB.users.find(u=>u.role==='Doctor');w.buildNav();w.navTo('dashboard');assert(w.document.querySelector('#nav-schedule'));assert(!w.document.querySelector('#nav-task-center'));
 w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-draft]'));w.captureCampusDraft('schedule');w.closeAllModals();w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-resume]'));w.restoreCampusDraft('schedule');assert.equal(w.document.querySelectorAll('.scr-day:checked').length,5);
 assert.equal(w.appointmentSlotBaseTimes({startTime:'08:00',endTime:'09:15',slotDuration:60}).join(','),'08:00');assert(w.validateSchedule({...w.canonicalSchedule(w.currentUser),slotDuration:0},w.clinicToday(),w.currentUser).includes('Slot duration'));
