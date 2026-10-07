@@ -5,3 +5,5 @@ export { createDraftStorage } from './services/draft-storage.js';
 export * as formatters from './shared/formatting.js';
 export * as displayMarkup from './ui/display-markup.js';
 export { sanitizeValue } from './shared/input-values.js';
+export * as inventoryData from './domain/inventory-records.js';
+export { createInventoryService } from './services/inventory.js';

@@ -9,8 +9,10 @@
 | `src/shared/input-values.js` | Input value and field type | Existing character filtering and length limits |
 | `src/shared/formatting.js` | Supplied values | Dates, times, semester labels and display IDs |
 | `src/ui/display-markup.js` | Supplied values | Status, college and priority badges and SVG icons |
+| `src/domain/inventory-records.js` | Supplied snapshot and account | Inventory selectors, backend-to-UI record mapping and immutable snapshot assembly |
+| `src/services/inventory.js` | Injected client, request function, configuration and error reporter | Existing inventory queries and authenticated Edge Function actions |
 
-These modules export normal ES-module APIs and can run without the DOM or Supabase. Legacy adapters in input validation, booking forms and schedule/drafts pass the current application data to them. DOM rendering, event handlers and sidebar attention badges remain in the compatibility runtime.
+These modules export normal ES-module APIs and can run without the DOM or Supabase. Legacy adapters in input validation, booking forms, schedule/drafts and inventory pass the current application data to them. DOM rendering, event handlers and sidebar attention badges remain in the compatibility runtime.
 
 ## Legacy feature sources
 

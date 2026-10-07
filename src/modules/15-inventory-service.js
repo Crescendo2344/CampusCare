@@ -1,145 +1,22 @@
-// ================================================================
-// REAL SUPABASE INVENTORY
-// ================================================================
-function inventoryRecords(){
-  if(currentUser?._realSupabase)return (DB.inventory||[]).filter(i=>i._realSupabase);
-  return DB.inventory||[];
+// Compatibility adapters own application state; the data modules receive explicit dependencies.
+function inventoryRecords(){return inventoryData.inventoryRecords(DB,currentUser);}
+function inventoryTransactionRecords(){return inventoryData.inventoryTransactionRecords(DB,currentUser);}
+function inventoryForecastRecords(){return inventoryData.inventoryForecastRecords(DB,currentUser);}
+function inventoryDisplayId(item){return inventoryData.inventoryDisplayId(item);}
+function realInventoryToUi(item){return inventoryData.realInventoryToUi(item);}
+function realInventoryTransactionToUi(tx){return inventoryData.realInventoryTransactionToUi(tx);}
+function realInventoryForecastToUi(forecast){return inventoryData.realInventoryForecastToUi(forecast);}
+function inventoryService(){
+  return createInventoryService({getClient:()=>supabaseClient,request:(...args)=>fetch(...args),
+    baseUrl:SUPABASE_URL,publishableKey:SUPABASE_PUBLISHABLE_KEY,
+    reportForecastError:err=>console.error('Inventory forecast generation:',err)});
 }
-
-function inventoryTransactionRecords(){
-  if(currentUser?._realSupabase)return (DB.inventoryTransactions||[]).filter(t=>t._realSupabase);
-  return (DB.disbursements||[]).map(d=>({
-    id:d.id,itemId:d.itemId,type:'Disbursement',qty:d.qty,date:d.date,
-    dateTime:d.date,notes:d.notes||'',userId:d.userId,_realSupabase:false
-  }));
-}
-
-function inventoryForecastRecords(){
-  return currentUser?._realSupabase?(DB.inventoryForecasts||[]):[];
-}
-
-function inventoryDisplayId(i){
-  const id=Number(i?.dbItemId??i?.id??0);
-  return String(id).padStart(6,'0');
-}
-
-async function inventoryAction(payload){
-  const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session)throw new Error('Your session has expired. Please log in again.');
-
-  const response=await fetch(`${SUPABASE_URL}/functions/v1/inventory-actions`,{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      apikey:SUPABASE_PUBLISHABLE_KEY,
-      Authorization:`Bearer ${session.access_token}`
-    },
-    body:JSON.stringify(payload)
-  });
-
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.ok)throw new Error(result.error||'Inventory action failed.');
-  return result;
-}
-
-function realInventoryToUi(i){
-  return {
-    id:900000+Number(i.item_id),
-    dbItemId:Number(i.item_id),
-    name:i.item_name||'',
-    category:i.category||'Supplies',
-    qty:Number(i.quantity||0),
-    threshold:Number(i.threshold||0),
-    unit:i.unit||'pcs',
-    expiryDate:i.expiry_date||'',
-    supplier:i.supplier||'',
-    unitCost:Number(i.unit_cost||0),
-    disbursementDate:i.target_disbursement_date||'',
-    photo:i.photo_data||'',
-    archived:Boolean(i.archived),
-    archivedAt:i.archived_at||'',
-    archivedBy:i.archived_by?100000+Number(i.archived_by):null,
-    createdAt:i.created_at||'',
-    updatedAt:i.updated_at||'',
-    _realSupabase:true
-  };
-}
-
-function realInventoryTransactionToUi(t){
-  return {
-    id:910000+Number(t.transaction_id),
-    dbTransactionId:Number(t.transaction_id),
-    itemId:900000+Number(t.item_id),
-    dbItemId:Number(t.item_id),
-    type:t.transaction_type||'Adjustment',
-    qty:Number(t.quantity||0),
-    date:String(t.transaction_date||'').slice(0,10),
-    dateTime:t.transaction_date||'',
-    notes:t.notes||'',
-    userId:t.created_by?100000+Number(t.created_by):null,
-    dbCreatedBy:t.created_by?Number(t.created_by):null,
-    _realSupabase:true
-  };
-}
-
-function realInventoryForecastToUi(f){
-  return {
-    id:920000+Number(f.forecast_id),
-    dbForecastId:Number(f.forecast_id),
-    itemId:900000+Number(f.item_id),
-    dbItemId:Number(f.item_id),
-    forecastMonth:f.forecast_month||'',
-    predictedUsage:Number(f.predicted_usage||0),
-    predictedRemainingStock:f.predicted_remaining_stock==null?null:Number(f.predicted_remaining_stock),
-    predictedStockoutDate:f.predicted_stockout_date||'',
-    recommendedReorderQty:Number(f.recommended_reorder_qty||0),
-    generatedAt:f.generated_at||'',
-    _realSupabase:true
-  };
-}
-
+async function inventoryAction(payload){return inventoryService().action(payload);}
 async function syncRealInventory(generateForecasts=false){
   if(!currentUser?._realSupabase)return inventoryRecords();
   if(!['Staff','Administrator'].includes(currentUser.role))return [];
-
-  if(generateForecasts){
-    try{
-      await inventoryAction({action:'generate_forecasts'});
-    }catch(err){
-      // Forecast generation should never prevent the inventory itself from loading.
-      console.error('Inventory forecast generation:',err);
-    }
-  }
-
-  const [itemsRes,txRes,forecastRes]=await Promise.all([
-    supabaseClient.from('inventory_items')
-      .select('item_id,item_name,category,quantity,threshold,unit,expiry_date,supplier,unit_cost,photo_data,target_disbursement_date,archived,archived_at,archived_by,created_at,updated_at')
-      .order('item_name',{ascending:true}),
-    supabaseClient.from('inventory_transactions')
-      .select('transaction_id,item_id,transaction_type,quantity,transaction_date,notes,created_by')
-      .order('transaction_date',{ascending:false}),
-    supabaseClient.from('inventory_forecasts')
-      .select('forecast_id,item_id,forecast_month,predicted_usage,predicted_remaining_stock,predicted_stockout_date,recommended_reorder_qty,generated_at')
-      .order('forecast_month',{ascending:true})
-  ]);
-
-  if(itemsRes.error)throw itemsRes.error;
-  if(txRes.error)throw txRes.error;
-  if(forecastRes.error)throw forecastRes.error;
-
-  DB.inventory=(DB.inventory||[]).filter(i=>!i._realSupabase);
-  DB.inventory.push(...(itemsRes.data||[]).map(realInventoryToUi));
-
-  DB.inventoryTransactions=(txRes.data||[]).map(realInventoryTransactionToUi);
-
-  // Preserve the older UI abstraction for features that still expect
-  // DB.disbursements, but feed it only real Disbursement transactions.
-  DB.disbursements=(DB.disbursements||[]).filter(d=>!d._realSupabase);
-  DB.disbursements.push(...DB.inventoryTransactions
-    .filter(t=>t.type==='Disbursement')
-    .map(t=>({...t,_realSupabase:true})));
-
-  DB.inventoryForecasts=(forecastRes.data||[]).map(realInventoryForecastToUi);
+  const snapshot=await inventoryService().load(generateForecasts);
+  Object.assign(DB,inventoryData.mergeInventorySnapshot(DB,snapshot));
   return inventoryRecords();
 }
 
