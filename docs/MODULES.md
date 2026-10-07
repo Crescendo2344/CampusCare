@@ -13,6 +13,8 @@
 | `src/services/inventory.js` | Injected client, request function, configuration and error reporter | Existing inventory queries and authenticated Edge Function actions |
 | `src/domain/appointment-records.js` | Supplied snapshot, records and account | Appointment/doctor/leave mapping, selectors and slot override grouping |
 | `src/services/appointments.js` | Injected client, request function and public configuration | Existing appointment queries/actions and patient doctor-directory requests |
+| `src/domain/treatment-records.js` | Supplied records and account | Treatment/dental/reminder mapping, selectors, record merging and dental indexing |
+| `src/services/treatments.js` | Injected client, request function and public configuration | Existing treatment actions and treatment/dental/reminder queries |
 
 These modules export normal ES-module APIs and can run without the DOM or Supabase. Legacy adapters in input validation, booking forms, schedule/drafts and inventory pass the current application data to them. DOM rendering, event handlers and sidebar attention badges remain in the compatibility runtime.
 

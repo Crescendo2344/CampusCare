@@ -9,3 +9,5 @@ export * as inventoryData from './domain/inventory-records.js';
 export { createInventoryService } from './services/inventory.js';
 export * as appointmentData from './domain/appointment-records.js';
 export { createAppointmentService } from './services/appointments.js';
+export * as treatmentData from './domain/treatment-records.js';
+export { createTreatmentService } from './services/treatments.js';
