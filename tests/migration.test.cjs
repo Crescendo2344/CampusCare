@@ -61,7 +61,29 @@ async function checkAppointmentAdapter(){
     assert(w.DB.doctorLeaves.some(l=>l.dbLeaveId===8));
   }finally{w.supabaseClient=client;w.currentUser=user;w.fetch=request;Object.assign(w.DB,saved);w.DB.settings.slotOverrides=overrides;}
 }
-(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');await checkInventoryAdapter();await checkAppointmentAdapter();
+// Verify treatment-context ordering and dental attachment with synthetic records only.
+async function checkTreatmentAdapter(){
+  const client=w.supabaseClient,user=w.currentUser,patient=w.currentPatient,request=w.fetch;
+  const saved={treatments:w.DB.treatments,medReminders:w.DB.medReminders,users:w.DB.users};
+  const queries=[];
+  w.supabaseClient={auth:{getSession:async()=>({data:{session:{access_token:'test-session'}}})},from(table){
+    queries.push(table);return {select(){return this;},order(){return this;},then(resolve,reject){
+      const data=table==='treatments'?[{treatment_id:7,patient_id:4,doctor_id:2}]:table==='dental_records'?[{dental_record_id:8,treatment_id:7,patient_id:4,dentist_user_id:2}]:[{reminder_id:9,patient_id:4,active:true,times_of_day:['08:00']}];
+      return Promise.resolve({data}).then(resolve,reject);
+    }};
+  }};
+  w.fetch=async()=>({ok:true,json:async()=>({ok:true,doctors:[{user_id:2}]})});
+  try{
+    w.currentUser={role:'Patient',_realSupabase:false};await w.syncRealTreatments();await w.syncRealDentalRecords();await w.syncRealMedicationReminders();assert.equal(queries.length,0);
+    w.currentUser={role:'Patient',_realSupabase:true};w.currentPatient={_realSupabase:true};await w.syncTreatmentContext();
+    assert.equal(queries.join(','),'treatments,medication_reminders,dental_records');
+    const rows=w.treatmentRecords();assert.equal(rows.length,1);assert.equal(w.treatmentDisplayId(rows[0]),'000007');
+    assert.equal(rows[0].dentalRecord.id,8);assert.equal(rows[0].dentalRecord.treatmentId,rows[0].id);
+    const existing=rows[0];await w.syncRealDentalRecords();assert.equal(w.treatmentRecords()[0],existing);
+    assert(w.DB.medReminders.some(r=>r.dbReminderId===9&&r.status==='active'));
+  }finally{w.supabaseClient=client;w.currentUser=user;w.currentPatient=patient;w.fetch=request;Object.assign(w.DB,saved);}
+}
+(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');await checkInventoryAdapter();await checkAppointmentAdapter();await checkTreatmentAdapter();
 w.currentUser=w.DB.users.find(u=>u.role==='Doctor');w.buildNav();w.navTo('dashboard');assert(w.document.querySelector('#nav-schedule'));assert(!w.document.querySelector('#nav-task-center'));
 w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-draft]'));w.captureCampusDraft('schedule');w.closeAllModals();w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-resume]'));w.restoreCampusDraft('schedule');assert.equal(w.document.querySelectorAll('.scr-day:checked').length,5);
 assert.equal(w.appointmentSlotBaseTimes({startTime:'08:00',endTime:'09:15',slotDuration:60}).join(','),'08:00');assert(w.validateSchedule({...w.canonicalSchedule(w.currentUser),slotDuration:0},w.clinicToday(),w.currentUser).includes('Slot duration'));
