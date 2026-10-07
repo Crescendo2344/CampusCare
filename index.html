@@ -4425,7 +4425,6 @@ function auditLog(action,details='',targetType='',targetId=null,userOverride=nul
       userId:actor?.id||null,userName:actor?`${actor.fname} ${actor.lname}`:'System / Guest',
       role:actor?.role||'Guest',action,details,targetType,targetId
     });
-    if(actor?.id===currentUser?.id)logCampusPersonalActivity(String(action).toLowerCase().replaceAll('_',' '),campusActivePageId); // Personal activity omits clinical details.
     if(DB.activityLogs.length>2000)DB.activityLogs=DB.activityLogs.slice(-2000);
   }catch(e){console.warn('Audit log failed',e);}
 }
@@ -8941,8 +8940,6 @@ const NAV_CONFIG={
   Patient:[
     {section:'Patient Portal'},
     {id:'dashboard',label:'Dashboard'},
-    {id:'task-center',label:'Task Center'},
-    {id:'recent-activity',label:'Recent Activity'},
     {id:'my-appointments',label:'My Appointments'},
     {id:'my-records',label:'My Health Records'},
     {id:'my-certificates',label:'Medical Certificates'},
@@ -8957,8 +8954,6 @@ const NAV_CONFIG={
   Doctor:[
     {section:'Doctor Panel'},
     {id:'dashboard',label:'Dashboard'},
-    {id:'task-center',label:'Task Center'},
-    {id:'recent-activity',label:'Recent Activity'},
     {id:'schedule',label:'My Schedule'},
     {id:'my-patients',label:'My Patients'},
     {id:'appointments',label:'Appointments'},
@@ -8975,8 +8970,6 @@ const NAV_CONFIG={
   Staff:[
     {section:'Staff Panel'},
     {id:'dashboard',label:'Dashboard'},
-    {id:'task-center',label:'Task Center'},
-    {id:'recent-activity',label:'Recent Activity'},
     {id:'patients',label:'Patient Records'},
     {id:'appointments',label:'Appointments'},
     {id:'approvals',label:'Approval Queue'},
@@ -8995,8 +8988,6 @@ const NAV_CONFIG={
   Administrator:[
     {section:'Administration'},
     {id:'dashboard',label:'Dashboard'},
-    {id:'task-center',label:'Task Center'},
-    {id:'recent-activity',label:'Recent Activity'},
     {id:'patients',label:'Patient Records'},
     {id:'appointments',label:'Appointments'},
     {id:'approvals',label:'Approval Queue'},
@@ -9340,7 +9331,7 @@ function navTo(id){
   const btn=document.getElementById('nav-'+id);
   if(btn)btn.classList.add('active');
   document.getElementById('top-title').textContent={
-    'task-center':'Task Center','recent-activity':'Recent Activity',dashboard:'Dashboard','my-appointments':'My Appointments','my-records':'My Health Records','my-certificates':'Medical Certificates',
+    dashboard:'Dashboard','my-appointments':'My Appointments','my-records':'My Health Records','my-certificates':'Medical Certificates',
     'my-account':'Account Settings',patients:'Patient Records',appointments:'Appointments',
     approvals:'Approval Queue',certificates:'Medical Certificates','cert-requests':'Certificate Requests',treatments:'Treatments',inventory:'Inventory Management',
     reports:'Reports & Analytics',users:'User Management',settings:'System Settings',
@@ -10504,8 +10495,6 @@ function renderPage(id){
   // Dashboard or other modules from loading.
   const renders={
     dashboard:()=>renderDashboard(),
-    'task-center':()=>renderTaskCenter(),
-    'recent-activity':()=>renderRecentActivity(),
     'my-appointments':()=>renderMyAppointments(),
     'my-records':()=>renderMyRecords(),
     'my-certificates':()=>renderMyCertificates(),
@@ -11763,7 +11752,6 @@ async function submitScheduleChangeRequest(){
     }
 
     discardCampusDraft('schedule',false);
-    logCampusPersonalActivity('Schedule request submitted','schedule');
     void refreshTaskBadges(true);
     toast('Schedule change request submitted.','success');
     closeAllModals();
@@ -18579,7 +18567,6 @@ async function saveAppt(editId){
 
     persistDB();
     discardCampusDraft('booking',false);
-    logCampusPersonalActivity(existing?'Appointment rescheduled':'Appointment booked',currentUser.role==='Patient'?'my-appointments':'appointments');
     void refreshTaskBadges(true);
     closeAllModals();
     if(currentUser.role==='Patient')await renderMyAppointments();
@@ -20263,7 +20250,6 @@ function saveDoctorSched(docId){
       }
       Object.assign(doc,newVals);
       persistDB();
-      logCampusPersonalActivity('Work schedule updated','users');
       toast('Schedule updated.','success');
       if(document.getElementById('user-table'))renderUsers();
     }
@@ -20425,10 +20411,6 @@ function updateSchedulePreview(){
 function campusSessionKey(kind){return `campuscare-v70-${currentUser?._realSupabase?'real':'demo'}-${currentUser?.dbUserId||currentUser?.id}-${kind}`;}
 function readCampusSession(kind,fallback){try{return JSON.parse(sessionStorage.getItem(campusSessionKey(kind))||'null')||fallback;}catch(_){return fallback;}}
 function writeCampusSession(kind,value){sessionStorage.setItem(campusSessionKey(kind),JSON.stringify(value));}
-function logCampusPersonalActivity(label,page){
-  if(!currentUser)return;
-  try{const rows=readCampusSession('activity',[]);rows.unshift({label,page,at:new Date().toISOString()});writeCampusSession('activity',rows.slice(0,100));}catch(_){/* Activity failure must not invalidate a successful operation. */}
-}
 function captureCampusDraft(kind){
   const root=document.getElementById('active-modal');if(!root||!currentUser)return;
   const fields={};root.querySelectorAll('input[id],select[id],textarea[id]').forEach(el=>{
@@ -20438,11 +20420,11 @@ function captureCampusDraft(kind){
   try{
     const rows=readCampusSession('drafts',{});
     rows[kind]={kind,fields,days:[...root.querySelectorAll('.scr-day:checked')].map(e=>e.value),at:new Date().toISOString(),editId:kind==='booking'?activeBookingEditId:null};
-    writeCampusSession('drafts',rows);logCampusPersonalActivity('Draft saved', 'task-center');toast('Draft saved in this browser tab. It has not been submitted.','success');
+    writeCampusSession('drafts',rows);root.querySelector('[data-campus-draft]')?.remove();campusDraftControls(root);toast('Draft saved in this browser tab. It has not been submitted.','success');
   }catch(_){toast('Draft could not be saved. Browser storage may be full or disabled.','warning');}
 }
 function discardCampusDraft(kind,notify=true){
-  try{const rows=readCampusSession('drafts',{});delete rows[kind];writeCampusSession('drafts',rows);if(notify){toast('Draft discarded.','success');renderTaskCenter();}}catch(_){toast('Could not discard this draft.','warning');}
+  try{const rows=readCampusSession('drafts',{});delete rows[kind];writeCampusSession('drafts',rows);if(notify){toast('Draft discarded.','success');document.querySelectorAll('[data-campus-resume]').forEach(el=>el.remove());}}catch(_){toast('Could not discard this draft.','warning');}
 }
 function restoreCampusDraft(kind){
   const d=readCampusSession('drafts',{})[kind];if(!d)return;
@@ -20466,48 +20448,26 @@ function campusDraftControls(root){
   if(!kind)return;
   const footer=root.querySelector('.modal-footer');if(!footer)return;
   const btn=document.createElement('button');btn.className='btn';btn.dataset.campusDraft=kind;btn.textContent='Save Draft';btn.onclick=()=>captureCampusDraft(kind);footer.prepend(btn);
-  const note=document.createElement('p');note.className='form-note';note.textContent='Drafts remain in this browser tab until it closes. They do not reserve slots or change your schedule.';root.querySelector('.modal-body')?.appendChild(note);
-  if(kind==='schedule'){root.addEventListener('input',updateSchedulePreview);root.addEventListener('change',updateSchedulePreview);updateSchedulePreview();}
+  // Draft actions now live in their own form after the Task Center was removed.
+  if(readCampusSession('drafts',{})[kind]&&!root.querySelector('[data-campus-resume]')){
+    const resume=document.createElement('button');resume.className='btn';resume.dataset.campusResume=kind;
+    resume.textContent='Restore Draft';resume.onclick=()=>restoreCampusDraft(kind);footer.prepend(resume);
+    const discard=document.createElement('button');discard.className='btn';discard.dataset.campusResume=kind;
+    discard.textContent='Discard Draft';discard.onclick=()=>discardCampusDraft(kind);footer.prepend(discard);
+  }
+  if(!root.querySelector('[data-campus-draft-note]')){
+  const note=document.createElement('p');note.dataset.campusDraftNote='true';note.className='form-note';note.textContent='Drafts remain in this browser tab until it closes. They do not reserve slots or change your schedule.';root.querySelector('.modal-body')?.appendChild(note);
+  }
+  if(kind==='schedule'&&!root.dataset.campusPreviewBound){root.dataset.campusPreviewBound='true';root.addEventListener('input',updateSchedulePreview);root.addEventListener('change',updateSchedulePreview);updateSchedulePreview();}
 }
-async function renderTaskCenter(){
-  const token=captureCampusPageToken(),c=document.getElementById('app-content');
-  c.innerHTML='<div class="card"><h3>Task Center</h3><p>Refreshing tasks…</p></div>';
-  await refreshTaskBadges(true);
-  if(currentUser?._realSupabase){try{await syncRealWorkflowRequests();}catch(e){window.campusTaskRefreshError=e?.message||'Unable to load requests.';}}
-  if(!isCampusPageCurrent('task-center',token))return;
-  if(window.campusTaskRefreshError){c.innerHTML=`<div class="card"><h3>Task Center</h3><p>${escapeHtml(window.campusTaskRefreshError)}</p><button class="btn" onclick="renderTaskCenter()">Retry</button></div>`;return;}
-  const items=(NAV_CONFIG[currentUser.role]||[]).filter(i=>i.id&&!['task-center','recent-activity'].includes(i.id)&&shouldShowNavItem(i));
-  const pending=items.filter(i=>Number(navTaskCounts[i.id])>0),drafts=Object.values(readCampusSession('drafts',{})).filter(d=>['schedule','booking'].includes(d.kind));
-  c.innerHTML=`<div class="card"><div class="card-header"><div><h3>Task Center</h3><p class="text-muted">Unresolved tasks stay here after you view them. Sidebar badges continue to show new attention.</p></div><button class="btn" onclick="renderTaskCenter()">Refresh</button></div>${pending.length?pending.map(i=>`<div class="info-row"><span>${i.label}</span><span><strong>${Number(navTaskCounts[i.id])}</strong> <button class="btn btn-sm" onclick="navTo('${i.id}')">Open</button></span></div>`).join(''):'<p class="text-muted">No unresolved tasks in your current task queues.</p>'}${currentUser.role==='Administrator'?'<button class="btn" onclick="navTo(\'users\')">Review schedule and day-off requests</button>':''}</div>
-  <div class="card"><h3>Requests</h3>${campusRequestHistoryHtml()}</div><div class="card"><h3>Saved Drafts</h3><p class="form-note">Private to your account in this browser tab. Drafts do not reserve appointment slots.</p>${drafts.length?drafts.map(d=>`<div class="info-row"><div><strong>${d.kind==='schedule'?'Schedule change':'Appointment'}</strong><div class="text-muted">${escapeHtml(new Date(d.at).toLocaleString())}</div></div><div><button class="btn btn-sm" onclick="restoreCampusDraft('${d.kind}')">Resume</button> <button class="btn btn-sm" onclick="discardCampusDraft('${d.kind}')">Discard</button></div></div>`).join(''):'<p class="text-muted">No saved drafts. Use Save Draft while booking or requesting a schedule change.</p>'}</div><div class="card"><h3>Recent Activity</h3>${campusRecentHtml(5)}<button class="btn btn-sm" onclick="navTo('recent-activity')">View activity</button></div>`;
-}
-function campusRecentHtml(limit=30){
-  // Personal activity does not expose the administrator's audit log to other roles.
-  const rows=readCampusSession('activity',[]).slice(0,limit);
-  return rows.length?rows.map(r=>`<div class="info-row"><span>${escapeHtml(r.label)}</span><span class="text-muted">${escapeHtml(new Date(r.at).toLocaleString())}</span></div>`).join(''):'<p class="text-muted">No activity recorded in this browser tab yet.</p>';
-}
-function renderRecentActivity(){document.getElementById('app-content').innerHTML=`<div class="card"><div class="card-header"><h3>Recent Activity</h3><button class="btn btn-sm" onclick="navTo('task-center')">Task Center</button></div><p class="form-note">Your activity in this browser tab. Administrators can use Activity Log for server audit history.</p>${campusRecentHtml()}</div>`;}
 // Observe modal creation without changing existing modal callers or sidebar badge handling.
 new MutationObserver(()=>campusDraftControls(document.getElementById('active-modal'))).observe(document.getElementById('modals'),{childList:true});
-document.addEventListener('click',e=>{
-  const btn=e.target.closest('.nav-item-btn');if(btn&&currentUser)logCampusPersonalActivity(`Opened ${btn.textContent.replace(/\d+\+?$/,'').trim()}`,btn.id.replace('nav-',''));
-});
-
-
-function campusRequestHistoryHtml(){
-  // Patients see their own name requests; doctors see their own schedule and leave requests.
-  const rows=workflowRequestRecords().filter(r=>currentUser.role==='Administrator'||[r.userId,r.requesterId,r.doctorId].includes(currentUser.id)).slice().sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))).slice(0,20);
-  return rows.length?rows.map(r=>`<div class="info-row"><span>${escapeHtml(r.type)} · ${escapeHtml(r.effectiveDate||r.date||'')}</span><span class="badge badge-${r.status==='Pending'?'warning':r.status==='Rejected'?'danger':'info'}">${escapeHtml(r.status)}</span></div>`).join(''):'<p class="text-muted">No requests to display.</p>';
-}
-
 function campusScheduleForDate(doc,date){
   // Approved future patterns affect bookings from their effective date;
   // pending proposals never affect availability.
   const r=(DB.scheduleChangeRequests||[]).filter(r=>r.doctorId===doc.id&&r.effectiveDate<=date&&['Approved-Pending','Approved','Applied'].includes(r.status)).sort((a,b)=>b.effectiveDate.localeCompare(a.effectiveDate))[0];
   return r?{...doc,...canonicalSchedule(r.requested)}:doc;
 }
-NAV_UI_ICONS['task-center']='bi-list-check';
-NAV_UI_ICONS['recent-activity']='bi-clock-history';
 // Keep approved demo changes active even when a tab stays open overnight.
 setInterval(()=>{if(currentUser&&!currentUser._realSupabase)applyDueScheduleChanges();},60000);
 </script>
