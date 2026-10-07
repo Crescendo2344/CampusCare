@@ -15,6 +15,8 @@
 | `src/services/appointments.js` | Injected client, request function and public configuration | Existing appointment queries/actions and patient doctor-directory requests |
 | `src/domain/treatment-records.js` | Supplied records and account | Treatment/dental/reminder mapping, selectors, record merging and dental indexing |
 | `src/services/treatments.js` | Injected client, request function and public configuration | Existing treatment actions and treatment/dental/reminder queries |
+| `src/domain/patient-records.js` | Supplied profiles, patient records and optional clock | User/patient normalization, age/measurement helpers and directory merging |
+| `src/services/patients.js` | Injected client, request function and public configuration | Patient actions, clinical directory/photo signing and current-patient query |
 
 These modules export normal ES-module APIs and can run without the DOM or Supabase. Legacy adapters in input validation, booking forms, schedule/drafts and inventory pass the current application data to them. DOM rendering, event handlers and sidebar attention badges remain in the compatibility runtime.
 
@@ -88,3 +90,5 @@ These files are assembled in this exact order. Shared state remains in the compa
 | `src/modules/61-user-form.js` | Add User Modal |
 | `src/modules/62-startup.js` | Keyboard |
 | `src/modules/63-schedule-and-drafts.js` | Schedule validation and session draft helpers |
+
+Patient-directory and profile-normalization adapters now live in `src/modules/39-patient-service.js`; the early session bootstrap retains its login/session callbacks and calls those adapters after module initialization.

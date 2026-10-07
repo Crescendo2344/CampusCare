@@ -1,31 +1,35 @@
-// ================================================================
-// REAL PATIENT MANAGEMENT
-// ================================================================
-async function patientAction(payload){
-  const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session)throw new Error('Your session has expired. Please log in again.');
-
-  const response=await fetch(`${SUPABASE_URL}/functions/v1/patient-actions`,{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      apikey:SUPABASE_PUBLISHABLE_KEY,
-      Authorization:`Bearer ${session.access_token}`
-    },
-    body:JSON.stringify(payload)
-  });
-
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.ok)throw new Error(result.error||'Patient action failed.');
-  return result;
+// Adapters own state changes and keep the existing session/public handler names.
+function normalizeSupabaseUser(profile){return patientData.normalizeSupabaseUser(profile);}
+function ageFromBirthDate(date){return patientData.ageFromBirthDate(date);}
+function directoryRowToPatient(row){return patientData.directoryRowToPatient(row);}
+function patientDisplayId(pt){return patientData.patientDisplayId(pt);}
+function patientMeasurementNumber(value){return patientData.patientMeasurementNumber(value);}
+function patientService(){
+  return createPatientService({getClient:()=>supabaseClient,request:(...args)=>fetch(...args),
+    baseUrl:SUPABASE_URL,publishableKey:SUPABASE_PUBLISHABLE_KEY});
 }
-
-function patientDisplayId(pt){
-  const id=Number(pt?.dbPatientId??pt?.id??0);
-  return String(id).padStart(6,'0');
+async function patientAction(payload){return patientService().action(payload);}
+async function fetchAdminDirectory(){
+  if(!['Administrator','Staff','Doctor'].includes(currentUser?.role))return [];
+  return patientService().loadClinicalDirectory();
 }
-
-function patientMeasurementNumber(value){
-  const n=parseFloat(String(value??'').replace(/[^\d.]/g,''));
-  return Number.isFinite(n)?n:'';
+async function syncAdminDirectoryFromSupabase(){
+  if(!['Administrator','Staff','Doctor'].includes(currentUser?.role))return;
+  const rows=await fetchAdminDirectory();
+  Object.assign(DB,patientData.mergeClinicalDirectory(DB,rows));
+  for(const row of rows){
+    if(row.auth_user_id===currentUser.authUserId)Object.assign(currentUser,normalizeSupabaseUser(row));
+  }
+}
+async function syncCurrentPatientFromSupabase(){
+  if(currentUser?.role!=='Patient')return;
+  try{
+    const row=await patientService().loadCurrentPatient(currentUser.dbUserId);
+    if(!row)return;
+    const realPatient=patientData.currentPatientToUi(row,currentUser);
+    DB.patients=(DB.patients||[]).filter(p=>!p._realSupabase||p.userId!==currentUser.id);
+    DB.patients.push(realPatient);
+    currentPatient=realPatient;
+    if(currentUser.profilePhoto)currentPatient.profilePhoto=currentUser.profilePhoto;
+  }catch(e){console.error('Patient sync:',e);}
 }
