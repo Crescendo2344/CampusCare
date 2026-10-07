@@ -44,7 +44,7 @@ export default defineConfig(()=>{
         const bindings=runtimeBindings(source);
         // Accessors keep bootstrap/session.js and inline handlers connected to the same live state.
         const bridge=bindings.map(({name,mutable,kind})=>kind==='function'?`window[${JSON.stringify(name)}]=${name};`:`Object.defineProperty(window,${JSON.stringify(name)},{configurable:true,get:()=>${name}${mutable?`,set:value=>{${name}=value}`:''}});`).join('\n');
-        return `import * as scheduleRules from ${JSON.stringify(path.join(root,"src/domain/schedule.js"))};\nimport { createDraftStorage } from ${JSON.stringify(path.join(root,"src/services/draft-storage.js"))};\n// Compatibility bridge for the existing CampusCare interface.\n${bridge}\n${modules.join('\n')}`;
+        return `import { scheduleRules, createDraftStorage, formatters, displayMarkup, sanitizeValue } from ${JSON.stringify(path.join(root,"src/legacy-dependencies.js"))};\n// Compatibility bridge for the existing CampusCare interface.\n${bridge}\n${modules.join('\n')}`;
       },
       transformIndexHtml:{order:'pre',handler(html){
         const assembled=html.replace(/<!-- campuscare:component:([a-z-]+) -->/g,(_,name)=>fs.readFileSync(path.join(root,'src/components',name+'.html'),'utf8'));
@@ -52,7 +52,7 @@ export default defineConfig(()=>{
       }},
       handleHotUpdate({file,server}){
         // Reload shared state instead of registering duplicate listeners during hot updates.
-        if(file.includes('/src/modules/')||file.includes('/src/domain/')||file.includes('/src/services/')){server.ws.send({type:'full-reload'});return [];}
+        if(file.endsWith('/src/legacy-dependencies.js')||file.includes('/src/modules/')||file.includes('/src/domain/')||file.includes('/src/services/')||file.includes('/src/shared/')||file.includes('/src/ui/')){server.ws.send({type:'full-reload'});return [];}
       },
       configureServer(server){
         // Templates are read during HTML transformation; refreshing shows edits immediately.

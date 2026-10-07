@@ -17,7 +17,15 @@ const dom=new JSDOM(html,{
  }
 });
 const w=dom.window;
-(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');
+// The legacy DOM adapter still uses the independent sanitizer and preserves the cursor.
+function checkInputAdapter(){
+  const input=w.document.createElement('input');input.type='text';input.value='12a3';input.setSelectionRange(4,4);
+  w.sanitizeInput(input,'phone');assert.equal(input.value,'123');assert.equal(input.selectionStart,3);
+  assert.equal(w.fmtTime('17:15'),'5:15 PM');assert.equal(w.genId('PT',7),'PT-0007');
+  assert(w.statusBadge('Pending').includes('badge-warning'));
+}
+
+(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');
 w.currentUser=w.DB.users.find(u=>u.role==='Doctor');w.buildNav();w.navTo('dashboard');assert(w.document.querySelector('#nav-schedule'));assert(!w.document.querySelector('#nav-task-center'));
 w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-draft]'));w.captureCampusDraft('schedule');w.closeAllModals();w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-resume]'));w.restoreCampusDraft('schedule');assert.equal(w.document.querySelectorAll('.scr-day:checked').length,5);
 assert.equal(w.appointmentSlotBaseTimes({startTime:'08:00',endTime:'09:15',slotDuration:60}).join(','),'08:00');assert(w.validateSchedule({...w.canonicalSchedule(w.currentUser),slotDuration:0},w.clinicToday(),w.currentUser).includes('Slot duration'));
