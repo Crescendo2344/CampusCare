@@ -11,6 +11,8 @@
 | `src/ui/display-markup.js` | Supplied values | Status, college and priority badges and SVG icons |
 | `src/domain/inventory-records.js` | Supplied snapshot and account | Inventory selectors, backend-to-UI record mapping and immutable snapshot assembly |
 | `src/services/inventory.js` | Injected client, request function, configuration and error reporter | Existing inventory queries and authenticated Edge Function actions |
+| `src/domain/appointment-records.js` | Supplied snapshot, records and account | Appointment/doctor/leave mapping, selectors and slot override grouping |
+| `src/services/appointments.js` | Injected client, request function and public configuration | Existing appointment queries/actions and patient doctor-directory requests |
 
 These modules export normal ES-module APIs and can run without the DOM or Supabase. Legacy adapters in input validation, booking forms, schedule/drafts and inventory pass the current application data to them. DOM rendering, event handlers and sidebar attention badges remain in the compatibility runtime.
 
