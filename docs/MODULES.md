@@ -6,8 +6,11 @@
 |---|---|---|
 | `src/domain/schedule.js` | Records, dates and settings supplied by callers | Date/time helpers, slot generation, lunch overlap, schedule validation, conflict detection and effective schedule selection |
 | `src/services/draft-storage.js` | Injected storage and account getter | Draft keys and JSON storage, isolated by account and live/demo mode |
+| `src/shared/input-values.js` | Input value and field type | Existing character filtering and length limits |
+| `src/shared/formatting.js` | Supplied values | Dates, times, semester labels and display IDs |
+| `src/ui/display-markup.js` | Supplied values | Status, college and priority badges and SVG icons |
 
-These modules export normal ES-module APIs and can run without the DOM or Supabase. Legacy adapters in input validation, booking forms and schedule/drafts pass the current application data to them. UI rendering, event handlers and sidebar badges remain in the compatibility runtime.
+These modules export normal ES-module APIs and can run without the DOM or Supabase. Legacy adapters in input validation, booking forms and schedule/drafts pass the current application data to them. DOM rendering, event handlers and sidebar attention badges remain in the compatibility runtime.
 
 ## Legacy feature sources
 
