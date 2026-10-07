@@ -1,5 +1,5 @@
-// Feature files are assembled in their original order during this first migration.
-// This keeps shared state and the existing inline handlers working while files are separated.
+// Legacy feature files retain their original assembly order and inline-handler bridge.
+// Independent domain and service modules use regular imports below.
 import { defineConfig } from 'vite';
 import { parse } from 'acorn';
 import fs from 'node:fs';
@@ -44,7 +44,7 @@ export default defineConfig(()=>{
         const bindings=runtimeBindings(source);
         // Accessors keep bootstrap/session.js and inline handlers connected to the same live state.
         const bridge=bindings.map(({name,mutable,kind})=>kind==='function'?`window[${JSON.stringify(name)}]=${name};`:`Object.defineProperty(window,${JSON.stringify(name)},{configurable:true,get:()=>${name}${mutable?`,set:value=>{${name}=value}`:''}});`).join('\n');
-        return `// Compatibility bridge for the existing CampusCare interface.\n${bridge}\n${modules.join('\n')}`;
+        return `import * as scheduleRules from ${JSON.stringify(path.join(root,"src/domain/schedule.js"))};\nimport { createDraftStorage } from ${JSON.stringify(path.join(root,"src/services/draft-storage.js"))};\n// Compatibility bridge for the existing CampusCare interface.\n${bridge}\n${modules.join('\n')}`;
       },
       transformIndexHtml:{order:'pre',handler(html){
         const assembled=html.replace(/<!-- campuscare:component:([a-z-]+) -->/g,(_,name)=>fs.readFileSync(path.join(root,'src/components',name+'.html'),'utf8'));
@@ -52,7 +52,7 @@ export default defineConfig(()=>{
       }},
       handleHotUpdate({file,server}){
         // Reload shared state instead of registering duplicate listeners during hot updates.
-        if(file.includes('/src/modules/')){server.ws.send({type:'full-reload'});return [];}
+        if(file.includes('/src/modules/')||file.includes('/src/domain/')||file.includes('/src/services/')){server.ws.send({type:'full-reload'});return [];}
       },
       configureServer(server){
         // Templates are read during HTML transformation; refreshing shows edits immediately.

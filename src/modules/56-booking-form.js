@@ -240,20 +240,14 @@ function checkDentalWarn(){
   }
 }
 
-function timeToMinutes(t){const [h,m]=String(t||'00:00').split(':').map(Number);return h*60+(m||0);}
-function appointmentSlotBaseTimes(doc){
-  const start=timeToMinutes(doc.startTime||'08:00'),end=timeToMinutes(doc.endTime||'17:00'),dur=Math.max(15,doc.slotDuration||60),out=[];
-  for(let mins=start;mins+dur<=end;mins+=dur)out.push(`${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`);
-  return out;
-}
+function timeToMinutes(t){return scheduleRules.timeToMinutes(t);}
+function appointmentSlotBaseTimes(doc){return scheduleRules.appointmentSlotBaseTimes(doc);}
 function getSlotOverride(docId,date){
   DB.settings.slotOverrides=Array.isArray(DB.settings.slotOverrides)?DB.settings.slotOverrides:[];
   return DB.settings.slotOverrides.find(o=>o.doctorId===docId&&o.date===date)||null;
 }
 function isDefaultLunchSlot(time,doc){
-  const slotStart=timeToMinutes(time),dur=Math.max(15,doc.slotDuration||60),slotEnd=slotStart+dur;
-  const lunchStart=timeToMinutes(DB.settings.lunchBreakStart||'12:00'),lunchEnd=timeToMinutes(DB.settings.lunchBreakEnd||'13:00');
-  return slotStart<lunchEnd&&slotEnd>lunchStart;
+  return scheduleRules.isDefaultLunchSlot(time,doc,DB.settings);
 }
 function slotAvailabilityState(doc,date,time){
   const override=getSlotOverride(doc.id,date),blocked=(override&&override.blockedTimes)||[],available=(override&&override.availableTimes)||[];

@@ -32,6 +32,8 @@ The existing public project settings remain as compatibility defaults. Never pla
 - `index.html`: small entry document.
 - `src/components/`: landing/authentication shell, app shell and modal host.
 - `src/styles/`: shared styling and draft controls.
+- `src/domain/schedule.js`: independent schedule/date/slot rules with explicit record inputs.
+- `src/services/draft-storage.js`: account-scoped draft storage with injected storage/account access.
 - `src/modules/`: 64 ordered feature source files; see [module map](docs/MODULES.md).
 - `src/module-order.json`: source assembly order.
 - `src/main.js`: Vite entry point.
@@ -43,11 +45,15 @@ The existing public project settings remain as compatibility defaults. Never pla
 
 ## How the first migration works
 
-Feature files retain the original functions and shared state. The Vite plugin joins them in their original order into one runtime, and exposes the bindings needed by existing inline handlers and early session helpers. The plugin discovers new top-level declarations automatically.
+Legacy feature files retain shared state, while schedule rules and draft storage are now ordinary ES modules with explicit inputs. Small adapters preserve the existing form handlers. The independent modules can be imported directly without initializing the application.
+
+Legacy feature files retain their original functions. The Vite plugin joins them in their original order into one runtime, and exposes the bindings needed by existing inline handlers and early session helpers. The plugin discovers new top-level declarations automatically.
 
 This separates the source and removes embedded image duplication; it does not yet isolate feature state, remove inline handlers, convert pages to React, or lazy-load feature bundles. Those changes can follow feature by feature with regression checks. Do not import the fragment files independently yet: initialization order and shared variables still matter.
 
-To add a new feature file, add its relative path and purpose to `src/module-order.json`. Edit templates in `src/components/`, not the generated HTML in `dist/`.
+For new independent logic, use `src/domain/` or `src/services/` with explicit imports and dependencies. Keep DOM operations in UI adapters. Do not access `DB`, `currentUser`, or `window` inside these modules.
+
+To add a new legacy feature file, add its relative path and purpose to `src/module-order.json`. Edit templates in `src/components/`, not the generated HTML in `dist/`.
 
 Task Center and Recent Activity are removed. Sidebar attention badges and the administrator audit log are retained. Save/Restore/Discard Draft remain in appointment and schedule forms.
 
@@ -61,7 +67,7 @@ npm test
 npm run build
 ```
 
-DOM checks cover startup, role dashboards, sidebar badges, drafts, inline handler access, schedule validation, slot boundaries and redirect origin. Visual browser QA and live authenticated Supabase workflows still need checking. The single shared bundle intentionally remains large in this first migration.
+Independent-module checks cover schedule conflicts, future schedule selection, configurable lunch boundaries, validation context, and account/mode isolation for draft storage. DOM checks cover startup, role dashboards, sidebar badges, drafts, inline handler access, schedule validation, slot boundaries and redirect origin. Visual browser QA and live authenticated Supabase workflows still need checking. The single shared bundle intentionally remains large in this first migration.
 
 ## Vercel deployment
 
