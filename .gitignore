@@ -1,0 +1,8 @@
+# Dependencies and generated output are recreated locally.
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.vercel/
+*.log

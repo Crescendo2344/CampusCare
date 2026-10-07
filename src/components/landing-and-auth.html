@@ -1,0 +1,534 @@
+<div id="auth-wrap">
+
+<nav id="landing-navbar">
+    <div class="landing-logo" onclick="landingNavTo('home')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();landingNavTo('home')}">
+      <div class="landing-logo-icon"><img class="campuscare-logo-mark" src="/assets/embedded-3caef2cf86d46a35.png" alt="" aria-hidden="true"></div>CampusCare
+      <span class="landing-campus-label" style="font-weight:500;font-size:.7rem;opacity:.7;margin-left:.4rem;letter-spacing:.2px">CTU MAIN CAMPUS</span>
+    </div>
+    <div class="landing-nav-links">
+      <a data-landing-link="home" onclick="landingNavTo('home')">Home</a>
+      <a data-landing-link="services" onclick="landingNavTo('services')">Clinic Services</a>
+      <a data-landing-link="about" onclick="landingNavTo('about')">About the Clinic</a>
+      <a data-landing-link="contact" onclick="landingNavTo('contact')">Contact</a>
+    </div>
+    <div class="landing-nav-actions">
+      <button class="landing-login-btn landing-get-started" onclick="showAuthPage('login')">Get Started</button>
+      <button class="landing-nav-toggle" onclick="document.querySelector('.landing-nav-links').classList.toggle('mobile-show')" aria-label="Menu">
+        <i class="bi bi-list" aria-hidden="true"></i>
+      </button>
+    </div>
+  </nav>
+
+<div id="landing-page">
+
+  <!-- HOME: intentionally one static viewport. -->
+  <main class="landing-route landing-route-home active" data-landing-route="home">
+    <section id="landing-hero">
+      <div class="landing-hero-grid">
+        <div class="landing-hero-text">
+          <span class="eyebrow"><i class="bi bi-activity" aria-hidden="true"></i> CTU Main Medical &amp; Dental Clinic</span>
+          <h1>Your campus clinic, <span>here for you.</span></h1>
+          <p>Free medical and dental care for every Technologist. Book a consultation, request medical certificates, view your health records, and message the clinic — anytime, from any device.</p>
+          <div class="landing-hero-ctas">
+            <button class="btn btn-primary" onclick="showAuthPage('login')"><i class="bi bi-calendar3" aria-hidden="true"></i> Book an Appointment</button>
+          </div>
+          <div class="landing-stats">
+            <div><strong>Medical Clinic</strong><span>Regular: Mon–Fri, 8:00 AM – 5:00 PM</span></div>
+            <div><strong>FREE</strong><span>For students, faculty &amp; staff</span></div>
+            <div><strong>Medical + Dental</strong><span>Walk-ins &amp; appointments</span></div>
+          </div>
+        </div>
+
+        <div class="landing-hero-visual">
+
+          <div class="hero-info-carousel" id="landing-swipe-carousel" aria-label="Clinic Information and Current Advisories">
+            <div class="hero-carousel-viewport" id="hero-carousel-viewport">
+              <div class="hero-carousel-track" id="hero-carousel-track">
+
+                <article class="hero-carousel-slide" data-real-index="0" data-tone="clinic">
+                  <div class="hero-slide-inner">
+                    <div class="hero-slide-top">
+                      <div class="hero-slide-icon"><i class="bi bi-activity" aria-hidden="true"></i></div>
+                      <div class="hero-slide-copy"><span class="hero-slide-chip">Clinic Overview</span><h5>Visit the Clinic</h5></div>
+                    </div>
+                    <p class="hero-slide-lead">Quick information for visiting the CTU Main Medical &amp; Dental Clinic.</p>
+                    <div class="hero-mini-grid">
+                      <div class="hero-mini-card"><div class="mini-label"><i class="bi bi-geo-alt" aria-hidden="true"></i> Location</div><p>Ground Floor, Education Building, CTU Main Campus</p></div>
+                      <div class="hero-mini-card"><div class="mini-label"><i class="bi bi-clock" aria-hidden="true"></i> Medical Hours</div><p>Mon–Fri 8 AM–5 PM · Extended until 9 PM · Weekend hours posted</p></div>
+                      <div class="hero-mini-card"><div class="mini-label"><i class="bi bi-bandaid" aria-hidden="true"></i> Emergencies</div><p>Walk in during clinic hours. Emergency concerns do not require booking.</p></div>
+                      <div class="hero-mini-card"><div class="mini-label"><i class="bi bi-emoji-smile" aria-hidden="true"></i> Dental</div><p>Daily slots are limited. Reserve early through CampusCare.</p></div>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="hero-carousel-slide" data-real-index="1" data-tone="graduate">
+                  <div class="hero-slide-inner">
+                    <div class="hero-slide-top">
+                      <div class="hero-slide-icon"><i class="bi bi-mortarboard" aria-hidden="true"></i></div>
+                      <div class="hero-slide-copy"><span class="hero-slide-chip">Graduate School</span><h5>Medical Requirements</h5></div>
+                    </div>
+                    <p class="hero-slide-lead">Prepare clear, correctly named JPEG files, each not exceeding 1 MB.</p>
+                    <div class="hero-requirement-list">
+                      <div class="hero-requirement"><i>01</i><span>Medical Certificate / physical examination report</span></div>
+                      <div class="hero-requirement"><i>02</i><span>Chest X-ray typewritten result</span></div>
+                      <div class="hero-requirement"><i>03</i><span>Complete Blood Count (CBC) and Drug Test result</span></div>
+                      <div class="hero-requirement"><i>04</i><span>Pregnancy documentation when applicable</span></div>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="hero-carousel-slide" data-real-index="2" data-tone="fitness">
+                  <div class="hero-slide-inner">
+                    <div class="hero-slide-top">
+                      <div class="hero-slide-icon"><i class="bi bi-heart-pulse" aria-hidden="true"></i></div>
+                      <div class="hero-slide-copy"><span class="hero-slide-chip">Intramurals 2026–2027</span><h5>Fitness &amp; Clearance Guide</h5></div>
+                    </div>
+                    <p class="hero-slide-lead">Complete the eligibility requirements before bringing the form to the clinic.</p>
+                    <div class="hero-step-line">
+                      <div class="hero-step"><div class="hero-step-num">1</div><div><strong>Get your Eligibility Form</strong><span>Secure the official form from your coach and complete your personal/sports information.</span></div></div>
+                      <div class="hero-step"><div class="hero-step-num">2</div><div><strong>Complete required signatures</strong><span>Sign the waiver and obtain the required parent/guardian and coach signatures.</span></div></div>
+                      <div class="hero-step"><div class="hero-step-num">3</div><div><strong>Visit the clinic</strong><span>Bring the completed form after your enrollment medical requirements have been submitted.</span></div></div>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="hero-carousel-slide" data-real-index="3" data-tone="contact">
+                  <div class="hero-slide-inner">
+                    <div class="hero-slide-top">
+                      <div class="hero-slide-icon"><i class="bi bi-telephone" aria-hidden="true"></i></div>
+                      <div class="hero-slide-copy"><span class="hero-slide-chip">Contact &amp; Referral</span><h5>Reach the Clinic</h5></div>
+                    </div>
+                    <p class="hero-slide-lead">Official channels for questions, follow-up coordination, and referrals.</p>
+                    <div class="hero-contact-pills">
+                      <span class="hero-contact-pill">☎️ (032) 402 4060 loc. 1142</span>
+                      <span class="hero-contact-pill">✉️ ctumainmedclinic@gmail.com</span>
+                      <span class="hero-contact-pill">📘 CTU Main Medical Clinic</span>
+                    </div>
+                    <div class="hero-referral-note">Persistent symptoms or conditions needing further evaluation may be referred to an appropriate medical facility. For emergencies on campus, proceed directly to the clinic or alert university personnel.</div>
+                  </div>
+                </article>
+
+              </div>
+            </div>
+
+            <div class="hero-carousel-progress-bottom" aria-hidden="true">
+              <span id="hero-carousel-progress-bottom"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="landing-impact-strip" aria-label="Clinic impact and highlights">
+          <div class="landing-impact-item">
+            <div class="landing-impact-icon"><i class="bi bi-clock" aria-hidden="true"></i></div>
+            <div class="landing-impact-copy"><strong>Extended Access</strong><span>Medical clinic hours extend into evenings and weekends based on the posted schedule.</span></div>
+          </div>
+          <div class="landing-impact-item">
+            <div class="landing-impact-icon"><i class="bi bi-people" aria-hidden="true"></i></div>
+            <div class="landing-impact-copy"><strong>Campus-wide Service</strong><span>Supports students, faculty, and personnel through medical and dental care.</span></div>
+          </div>
+          <div class="landing-impact-item">
+            <div class="landing-impact-icon"><i class="bi bi-file-earmark-medical" aria-hidden="true"></i></div>
+            <div class="landing-impact-copy"><strong>Connected Care</strong><span>Appointments, records, certificates, fitness, messaging, and follow-up are managed in one system.</span></div>
+          </div>
+          <div class="landing-impact-item sample">
+            <div class="landing-impact-icon"><i class="bi bi-stars" aria-hidden="true"></i></div>
+            <div class="landing-impact-copy"><strong>Digital Clinic Initiative</strong><span>CampusCare prototype introduced as a clinic digitalization initiative for CTU Main.</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- CLINIC SERVICES -->
+  <main class="landing-route" data-landing-route="services">
+    <section class="landing-static-page">
+      <div class="landing-static-inner">
+        <div class="public-page-kicker">CTU Main Medical &amp; Dental Clinic</div>
+        <h2 class="public-page-title">Clinic Services</h2>
+        <p class="public-page-sub">What the clinic offers — and how CampusCare makes each service easier to access.</p>
+        <div class="public-services-grid">
+          <div class="feature-card"><div class="fc-icon"><i class="bi bi-activity" aria-hidden="true"></i></div><h4>Medical Consultation &amp; Check-ups</h4><p>Free consultations, vital signs monitoring, and health assessments with campus physicians. Book a slot online and reduce front-desk waiting.</p></div>
+          <div class="feature-card"><div class="fc-icon"><i class="bi bi-emoji-smile" aria-hidden="true"></i></div><h4>Dental Services</h4><p>Dental check-ups, restorative care, surgery, oral prophylaxis, oral examination, referral, and oral-health advice. Availability depends on the clinic schedule and service.</p></div>
+          <div class="feature-card"><div class="fc-icon"><i class="bi bi-bandaid" aria-hidden="true"></i></div><h4>First Aid &amp; Emergency Care</h4><p>Immediate response to minor injuries, wounds, and sudden illness during clinic hours. Emergency walk-ins do not require an appointment.</p></div>
+          <div class="feature-card"><div class="fc-icon"><i class="bi bi-file-earmark-check" aria-hidden="true"></i></div><h4>Medical Certificates &amp; Clearances</h4><p>Request certificates for OJT, sports, enrollment, and excused absence, then follow the preparation and Doctor-signature workflow online.</p></div>
+          <div class="feature-card"><div class="fc-icon"><i class="bi bi-file-earmark-medical" aria-hidden="true"></i></div><h4>Health Records</h4><p>Consultations, treatments, prescriptions, vitals, and follow-up information are organized in one role-protected clinical record.</p></div>
+          <div class="feature-card"><div class="fc-icon"><i class="bi bi-book" aria-hidden="true"></i></div><h4>Health Education &amp; Wellness</h4><p>Access clinic advisories and trustworthy educational resources covering stress, nutrition, first aid, vaccination, sleep, and physical activity.</p></div>
+        </div>
+        <div class="public-guide-section">
+          <div class="public-guide-head">
+            <h3>Before Your Clinic Visit</h3>
+            <p>CampusCare supports the patient's journey before, during, and after an in-person clinic visit.</p>
+          </div>
+          <div class="public-visit-steps">
+            <div class="public-visit-step"><div class="num">1</div><strong>Choose your service</strong><span>Consultation, dental care, certificate, fitness assessment, or follow-up.</span></div>
+            <div class="public-visit-step"><div class="num">2</div><strong>Book when required</strong><span>Select an available date and time based on the Doctor's schedule.</span></div>
+            <div class="public-visit-step"><div class="num">3</div><strong>Prepare requirements</strong><span>Bring your COR, school ID, forms, or related records when applicable.</span></div>
+            <div class="public-visit-step"><div class="num">4</div><strong>Visit the clinic</strong><span>Proceed to the Ground Floor, Education Building at your scheduled time.</span></div>
+            <div class="public-visit-step"><div class="num">5</div><strong>Continue your care</strong><span>Review records, reminders, certificates, and follow-up information in CampusCare.</span></div>
+          </div>
+
+          <div class="public-bring-grid">
+            <div class="public-bring-card"><h4>Consultation</h4><p>Bring your COR and school/employee ID. Previous records may help when related to your concern.</p></div>
+            <div class="public-bring-card"><h4>Medical Certificate</h4><p>Bring the supporting requirements relevant to the purpose of the certificate or clearance.</p></div>
+            <div class="public-bring-card"><h4>Fitness Assessment</h4><p>Bring the required sports/eligibility form with the needed signatures already completed.</p></div>
+          </div>
+          <div class="public-dental-referral">
+            <div><strong>Dental Referral Service</strong><span>The clinic's posted frontline referral service is available to all students and school personnel.</span></div>
+            <div><strong>Posted Referral Schedule</strong><span>Mon–Fri 8:00 AM–5:00 PM (No Noon Break) · Sat–Sun 8:00 AM–5:00 PM.</span></div>
+            <div><strong>Referral Requirements</strong><span>The posted frontline referral procedure lists no documentary requirement for availing the referral service.</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ABOUT -->
+  <main class="landing-route" data-landing-route="about">
+    <section class="landing-static-page">
+      <div class="landing-static-inner">
+        <div class="public-page-kicker">About the Clinic</div>
+        <h2 class="public-page-title">Campus care, connected in one place</h2>
+        <p class="public-page-sub">CampusCare supports the CTU Main Medical &amp; Dental Clinic by bringing its most common student and personnel workflows into one secure system.</p>
+        <div class="public-about-grid">
+          <div class="public-story-card">
+            <h3>CTU Main Medical &amp; Dental Clinic</h3>
+            <p>Located on the Ground Floor of the Education Building at CTU Main Campus, the clinic supports students, faculty, and personnel through routine consultations, dental care, first aid, health guidance, medical certificates, fitness assessments, and wellness initiatives.</p>
+            <p>CampusCare serves as the clinic's digital companion so patients can complete common tasks before and after an in-person visit while clinic personnel keep records, workflows, and communication organized.</p>
+            <div class="public-about-points">
+              <div class="public-about-point"><strong>Role-based access</strong><span>Dedicated Patient, Doctor, Staff, and Administrator experiences.</span></div>
+              <div class="public-about-point"><strong>Responsive access</strong><span>Designed for desktop, tablet, and mobile workflows.</span></div>
+              <div class="public-about-point"><strong>Centralized records</strong><span>Appointments, treatments, certificates, fitness, and communication.</span></div>
+              <div class="public-about-point"><strong>Operational insight</strong><span>Inventory monitoring, analytics, audit logs, and scheduled processes.</span></div>
+            </div>
+          </div>
+          <div class="public-info-panel">
+            <h3>How CampusCare supports a clinic visit</h3>
+            <div class="landing-steps" style="grid-template-columns:1fr;gap:.65rem">
+              <div class="step-item" style="text-align:left;display:grid;grid-template-columns:34px 1fr;column-gap:.7rem;align-items:start"><div class="step-num">1</div><div><h5>Create or verify an account</h5><p>Patient identity and registration information are connected to the clinic record.</p></div></div>
+              <div class="step-item" style="text-align:left;display:grid;grid-template-columns:34px 1fr;column-gap:.7rem;align-items:start"><div class="step-num">2</div><div><h5>Book or coordinate the visit</h5><p>Doctor availability, appointment status, and reminders are managed digitally.</p></div></div>
+              <div class="step-item" style="text-align:left;display:grid;grid-template-columns:34px 1fr;column-gap:.7rem;align-items:start"><div class="step-num">3</div><div><h5>Document care</h5><p>Treatments, vitals, findings, certificates, and fitness assessments are recorded securely.</p></div></div>
+              <div class="step-item" style="text-align:left;display:grid;grid-template-columns:34px 1fr;column-gap:.7rem;align-items:start"><div class="step-num">4</div><div><h5>Continue after the visit</h5><p>Patients can review records, receive reminders, download issued documents, and message the clinic.</p></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="public-guide-section">
+          <div class="public-guide-head">
+            <h3>Clinic Achievement &amp; Milestone</h3>
+            <p>This prototype currently shows one example achievement. Replace it with a verified clinic milestone before final publication.</p>
+          </div>
+
+          <div class="public-achievement-card photo-achievement">
+            <div class="public-achievement-photo" style="background-image:url('/assets/embedded-549783715470dfe8.jpg')" role="img" aria-label="CTU clinic collaboration activity"></div>
+            <div class="public-achievement-copy">
+              <span class="public-achievement-kicker"><i class="bi bi-stars"></i> Project milestone</span>
+              <h4>CampusCare Digital Clinic Initiative</h4>
+              <p>The prototype supports the clinic's move toward connected digital workflows for appointments, patient records, certificates, fitness assessments, inventory, communication, analytics, and auditability.</p>
+            </div>
+            <div class="public-achievement-year">2026</div>
+          </div>
+          <div class="public-achievement-note">The photo was provided from the CTU clinic environment. The milestone description remains a prototype/project milestone rather than a claim of an external award.</div>
+
+          <div class="public-guide-head" style="margin-top:1.2rem">
+            <h3>Dental Clinic Team</h3>
+            <p>Clinic personnel listed from the Dental Clinic staff information you provided.</p>
+          </div>
+          <div class="public-team-grid">
+            <div class="public-team-card"><div class="public-team-avatar">JB</div><strong>Dr. Jennifer Irene N. Buchan</strong><span>Dentist II</span></div>
+            <div class="public-team-card"><div class="public-team-avatar">CM</div><strong>Chuckie F. Maglasang</strong><span>Dental Clinic Staff</span></div>
+            <div class="public-team-card"><div class="public-team-avatar">CF</div><strong>Celeste P. Flores</strong><span>Dental Clinic Staff</span></div>
+            <div class="public-team-card"><div class="public-team-avatar">AP</div><strong>Anjin M. Pagayon</strong><span>Dental Clinic Staff</span></div>
+          </div>
+
+          <div class="public-guide-head" style="margin-top:1.2rem">
+            <h3>Patient Rights &amp; Responsibilities</h3>
+            <p>CampusCare supports respectful, private, informed, and accountable clinic interactions.</p>
+          </div>
+          <div class="public-rights-grid">
+            <div class="public-rights-card">
+              <h4>Patient Rights</h4>
+              <ul>
+                <li>Respectful and confidential handling of personal health information.</li>
+                <li>Access to available CampusCare health records and issued documents.</li>
+                <li>Clear information about appointments, clinic workflows, and follow-up care.</li>
+                <li>A way to submit concerns, corrections, privacy requests, and feedback.</li>
+              </ul>
+            </div>
+            <div class="public-rights-card">
+              <h4>Patient Responsibilities</h4>
+              <ul>
+                <li>Provide accurate registration and health information.</li>
+                <li>Bring required clinic documents such as COR, ID, or eligibility forms.</li>
+                <li>Attend, reschedule, or cancel appointments responsibly.</li>
+                <li>Use CampusCare communication and clinic resources appropriately.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- CONTACT -->
+  <main class="landing-route" data-landing-route="contact">
+    <section class="landing-static-page">
+      <div class="landing-static-inner">
+        <div class="public-page-kicker">Contact</div>
+        <h2 class="public-page-title">Visit or contact the clinic</h2>
+        <p class="public-page-sub">CTU Main Medical &amp; Dental Clinic — Ground Floor, Education Building, CTU Main Campus.</p>
+        <div class="public-contact-layout">
+          <div class="public-contact-stack">
+            <div class="public-contact-card"><div class="contact-big-icon"><i class="bi bi-geo-alt" aria-hidden="true"></i></div><div><h3>Location</h3><p>Ground Floor, Education Building, CTU Main Campus, M.J. Cuenco Ave. cor. R. Palma St., Cebu City, Philippines</p></div></div>
+            <div class="public-contact-card"><div class="contact-big-icon"><i class="bi bi-telephone" aria-hidden="true"></i></div><div><h3>Phone</h3><a href="tel:+63324024060">(032) 402 4060 loc. 1142</a></div></div>
+            <div class="public-contact-card"><div class="contact-big-icon"><i class="bi bi-envelope" aria-hidden="true"></i></div><div><h3>Email</h3><a href="mailto:ctumainmedclinic@gmail.com">ctumainmedclinic@gmail.com</a></div></div>
+            <div class="public-contact-card"><div class="contact-big-icon"><i class="bi bi-chat-dots" aria-hidden="true"></i></div><div><h3>Facebook</h3><p>CTU Main Medical Clinic</p></div></div>
+          </div>
+          <div class="public-info-panel">
+            <h3>Posted Medical Clinic Schedule</h3>
+            <div class="public-hours">
+              <div class="public-hours-row"><strong>Regular hours</strong><span>Mon–Fri · 8:00 AM–5:00 PM</span></div>
+              <div class="public-hours-row"><strong>Extended weekdays</strong><span>Mon–Fri · 5:00 PM–9:00 PM</span></div>
+              <div class="public-hours-row"><strong>Saturday</strong><span>8:00 AM–9:00 PM</span></div>
+              <div class="public-hours-row"><strong>Sunday</strong><span>8:00 AM–5:00 PM</span></div>
+            </div>
+            <p style="margin-top:1rem">Appointment availability in CampusCare still follows the selected Doctor's configured work schedule.</p>
+          </div>
+        </div>
+        <div class="public-guide-section">
+          <div class="public-guide-head">
+            <h3>Frequently Asked Questions</h3>
+            <p>Quick answers to common questions before visiting or using CampusCare.</p>
+          </div>
+          <div class="public-faq">
+            <details>
+              <summary>Do I always need an appointment?</summary>
+              <p>Routine consultations and limited dental slots are easier to coordinate through CampusCare. Emergency concerns and urgent walk-ins during clinic hours do not require an appointment.</p>
+            </details>
+            <details>
+              <summary>What should I bring to the clinic?</summary>
+              <p>Bring your COR and school/employee ID. Some services, such as fitness assessments or certificates, may require additional forms or supporting documents.</p>
+            </details>
+            <details>
+              <summary>Can the clinic refer me to another facility?</summary>
+              <p>Yes. Concerns that require further examination, diagnostics, or care outside the campus clinic may be referred to an appropriate medical facility.</p>
+            </details>
+            <details>
+              <summary>Where can I report a concern about CampusCare?</summary>
+              <p>After signing in, use Report an Issue. Privacy or personal-data requests are available from Account Settings.</p>
+            </details>
+          </div>
+        </div>
+
+        <div class="public-contact-footer">© 2026 CampusCare · CTU Main Medical &amp; Dental Clinic</div>
+      </div>
+    </section>
+  </main>
+
+</div><!-- /#landing-page -->
+
+<div id="auth-page" style="display:none">
+<button id="auth-page-back" onclick="showLandingPage()">← Back to Home</button>
+<div class="auth-section">
+<div class="auth-box">
+  <div class="auth-header">
+    <button class="theme-toggle" id="auth-theme-toggle-btn" onclick="toggleTheme()" title="Toggle dark mode" style="position:absolute;top:.8rem;right:.8rem;background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.25);color:#fff">
+      <i id="auth-theme-icon-moon" class="bi bi-moon" aria-hidden="true"></i>
+      <i id="auth-theme-icon-sun" class="bi bi-sun" aria-hidden="true" style="display:none"></i>
+    </button>
+    <div class="auth-brand-row"><img class="campuscare-logo-mark" src="/assets/embedded-3caef2cf86d46a35.png" alt="" aria-hidden="true"><span class="auth-brand-name">CampusCare</span></div>
+    <p>Campus Health Management System</p>
+  </div>
+  <div class="auth-body">
+    <div class="auth-tabs" id="auth-tabs">
+      <button class="auth-tab active" onclick="authTab('login')">Login</button>
+      <button class="auth-tab" onclick="authTab('reg')">Register</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="login-section">
+      <div class="alert alert-danger" id="login-err"></div>
+      <div class="form-group"><label>Username or Email</label><input id="li-user" type="text" placeholder="Enter username or email" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+      <div class="form-group"><label>Password</label><input id="li-pass" type="password" placeholder="Enter password" oninput="sanitizeInput(this,'password')" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div style="display:flex;justify-content:space-between;gap:.7rem;flex-wrap:wrap;margin:-.2rem 0 .2rem">
+        <a href="#" style="font-size:.75rem;color:var(--primary);text-decoration:none" onclick="openResendVerification();return false;">Resend verification email</a>
+        <a href="#" style="font-size:.75rem;color:var(--primary);text-decoration:none" onclick="openForgotPassword();return false;">Forgot password?</a>
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:.3rem" onclick="doLogin()">Login to CampusCare</button>
+    </div>
+
+    <!-- REGISTER -->
+    <div id="reg-section" style="display:none">
+<div class="alert alert-danger" id="reg-err"></div>
+      <div class="alert alert-success" id="reg-ok"></div>
+      <div class="form-row">
+        <div class="form-group"><label>First Name <span class="required">*</span></label><input id="r-fname" type="text" maxlength="50" autocomplete="given-name" oninput="sanitizeInput(this,'name');recheckNameMatch()"></div>
+        <div class="form-group"><label>Last Name <span class="required">*</span></label><input id="r-lname" type="text" maxlength="50" autocomplete="family-name" oninput="sanitizeInput(this,'name');recheckNameMatch()"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Username <span class="required">*</span></label><input id="r-user" type="text" maxlength="20" autocomplete="username" oninput="sanitizeInput(this,'username')"></div>
+        <div class="form-group"><label>Email <span class="required">*</span></label><input id="r-email" type="email" maxlength="150" autocomplete="email" oninput="sanitizeInput(this,'email')"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Password <span class="required">*</span></label><input id="r-pass" type="password" minlength="8" maxlength="64" autocomplete="new-password" onfocus="showPasswordChecklist()" oninput="sanitizeInput(this,'password');updatePasswordStrength()" onblur="hidePasswordChecklist()"></div>
+        <div id="r-pass-strength" class="password-checklist" aria-live="polite">
+          <div id="r-pass-strength-label" class="password-strength-label weak">Weak password</div>
+          <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>8–64 characters</span></div>
+          <div class="password-check" data-check="upper"><span class="pw-check-icon"></span><span>One uppercase letter</span></div>
+          <div class="password-check" data-check="lower"><span class="pw-check-icon"></span><span>One lowercase letter</span></div>
+          <div class="password-check" data-check="number"><span class="pw-check-icon"></span><span>One number</span></div>
+          <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
+        </div>
+        <div class="form-group"><label>Contact No.</label><input id="r-contact" type="text" inputmode="numeric" maxlength="11" autocomplete="tel" placeholder="09XXXXXXXXX" oninput="sanitizeInput(this,'phone')"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Person Type <span class="required">*</span></label>
+          <select id="r-ptype" onchange="updateRegistrationIdentityFields()">
+            <option value="Student">Student</option>
+            <option value="Teaching Personnel">Teaching Personnel</option>
+            <option value="Non-Teaching Personnel">Non-Teaching Personnel</option>
+          </select>
+        </div>
+        <div class="form-group" id="r-college-group">
+          <label id="r-unit-label">College / Department <span class="required">*</span></label>
+          <select id="r-college"></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label id="r-idno-label">Student ID No. <span class="required">*</span></label>
+        <input id="r-idno" type="text" inputmode="numeric" maxlength="7" placeholder="e.g. 1350098" oninput="sanitizeRegistrationId(this)">
+        <p class="form-note" id="r-idno-note">Student ID must contain exactly 7 digits.</p>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Date of Birth <span class="required">*</span></label>
+          <input type="hidden" id="r-dob" value="">
+          <div class="campus-date-field"><button type="button" class="modern-date-btn" onclick="openCampusDatePicker('r-dob','Select Date of Birth','',TODAY,'')"><i class="bi bi-calendar3"></i><span id="r-dob-label">Select date</span></button></div>
+        </div>
+        <div class="form-group"><label>Sex <span class="required">*</span></label>
+          <select id="r-sex">
+            <option value="">Select</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+        </div>
+      </div>
+      <p class="form-note" style="margin:-.4rem 0 .8rem">Your date of birth helps us verify your identity against your uploaded ID and is used for your medical record.</p>
+      <div class="form-group">
+        <label>Selfie Photo <span class="required">*</span></label>
+        <p class="form-note" style="margin:0 0 .4rem">Used to verify it's really you, and becomes your profile photo. You can change it anytime later.</p>
+        <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+          <div id="r-selfie-preview-wrap" style="width:60px;height:60px;border-radius:50%;background:var(--overlay);border:1px solid var(--glass-border-soft);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:26px;height:26px;color:var(--ink-muted)"><path stroke-linecap="round" stroke-linejoin="round" d="M15 8a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 20a7.5 7.5 0 0115 0"/></svg>
+          </div>
+          <button type="button" class="btn btn-sm" onclick="document.getElementById('r-selfie-file').click()">Upload Photo</button>
+          <button type="button" class="btn btn-sm btn-info" onclick="openCamera('selfie')"><i class="bi bi-camera" aria-hidden="true"></i> Use Camera</button>
+          <input type="file" id="r-selfie-file" accept="image/*" style="display:none" onchange="previewSelfie(this)">
+        </div>
+      </div>
+      <div class="form-group">
+        <label id="r-verification-label">Upload School ID or COR <span class="required">*</span></label>
+        <div class="upload-area" onclick="document.getElementById('r-id-file').click()">
+          <input type="file" id="r-id-file" accept="image/*,.pdf" onchange="handleIdFileChange(this)">
+          <i class="bi bi-upload" aria-hidden="true" style="font-size:1.35rem;margin:0 auto .4rem;display:block;color:var(--ink-muted)"></i>
+          <p id="r-verification-help">Click to upload School ID or COR</p>
+          <div id="r-file-preview" style="margin-top:.4rem;font-size:.78rem;color:var(--primary);font-weight:500"></div>
+        </div>
+        <button type="button" class="btn btn-sm btn-info" style="margin-top:.5rem" onclick="event.stopPropagation();openCamera('id')"><i class="bi bi-camera" aria-hidden="true"></i> Use Camera Instead</button>
+        <div id="id-analyze-status" class="registration-scanner-status" style="display:none"></div>
+      </div>
+      <div class="privacy-agree">
+        <input type="checkbox" id="r-privacy-consent">
+        <label for="r-privacy-consent">I have read and agree to the <a onclick="event.preventDefault();openPrivacyNotice()">CampusCare Privacy Notice and Consent</a>. I understand that my personal and health information will be collected and processed for CTU clinic registration, consultation, treatment, appointment, certificate, inventory-linked clinical operations, reporting, and other legitimate clinic purposes.</label>
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="doRegister()">Submit Registration</button>
+    </div>
+
+    <!-- PENDING VERIFICATION -->
+    <div id="pending-section" style="display:none">
+      <div style="text-align:center;padding:.5rem 0 1rem">
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--warning-bg);display:flex;align-items:center;justify-content:center;margin:0 auto .75rem;font-size:26px">🕐</div>
+        <h3 style="font-size:1rem;margin-bottom:.5rem">Account Pending Verification</h3>
+        <p style="font-size:.83rem;color:var(--ink-muted);line-height:1.6">
+          Thanks for registering, <strong id="pending-name">there</strong>! Our clinic staff will verify your uploaded ID and selfie and approve your account within <strong>24–48 hours</strong>.
+        </p>
+      </div>
+      <div class="demo-accounts" style="font-size:.76rem">
+        <strong>What happens next?</strong>
+        Staff will cross-check your uploaded ID/COR against your selfie and details. Try logging in again after 24–48 hours — you don't need to resubmit anything.
+      </div>
+      <div style="display:grid;gap:.5rem;margin-top:.9rem">
+        <button class="btn btn-info" style="width:100%" onclick="openResendVerification(pendingRegistrationEmail||'')"><i class="bi bi-envelope-check"></i> Resend Verification Email</button>
+        <button class="btn btn-primary" style="width:100%" onclick="closePendingPanel()">Close</button>
+      </div>
+    </div>
+
+    <!-- FORGOT PASSWORD -->
+    <div id="forgot-section" style="display:none">
+      <div style="text-align:center;padding:.2rem 0 .8rem">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--info-bg);display:flex;align-items:center;justify-content:center;margin:0 auto .6rem;font-size:24px">🔑</div>
+        <h3 id="forgot-title" style="font-size:1rem">Reset Your Password</h3>
+        <p id="forgot-subtitle" class="text-muted" style="font-size:.78rem;margin-top:.25rem">CampusCare will send a secure reset link to your registered email.</p>
+      </div>
+
+      <!-- Step 1: request reset email -->
+      <div id="forgot-step1">
+        <div class="alert alert-danger" id="fp-err"></div>
+        <div class="form-group">
+          <label>Username or Email</label>
+          <input id="fp-identifier" type="text" placeholder="Enter your username or email" autocomplete="username" autocapitalize="none" spellcheck="false">
+        </div>
+        <div class="alert alert-info show" style="font-size:.76rem">
+          📧 A password-reset link will be sent to the email registered with your CampusCare account.
+        </div>
+        <button class="btn btn-primary" id="fp-send-btn" style="width:100%;margin-top:.4rem" onclick="sendPasswordResetEmail()">Send Reset Link</button>
+        <button class="btn" style="width:100%;margin-top:.5rem" onclick="closeForgotPassword()">Back to Login</button>
+      </div>
+
+      <!-- Step 2: email sent -->
+      <div id="forgot-step2" style="display:none">
+        <div class="alert alert-success show" style="display:block">
+          <strong>Check your email.</strong><br>
+          <span id="fp-reset-destination">If a matching CampusCare account exists, a secure password-reset link has been sent.</span>
+        </div>
+        <p class="text-muted" style="font-size:.79rem;line-height:1.55">
+          Open the email on this device or another device, then select <strong>Reset Password</strong>. The link will return you to CampusCare to create a new password.
+        </p>
+        <button class="btn btn-primary" style="width:100%;margin-top:.75rem" onclick="closeForgotPassword()">Back to Login</button>
+      </div>
+
+      <!-- Step 3: reached from secure recovery link -->
+      <div id="forgot-step3" style="display:none">
+        <div class="alert alert-danger" id="fp-err3"></div>
+        <div class="alert alert-info show" style="font-size:.76rem">
+          🔐 Your recovery link was verified. Create a new CampusCare password.
+        </div>
+        <div class="form-group">
+          <label>New Password</label>
+          <input id="fp-newpass" type="password" placeholder="At least 8 characters" autocomplete="new-password"
+            onfocus="showRecoveryPasswordChecklist()"
+            oninput="sanitizeInput(this,'password');updateRecoveryPasswordStrength()"
+            onblur="hideRecoveryPasswordChecklist()">
+        </div>
+        <div id="fp-strength" class="password-checklist" aria-live="polite">
+          <div id="fp-strength-label" class="password-strength-label weak">Weak password</div>
+          <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>At least 8 characters</span></div>
+          <div class="password-check" data-check="upper"><span class="pw-check-icon"></span><span>One uppercase letter</span></div>
+          <div class="password-check" data-check="lower"><span class="pw-check-icon"></span><span>One lowercase letter</span></div>
+          <div class="password-check" data-check="number"><span class="pw-check-icon"></span><span>One number</span></div>
+          <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
+        </div>
+        <div class="form-group">
+          <label>Confirm New Password</label>
+          <input id="fp-newpass2" type="password" autocomplete="new-password"
+            oninput="sanitizeInput(this,'password')">
+        </div>
+        <button class="btn btn-primary" id="fp-update-btn" style="width:100%" onclick="submitNewPassword()">Update Password</button>
+        <button class="btn" id="fp-new-link-btn" style="width:100%;margin-top:.5rem;display:none" onclick="showForgotStep(1)">Request a New Reset Link</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- /.auth-section -->
+</div><!-- /#auth-page -->
+
+</div>

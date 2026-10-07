@@ -1,0 +1,29 @@
+// Run the production JavaScript against the assembled HTML without contacting live services.
+const fs=require('fs'),path=require('path'),assert=require('assert');const {JSDOM,VirtualConsole}=require('jsdom');
+const root=path.resolve(__dirname,'..');let html=fs.readFileSync(root+'/dist/index.html','utf8');
+const scripts=[];html=html.replace(/<script([^>]*)src="([^"]+)"([^>]*)><\/script>/g,(full,before,src,after)=>{if(src.startsWith('https:'))return '';const code=fs.readFileSync(root+'/dist'+src,'utf8');if((before+after).includes('type="module"')){scripts.push(code);return '';}return '<script>'+code.replace(/<\/script/gi,'<\\/script')+'</script>';});
+html=html.replace('</body>',()=>'<script>'+scripts.join('\n').replace(/<\/script/gi,'<\\/script')+'</script></body>');
+const errors=[];const vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
+const dom=new JSDOM(html,{
+ url:'https://campuscare.test/',runScripts:'dangerously',virtualConsole:vc,pretendToBeVisual:true,
+ beforeParse(w){
+  w.scrollTo=()=>{};
+  w.matchMedia=()=>({matches:false,addEventListener(){},addListener(){}});
+  w.fetch=async()=>{throw Error('Network disabled for test')};
+  w.supabase={createClient:()=>({auth:{
+   getSession:async()=>({data:{session:null}}),
+   onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})
+  }})};
+ }
+});
+const w=dom.window;
+(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');
+w.currentUser=w.DB.users.find(u=>u.role==='Doctor');w.buildNav();w.navTo('dashboard');assert(w.document.querySelector('#nav-schedule'));assert(!w.document.querySelector('#nav-task-center'));
+w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-draft]'));w.captureCampusDraft('schedule');w.closeAllModals();w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-resume]'));w.restoreCampusDraft('schedule');assert.equal(w.document.querySelectorAll('.scr-day:checked').length,5);
+assert.equal(w.appointmentSlotBaseTimes({startTime:'08:00',endTime:'09:15',slotDuration:60}).join(','),'08:00');assert(w.validateSchedule({...w.canonicalSchedule(w.currentUser),slotDuration:0},w.clinicToday(),w.currentUser).includes('Slot duration'));
+w.closeAllModals();w.currentUser=w.DB.users.find(u=>u.role==='Administrator');w.buildNav();w.navTaskCounts={approvals:2};w.navTaskItems={approvals:['one','two']};w.navTaskSeen={};w.applyNavBadges();assert(w.document.querySelector('#nav-approvals .nav-badge'));assert.equal(w.unseenTaskCount('approvals'),2);
+for(const user of w.DB.users.filter(x=>['Patient','Doctor','Staff','Administrator'].includes(x.role)).slice(0,6)){w.currentUser=user;w.currentPatient=w.DB.patients.find(p=>p.userId===user.id)||w.DB.patients[0];w.buildNav();w.navTo('dashboard');}
+assert.deepEqual(errors,[]);
+// Every inline handler still resolves after Vite minifies function names.
+const handlerCalls=new Set();for(const el of w.document.querySelectorAll('*'))for(const a of el.attributes)if(/^on/.test(a.name))for(const m of a.value.matchAll(/(?<![.\w])([A-Za-z_$][\w$]*)\(/g))handlerCalls.add(m[1]);const missing=[...handlerCalls].filter(n=>!['if','Number','String','parseInt','setTimeout','alert','confirm'].includes(n)&&typeof w[n]!=='function');assert.deepEqual(missing,[]);
+console.log('PASS: production bundle startup, runtime bindings, role dashboards, sidebar badges, draft actions, schedule validation, slot boundaries, inline handlers and deployment-origin redirects');w.close();})().catch(e=>{console.error(e);w.close();process.exitCode=1;});

@@ -1,0 +1,3 @@
+/* Additional draft actions remain usable on narrow screens. */
+.modal-footer{flex-wrap:wrap}
+#schedule-preview{overflow-wrap:anywhere}
