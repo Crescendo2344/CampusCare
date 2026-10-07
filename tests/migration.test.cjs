@@ -101,7 +101,35 @@ async function checkPatientAdapter(){
     assert.equal(typeof w.normalizeSupabaseUser,'function');assert.equal(typeof w.syncCampusCareSessionUI,'function');
   }finally{w.supabaseClient=client;w.currentUser=user;w.currentPatient=patient;Object.assign(w.DB,saved);}
 }
-(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');await checkInventoryAdapter();await checkAppointmentAdapter();await checkTreatmentAdapter();await checkPatientAdapter();
+// Test unread badges and read actions against a fake notification-center endpoint.
+async function checkNotificationAdapter(){
+  const client=w.supabaseClient,user=w.currentUser,request=w.fetch,notifications=w.DB.notifications;
+  const counts=w.navTaskCounts,items=w.navTaskItems,seen=w.navTaskSeen;
+  let rows=[{notification_id:7,user_id:2,title:'Test notice',action_page:'patient-messages',is_read:false},{notification_id:8,user_id:2,title:'Other notice',action_page:'my-messages',is_read:false}];
+  const calls=[];
+  w.supabaseClient={auth:{getSession:async()=>({data:{session:{access_token:'test-session'}}})}};
+  w.fetch=async(url,options)=>{
+    const payload=JSON.parse(options.body);calls.push(payload);
+    if(payload.action==='read')rows.find(n=>n.notification_id===payload.notification_id).is_read=true;
+    if(payload.action==='read_all')rows.forEach(n=>n.is_read=true);
+    return {ok:true,json:async()=>({ok:true,notifications:rows})};
+  };
+  try{
+    w.currentUser={...w.DB.users.find(u=>u.role==='Staff'),id:100002,_realSupabase:true};
+    w.navTaskCounts={};w.navTaskItems={};w.navTaskSeen={};w.buildNav();
+    await w.updateNotifUI();assert.equal(w.document.getElementById('notif-count').textContent,'2');
+    assert.equal(w.document.querySelector('#nav-messages .nav-badge').textContent,'2');
+    assert.equal(w.document.querySelectorAll('#notif-list .unread').length,2);
+    const total=w.DB.notifications.length;w.addNotif(w.currentUser.id,'Test','Test');assert.equal(w.DB.notifications.length,total);
+    await w.readNotif(1100007);assert(calls.some(c=>c.action==='read'&&c.notification_id===7));
+    assert.equal(w.document.getElementById('notif-count').textContent,'1');assert.equal(w.document.querySelector('#nav-messages .nav-badge').textContent,'1');
+    await w.markAllRead();assert(calls.some(c=>c.action==='read_all'));
+    assert.equal(w.document.getElementById('notif-count').hidden,true);assert.equal(w.document.querySelector('#nav-messages .nav-badge'),null);
+    rows=Array.from({length:101},(_,i)=>({notification_id:100+i,user_id:2,action_page:'messages',is_read:false}));await w.updateNotifUI();
+    assert.equal(w.document.getElementById('notif-count').textContent,'99+');assert.equal(w.document.querySelector('#nav-messages .nav-badge').textContent,'99+');
+  }finally{w.supabaseClient=client;w.currentUser=user;w.fetch=request;w.DB.notifications=notifications;w.navTaskCounts=counts;w.navTaskItems=items;w.navTaskSeen=seen;}
+}
+(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');await checkInventoryAdapter();await checkAppointmentAdapter();await checkTreatmentAdapter();await checkPatientAdapter();await checkNotificationAdapter();
 w.currentUser=w.DB.users.find(u=>u.role==='Doctor');w.buildNav();w.navTo('dashboard');assert(w.document.querySelector('#nav-schedule'));assert(!w.document.querySelector('#nav-task-center'));
 w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-draft]'));w.captureCampusDraft('schedule');w.closeAllModals();w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-resume]'));w.restoreCampusDraft('schedule');assert.equal(w.document.querySelectorAll('.scr-day:checked').length,5);
 assert.equal(w.appointmentSlotBaseTimes({startTime:'08:00',endTime:'09:15',slotDuration:60}).join(','),'08:00');assert(w.validateSchedule({...w.canonicalSchedule(w.currentUser),slotDuration:0},w.clinicToday(),w.currentUser).includes('Slot duration'));

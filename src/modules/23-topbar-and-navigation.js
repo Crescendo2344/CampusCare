@@ -239,14 +239,7 @@ function saveTaskBadgeSeen(){
 }
 
 function navNotificationCounts(){
-  const counts={};
-  if(!currentUser)return counts;
-  for(const n of notificationRecords().filter(x=>x.userId===currentUser.id&&!x.read)){
-    const page=notificationPageFor(n);
-    if(!page)continue;
-    counts[page]=(counts[page]||0)+1;
-  }
-  return counts;
+  return notificationData.notificationPageCounts(notificationRecords(),currentUser);
 }
 
 function demoTaskBadgeSnapshot(){

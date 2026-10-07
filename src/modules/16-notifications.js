@@ -1,89 +1,18 @@
-// ================================================================
-// NOTIFICATIONS — REAL SUPABASE CENTER
-// ================================================================
-function notificationRecords(){
-  if(currentUser?._realSupabase)return (DB.notifications||[]).filter(n=>n._realSupabase);
-  return DB.notifications||[];
+// Existing UI handlers keep their names; this adapter owns notification state updates.
+function notificationRecords(){return notificationData.notificationRecords(DB,currentUser);}
+function realNotificationToUi(n){return notificationData.realNotificationToUi(n,currentUser);}
+function notificationPageFor(n){return notificationData.notificationPageFor(n,currentUser);}
+function notificationTone(n){return notificationData.notificationTone(n);}
+function notificationService(){
+  return createNotificationService({getClient:()=>supabaseClient,request:(...args)=>fetch(...args),
+    baseUrl:SUPABASE_URL,publishableKey:SUPABASE_PUBLISHABLE_KEY});
 }
-
-function realNotificationToUi(n){
-  return {
-    id:1100000+Number(n.notification_id),
-    dbNotificationId:Number(n.notification_id),
-    userId:currentUser?.id||null,
-    dbUserId:Number(n.user_id),
-    title:n.title||'Notification',
-    body:n.message||'',
-    type:n.type||'info',
-    channel:n.channel||'In-app',
-    read:Boolean(n.is_read),
-    scheduledAt:n.scheduled_at||'',
-    sentAt:n.sent_at||'',
-    deliveryStatus:n.delivery_status||'',
-    referenceType:n.reference_type||'',
-    referenceId:n.reference_id==null?null:Number(n.reference_id),
-    actionPage:n.action_page||'',
-    notificationKey:n.notification_key||'',
-    createdAt:n.created_at||'',
-    _realSupabase:true
-  };
-}
-
-async function notificationCenterAction(payload){
-  const {data:{session}}=await supabaseClient.auth.getSession();
-  if(!session)throw new Error('Your session has expired. Please log in again.');
-
-  const response=await fetch(`${SUPABASE_URL}/functions/v1/notification-center`,{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      apikey:SUPABASE_PUBLISHABLE_KEY,
-      Authorization:`Bearer ${session.access_token}`
-    },
-    body:JSON.stringify(payload)
-  });
-
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.ok)throw new Error(result.error||'Notification action failed.');
-  return result;
-}
-
+async function notificationCenterAction(payload){return notificationService().action(payload);}
 async function syncRealNotifications(){
   if(!currentUser?._realSupabase)return notificationRecords();
-
-  const result=await notificationCenterAction({action:'list'});
-  DB.notifications=(DB.notifications||[]).filter(n=>!n._realSupabase);
-  DB.notifications.push(...(result.notifications||[]).map(realNotificationToUi));
+  const rows=await notificationService().load();
+  DB.notifications=notificationData.mergeNotificationRecords(DB.notifications||[],rows,currentUser);
   return notificationRecords();
-}
-
-function notificationPageFor(n){
-  const action=String(n.actionPage||'').trim();
-  const aliases={
-    'privacy-center':'my-account',
-    'certificate-signatures':'cert-requests',
-    'certificate-requests':'cert-requests',
-    'patient-messages':'messages',
-    'my-messages':'messages'
-  };
-  if(action)return aliases[action]||action;
-
-  const type=String(n.type||'').toLowerCase();
-  if(type.includes('appointment'))return currentUser.role==='Patient'?'my-appointments':'appointments';
-  if(type.includes('treatment'))return currentUser.role==='Patient'?'my-records':'treatments';
-  if(type.includes('certificate'))return currentUser.role==='Patient'?'my-certificates':'cert-requests';
-  if(type.includes('fitness'))return 'fitness';
-  if(type.includes('inventory'))return 'inventory';
-  return '';
-}
-
-function notificationTone(n){
-  const type=String(n.type||'').toLowerCase();
-  const title=String(n.title||'').toLowerCase();
-  if(type.includes('inventory')||title.includes('low stock')||title.includes('declined'))return 'warning';
-  if(title.includes('ready')||title.includes('issued')||title.includes('completed')||title.includes('confirmed'))return 'success';
-  if(title.includes('cancelled')||title.includes('suspended'))return 'danger';
-  return 'info';
 }
 
 function addNotif(userId,title,body,type='info'){
@@ -102,7 +31,7 @@ async function updateNotifUI(){
     catch(e){console.error('Notification sync:',e);}
   }
 
-  const unread=notificationRecords().filter(n=>n.userId===currentUser.id&&!n.read);
+  const unread=notificationData.unreadNotifications(notificationRecords(),currentUser);
 
   const count=document.getElementById('notif-count');
   if(count){

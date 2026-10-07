@@ -42,6 +42,8 @@ The existing public project settings remain as compatibility defaults. Never pla
 - `src/services/treatments.js`: injected treatment actions and treatment/dental/reminder queries.
 - `src/domain/patient-records.js`: user/patient normalization, age/measurement helpers and directory snapshots.
 - `src/services/patients.js`: patient actions, clinical directory queries/photo signing and current-patient queries.
+- `src/domain/notification-records.js`: notification mapping, destinations, tones and unread/page counts.
+- `src/services/notifications.js`: injected notification-center actions and list loading.
 - `src/shared/`: independent input-value sanitization and formatting.
 - `src/ui/display-markup.js`: stateless display badges and icons.
 - `src/modules/`: 64 ordered feature source files; see [module map](docs/MODULES.md).
@@ -56,7 +58,7 @@ The existing public project settings remain as compatibility defaults. Never pla
 
 ## How the first migration works
 
-Legacy feature files retain shared state, while schedule rules, draft storage, formatting, input-value sanitization, display markup, inventory data access and appointment data access and treatment data access and patient directory access are now ordinary ES modules with explicit inputs. Small adapters preserve the existing form handlers. The independent modules can be imported directly without initializing the application.
+Legacy feature files retain shared state, while schedule rules, draft storage, formatting, input-value sanitization, display markup, inventory data access and appointment data access and treatment data access and patient directory access and notification data access are now ordinary ES modules with explicit inputs. Small adapters preserve the existing form handlers. The independent modules can be imported directly without initializing the application.
 
 Legacy feature files retain their original functions. The Vite plugin joins them in their original order into one runtime, and exposes the bindings needed by existing inline handlers and early session helpers. The plugin discovers new top-level declarations automatically.
 
@@ -78,7 +80,7 @@ npm test
 npm run build
 ```
 
-Patient directory checks cover normalization, birthday boundaries, linked records, profile photo signing/failure, role guards and silent current-patient query errors. Treatment service checks cover linked clinical IDs, archived status, dental associations, reminder mapping, action errors and query failures. Appointment service checks cover ID/status mapping, slot override grouping, doctor-directory replacement, session behavior, query failures and sort order. Inventory service checks use injected clients and requests to cover missing sessions, action errors, query failures, forecast fallback and demo/live row separation. Independent-module checks cover input character/length policies, formatting, display classes, schedule conflicts, future schedule selection, configurable lunch boundaries, validation context, and account/mode isolation for draft storage. DOM checks cover startup, role dashboards, sidebar badges, drafts, inline handler access, schedule validation, slot boundaries and redirect origin. Visual browser QA and live authenticated Supabase workflows still need checking. The single shared bundle intentionally remains large in this first migration.
+Notification tests cover destinations, tone precedence, account-scoped unread counts and read/read-all requests. Patient directory checks cover normalization, birthday boundaries, linked records, profile photo signing/failure, role guards and silent current-patient query errors. Treatment service checks cover linked clinical IDs, archived status, dental associations, reminder mapping, action errors and query failures. Appointment service checks cover ID/status mapping, slot override grouping, doctor-directory replacement, session behavior, query failures and sort order. Inventory service checks use injected clients and requests to cover missing sessions, action errors, query failures, forecast fallback and demo/live row separation. Independent-module checks cover input character/length policies, formatting, display classes, schedule conflicts, future schedule selection, configurable lunch boundaries, validation context, and account/mode isolation for draft storage. DOM checks cover startup, role dashboards, sidebar badges, drafts, inline handler access, schedule validation, slot boundaries and redirect origin. Visual browser QA and live authenticated Supabase workflows still need checking. The single shared bundle intentionally remains large in this first migration.
 
 ## Vercel deployment
 

@@ -13,3 +13,5 @@ export * as treatmentData from './domain/treatment-records.js';
 export { createTreatmentService } from './services/treatments.js';
 export * as patientData from './domain/patient-records.js';
 export { createPatientService } from './services/patients.js';
+export * as notificationData from './domain/notification-records.js';
+export { createNotificationService } from './services/notifications.js';
