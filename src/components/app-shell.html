@@ -1,12 +1,12 @@
 <div id="app">
-  <div id="sidebar-backdrop" onclick="toggleSidebar(false)"></div>
+  <div id="sidebar-backdrop" data-action-click="shell-48"></div>
   <!-- SIDEBAR -->
   <div id="sidebar">
     <div class="sb-brand">
       <div class="sb-brand-icon"><img class="campuscare-logo-mark" src="/assets/embedded-3caef2cf86d46a35.png" alt="" aria-hidden="true"></div>
       <div><h2>CampusCare</h2><p>Health Management</p></div>
     </div>
-    <div class="sb-profile" onclick="openProfileDetails()" style="cursor:pointer" title="View profile details">
+    <div class="sb-profile" data-action-click="shell-49" style="cursor:pointer" title="View profile details">
       <div class="sb-avatar" id="sb-avatar">--</div>
       <div class="sb-profile-info">
         <strong id="sb-name">User</strong>
@@ -16,11 +16,11 @@
     </div>
     <nav id="sidebar-nav"></nav>
     <div class="sb-bottom">
-      <button class="sb-logout" onclick="logout()">
+      <button class="sb-logout" data-action-click="shell-50">
         <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
         Logout
       </button>
-      <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle dark mode">
+      <button class="theme-toggle" id="theme-toggle-btn" data-action-click="shell-51" title="Toggle dark mode">
         <i id="theme-icon-moon" class="bi bi-moon" aria-hidden="true"></i>
         <i id="theme-icon-sun" class="bi bi-sun" aria-hidden="true" style="display:none"></i>
       </button>
@@ -30,19 +30,19 @@
   <!-- MAIN -->
   <div id="main">
     <div class="top-bar">
-      <button class="notif-btn" id="menu-toggle-btn" onclick="toggleSidebar()" title="Menu" style="display:none">
+      <button class="notif-btn" id="menu-toggle-btn" data-action-click="shell-52" title="Menu" style="display:none">
         <i class="bi bi-list" aria-hidden="true"></i>
       </button>
       <h2 id="top-title">Dashboard</h2>
       <div class="top-bar-actions">
         <div class="top-search" id="top-search-wrap">
           <input id="top-search-input" class="top-search-input" type="search" placeholder="Search CampusCare…" autocomplete="off"
-                 oninput="renderTopSearch(this.value)" onkeydown="handleTopSearchKey(event)"
-                 onfocus="renderTopSearch(this.value)" aria-label="Search CampusCare">
+                 data-action-input="shell-53" data-action-keydown="shell-54"
+                 data-action-focus="shell-55" aria-label="Search CampusCare">
           <i class="bi bi-search top-search-icon" aria-hidden="true"></i>
           <div class="top-search-results" id="top-search-results"></div>
         </div>
-        <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notifications">
+        <button class="notif-btn" id="notif-btn" data-action-click="shell-56" title="Notifications">
           <span id="notif-count" hidden aria-label="Unread notifications"></span>
           <i class="bi bi-bell" aria-hidden="true"></i>
           <span class="notif-dot" id="notif-dot" style="display:none"></span>

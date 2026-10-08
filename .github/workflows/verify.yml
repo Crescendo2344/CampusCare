@@ -1,0 +1,25 @@
+# Verify every change with synthetic data; no Supabase or deployment secrets are exposed.
+name: Verify CampusCare
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      # Pin the reviewed action revisions so CI does not follow moving tags.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # Browser requests are intercepted with fixtures; this never writes to live Supabase.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser

@@ -1,0 +1,22 @@
+// Explicit dependency boundary for the remaining assembled feature sources.
+// Add independent modules here instead of introducing new application globals.
+export * as scheduleRules from './domain/schedule.js';
+export { createDraftStorage } from './services/draft-storage.js';
+export * as formatters from './shared/formatting.js';
+export * as displayMarkup from './ui/display-markup.js';
+export { sanitizeValue } from './shared/input-values.js';
+export * as inventoryData from './domain/inventory-records.js';
+export { createInventoryService } from './services/inventory.js';
+export * as appointmentData from './domain/appointment-records.js';
+export { createAppointmentService } from './services/appointments.js';
+export * as treatmentData from './domain/treatment-records.js';
+export { createTreatmentService } from './services/treatments.js';
+export * as patientData from './domain/patient-records.js';
+export { createPatientService } from './services/patients.js';
+export * as notificationData from './domain/notification-records.js';
+export { createNotificationService } from './services/notifications.js';
+export * as certificateData from './domain/certificate-records.js';
+export { createCertificateService } from './services/certificates.js';
+export { createOperationalService } from './services/operations.js';
+export * as workflowData from './domain/workflow-records.js';
+export {bindAction,registerNamedAction} from './ui/events.js';

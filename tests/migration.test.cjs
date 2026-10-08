@@ -1,22 +1,48 @@
 // Run the production JavaScript against the assembled HTML without contacting live services.
 const fs=require('fs'),path=require('path'),assert=require('assert');const {JSDOM,VirtualConsole}=require('jsdom');
 const root=path.resolve(__dirname,'..');let html=fs.readFileSync(root+'/dist/index.html','utf8');
-const scripts=[];html=html.replace(/<script([^>]*)src="([^"]+)"([^>]*)><\/script>/g,(full,before,src,after)=>{if(src.startsWith('https:'))return '';const code=fs.readFileSync(root+'/dist'+src,'utf8');if((before+after).includes('type="module"')){scripts.push(code);return '';}return '<script>'+code.replace(/<\/script/gi,'<\\/script')+'</script>';});
-html=html.replace('</body>',()=>'<script>'+scripts.join('\n').replace(/<\/script/gi,'<\\/script')+'</script></body>');
+// Evaluate the production ES-module graph in the DOM realm; no global handler bridge is used.
+const vm=require('node:vm');
+const entry=html.match(/<script[^>]*type="module"[^>]*src="([^"]+)"/)[1];
+html=html.replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'');
 const errors=[];const vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
 const dom=new JSDOM(html,{
  url:'https://campuscare.test/',runScripts:'dangerously',virtualConsole:vc,pretendToBeVisual:true,
  beforeParse(w){
   w.scrollTo=()=>{};
   w.matchMedia=()=>({matches:false,addEventListener(){},addListener(){}});
-  w.fetch=async()=>{throw Error('Network disabled for test')};
+  w.fetch=async(url)=>{
+   // Vite's modulepreload hints fetch local chunks; VM linking evaluates their actual contents.
+   if(new URL(url,w.location.href).pathname.startsWith('/assets/'))return {ok:true};
+   throw Error('Network disabled for test');
+  };
   w.supabase={createClient:()=>({auth:{
    getSession:async()=>({data:{session:null}}),
    onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})
   }})};
  }
 });
-const w=dom.window;
+const manifest=JSON.parse(fs.readFileSync(root+'/docs/feature-manifest.json','utf8'));
+let application;
+dom.window.document.addEventListener('campuscare:ready',event=>{application=event.detail;},{once:true});
+const stateFields=new Map(manifest.flatMap(f=>f.state.map(v=>[v.name,v.namespace])));
+const functions=new Map();
+// Tests use an explicit facade rather than adding production globals to the browser.
+const w=new Proxy(dom.window,{
+ get(target,name){if(functions.has(name))return functions.get(name);if(application&&stateFields.has(name))return application.state[stateFields.get(name)][name];return Reflect.get(target,name);},
+ set(target,name,value){if(application&&stateFields.has(name)){application.state[stateFields.get(name)][name]=value;return true;}return Reflect.set(target,name,value);}
+});
+const ready=(async()=>{
+ const cache=new Map();
+ async function load(file){
+  if(cache.has(file))return cache.get(file);
+  const module=new vm.SourceTextModule(fs.readFileSync(file,'utf8'),{context:dom.getInternalVMContext(),identifier:file,initializeImportMeta(meta){meta.url='file://'+file;},importModuleDynamically:async(specifier,parent)=>{const child=await load(path.resolve(path.dirname(parent.identifier),specifier));if(child.status==='unlinked')await child.link(link);if(child.status==='linked')await child.evaluate();return child;}});
+  cache.set(file,module);return module;
+ }
+ const link=(specifier,parent)=>load(path.resolve(path.dirname(parent.identifier),specifier));
+ const module=await load(root+'/dist'+entry);await module.link(link);await module.evaluate();assert(application,'Application readiness event was dispatched');
+ for(const feature of Object.values(application.features))for(const [name,fn]of Object.entries(feature))if(name!=='initializeFeature'&&typeof fn==='function')functions.set(name,fn);
+})();
 // The legacy DOM adapter still uses the independent sanitizer and preserves the cursor.
 function checkInputAdapter(){
   const input=w.document.createElement('input');input.type='text';input.value='12a3';input.setSelectionRange(4,4);
@@ -99,6 +125,13 @@ async function checkPatientAdapter(){
     assert(w.DB.patients.some(p=>p.dbPatientId===4&&p.userId===100002));
     const count=queries.length;await w.syncCurrentPatientFromSupabase();assert.equal(queries.length,count);
     assert.equal(typeof w.normalizeSupabaseUser,'function');assert.equal(typeof w.syncCampusCareSessionUI,'function');
+    // A patient query completing after an account switch must not replace the next account's patient.
+    let finish;const previousPatient=w.currentPatient;
+    w.supabaseClient={from(){return {select(){return this;},eq(){return this;},maybeSingle(){return new Promise(resolve=>{finish=resolve;});}};}};
+    w.currentUser={role:'Patient',id:100002,dbUserId:2,_realSupabase:true};const pending=w.syncCurrentPatientFromSupabase();
+    w.currentUser={role:'Patient',id:100003,dbUserId:3,_realSupabase:true};finish({data:{patient_id:99,user_id:2}});await pending;
+    assert.equal(w.currentPatient,previousPatient);
+
   }finally{w.supabaseClient=client;w.currentUser=user;w.currentPatient=patient;Object.assign(w.DB,saved);}
 }
 // Test unread badges and read actions against a fake notification-center endpoint.
@@ -149,13 +182,21 @@ async function checkCertificateAdapter(){
     await w.certificateAction({action:'request',purpose:'Test purpose'});assert.equal(actions[0].purpose,'Test purpose');
   }finally{w.supabaseClient=client;w.currentUser=user;w.currentPatient=patient;w.fetch=request;w.DB.certRequests=certificates;}
 }
-(async()=>{await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');await checkInventoryAdapter();await checkAppointmentAdapter();await checkTreatmentAdapter();await checkPatientAdapter();await checkNotificationAdapter();await checkCertificateAdapter();
+(async()=>{await ready;await new Promise(r=>setTimeout(r,150));console.log('startup errors',errors);assert.deepEqual(errors,[]);assert.equal(typeof w.buildNav,'function');checkInputAdapter();assert.equal(w.CAMPUSCARE_APP_URL,'https://campuscare.test');await checkInventoryAdapter();await checkAppointmentAdapter();await checkTreatmentAdapter();await checkPatientAdapter();await checkNotificationAdapter();await checkCertificateAdapter();
 w.currentUser=w.DB.users.find(u=>u.role==='Doctor');w.buildNav();w.navTo('dashboard');assert(w.document.querySelector('#nav-schedule'));assert(!w.document.querySelector('#nav-task-center'));
 w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-draft]'));w.captureCampusDraft('schedule');w.closeAllModals();w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-resume]'));w.restoreCampusDraft('schedule');assert.equal(w.document.querySelectorAll('.scr-day:checked').length,5);
 assert.equal(w.appointmentSlotBaseTimes({startTime:'08:00',endTime:'09:15',slotDuration:60}).join(','),'08:00');assert(w.validateSchedule({...w.canonicalSchedule(w.currentUser),slotDuration:0},w.clinicToday(),w.currentUser).includes('Slot duration'));
 w.closeAllModals();w.currentUser=w.DB.users.find(u=>u.role==='Administrator');w.buildNav();w.navTaskCounts={approvals:2};w.navTaskItems={approvals:['one','two']};w.navTaskSeen={};w.applyNavBadges();assert(w.document.querySelector('#nav-approvals .nav-badge'));assert.equal(w.unseenTaskCount('approvals'),2);
 for(const user of w.DB.users.filter(x=>['Patient','Doctor','Staff','Administrator'].includes(x.role)).slice(0,6)){w.currentUser=user;w.currentPatient=w.DB.patients.find(p=>p.userId===user.id)||w.DB.patients[0];w.buildNav();w.navTo('dashboard');}
 assert.deepEqual(errors,[]);
-// Every inline handler still resolves after Vite minifies function names.
-const handlerCalls=new Set();for(const el of w.document.querySelectorAll('*'))for(const a of el.attributes)if(/^on/.test(a.name))for(const m of a.value.matchAll(/(?<![.\w])([A-Za-z_$][\w$]*)\(/g))handlerCalls.add(m[1]);const missing=[...handlerCalls].filter(n=>!['if','Number','String','parseInt','setTimeout','alert','confirm'].includes(n)&&typeof w[n]!=='function');assert.deepEqual(missing,[]);
-console.log('PASS: production bundle startup, runtime bindings, role dashboards, sidebar badges, draft actions, schedule validation, slot boundaries, inline handlers and deployment-origin redirects');w.close();})().catch(e=>{console.error(e);w.close();process.exitCode=1;});
+// Generated markup has callbacks in data attributes, with no HTML JavaScript handlers.
+for(const element of w.document.querySelectorAll('*'))for(const attribute of element.attributes)assert(!/^on/i.test(attribute.name),attribute.name);
+assert.equal(typeof dom.window.navTo,'undefined');assert.equal(typeof dom.window.currentUser,'undefined');
+// Exercise a dynamically rendered navigation control through the real event dispatcher.
+w.currentUser=w.DB.users.find(user=>user.role==='Doctor');w.currentPatient=null;w.buildNav();
+w.document.getElementById('nav-schedule').click();assert.equal(w.campusActivePageId,'schedule');
+w.openScheduleChangeRequest();
+const clear=[...w.document.querySelectorAll('#active-modal button')].find(button=>button.textContent==='Clear');clear.click();
+assert.equal(w.document.querySelectorAll('.scr-day:checked').length,0);w.closeAllModals();
+assert.deepEqual(errors,[]);
+console.log('PASS: production bundle startup, ES imports and explicit state, role dashboards, sidebar badges, draft actions, schedule validation, slot boundaries, delegated events and deployment-origin redirects');w.close();})().catch(e=>{console.error(e);w.close();process.exitCode=1;});

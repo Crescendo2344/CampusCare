@@ -1,45 +1,41 @@
-# CampusCare migration and deployment roadmap
+# Migration and release status
 
-## Current state
+## Implemented in the complete-module release
 
-The Vite frontend is already deployed on Vercel with GitHub-triggered builds. Supabase supplies authentication, database, storage and existing Edge Functions. Deployment readiness and finishing the source migration are separate milestones.
+- The small entry HTML mounts imported shell templates, shared styles and extracted assets.
+- All 67 feature modules have explicit ES imports/exports. Ordered source assembly and the window binding bridge are removed.
+- Authentication/session, data and feature UI state have explicit owners; one auth subscription restores sessions, handles recovery and clears account caches on sign-out.
+- Existing action transports, record rules and data synchronization use injected services/collaborators. Stale-account responses are discarded by the migrated synchronization service.
+- Generated HTML events use lexical callbacks and delegated listeners; calendars resolve named callbacks through the application registry.
+- Reporting, exports and camera implementation load on demand. Shared code and the pinned Supabase SDK are split into smaller bundles.
+- Sidebar badges, schedule/draft behavior and existing page design are retained. Task Center and Recent Activity remain removed.
 
-The original HTML has been split into entry HTML, shell templates, styles, assets and 64 feature source files. Schedule rules, account-scoped drafts, formatting, display markup, input policies, inventory, appointments, treatments/dental/reminders, patients, notifications and certificate data now have independent ES-module boundaries. Certificate extraction is included in this change.
+Normal JavaScript component modules complete this source migration; React is not required. Future improvements can refine component size and reduce cross-feature dependencies without returning to HTML assembly.
 
-Most page rendering, forms and shared state still live in the assembled compatibility runtime. The file split therefore does not mean the entire app is independently componentized. Sidebar badges remain; Task Center and Recent Activity remain removed. The administrator audit log is retained.
+## Verification gates
 
-## Remaining phases
+| Gate | Evidence / status |
+|---|---|
+| Independent logic and architecture | `npm test`: 68 checks plus production-bundle regression scenarios |
+| Production ES graph | VM integration checks startup, explicit state, role dashboards, badges, drafts, schedule rules, delegated clicks and redirect origin |
+| Browser/API contracts | `npm run test:browser`: Chromium desktop/mobile role scenarios with intercepted synthetic Supabase responses |
+| Deployed backend configuration | Read-only checks confirm 33/33 public tables have RLS; sensitive storage is private; required jobs are active; referenced Edge Functions are deployed |
+| Existing data integrity | Backend report identifies one inconsistent patient archive/account-status link; requires review of intended account status |
+| Live authenticated workflows | Remain a separate gate: real role test accounts, production callbacks/emails, writes, signed downloads and device camera behavior must be exercised |
+| Final Vercel release | Check the exact merged commit is Ready in production and that public pages/assets load |
 
-Each phase may require several focused pull requests. This is a sequence of completion criteria, not a claim that seven small changes will finish the work.
+Fixture tests verify frontend behavior and request/response contracts. They do not establish real backend role authorization or delivery of confirmation/recovery emails. The read-only backend report does not substitute for role-based browser testing.
 
-| Order | Work | Completion criterion |
-|---|---|---|
-| 1 | Merge the certificate extraction after its preview passes | New certificate module tests and production-bundle integration checks pass; the exact main commit has a Ready production deployment |
-| 2 | Extract remaining data/workflow services | Fitness assessments, messaging, approvals/account/name/schedule requests, surveys, privacy requests, issue reports, settings, email and backups use explicit dependencies; existing endpoints and access rules are covered by fixtures |
-| 3 | Isolate authentication and application state | Client configuration, auth/session lifecycle, role permissions, account state, demo state and persistence have clear owners; bootstrap ordering and session recovery are covered |
-| 4 | Convert feature pages and reusable controls to imported components | Dashboard, lists, forms, calendar/date picker, navigation/badges, notifications, reports and media controls render through explicit APIs; their events no longer depend on inline global handlers |
-| 5 | Retire the compatibility runtime and split bundles | Entry code imports features normally; ordered source concatenation and the window binding bridge are removed; heavier reports/media/features load when needed; builds and regression checks pass |
-| 6 | Verify the complete authenticated application | Representative Patient, Doctor, Staff and Administrator workflows pass through browser, API and Supabase; redirects, permissions, row-level access, storage/downloads and failure states are verified |
-| 7 | Verify the final production release | Preview passes, the approved commit is merged, Vercel production is Ready and serves the intended commit, public configuration/redirects match the production domain, and production smoke checks show no blocking browser/API errors |
+## Checks needed for a fully verified live release
 
-React is not a prerequisite. Normal JavaScript modules and imported UI components can complete this migration without introducing a framework change.
+Use dedicated Patient, Doctor, Staff and Administrator test accounts and synthetic patient records:
 
-## End-to-end checks before calling the release fully verified
+1. Verify confirmation, login/logout, expiry and password recovery on the production domain.
+2. Exercise booking/cancellation, weekly work patterns, lunch boundaries, future schedules, conflicts and request approval.
+3. Exercise patient/treatment/dental/reminder records, fitness and account-scoped drafts.
+4. Exercise certificate request/preparation/doctor signing/rejection/download and messaging/read counts.
+5. Exercise approvals, inventory, exports, settings, backups, privacy/issue requests and denied-role access.
+6. Confirm private signed downloads, responsive forms, camera denial, network failure and production logs.
+7. Review the existing archive-state inconsistency against the intended account/patient status.
 
-Use dedicated test accounts and synthetic records, rather than real patient information. Check role authorization on the backend as well as visibility in the interface.
-
-- Registration/confirmation, login/logout, expired sessions, password reset and email redirects.
-- Appointment availability, booking, cancellation, recurring work days, lunch breaks, capacity, conflicting/future schedules and schedule request/approval.
-- Account-scoped save/restore/discard drafts and account switching.
-- Patient/treatment/dental/reminder records, fitness assessments and document attachments.
-- Certificate request, preparation, assigned-doctor review/signing, rejection and download.
-- Messaging and notification read/read-all, including persistent sidebar counts.
-- Staff/admin approvals, inventory, reporting/export, settings and backup access.
-- Privacy/issue requests and role-restricted records, signed storage URLs and denied access.
-- Responsive navigation/forms, camera permission failures, network/server failures and browser console errors.
-
-## What the existing checks prove
-
-`npm test` runs independent-module tests, builds the production assets and exercises the assembled interface in JSDOM with synthetic clients and requests. It checks runtime bindings, dashboards, badges, drafts, schedule rules, redirect origin and migrated data adapters. It does not verify real Supabase row-level security, deployed Edge Functions, email delivery, browser rendering, device camera behavior or authenticated production writes.
-
-A Ready Vercel build proves the deployment completed. It does not establish that every authenticated workflow passed. The site can remain deployed throughout the migration; each tested change reaches production incrementally.
+The frontend can be deployed while these live verification gates remain open. A Ready build means deployment completed, not that every workflow has passed.
