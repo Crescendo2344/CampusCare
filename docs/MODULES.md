@@ -19,6 +19,8 @@
 | `src/services/patients.js` | Injected client, request function and public configuration | Patient actions, clinical directory/photo signing and current-patient query |
 | `src/domain/notification-records.js` | Supplied records and account | Mapping, route aliases, tone selection and unread/page counts |
 | `src/services/notifications.js` | Injected client, request function and public configuration | Existing notification-center actions and list loading |
+| `src/domain/certificate-records.js` | Supplied snapshot, records, account and optional clock | Certificate mapping, live/demo selection, merging and display numbering |
+| `src/services/certificates.js` | Injected client, request function and public configuration | Existing medical-certificate queries and authenticated actions |
 
 These modules export normal ES-module APIs and can run without the DOM or Supabase. Legacy adapters in input validation, booking forms, schedule/drafts and inventory pass the current application data to them. DOM rendering, event handlers and sidebar attention badges remain in the compatibility runtime.
 
@@ -94,3 +96,5 @@ These files are assembled in this exact order. Shared state remains in the compa
 | `src/modules/63-schedule-and-drafts.js` | Schedule validation and session draft helpers |
 
 Patient-directory and profile-normalization adapters now live in `src/modules/39-patient-service.js`; the early session bootstrap retains its login/session callbacks and calls those adapters after module initialization.
+
+See [remaining migration and deployment phases](MIGRATION-ROADMAP.md) for completion criteria.
