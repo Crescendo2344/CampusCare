@@ -2,10 +2,10 @@
   <div id="sidebar-backdrop" data-action-click="shell-48"></div>
   <!-- SIDEBAR -->
   <div id="sidebar">
-    <div class="sb-brand">
+    <button type="button" class="sb-brand" data-action-click="dashboard-home" aria-label="CampusCare dashboard home">
       <div class="sb-brand-icon"><img class="campuscare-logo-mark" src="/assets/embedded-3caef2cf86d46a35.png" alt="" aria-hidden="true"></div>
       <div><h2>CampusCare</h2><p>Health Management</p></div>
-    </div>
+    </button>
     <div class="sb-profile" data-action-click="shell-49" style="cursor:pointer" title="View profile details">
       <div class="sb-avatar" id="sb-avatar">--</div>
       <div class="sb-profile-info">
@@ -33,6 +33,7 @@
       <button class="notif-btn" id="menu-toggle-btn" data-action-click="shell-52" title="Menu" style="display:none">
         <i class="bi bi-list" aria-hidden="true"></i>
       </button>
+      <button type="button" id="page-back" class="btn btn-sm page-back" data-action-click="page-back" aria-label="Go back to previous page" disabled>← <span>Back</span></button>
       <h2 id="top-title">Dashboard</h2>
       <div class="top-bar-actions">
         <div class="top-search" id="top-search-wrap">

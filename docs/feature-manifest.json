@@ -1447,6 +1447,10 @@
       "beginCampusNavigation",
       "captureCampusPageToken",
       "isCampusPageCurrent",
+      "navigationAccountKey",
+      "updateBackButton",
+      "goBackPage",
+      "recordPageHistory",
       "navTo",
       "healthResourceRecords",
       "healthResourceAction",
@@ -1993,6 +1997,7 @@
       "./topbarAndNavigation.js",
       "./accountSettings.js",
       "./assistant.js",
+      "./navigationRaceProtection.js",
       "../dependencies.js"
     ]
   },
