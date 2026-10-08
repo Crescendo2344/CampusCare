@@ -1448,8 +1448,6 @@
       "captureCampusPageToken",
       "isCampusPageCurrent",
       "navigationAccountKey",
-      "updateBackButton",
-      "goBackPage",
       "recordPageHistory",
       "navTo",
       "healthResourceRecords",

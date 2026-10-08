@@ -40,13 +40,6 @@ export function navigationAccountKey(){
   const user=appState.auth.currentUser;
   return user?`${user.id}:${user.role}:${appState.navigationRaceProtection.historySession}`:null;
 }
-export function updateBackButton(){
-  const button=document.getElementById('page-back');
-  if(button)button.disabled=!(window.history.state?.campuscareNavigation?.account===navigationAccountKey()&&window.history.state.campuscareNavigation.index>0);
-}
-export function goBackPage(){
-  if(appState.auth.currentUser&&!document.getElementById('page-back')?.disabled)window.history.back();
-}
 export function recordPageHistory(id,historyMode){
   const account=navigationAccountKey(),previous=window.history.state?.campuscareNavigation;
   if(!account)return;
@@ -57,7 +50,6 @@ export function recordPageHistory(id,historyMode){
   }else if(historyMode==='push'&&previous.page!==id){
     window.history.pushState({...window.history.state,campuscareNavigation:{account,page:id,index:previous.index+1}},'');
   }
-  updateBackButton();
 }
 export function navTo(id,{historyMode='push'}={}){
   if(!appState.auth.currentUser)return;

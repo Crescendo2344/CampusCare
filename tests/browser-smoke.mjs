@@ -69,6 +69,11 @@ try{
       assert.equal(layout.overflow,false,`${width} ${theme}: horizontal overflow`);
       assert(layout.font>=14,`${width} ${theme}: unreadable carousel font`);
       assert.equal(layout.background,'rgb(22, 44, 61)');assert.equal(layout.blur,'none');
+      if(width>1100){
+        // Desktop carousel and navbar CTA share a right edge.
+        const edges=await page.evaluate(()=>({carousel:document.querySelector('.hero-info-carousel').getBoundingClientRect().right,cta:document.querySelector('.landing-get-started').getBoundingClientRect().right}));
+        assert(Math.abs(edges.carousel-edges.cta)<2,'Carousel must align with Get Started');
+      }
       if(process.env.CAMPUSCARE_VISUAL_DIR){
         // Optional screenshots aid local visual review and are never production assets.
         await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/landing-${width}-${theme}.png`,fullPage:true});
@@ -76,7 +81,10 @@ try{
     }
     await page.setViewportSize({width:1440,height:1000});
   }
+  // Only native browser navigation is shown, and auth has no theme toggle.
+  assert.equal(await page.locator('#page-back').count(),0);
   await page.locator('[data-action-click="shell-8"]').click();
+  assert.equal(await page.locator('#auth-theme-toggle-btn').count(),0);
   await page.getByRole('button',{name:'Login to CampusCare',exact:true}).click();
   await page.getByText('Enter your username/email and password.',{exact:true}).waitFor();
   await page.locator('#li-user').fill(profile.email);await page.locator('#li-pass').fill('Fixture-only-password1!');
@@ -98,7 +106,7 @@ try{
     assert.equal(await page.locator('.dashboard-a-head').getByRole('button',{name:/Book Appointment/}).count(),0);
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('my-appointments'));
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('health_education'));
-    await page.locator('#page-back').click();
+    await page.goBack();
     await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='my-appointments');
     await page.goForward();
     await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='health_education');

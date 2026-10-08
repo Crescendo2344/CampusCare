@@ -11,7 +11,7 @@ import {openCamera} from '../app/optional-features.js';
 import {handleTopSearchKey,renderTopSearch,toggleSidebar} from './topbarAndNavigation.js';
 import {openProfileDetails} from './accountSettings.js';
 import {markAllRead,toggleNotifPanel} from './assistant.js';
-import {navTo,goBackPage} from './navigationRaceProtection.js';
+import {navTo} from './navigationRaceProtection.js';
 import {registerNamedAction} from '../dependencies.js';
 // Shell controls use registered lexical callbacks, never HTML inline JavaScript.
 
@@ -19,7 +19,6 @@ import {registerNamedAction} from '../dependencies.js';
 export function initializeFeature(){
   // Native buttons cover mouse, touch, Enter and Space without separate key handlers.
   registerNamedAction('dashboard-home',()=>navTo('dashboard'));
-  registerNamedAction('page-back',()=>goBackPage());
   registerNamedAction('shell-0',(event,element)=>{landingNavTo('home')});
   registerNamedAction('shell-1',(event,element)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();landingNavTo('home')}});
   registerNamedAction('shell-2',(event,element)=>{landingNavTo('home')});
@@ -30,7 +29,6 @@ export function initializeFeature(){
   registerNamedAction('shell-7',(event,element)=>{document.querySelector('.landing-nav-links').classList.toggle('mobile-show')});
   registerNamedAction('shell-8',(event,element)=>{showAuthPage('login')});
   registerNamedAction('shell-9',(event,element)=>{showLandingPage()});
-  registerNamedAction('shell-10',(event,element)=>{toggleTheme()});
   registerNamedAction('shell-11',(event,element)=>{authTab('login')});
   registerNamedAction('shell-12',(event,element)=>{authTab('reg')});
   registerNamedAction('shell-13',(event,element)=>{sanitizeInput(element,'password')});
