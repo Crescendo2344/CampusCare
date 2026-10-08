@@ -1,0 +1,47 @@
+/* Scope the form layout to this dialog and reuse the application's theme tokens. */
+.schedule-request{max-width:760px;max-height:calc(100dvh - 4rem);display:flex;flex-direction:column}
+/* Keep actions in view while the form scrolls inside the dialog. */
+.schedule-request .modal-header,.schedule-request .modal-footer{flex-shrink:0}
+.schedule-request .modal-body{overflow-y:auto;min-height:0}
+.schedule-request .modal-header{align-items:flex-start;gap:1rem}
+.schedule-request .modal-header h3{font-size:1.1rem}
+.schedule-request .modal-header .form-note{margin-top:.3rem}
+.schedule-notice{padding:1rem;background:var(--primary-light);border-radius:12px;line-height:1.5;font-size:.85rem;margin-bottom:1.3rem}
+.schedule-notice p{margin-top:.3rem;color:var(--ink-muted)}
+.schedule-section{min-width:0;border:0;border-bottom:1px solid var(--line);padding:0 0 1.2rem;margin-bottom:1.2rem}
+.schedule-section legend{font-weight:650;font-size:.95rem;margin-bottom:.6rem;display:flex;gap:.6rem;align-items:center}
+.schedule-section legend>span{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--primary-light);color:var(--primary);font-size:.8rem}
+.schedule-presets{display:flex;flex-wrap:wrap;gap:.5rem;margin:.8rem 0}
+.schedule-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.45rem}
+/* Keep native checkboxes focusable while making the entire day tile a click target. */
+.schedule-day{position:relative;cursor:pointer}
+.schedule-day input{position:absolute;opacity:0;width:1px;height:1px}
+.schedule-day>span{display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.75rem .2rem;border:1px solid var(--gray-border);border-radius:10px;font-size:.85rem;font-weight:650;background:var(--overlay)}
+.schedule-day small{font-size:.7rem;font-weight:400;color:var(--ink-muted)}
+.schedule-day .schedule-day-on{display:none}
+.schedule-day input:checked+span{border:2px solid var(--primary);padding:calc(.75rem - 1px) calc(.2rem - 1px);background:var(--primary-light)}
+.schedule-day input:checked+span .schedule-day-on{display:block;color:var(--primary)}
+.schedule-day input:checked+span .schedule-day-off{display:none}
+.schedule-day input:focus-visible+span{outline:3px solid var(--primary-mid);outline-offset:3px}
+.schedule-fields{display:grid;grid-template-columns:1fr 1fr;gap:.85rem 1rem;margin-top:.85rem}
+.schedule-request .form-group{min-width:0;margin-bottom:.7rem}
+.schedule-request .form-note{line-height:1.5}
+.schedule-unit{position:relative}
+.schedule-request .schedule-unit input{padding-right:5rem;width:100%;max-width:none}
+.schedule-unit>span{position:absolute;right:.75rem;top:50%;transform:translateY(-50%);font-size:.8rem;color:var(--ink-muted);pointer-events:none}
+.schedule-review{border:1px solid var(--line);border-radius:12px;padding:1rem;background:var(--overlay)}
+.schedule-review h4{font-size:.95rem;margin-bottom:.8rem}
+.schedule-comparison{display:grid;grid-template-columns:1fr 1fr;gap:1rem;font-size:.82rem;line-height:1.6;margin-bottom:.65rem}
+.schedule-comparison p{color:var(--ink-muted);margin-top:.3rem;overflow-wrap:anywhere}
+.schedule-status{margin-top:.8rem;padding:.75rem;border-radius:8px;font-size:.82rem;line-height:1.5;background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning-border)}
+.schedule-status[data-status="ready"]{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}
+.schedule-approval-note{margin-top:.9rem}
+.schedule-request .modal-footer{flex-wrap:wrap}
+/* Stack sections on phones while retaining comfortable work-day touch targets. */
+@media(max-width:540px){
+  .schedule-request{max-height:calc(100dvh - 2rem)}
+  .schedule-days{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .schedule-fields,.schedule-comparison{grid-template-columns:1fr}
+  .schedule-request .modal-body{padding:1rem}
+  .schedule-request .modal-footer>.btn{flex:1 1 140px}
+}

@@ -45,7 +45,16 @@ export function updateSchedulePreview(){
   const s={workDays:days,startTime:document.getElementById('scr-start').value,endTime:document.getElementById('scr-end').value,slotDuration:Number(document.getElementById('scr-slot').value),maxPatients:Number(document.getElementById('scr-max').value)};
   const date=document.getElementById('scr-effective').value;
   const error=validateSchedule(s,date,appState.auth.currentUser);
-  el.textContent=`Weekly: ${days.join(', ')||'no work days'} · ${s.startTime}–${s.endTime}. Off: ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].filter(d=>!days.includes(d)).join(', ')||'none'}. ${error||'Ready for administrator review. Existing appointments are preserved.'}`;
+  // Keep the preview descriptive even when the proposal is incomplete or unchanged.
+  const describe=pattern=>`${(pattern.workDays||[]).join(', ')||'No work days selected'} · ${pattern.startTime||'—'}–${pattern.endTime||'—'} · ${pattern.slotDuration} min per appointment · Up to ${pattern.maxPatients} patients/day`;
+  const current=document.getElementById('schedule-current-summary');
+  const proposed=document.getElementById('schedule-proposed-summary');
+  const effective=document.getElementById('schedule-effective-summary');
+  if(current)current.textContent=describe(canonicalSchedule(appState.auth.currentUser));
+  if(proposed)proposed.textContent=describe(s);
+  if(effective)effective.textContent=`Days off: ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].filter(d=>!days.includes(d)).join(', ')||'None'}. ${date?`Requested start: ${date}. Repeats weekly until changed.`:'Choose a requested start date.'}`;
+  el.dataset.status=error?'attention':'ready';
+  el.textContent=error||'Ready to send for administrator approval. Existing appointments are preserved.';
 }
 // Drafts are per account and stay only in this tab's session storage.
 // Do not capture passwords, uploads, signatures or treatment-record forms.

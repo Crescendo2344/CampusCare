@@ -43,26 +43,40 @@ export async function syncRealWorkflowRequests(){
 export function openScheduleChangeRequest(){
   if(appState.auth.currentUser?.role!=='Doctor'){toast('Doctor access required.','warning');return;}
   const u=appState.auth.currentUser;
-  openModal(`<div class="modal">
-    <div class="modal-header"><h3>Request Schedule Change</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+  // Numbered sections explain the recurring pattern before asking for its details.
+  openModal(`<div class="modal schedule-request" role="dialog" aria-modal="true" aria-labelledby="schedule-request-title">
+    <div class="modal-header"><div><h3 id="schedule-request-title">Request Schedule Change</h3><p class="form-note">Update your regular weekly clinic hours</p></div><button class="close-btn" aria-label="Close schedule request" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
-      <div id="scr-msg"></div>
-      <p class="form-note" style="margin-bottom:.8rem">Set your recurring weekly work pattern. The same hours apply to each selected work day. Unselected days are off. For a single date, use Request Day Off in My Schedule. Approval is required before this pattern becomes active.</p>
-      <div class="form-row">
-        <div class="form-group"><label>Start Time</label><input type="time" id="scr-start" value="${u.startTime||'08:00'}"></div>
-        <div class="form-group"><label>End Time</label><input type="time" id="scr-end" value="${u.endTime||'17:00'}"></div>
-        <div class="form-group"><label>Slot Duration (min)</label><input type="number" id="scr-slot" value="${u.slotDuration||60}" min="15" max="120"></div>
-        <div class="form-group"><label>Max Patients/Day</label><input type="number" id="scr-max" value="${u.maxPatients||20}" min="1"></div>
-      </div>
-      <div class="form-group"><label>Repeats every week on</label><div style="display:flex;gap:.5rem;margin-bottom:.6rem"><button class="btn btn-sm" ${bindAction('click',(event,element)=>{setScheduleDays('weekdays')})}>Mon–Fri</button><button class="btn btn-sm" ${bindAction('click',(event,element)=>{setScheduleDays('current')})}>Current pattern</button><button class="btn btn-sm" ${bindAction('click',(event,element)=>{setScheduleDays('clear')})}>Clear</button></div>
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer"><input type="checkbox" class="scr-day" value="${d}" ${(u.workDays||[]).includes(d)?'checked':''}> ${d}</label>`).join('')}
+      <div id="scr-msg" role="alert"></div>
+      <div class="schedule-notice"><strong>This is a weekly schedule change.</strong><p>Selected days repeat every week. For just one day away, use <strong>Request Day Off</strong> in My Schedule.</p></div>
+      <fieldset class="schedule-section"><legend><span>1</span> Choose your work days</legend>
+        <p class="form-note" id="schedule-days-help">Select the days you will work. Unselected days are days off.</p>
+        <div class="schedule-presets"><button type="button" class="btn btn-sm" ${bindAction('click',()=>setScheduleDays('weekdays'))}>Mon–Fri</button><button type="button" class="btn btn-sm" ${bindAction('click',()=>setScheduleDays('current'))}>Current pattern</button><button type="button" class="btn btn-sm" ${bindAction('click',()=>setScheduleDays('clear'))}>Clear</button></div>
+        <div class="schedule-days" aria-describedby="schedule-days-help">
+          ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d,i)=>`<label class="schedule-day"><input type="checkbox" class="scr-day" value="${d}" aria-label="${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][i]}" ${(u.workDays||[]).includes(d)?'checked':''}><span>${d}<small class="schedule-day-on">Work</small><small class="schedule-day-off">Off</small></span></label>`).join('')}
         </div>
-      </div>
-      <div class="form-group"><label>Effective Date <span class="required">*</span></label>${campusDateFieldHtml('scr-effective',appState.clinicInformation.TODAY,'Select Effective Date',appState.clinicInformation.TODAY)}<p class="form-note">The date your new schedule should start applying, once approved.</p></div>
-      <div id="schedule-preview" class="alert alert-info show" aria-live="polite"></div><div class="form-group"><label>Reason <span class="required">*</span></label><textarea id="scr-reason" rows="2" placeholder="e.g. Requesting a later start time due to a morning clinic elsewhere"></textarea></div>
+      </fieldset>
+      <fieldset class="schedule-section"><legend><span>2</span> Set hours and appointments</legend>
+        <p class="form-note">These hours apply to every selected day. Times are in Philippine time (UTC+8).</p>
+        <div class="schedule-fields">
+          <div class="form-group"><label for="scr-start">Starts at</label><input type="time" id="scr-start" value="${escapeHtml(u.startTime||'08:00')}"></div>
+          <div class="form-group"><label for="scr-end">Ends at</label><input type="time" id="scr-end" value="${escapeHtml(u.endTime||'17:00')}"></div>
+          <div class="form-group"><label for="scr-slot">Appointment length</label><div class="schedule-unit"><input type="number" id="scr-slot" value="${Number(u.slotDuration)||60}" min="15" max="120" aria-describedby="schedule-slot-help"><span>minutes</span></div><p class="form-note" id="schedule-slot-help">15–120 minutes per slot</p></div>
+          <div class="form-group"><label for="scr-max">Daily patient limit</label><input type="number" id="scr-max" value="${Number(u.maxPatients)||20}" min="1" max="500"><p class="form-note">Maximum patients per work day</p></div>
+        </div>
+      </fieldset>
+      <fieldset class="schedule-section"><legend><span>3</span> Choose when and explain why</legend>
+        <div class="form-group"><label for="scr-effective">Requested start date <span class="required">*</span></label>${campusDateFieldHtml('scr-effective',clinicToday(),'Choose start date',clinicToday())}<p class="form-note">Repeats weekly from this date onward, once approved. Your current schedule stays active while this request is pending.</p></div>
+        <div class="form-group"><label for="scr-reason">Reason for change <span class="required">*</span></label><textarea id="scr-reason" rows="3" placeholder="Explain why you need these new days or hours." required></textarea></div>
+      </fieldset>
+      <section class="schedule-review" aria-labelledby="schedule-review-title"><h4 id="schedule-review-title">Review your change</h4>
+        <div class="schedule-comparison"><div><strong>Current schedule</strong><p id="schedule-current-summary"></p></div><div><strong>Requested schedule</strong><p id="schedule-proposed-summary"></p></div></div>
+        <p id="schedule-effective-summary" class="form-note"></p>
+        <div id="schedule-preview" class="schedule-status" aria-live="polite"></div>
+      </section>
+      <p class="form-note schedule-approval-note">Submitting sends a request to the administrator. It does not immediately change your schedule or cancel any appointments.</p>
     </div>
-    <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{submitScheduleChangeRequest()})}>Submit Request</button></div>
+    <div class="modal-footer"><button type="button" class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button type="button" class="btn btn-primary" ${bindAction('click',()=>submitScheduleChangeRequest())}>Send for Approval</button></div>
   </div>`);
 }
 

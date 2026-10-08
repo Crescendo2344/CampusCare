@@ -73,6 +73,14 @@ try{
   if(role==='Doctor'){
     await page.evaluate(()=>window.__fixtureApp.features.workflowRequests.openScheduleChangeRequest());
     await page.getByRole('button',{name:'Clear',exact:true}).click();assert.equal(await page.locator('.scr-day:checked').count(),0);
+    // Empty days must be explained in the preview, and tiles must work through real clicks.
+    assert.match(await page.locator('#schedule-preview').innerText(),/work day/i);
+    await page.locator('.schedule-day').filter({has:page.locator('input[value="Mon"]')}).click();
+    assert.equal(await page.locator('.scr-day:checked').count(),1);
+    assert.match(await page.locator('#schedule-proposed-summary').innerText(),/^Mon ·/);
+    assert.equal(await page.locator('.schedule-day input[value="Mon"]').getAttribute('aria-label'),'Monday');
+    assert.equal(await page.locator('.schedule-request').evaluate(element=>element.scrollWidth<=element.clientWidth),true);
+    await page.getByRole('button',{name:'Send for Approval',exact:true}).waitFor();
     await page.getByRole('button',{name:'Mon–Fri',exact:true}).click();assert.equal(await page.locator('.scr-day:checked').count(),5);
     await page.locator('#scr-reason').fill('Fixture work pattern');
     await page.locator('[data-campus-draft]').click();await page.evaluate(()=>window.__fixtureApp.features.modals.closeAllModals());
