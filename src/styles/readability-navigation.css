@@ -29,8 +29,6 @@
 button.sb-brand{width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line-soft);font:inherit;cursor:pointer;color:var(--ink)}
 button.sb-brand:hover{background:var(--primary-light)}
 button.sb-brand:focus-visible{outline:2px solid var(--primary);outline-offset:-3px}
-.page-back{flex-shrink:0;white-space:nowrap}
-.page-back:disabled{opacity:.45;cursor:default}
 @media(max-width:1100px){
   .landing-hero-grid{grid-template-columns:minmax(0,1fr)}
   #landing-hero .hero-info-carousel{width:100%;max-width:600px;margin-inline:auto;height:560px}
@@ -40,9 +38,14 @@ button.sb-brand:focus-visible{outline:2px solid var(--primary);outline-offset:-3
   #landing-hero .hero-carousel-slide{padding:1rem}
   #landing-hero .landing-hero-text .eyebrow{font-size:.8rem}
   #landing-hero .landing-stats span{font-size:.85rem;line-height:1.5}
-  .page-back span{display:none}
 }
 /* High-contrast users retain readable text without gradient clipping. */
 @media(forced-colors:active){
   #landing-hero .landing-hero-text h1 span{color:CanvasText;-webkit-text-fill-color:CanvasText}
+}
+
+/* Match the carousel edge to the navbar gutter; narrow layouts retain centered cards. */
+@media(min-width:1101px){
+  #landing-hero .landing-hero-grid{max-width:none}
+  #landing-hero .hero-info-carousel{margin-left:auto;margin-right:0}
 }
