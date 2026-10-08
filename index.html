@@ -4,37 +4,38 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CampusCare - Campus Health Management System</title>
-<script src="/bootstrap/session-0.js"></script>
+<script src="/bootstrap/theme.js"></script>
+
 <link rel="stylesheet" href="/src/styles/campuscare.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="icon" type="image/png" sizes="64x64" href="/assets/embedded-7f349c8e85c2d32f.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/embedded-126b078516b30871.png">
   <meta name="theme-color" content="#0b2238">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <link rel="stylesheet" href="/src/styles/draft-actions.css">
 </head>
 <body>
-<!-- campuscare:component:session-skeleton -->
+<div data-component="sessionSkeleton"></div>
 
 <!-- TOAST -->
 <div id="toast-wrap"></div>
 <div id="registration-toast-wrap"></div>
 
 <!-- AUTH -->
-<!-- campuscare:component:landing-and-auth --><!-- /#auth-wrap -->
+<div data-component="landingAndAuth"></div><!-- /#auth-wrap -->
 
 <!-- NOTIFICATION PANEL -->
-<!-- campuscare:component:notification-panel -->
+<div data-component="notificationPanel"></div>
 
 <!-- APP -->
-<!-- campuscare:component:app-shell -->
+<div data-component="appShell"></div>
 
 <!-- MODALS CONTAINER -->
 <!-- BACK TO TOP -->
-<button id="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to top">↑</button>
+<button id="back-to-top" data-action-click="back-to-top" title="Back to top">↑</button>
 <!-- MODALS CONTAINER -->
-<!-- campuscare:component:modal-host -->
+<div data-component="modalHost"></div>
 
 <script type="module" src="/src/main.js"></script>
 </body>

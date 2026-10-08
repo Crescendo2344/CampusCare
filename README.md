@@ -1,96 +1,70 @@
 # CampusCare
 
-CampusCare's existing JavaScript interface, organized into feature files and built with Vite. Supabase remains the database, authentication, storage and backend provider. Vercel hosts the frontend.
+CampusCare is a Vite frontend backed by Supabase and hosted on Vercel. The original HTML application has been migrated to imported templates, 67 JavaScript feature modules, reusable UI controls, independent rules/services and explicit state.
 
 ## Local setup
 
-Install Node.js 22.12 or newer (Node.js 24 LTS is suitable), then run:
+Use Node.js 22.12 or newer:
 
 ```bash
-# Install the exact versions recorded in the lockfile.
+# Install the versions recorded in the lockfile.
 npm ci
-
-# Copy the configuration template and fill in the public Supabase settings.
+# Copy the public configuration template and fill in your project values.
 cp .env.example .env.local
-
-# Start the local site after configuring the environment.
+# Start the application through Vite, which resolves its ES imports.
 npm run dev
 ```
 
-On Windows, copying `.env.example` to `.env.local` in VS Code works too. Open the local URL printed by Vite. Opening index.html directly does not assemble the components or feature files.
+On Windows, copy `.env.example` to `.env.local` using VS Code. Opening `index.html` directly does not resolve component imports.
 
 ## Configuration
 
-- `VITE_SUPABASE_URL`: existing project's URL.
-- `VITE_SUPABASE_PUBLISHABLE_KEY`: the public publishable key.
-- `VITE_CAMPUSCARE_APP_URL`: optional production origin for email links. Without it, the current site's origin is used.
+| Variable | Purpose |
+|---|---|
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Public browser publishable key |
+| `VITE_CAMPUSCARE_APP_URL` | Optional production origin for confirmation/recovery links; defaults to the current origin |
 
-The existing public project settings remain as compatibility defaults. Never place a service-role key, database password or other secret in a `VITE_` variable. Variables with this prefix appear in browser code. `.env.local` is ignored by git.
+Existing public project settings remain compatibility defaults. Browser configuration must never contain service-role keys, database passwords or other secrets. `.env.local` is ignored by Git. The Supabase JavaScript SDK is pinned and bundled; it no longer depends on a CDN global.
 
-## File layout
+## Architecture
 
-- `index.html`: small entry document.
-- `src/components/`: landing/authentication shell, app shell and modal host.
-- `src/styles/`: shared styling and draft controls.
-- `src/domain/schedule.js`: independent schedule/date/slot rules with explicit record inputs.
-- `src/services/draft-storage.js`: account-scoped draft storage with injected storage/account access.
-- `src/domain/inventory-records.js`: inventory selection, mapping and snapshot assembly.
-- `src/services/inventory.js`: inventory API actions and queries with an injected client/request function.
-- `src/domain/appointment-records.js`: appointment/doctor/leave mapping and slot override grouping.
-- `src/services/appointments.js`: injected appointment queries, actions and patient doctor-directory requests.
-- `src/domain/treatment-records.js`: treatment, dental record and reminder mapping.
-- `src/services/treatments.js`: injected treatment actions and treatment/dental/reminder queries.
-- `src/domain/patient-records.js`: user/patient normalization, age/measurement helpers and directory snapshots.
-- `src/services/patients.js`: patient actions, clinical directory queries/photo signing and current-patient queries.
-- `src/domain/notification-records.js`: notification mapping, destinations, tones and unread/page counts.
-- `src/services/notifications.js`: injected notification-center actions and list loading.
-- `src/domain/certificate-records.js`: certificate mapping, selection, merging and numbering.
-- `src/services/certificates.js`: injected medical-certificate queries and authenticated actions.
-- `src/shared/`: independent input-value sanitization and formatting.
-- `src/ui/display-markup.js`: stateless display badges and icons.
-- `src/modules/`: 64 ordered feature source files; see [module map](docs/MODULES.md).
-- `src/module-order.json`: source assembly order.
-- `src/main.js`: Vite entry point.
-- `src/legacy-dependencies.js`: explicit imports used by the remaining compatibility adapters.
-- `public/bootstrap/`: early theme and session UI helpers.
-- `public/assets/`: extracted, deduplicated images.
-- `public/ctu-campus.png`: existing campus image.
-- `tests/migration.test.cjs`: production-bundle compatibility checks with remote requests disabled.
-- `archive/newchange.html`: unchanged older alternate page, kept for reference.
+- `src/main.js` mounts imported shell templates and starts the application once.
+- `src/components/` contains landing/authentication, application, notification, modal and restore-skeleton templates.
+- `src/features/` exports ordinary JavaScript component/action APIs for each feature.
+- `src/app/` owns initialization, feature state, session cleanup and optional loaders.
+- `src/domain/`, `src/services/`, `src/shared/` and `src/ui/` contain independent rules, injected transport/synchronization, formatting and event controls.
+- `src/styles/` and `public/assets/` hold shared styling and extracted images.
+- `public/bootstrap/theme.js` applies the initial appearance before the module graph loads.
+- `archive/newchange.html` preserves the unchanged older alternate page for reference.
 
-## How the first migration works
+There is no source-concatenating Vite plugin, ordered fragment list, session bootstrap bridge or global inline-handler registry. Features import their dependencies and use named state containers. Generated HTML uses registered lexical event callbacks instead of executable HTML attributes. Reports, exports and the camera load on demand; the build splits shared code and the SDK into smaller chunks.
 
-Legacy feature files retain shared state. Schedule rules, draft storage, shared value/display helpers and the migrated data services are ordinary ES modules with explicit inputs. Small adapters preserve the existing form handlers. These independent modules can be imported without initializing the application. See the [module map](docs/MODULES.md) for the current boundaries and the [migration roadmap](docs/MIGRATION-ROADMAP.md) for the remaining phases.
+See the [module map](docs/MODULES.md), [export/dependency manifest](docs/feature-manifest.json), and [release verification status](docs/MIGRATION-ROADMAP.md). React is not required for this architecture.
 
-Legacy feature files retain their original functions. The Vite plugin joins them in their original order into one runtime, and exposes the bindings needed by existing inline handlers and early session helpers. The plugin discovers new top-level declarations automatically.
-
-This separates the source and removes embedded image duplication; it does not yet isolate feature state, remove inline handlers, convert pages to React, or lazy-load feature bundles. Those changes can follow feature by feature with regression checks. Do not import the fragment files independently yet: initialization order and shared variables still matter.
-
-For new independent logic, use `src/domain/` or `src/services/` with explicit imports and dependencies. Use `src/shared/` for reusable value helpers and `src/ui/` for presentation helpers. Keep DOM operations in UI adapters. Do not access `DB`, `currentUser`, or `window` inside these modules.
-
-To add a new legacy feature file, add its relative path and purpose to `src/module-order.json`. Edit templates in `src/components/`, not the generated HTML in `dist/`.
-
-Task Center and Recent Activity are removed. Sidebar attention badges and the administrator audit log are retained. Save/Restore/Discard Draft remain in appointment and schedule forms.
+Task Center and Recent Activity remain removed. Sidebar badges, administrator audit logging and account-scoped save/restore/discard drafts are retained.
 
 ## Verification
 
 ```bash
-# Build and exercise the production bundle without sending data to Supabase.
+# Run module/architecture tests, build and exercise the production ES graph in JSDOM.
 npm test
-
-# Create the production files Vercel will publish.
+# Install Chromium once for local browser tests.
+npx playwright install chromium
+# Exercise login, profile loading, role navigation and schedule draft controls on desktop/mobile.
+npm run test:browser
+# Rebuild the feature export inventory after moving APIs.
+npm run modules:map
+# Build production assets.
 npm run build
 ```
 
-Certificate tests cover record links, document/signature fields, numbering, demo/live separation, authenticated actions and query failures. Notification tests cover destinations, tone precedence, account-scoped unread counts and read/read-all requests. Patient directory checks cover normalization, birthday boundaries, linked records, profile photo signing/failure, role guards and silent current-patient query errors. Treatment service checks cover linked clinical IDs, archived status, dental associations, reminder mapping, action errors and query failures. Appointment service checks cover ID/status mapping, slot override grouping, doctor-directory replacement, session behavior, query failures and sort order. Inventory service checks use injected clients and requests to cover missing sessions, action errors, query failures, forecast fallback and demo/live row separation. Independent-module checks cover input character/length policies, formatting, display classes, schedule conflicts, future schedule selection, configurable lunch boundaries, validation context, and account/mode isolation for draft storage. DOM checks cover startup, role dashboards, sidebar badges, drafts, inline handler access, schedule validation, slot boundaries and redirect origin. Visual browser QA and live authenticated Supabase workflows still need checking. The single shared bundle intentionally remains large in this first migration.
+Browser tests self-host the built `dist/` output and intercept Supabase requests with synthetic responses. They send no patient records or test writes to the live backend. `CAMPUSCARE_TEST_URL` can select a deployed URL; the same fixture interception remains active. An environment with a preinstalled browser can set `CAMPUSCARE_CHROMIUM_PATH`.
 
-## Vercel deployment
+Fixture checks do not replace authenticated production tests of Supabase permissions, deployed write actions, email callbacks, signed downloads or device camera behavior. The roadmap records those remaining gates and the observed backend integrity finding.
 
-1. Import the CampusCare GitHub repository into the correct Vercel account/team.
-2. Set Framework Preset to **Vite**, Build Command to `npm run build`, Output Directory to `dist`, and keep the repository root as Root Directory.
-3. Add the three public environment variables above. Set the production app URL to the final production origin.
-4. Deploy the migration branch as a preview before changing production.
-5. In Supabase Authentication URL Configuration, allow the required local/preview/production redirect URLs and set the production Site URL. Check the origins accepted by existing Edge Functions too.
-6. Verify confirmation/recovery emails, login, every role's navigation, booking, certificates, messages and file downloads before promotion.
+## Vercel
 
-The project includes a SPA fallback in `vercel.json`. Existing hash navigation remains supported.
+The GitHub integration builds previews and deploys `main`. Use Framework Preset **Vite**, Build Command `npm run build`, Output Directory `dist`, and the repository root as Root Directory. Set public variables for the intended environment. Match Supabase Site URL, redirect allowlist and existing Edge Function origins to the production domain.
+
+`vercel.json` includes a SPA fallback. A Ready deployment means its build completed; confirm the exact commit and run production checks before calling the release fully verified.
