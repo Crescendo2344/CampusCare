@@ -49,7 +49,7 @@ export function renderDashboard(){
     if(unreadMessages)attention+=dashboardAttentionItem(`${unreadMessages} unread message${unreadMessages>1?'s':''}`,'You have new messages waiting in Chats.','warn');
     if(!attention)attention=dashboardAttentionItem('You are all caught up','No urgent items need your attention right now.','success');
     c.innerHTML=`<div class="dashboard-a">
-      <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Here is your personal CampusCare health overview.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{navTo('my-appointments')})}>+ Book Appointment</button>${dashboardControlsHtml()}</div></div>
+      <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Here is your personal CampusCare health overview.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap">${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
         ${dashboardStatCard('Upcoming appointments',upcoming.length,upcoming[0]?`Next: <strong>${fmtDate(upcoming[0].date)}</strong>`:'Nothing scheduled',myVals,'📅')}
         ${dashboardStatCard('Visits in range',rangeMine.length,`${rangeMine.filter(a=>a.status==='Completed').length} completed · ${rangeLabel}`,myVals,'✓')}

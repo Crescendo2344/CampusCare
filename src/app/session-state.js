@@ -1,6 +1,8 @@
 // Clearing account-owned caches prevents one account from seeing the previous account's data.
 import {state} from './state.js';
 export function clearAccountState(){
+  // Invalidate browser history from the previous sign-in, even if the same user returns.
+  state.navigationRaceProtection.historySession=(state.navigationRaceProtection.historySession||0)+1;
   state.auth.currentUser=null;
   state.auth.currentPatient=null;
   state.navigationRaceProtection.campusNavigationToken=(state.navigationRaceProtection.campusNavigationToken||0)+1;

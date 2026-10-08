@@ -11,11 +11,15 @@ import {openCamera} from '../app/optional-features.js';
 import {handleTopSearchKey,renderTopSearch,toggleSidebar} from './topbarAndNavigation.js';
 import {openProfileDetails} from './accountSettings.js';
 import {markAllRead,toggleNotifPanel} from './assistant.js';
+import {navTo,goBackPage} from './navigationRaceProtection.js';
 import {registerNamedAction} from '../dependencies.js';
 // Shell controls use registered lexical callbacks, never HTML inline JavaScript.
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
+  // Native buttons cover mouse, touch, Enter and Space without separate key handlers.
+  registerNamedAction('dashboard-home',()=>navTo('dashboard'));
+  registerNamedAction('page-back',()=>goBackPage());
   registerNamedAction('shell-0',(event,element)=>{landingNavTo('home')});
   registerNamedAction('shell-1',(event,element)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();landingNavTo('home')}});
   registerNamedAction('shell-2',(event,element)=>{landingNavTo('home')});

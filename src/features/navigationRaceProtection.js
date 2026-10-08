@@ -35,7 +35,33 @@ export function isCampusPageCurrent(pageId,token){
   return appState.navigationRaceProtection.campusActivePageId===pageId && appState.navigationRaceProtection.campusNavigationToken===token;
 }
 
-export function navTo(id){
+// Browser entries are scoped to this account and sign-in session, never shared across users.
+export function navigationAccountKey(){
+  const user=appState.auth.currentUser;
+  return user?`${user.id}:${user.role}:${appState.navigationRaceProtection.historySession}`:null;
+}
+export function updateBackButton(){
+  const button=document.getElementById('page-back');
+  if(button)button.disabled=!(window.history.state?.campuscareNavigation?.account===navigationAccountKey()&&window.history.state.campuscareNavigation.index>0);
+}
+export function goBackPage(){
+  if(appState.auth.currentUser&&!document.getElementById('page-back')?.disabled)window.history.back();
+}
+export function recordPageHistory(id,historyMode){
+  const account=navigationAccountKey(),previous=window.history.state?.campuscareNavigation;
+  if(!account)return;
+  // Replacing the first entry prevents Back from replaying the login page or another account.
+  const first=!previous||previous.account!==account;
+  if(first||historyMode==='replace'){
+    window.history.replaceState({...window.history.state,campuscareNavigation:{account,page:id,index:first?0:previous.index}},'');
+  }else if(historyMode==='push'&&previous.page!==id){
+    window.history.pushState({...window.history.state,campuscareNavigation:{account,page:id,index:previous.index+1}},'');
+  }
+  updateBackButton();
+}
+export function navTo(id,{historyMode='push'}={}){
+  if(!appState.auth.currentUser)return;
+  recordPageHistory(id,historyMode);
   if(window.innerWidth<=768) toggleSidebar(false);
   document.querySelectorAll('[id^="nav-"]').forEach(el=>el.classList.remove('active'));
   const btn=document.getElementById('nav-'+id);
@@ -326,4 +352,12 @@ export function archiveArticle(id){
 export function initializeFeature(){
   appState.navigationRaceProtection.campusNavigationToken=0;
   appState.navigationRaceProtection.campusActivePageId='dashboard';
+  appState.navigationRaceProtection.historySession=0;
+  // Back and Forward use the same renderer and race guard as sidebar navigation.
+  window.addEventListener('popstate',event=>{
+    if(!appState.auth.currentUser)return;
+    const entry=event.state?.campuscareNavigation;
+    if(entry?.account===navigationAccountKey()&&document.getElementById('nav-'+entry.page))navTo(entry.page,{historyMode:'pop'});
+    else navTo('dashboard',{historyMode:'replace'});
+  });
 }

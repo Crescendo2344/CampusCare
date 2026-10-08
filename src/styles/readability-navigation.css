@@ -1,0 +1,48 @@
+/* The public home uses a stable dark palette regardless of device theme or blur support. */
+#landing-hero{background-image:linear-gradient(90deg,rgba(5,17,29,.94),rgba(5,22,36,.78)),url('/ctu-campus.png');color:#fff}
+#landing-hero .landing-hero-text{color:#fff}
+#landing-hero .landing-hero-text h1 span{background:none;color:#9edfff;-webkit-text-fill-color:currentColor}
+#landing-hero .landing-hero-text p{color:#e3edf4}
+/* Essential copy is visible immediately, including on slow animation engines. */
+#landing-hero .landing-hero-text>*{animation:none;opacity:1;transform:none}
+#landing-hero .landing-stats span{color:#d7e7f1}
+#landing-hero .hero-info-carousel{background:#162c3d;backdrop-filter:none;-webkit-backdrop-filter:none;height:540px;user-select:text;-webkit-user-select:text}
+#landing-hero .hero-carousel-slide{overflow-y:auto;justify-content:flex-start;padding:1.25rem}
+#landing-hero .hero-slide-inner{margin:auto 0;flex-shrink:0}
+#landing-hero .hero-slide-lead,#landing-hero .hero-mini-card p{color:#e1edf5!important;font-size:.875rem!important;line-height:1.55!important}
+#landing-hero .hero-mini-card{background:#213d50;border-color:#456176}
+#landing-hero .hero-mini-card .mini-label{font-size:.875rem;color:#fff}
+#landing-hero .hero-slide-chip{font-size:.75rem;color:#d6f3ff}
+#landing-hero .hero-requirement,#landing-hero .hero-step span,#landing-hero .hero-referral-note{font-size:.875rem;line-height:1.55;color:#e1edf5}
+#landing-hero .hero-step strong{font-size:.9rem}
+#landing-hero .hero-contact-pill{font-size:.875rem;overflow-wrap:anywhere;max-width:100%}
+#landing-hero .hero-contact-pills{flex-wrap:wrap}
+#landing-hero .landing-impact-item{background:#162c3d;backdrop-filter:none;-webkit-backdrop-filter:none}
+#landing-hero .landing-impact-copy strong{font-size:.9rem}
+#landing-hero .landing-impact-copy span{font-size:.875rem;line-height:1.5;color:#e1edf5}
+/* Allow short viewports to scroll instead of shrinking the text to fit the screen. */
+.landing-route-home.active{overflow-y:auto}
+#landing-hero{height:auto;min-height:100%;overflow:visible}
+.landing-hero-grid{min-width:0;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:clamp(2rem,5vw,5rem)}
+.landing-hero-text,.landing-hero-visual{min-width:0}
+/* The brand is a real button so its icon and text share the same dashboard action. */
+button.sb-brand{width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line-soft);font:inherit;cursor:pointer;color:var(--ink)}
+button.sb-brand:hover{background:var(--primary-light)}
+button.sb-brand:focus-visible{outline:2px solid var(--primary);outline-offset:-3px}
+.page-back{flex-shrink:0;white-space:nowrap}
+.page-back:disabled{opacity:.45;cursor:default}
+@media(max-width:1100px){
+  .landing-hero-grid{grid-template-columns:minmax(0,1fr)}
+  #landing-hero .hero-info-carousel{width:100%;max-width:600px;margin-inline:auto;height:560px}
+}
+@media(max-width:620px){
+  #landing-hero .hero-mini-grid{grid-template-columns:1fr}
+  #landing-hero .hero-carousel-slide{padding:1rem}
+  #landing-hero .landing-hero-text .eyebrow{font-size:.8rem}
+  #landing-hero .landing-stats span{font-size:.85rem;line-height:1.5}
+  .page-back span{display:none}
+}
+/* High-contrast users retain readable text without gradient clipping. */
+@media(forced-colors:active){
+  #landing-hero .landing-hero-text h1 span{color:CanvasText;-webkit-text-fill-color:CanvasText}
+}

@@ -55,6 +55,27 @@ try{
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(response)});
   });
   await page.goto(baseUrl);await page.waitForFunction(()=>Boolean(window.__fixtureApp));
+  if(!mobile&&role==='Patient'){
+    // A solid panel must remain readable without backdrop filtering at every breakpoint.
+    for(const width of [360,768,1366])for(const theme of ['light','dark']){
+      await page.setViewportSize({width,height:800});
+      await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+      const layout=await page.evaluate(()=>({
+        overflow:document.documentElement.scrollWidth>window.innerWidth+1,
+        font:parseFloat(getComputedStyle(document.querySelector('.hero-mini-card p')).fontSize),
+        background:getComputedStyle(document.querySelector('.hero-info-carousel')).backgroundColor,
+        blur:getComputedStyle(document.querySelector('.hero-info-carousel')).backdropFilter
+      }));
+      assert.equal(layout.overflow,false,`${width} ${theme}: horizontal overflow`);
+      assert(layout.font>=14,`${width} ${theme}: unreadable carousel font`);
+      assert.equal(layout.background,'rgb(22, 44, 61)');assert.equal(layout.blur,'none');
+      if(process.env.CAMPUSCARE_VISUAL_DIR){
+        // Optional screenshots aid local visual review and are never production assets.
+        await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/landing-${width}-${theme}.png`,fullPage:true});
+      }
+    }
+    await page.setViewportSize({width:1440,height:1000});
+  }
   await page.locator('[data-action-click="shell-8"]').click();
   await page.getByRole('button',{name:'Login to CampusCare',exact:true}).click();
   await page.getByText('Enter your username/email and password.',{exact:true}).waitFor();
@@ -69,6 +90,22 @@ try{
     await page.evaluate(id=>document.getElementById(id).click(),id);
     await page.waitForTimeout(120);
     assert(await page.locator('#app-content').innerHTML(),`${role}: empty ${id}`);
+  }
+  // Brand navigation works from every role; Patient history returns to the actual previous page.
+  await page.locator('.sb-brand').evaluate(element=>element.click());
+  await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
+  if(role==='Patient'){
+    assert.equal(await page.locator('.dashboard-a-head').getByRole('button',{name:/Book Appointment/}).count(),0);
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('my-appointments'));
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('health_education'));
+    await page.locator('#page-back').click();
+    await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='my-appointments');
+    await page.goForward();
+    await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='health_education');
+    await page.locator('.sb-brand-icon').evaluate(element=>element.click());
+    await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
+    await page.goBack();
+    await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='health_education');
   }
   if(role==='Doctor'){
     await page.evaluate(()=>window.__fixtureApp.features.workflowRequests.openScheduleChangeRequest());
