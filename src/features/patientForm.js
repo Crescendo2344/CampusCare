@@ -90,6 +90,8 @@ export function openPatientModal(id=null){
           <select id="pm-gender">${['Male','Female','Other'].map(v=>`<option ${pt?.gender===v?'selected':''}>${v}</option>`).join('')}</select>
         </div>
 
+        <!-- Optional session is maintained from student information, never inferred from appointment time. -->
+        <div class="form-group"><label for="pm-class-session">Student class session</label><select id="pm-class-session">${[['','Not recorded'],['Morning','Morning'],['Evening','Evening'],['Mixed','Mixed / both']].map(([v,label])=>`<option value="${v}" ${pt?.classSession===v?'selected':''}>${label}</option>`).join('')}</select><p class="form-note">For students only; leave unknown if not confirmed.</p></div>
         <div class="form-group"><label>Blood Type</label>
           <select id="pm-blood">${['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'].map(v=>`<option ${String(pt?.blood||'Unknown')===v?'selected':''}>${v}</option>`).join('')}</select>
         </div>
@@ -180,6 +182,7 @@ export async function savePatient(id){
     blood_type:document.getElementById('pm-blood')?.value||'Unknown',
     college:document.getElementById('pm-college')?.value||'',
     person_type:document.getElementById('pm-ptype')?.value||'Student',
+    class_session:document.getElementById('pm-ptype')?.value==='Student'?(document.getElementById('pm-class-session')?.value||null):null,
     height_cm:document.getElementById('pm-height')?.value||null,
     weight_kg:document.getElementById('pm-weight')?.value||null,
     address:document.getElementById('pm-addr')?.value.trim()||'',
@@ -234,7 +237,7 @@ export async function savePatient(id){
         fname,lname,age,birthDate,
         gender:payload.sex,blood:payload.blood_type,
         contact:payload.contact_number,college:payload.college,
-        personType:payload.person_type,
+        personType:payload.person_type,classSession:payload.class_session||'',
         height:payload.height_cm?`${payload.height_cm}cm`:'',
         weight:payload.weight_kg?`${payload.weight_kg}kg`:'',
         address:payload.address,allergies:payload.allergies,

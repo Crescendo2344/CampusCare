@@ -26,7 +26,7 @@ export function createPatientService({getClient,request,baseUrl,publishableKey})
         .select('user_id,auth_user_id,first_name,last_name,username,email,contact_number,role,status,verified,person_type,college,id_number,profile_image_url,specialty,work_days,start_time,end_time,slot_duration,max_patients,created_at,last_login_at,password_changed_at,saved_signature_data')
         .order('user_id',{ascending:true}),
       client.from('patients')
-        .select('patient_id,user_id,birth_date,sex,blood_type,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,medical_history,allergies,archived_at,updated_at')
+        .select('patient_id,user_id,class_session,birth_date,sex,blood_type,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,medical_history,allergies,archived_at,updated_at')
         .order('patient_id',{ascending:true})
     ]);
 

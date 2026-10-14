@@ -1,3 +1,4 @@
+import {studentFilterMarkup} from '../reports/student-report.js';
 import {fetchAnalyticsSummary,analyticsMiniBars,analyticsVisitForecastHtml,analyticsMedicineForecastHtml,renderLiveAnalyticsCard} from './analyticsDisplay.js';
 // reports: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
@@ -60,7 +61,8 @@ export async function renderReports(){
     '<option value="appointments">Appointments</option>',
     '<option value="treatments">Treatments</option>',
     ...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?['<option value="inventory">Inventory</option>']:[]),
-    '<option value="patients">Patients</option>'
+    '<option value="patients">Patients</option>',
+    ...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?['<option value="students">Student Coverage &amp; Registration</option>']:[])
   ].join('');
 
   c.innerHTML=`
@@ -93,10 +95,12 @@ export async function renderReports(){
         <div class="form-group"><label>College</label>
           <select id="rpt-college" ${bindAction('change',(event,element)=>{refreshHealthIntelligence()})}>
             <option value="">All Colleges</option>
-            ${['CCICT','COE','COED','CME','CAS','COT'].map(c=>`<option value="${c}">${c}</option>`).join('')}
+            ${[...new Set(['CCICT','COE','COED','CME','CAS','COT','Unknown',...appState.data.DB.users.map(u=>u.college).filter(Boolean)])].sort().map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
           </select>
         </div>
       </div>
+      ${studentFilterMarkup()}
+      <p class="form-note">The clinical overview above uses Date Range and College. Student filters apply only to Student Coverage &amp; Registration.</p>
       <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{generateReport()})}>Generate Report</button>
     </div>
     <div id="rpt-result"></div>`;
