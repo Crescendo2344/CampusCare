@@ -28,8 +28,9 @@ test('patient mapping retains relationships, measurements, defaults and birthday
   const now=new Date(2026,9,8);
   assert.equal(records.ageFromBirthDate('2000-10-09',now),25);assert.equal(records.ageFromBirthDate('2000-10-08',now),26);
   assert.equal(records.ageFromBirthDate('invalid',now),'');assert.equal(records.ageFromBirthDate('',now),'');
-  const user={user_id:2,first_name:'Test',college:'COT',created_at:'2026-01-01',patient:{patient_id:4,birth_date:'2000-10-08',height_cm:160,weight_kg:50}};
+  const user={user_id:2,first_name:'Test',college:'COT',created_at:'2026-01-01',patient:{patient_id:4,birth_date:'2000-10-08',height_cm:160,weight_kg:50,class_session:'Evening'}};
   const directory=records.directoryRowToPatient(user,now);assert.equal(directory.id,200004);assert.equal(directory.userId,100002);
+  assert.equal(directory.classSession,'Evening');
   assert.equal(directory.age,26);assert.equal(directory.height,'160cm');assert.equal(directory.weight,'50kg');assert.equal(directory.blood,'Unknown');assert.equal(directory.createdAt,'2026-01-01');
   assert.equal(records.directoryRowToPatient({user_id:2},now),null);
   const current=records.currentPatientToUi(user.patient,records.normalizeSupabaseUser(user),now);

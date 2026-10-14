@@ -5,6 +5,7 @@ export function initializeOptionalState(){
   appState.reports.currentAnalyticsSummary=null;
 
 
+  appState.reportCharts.studentReportToken=0;
   appState.reportCharts.lastReportRows=[];
   appState.reportCharts.lastReportTitle='Report';
   appState.reportCharts.reportChartInstance=null;

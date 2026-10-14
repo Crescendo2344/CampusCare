@@ -1798,6 +1798,8 @@
       }
     ],
     "imports": [
+      "./navigationRaceProtection.js",
+      "../reports/student-report.js",
       "../app/state.js",
       "./issueReports.js",
       "./theme.js",
@@ -1826,6 +1828,7 @@
       }
     ],
     "imports": [
+      "../reports/student-report.js",
       "./analyticsDisplay.js",
       "../app/state.js",
       "./issueReports.js",

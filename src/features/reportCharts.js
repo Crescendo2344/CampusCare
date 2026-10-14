@@ -1,3 +1,5 @@
+import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
+import {generateStudentReport} from '../reports/student-report.js';
 // reportCharts: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
@@ -19,8 +21,10 @@ import {bindAction} from '../dependencies.js';
 
 export function updateReportMetricOptions(){
   const type=document.getElementById('rpt-type').value;
+  const filters=document.getElementById('student-report-filters');
+  if(filters)filters.hidden=type!=='students';
   const sel=document.getElementById('rpt-metric');
-  if(!sel)return;
+  if(!sel||!appState.reportCharts.REPORT_METRICS[type])return;
   sel.innerHTML=appState.reportCharts.REPORT_METRICS[type].map(m=>`<option value="${m.value}">${m.label}</option>`).join('');
 }
 
@@ -146,7 +150,8 @@ export function downloadBlob(content,filename,mime){
 export function rowsToCSV(rows){
   if(!rows.length)return '';
   const headers=Object.keys(rows[0]);
-  const esc=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;
+  // Text beginning with a spreadsheet formula marker remains literal on CSV import.
+  const esc=v=>{let text=String(v??'');if(typeof v==='string'&&/^[=+@\-\t\r]/.test(text))text="'"+text;return `"${text.replace(/"/g,'""')}"`;};
   return [headers.map(esc).join(','),...rows.map(r=>headers.map(h=>esc(r[h])).join(','))].join('\n');
 }
 
@@ -205,8 +210,9 @@ export function exportReportPDF(){
   setTimeout(()=>window.print(),400);
 }
 
-export function generateReport(){
+export async function generateReport(){
   const type=document.getElementById('rpt-type').value;
+  if(type!=='students')appState.reportCharts.studentReportToken=(appState.reportCharts.studentReportToken||0)+1;
   const from=document.getElementById('rpt-from').value;
   const to=document.getElementById('rpt-to').value;
   const college=document.getElementById('rpt-college').value;
@@ -214,6 +220,14 @@ export function generateReport(){
   if(from>to){toast('From date must be before To date.','error');return;}
   const el=document.getElementById('rpt-result');
 
+  if(type==='students'){
+    const reportAccount=appState.auth.currentUser,reportToken=captureCampusPageToken(),studentToken=(appState.reportCharts.studentReportToken||0)+1;
+    try{await generateStudentReport(exportToolbarHtml,downloadBlob);}catch(error){
+      if(appState.auth.currentUser!==reportAccount||!isCampusPageCurrent('reports',reportToken)||appState.reportCharts.studentReportToken!==studentToken)return;
+      document.getElementById('rpt-result').innerHTML=`<div class="alert alert-danger show">${escapeHtml(error.message||'Report failed.')}</div>`;
+    }
+    return;
+  }
   if(type==='appointments'){
     let data=appointmentRecords().filter(a=>a.date>=from&&a.date<=to&&(!college||a.college===college));
     appState.reportCharts.lastReportRows=data.map(a=>{const pt=getPatientById(a.patientId);const doc=getUserById(a.doctorId);return{ID:appointmentDisplayId(a),Patient:pt?pt.fname+' '+pt.lname:'?',College:a.college,Clinic:a.clinic,Date:a.date,Time:a.time,Doctor:doc?'Dr. '+doc.fname+' '+doc.lname:'?',Status:a.status};});

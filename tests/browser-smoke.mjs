@@ -1,3 +1,4 @@
+import {buildStudentReport} from '../src/domain/student-report.js';
 // Exercise actual Chromium UI events and API contracts using synthetic, intercepted backend responses.
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
@@ -51,7 +52,8 @@ try{
     const table=path.split('/').at(-1),single=request.headers().accept?.includes('object+json');
     const rows=table==='users'?[profile,doctor]:table==='patients'?[patient]:table==='system_settings'?[{settings_id:1,clinic_name:'Fixture Clinic',session_timeout_minutes:30}]:[];
     response=single?(rows[0]||null):rows;
-   }else if(path.includes('/functions/v1/'))response={ok:true,notifications:[],requests:[],doctor_leaves:[],messages:[],contacts:[doctor],resources:[],surveys:[],users:[],doctors:[doctor],counts:{},items:{}};
+   }else if(path.endsWith('/student-reports'))response={ok:true,report:buildStudentReport({users:[{user_id:10,first_name:'Morning',last_name:'Student',id_number:'ST10',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'},{user_id:11,first_name:'Evening',last_name:'Student',id_number:'ST11',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'}],patients:[{patient_id:10,user_id:10,class_session:'Morning'},{patient_id:11,user_id:11,class_session:'Evening'}],appointments:[{appointment_id:10,patient_id:10,clinic:'Dental Clinic',appointment_date:request.postDataJSON().from,status:'Completed'}]},request.postDataJSON())};
+   else if(path.includes('/functions/v1/'))response={ok:true,notifications:[],requests:[],doctor_leaves:[],messages:[],contacts:[doctor],resources:[],surveys:[],users:[],doctors:[doctor],counts:{},items:{}};
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(response)});
   });
   await page.goto(baseUrl);await page.waitForFunction(()=>Boolean(window.__fixtureApp));
@@ -98,6 +100,24 @@ try{
     await page.evaluate(id=>document.getElementById(id).click(),id);
     await page.waitForTimeout(120);
     assert(await page.locator('#app-content').innerHTML(),`${role}: empty ${id}`);
+  }
+  if(['Staff','Administrator'].includes(role)){
+    // Combine class/session and no-use filters, then check that the registration denominator survives.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('reports'));
+    await page.locator('#rpt-type').waitFor();await page.locator('#rpt-type').selectOption('students');
+    await page.locator('#student-report-filters').waitFor();
+    await page.locator('#rpt-session').selectOption('Evening');await page.locator('#rpt-dental').selectOption('not');
+    await page.getByRole('button',{name:'Generate Report',exact:true}).click();
+    await page.locator('#rpt-result').getByText('Evening Student',{exact:true}).waitFor();
+    assert.equal(await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).count(),0);
+    assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows.length),1);
+    assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['Class Session']),'Evening');
+    await page.locator('#rpt-session').selectOption('');await page.locator('#rpt-dental').selectOption('used');
+    await page.getByRole('button',{name:'Generate Report',exact:true}).click();
+    await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).waitFor();
+    const downloaded=page.waitForEvent('download');
+    await page.getByRole('button',{name:'Export college summary CSV',exact:true}).click();
+    assert.equal((await downloaded).suggestedFilename(),'Student_College_Summary.csv');
   }
   // Brand navigation works from every role; Patient history returns to the actual previous page.
   await page.locator('.sb-brand').evaluate(element=>element.click());
