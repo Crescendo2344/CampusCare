@@ -38,7 +38,7 @@ export function openForgotPassword(recoveryMode=false){
   hideAlert(document.getElementById('fp-err'));
   hideAlert(document.getElementById('fp-err3'));
   const resetDest=document.getElementById('fp-reset-destination');
-  if(resetDest)resetDest.textContent='If a matching CampusCare account exists, a secure password-reset link has been sent.';
+  if(resetDest)resetDest.textContent='A secure password-reset link has been sent to your registered email.';
   showForgotStep(recoveryMode?3:1);
 
   const title=document.getElementById('forgot-title');
@@ -134,11 +134,11 @@ export function updatePasswordResetDestination(identifier){
 
   const masked=maskPasswordResetEmail(identifier);
   if(masked){
-    el.innerHTML=`If a matching CampusCare account exists, a secure password-reset link has been sent to <strong>${escapeHtml(masked)}</strong>.`;
+    el.innerHTML=`A secure password-reset link has been sent to <strong>${escapeHtml(masked)}</strong>.`;
   }else{
     // Username-based requests stay generic to avoid exposing the email address
     // connected to a CampusCare account.
-    el.textContent='If a matching CampusCare account exists, a secure password-reset link has been sent to the registered email address.';
+    el.textContent='A secure password-reset link has been sent to your registered email address.';
   }
 }
 
@@ -168,8 +168,7 @@ export async function sendPasswordResetEmail(){
     const result=await response.json().catch(()=>({}));
     if(!response.ok||!result.ok)throw new Error(result.error||'Unable to send the reset email.');
 
-    // Keep account existence private. If the user typed an email address,
-    // show only a masked reflection of what they entered.
+    // The server confirms eligibility before this success step; mask the destination in the UI.
     updatePasswordResetDestination(identifier);
     showForgotStep(2);
   }catch(e){
@@ -398,27 +397,20 @@ export async function handleCampusCareAuthCallback(){
 
   if(mode==='confirmed'){
     const {data:{session}}=await appState.supabaseClient.supabaseClient.auth.getSession();
-
+    let pending=false;
     if(session?.user){
       const {data:profile}=await appState.supabaseClient.supabaseClient
-        .from('users')
-        .select('status')
-        .eq('auth_user_id',session.user.id)
-        .maybeSingle();
-
-      if(String(profile?.status||'').toLowerCase()==='pending'){
-        await appState.supabaseClient.supabaseClient.auth.signOut();
-        cleanAuthCallbackUrl();
-        showAuthPage('login');
-        toast('Email confirmed successfully. Your registration is still pending administrator approval.','success',6500);
-        return 'confirmed-pending';
-      }
+        .from('users').select('status').eq('auth_user_id',session.user.id).maybeSingle();
+      pending=String(profile?.status||'').toLowerCase()==='pending';
+      // Confirmation proves the email address; require an explicit login afterward for every role.
+      await appState.supabaseClient.supabaseClient.auth.signOut({scope:'local'});
     }
-
-    cleanAuthCallbackUrl();
-    showAuthPage('login');
-    toast('Email address confirmed successfully. You can now continue with CampusCare.','success',6500);
-    return 'confirmed';
+    resetAuthUiToLogin();
+    toast(session?.user
+      ? (pending?'Email confirmed successfully. Your registration is still pending administrator approval.':'Email confirmed successfully. Please log in to CampusCare.')
+      : 'Please log in to CampusCare. If your confirmation link expired, request a new verification email.',
+      session?.user?'success':'info',6500);
+    return pending?'confirmed-pending':'confirmed';
   }
 
   return null;
