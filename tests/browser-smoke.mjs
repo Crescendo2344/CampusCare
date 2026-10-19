@@ -59,15 +59,20 @@ try{
   await page.goto(baseUrl);await page.waitForFunction(()=>Boolean(window.__fixtureApp));
   if(!mobile&&role==='Patient'){
     // A solid panel must remain readable without backdrop filtering at every breakpoint.
-    for(const width of [360,768,1366])for(const theme of ['light','dark']){
+    for(const width of [320,360,768,1366])for(const theme of ['light','dark']){
       await page.setViewportSize({width,height:800});
       await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
       const layout=await page.evaluate(()=>({
         overflow:document.documentElement.scrollWidth>window.innerWidth+1,
         font:parseFloat(getComputedStyle(document.querySelector('.hero-mini-card p')).fontSize),
         background:getComputedStyle(document.querySelector('.hero-info-carousel')).backgroundColor,
-        blur:getComputedStyle(document.querySelector('.hero-info-carousel')).backdropFilter
+        blur:getComputedStyle(document.querySelector('.hero-info-carousel')).backdropFilter,
+        navbar:getComputedStyle(document.getElementById('landing-navbar')).backgroundColor,
+        // Text fragments reveal real wrapping rather than merely checking a CSS declaration.
+        ctaLines:(()=>{const range=document.createRange();range.selectNodeContents(document.querySelector('.landing-get-started'));return range.getClientRects().length;})()
       }));
+      assert.equal(layout.ctaLines,1,`${width} ${theme}: Get Started wraps`);
+      assert.equal(layout.navbar,'rgb(10, 20, 32)');
       assert.equal(layout.overflow,false,`${width} ${theme}: horizontal overflow`);
       assert(layout.font>=14,`${width} ${theme}: unreadable carousel font`);
       assert.equal(layout.background,'rgb(22, 44, 61)');assert.equal(layout.blur,'none');
@@ -85,7 +90,9 @@ try{
   }
   // Only native browser navigation is shown, and auth has no theme toggle.
   assert.equal(await page.locator('#page-back').count(),0);
-  await page.locator('[data-action-click="shell-8"]').click();
+  assert.equal(await page.getByRole('button',{name:'Book an Appointment',exact:true}).count(),0);
+  await page.locator('.landing-get-started').click();
+  assert.equal(await page.locator('#landing-navbar').evaluate(nav=>getComputedStyle(nav).backgroundColor),'rgb(10, 20, 32)');
   assert.equal(await page.locator('#auth-theme-toggle-btn').count(),0);
   await page.getByRole('button',{name:'Login to CampusCare',exact:true}).click();
   await page.getByText('Enter your username/email and password.',{exact:true}).waitFor();

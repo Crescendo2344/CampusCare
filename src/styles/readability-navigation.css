@@ -50,7 +50,12 @@ button.sb-brand:focus-visible{outline:2px solid var(--primary);outline-offset:-3
   #landing-hero .hero-info-carousel{margin-left:auto;margin-right:0}
 }
 
-/* The service card has a photo and description, without a milestone-year column. */
+/* Keep the clinic milestone photo and description in two balanced columns. */
 @media(min-width:901px){
   .public-achievement-card.photo-achievement{grid-template-columns:minmax(230px,.9fr) minmax(0,1.1fr)}
 }
+
+/* An opaque surface keeps the public navbar identical over the hero and login backgrounds. */
+#landing-navbar,#landing-navbar.auth-mode{background:#0a1420;backdrop-filter:none;-webkit-backdrop-filter:none}
+/* Keep the primary entry action on one line, including narrow phone viewports. */
+#landing-navbar .landing-get-started{white-space:nowrap;flex-shrink:0;width:max-content}
