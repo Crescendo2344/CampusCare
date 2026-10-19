@@ -308,15 +308,18 @@ export function recheckNameMatch(justAutoFilled=false){
       : 'The typed name and detected document details are consistent.';
   }else if((typedFirst&&typedLast)&&(!firstMatch||!lastMatch)){
     tone='warning';
-    headline='The scanner could not confidently match the typed first and last name. Check the spelling or use a clearer image.';
+    // A usable scan can proceed even when OCR misreads a name; staff make the identity decision.
+    headline=appState.documentScanner.lastOcrConfidence>=25
+      ? 'You can continue with registration. Please check your typed name; clinic staff will verify the uploaded document.'
+      : 'The scanner could not read the name reliably. A clearer image is recommended; clinic staff will verify your document.';
   }else if(idMatch===false){
     tone='warning';
-    headline='The typed ID number does not match the number detected on the uploaded document.';
+    headline='Please check your typed ID number. You can continue; clinic staff will verify it against the uploaded document.';
   }
 
   scannerStatus(
     `<strong>${headline}</strong><div class="scanner-result-grid">${findings.join('')}</div>
-     <div style="margin-top:.42rem">Scanning is assistive only; clinic staff will still verify the actual uploaded document.</div>`,
+     <div style="margin-top:.42rem">OCR quality of 25% or higher is sufficient to continue. OCR does not approve your account; clinic staff will review your document.</div>`,
     tone
   );
 }

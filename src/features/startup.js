@@ -48,7 +48,7 @@ export function initializeFeature(){
 
   try{
     const callbackMode=await handleCampusCareAuthCallback();
-    if(callbackMode==='recovery'||callbackMode==='confirmed-pending'){
+    if(callbackMode==='recovery'||callbackMode==='confirmed-pending'||callbackMode==='confirmed'||callbackMode==='auth-error'){
       restoreSkeleton?.classList.remove('show');
       clearTimeout(safetyTimer);
       return;

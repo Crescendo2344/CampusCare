@@ -423,21 +423,6 @@ export function maskVerificationEmail(email){
   return `${visible}${'*'.repeat(Math.max(2,local.length-visible.length))}@${parts[1]}`;
 }
 
-export async function resolveCampusCareEmail(identifier){
-  const raw=String(identifier||'').trim().toLowerCase();
-  if(!raw)throw new Error('Enter your registered username or email.');
-  if(raw.includes('@'))return raw;
-
-  const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/resolve-login`,{
-    method:'POST',
-    headers:{'Content-Type':'application/json',apikey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY},
-    body:JSON.stringify({identifier:raw})
-  });
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.email)throw new Error('Unable to find a matching CampusCare registration.');
-  return result.email;
-}
-
 export function openResendVerification(prefill=''){
   const initial=String(prefill||document.getElementById('li-user')?.value||'').trim();
   openModal(`<div class="modal modal-sm">
@@ -464,16 +449,17 @@ export async function sendVerificationEmailAgain(){
 
   try{
     if(btn){btn.disabled=true;btn.textContent='Sending…';}
-    const email=await resolveCampusCareEmail(identifier);
-    const {error}=await appState.supabaseClient.supabaseClient.auth.resend({
-      type:'signup',
-      email,
-      options:{emailRedirectTo:`${appState.supabaseClient.CAMPUSCARE_APP_URL}?auth=confirmed`}
+    // The server checks the CampusCare profile and Auth account before requesting any email.
+    const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/resend-verification`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json',apikey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY},
+      body:JSON.stringify({identifier})
     });
-    if(error)throw error;
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||!result.ok)throw new Error(result.error||'Unable to resend the verification email.');
     showAlert(
       msg,
-      `A new verification message was requested for ${maskVerificationEmail(email)}. Open the newest CampusCare email and use that link; older expired links can be ignored.`,
+      'A new verification email has been sent to your registered address. Open the newest CampusCare email to confirm your account.',
       'success'
     );
   }catch(e){

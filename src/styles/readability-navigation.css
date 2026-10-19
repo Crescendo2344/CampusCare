@@ -59,3 +59,15 @@ button.sb-brand:focus-visible{outline:2px solid var(--primary);outline-offset:-3
 #landing-navbar,#landing-navbar.auth-mode{background:#0a1420;backdrop-filter:none;-webkit-backdrop-filter:none}
 /* Keep the primary entry action on one line, including narrow phone viewports. */
 #landing-navbar .landing-get-started{white-space:nowrap;flex-shrink:0;width:max-content}
+
+/* Let the document own vertical scrolling; fixed-height nested routes clipped long public pages. */
+#landing-page{height:auto;min-height:100vh;overflow:visible}
+#landing-page .landing-route{height:auto;min-height:calc(100vh - var(--landing-nav-h));overflow:visible}
+#landing-page .landing-static-page{height:auto;min-height:calc(100vh - var(--landing-nav-h));overflow:visible}
+#landing-page .landing-static-inner{height:auto;justify-content:flex-start}
+/* Registration grows with its contents so wheel, keyboard and touch can reach Submit Registration. */
+#auth-page .auth-box{max-height:none}
+#auth-page .auth-header{flex-shrink:0}
+#auth-page .auth-body{overflow:visible;flex:none}
+/* Keep recovery links in a predictable vertical reading order. */
+.auth-recovery-links{display:flex;flex-direction:column;align-items:flex-end;gap:.45rem;margin:-.2rem 0 .2rem}
