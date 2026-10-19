@@ -155,7 +155,7 @@ export async function renderSettings(){
       <div class="card-header">
         <div>
           <h3>Automated Daily Backups</h3>
-          <div class="tech-note">Server-side CampusCare database snapshots are created automatically and recorded in Supabase backup logs.</div>
+          <div class="tech-note">Automatic database backups are recorded in the backup history.</div>
         </div>
         ${appState.auth.currentUser?._realSupabase
           ? `<button class="btn btn-primary btn-sm" id="backup-now-btn" ${bindAction('click',(event,element)=>{runRealBackupNow()})}>Back Up Now</button>`

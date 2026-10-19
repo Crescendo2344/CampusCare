@@ -458,7 +458,7 @@ export async function confirmAccountUpdate(){
     const newEmail=appState.workflowRequests.pendingAccountUpdate.email;
     appState.workflowRequests.pendingAccountUpdate=null;
     closeAllModals();
-    toast(`Identity verified. Confirm the email-change message sent by Supabase to ${newEmail} to finish updating your email.`,'success',7000);
+    toast(`Identity verified. Confirm the email-change message sent to ${newEmail} to finish updating your email.`,'success',7000);
     renderMyAccount();
   }catch(e){
     const message=String(e?.message||'Verification failed.');

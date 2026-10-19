@@ -49,3 +49,8 @@ button.sb-brand:focus-visible{outline:2px solid var(--primary);outline-offset:-3
   #landing-hero .landing-hero-grid{max-width:none}
   #landing-hero .hero-info-carousel{margin-left:auto;margin-right:0}
 }
+
+/* The service card has a photo and description, without a milestone-year column. */
+@media(min-width:901px){
+  .public-achievement-card.photo-achievement{grid-template-columns:minmax(230px,.9fr) minmax(0,1.1fr)}
+}

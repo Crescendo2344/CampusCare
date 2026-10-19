@@ -204,7 +204,7 @@ export function predictiveInventorySummaryHtml(){
 
   return `<div class="card">
     <div class="card-header">
-      <div><h3>Predictive Inventory</h3><div class="tech-note">The real backend uses recent disbursement history to maintain a rolling 3-month consumption forecast.</div></div>
+      <div><h3>Predictive Inventory</h3><div class="tech-note">Forecast consumption for the next 3 months using recorded disbursements.</div></div>
       <span class="intel-badge">3-month forecast</span>
     </div>
     <div class="intel-grid">
@@ -328,9 +328,9 @@ export async function openClinicalCopilot(patientId){
       <div class="copilot-hero">
         <div>
           <div class="copilot-title">✦ Clinical Copilot</div>
-          <div class="copilot-disclaimer">Loading the authorized Supabase clinical record…</div>
+          <div class="copilot-disclaimer">Loading clinical records…</div>
         </div>
-        <span class="intel-badge">Server-side</span>
+        <span class="intel-badge">Clinic records</span>
       </div>
       ${databaseSkeletonHtml('cards',4)}
     </div>
@@ -532,7 +532,7 @@ export async function viewPatientFHIR(patientId){
   if(!appState.auth.currentUser?._realSupabase){
     const bundle=campusCareFHIRBundle(patientId);if(!bundle)return;
     openModal(`<div class="modal modal-xl">
-      <div class="modal-header"><div><h3>FHIR-ready Record Preview</h3><div class="tech-note">Demo FHIR R4-style mapping. Validate against your target implementation guide before real interoperability.</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+      <div class="modal-header"><div><h3>FHIR-ready Record Preview</h3><div class="tech-note">Sample FHIR R4 export. Check compatibility before sharing with another system.</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
       <div class="modal-body"><pre class="fhir-preview">${escapeHtml(JSON.stringify(bundle,null,2))}</pre></div>
       <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadPatientFHIR((patientId))})}>Download JSON</button></div>
     </div>`);
@@ -545,7 +545,7 @@ export async function viewPatientFHIR(patientId){
   }
 
   openModal(`<div class="modal modal-xl">
-    <div class="modal-header"><div><h3>FHIR-ready Record Preview</h3><div class="tech-note">Generating an authorized server-side interoperability bundle…</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+    <div class="modal-header"><div><h3>FHIR-ready Record Preview</h3><div class="tech-note">Preparing the record export…</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
     <div class="modal-body" id="fhir-preview-body">${databaseSkeletonHtml('table')}</div>
   </div>`);
 

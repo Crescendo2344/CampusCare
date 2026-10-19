@@ -85,7 +85,7 @@ export function renderLiveAnalyticsCard(summary){
         <h3>Campus Health Intelligence &amp; Data Mining</h3>
         <div class="tech-note">${escapeHtml(scopeText)} · ${fmtDate(range.from)} – ${fmtDate(range.to)}</div>
       </div>
-      <span class="intel-badge">Live Supabase data</span>
+      <span class="intel-badge">Clinic records</span>
     </div>
 
     <div class="intel-grid">

@@ -921,7 +921,7 @@ export function openMessageSettings(){
         <label style="margin:0">Enter key sends message</label>
         <input type="checkbox" id="mp-enter" ${prefs.enterToSend?'checked':''} style="width:18px;height:18px">
       </div>
-      <p class="form-note">${appState.auth.currentUser?._realSupabase?'CampusCare does not expose simulated online/offline presence in the real messaging system.':'Presence indicators are simulated in demo mode.'}</p>
+      ${appState.auth.currentUser?._realSupabase?'':'<p class="form-note">Sample availability indicators.</p>'}
     </div>
     <div class="modal-footer">
       <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>

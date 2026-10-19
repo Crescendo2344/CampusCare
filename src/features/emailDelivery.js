@@ -237,7 +237,7 @@ export async function renderActivityLog(){
     <div class="card-header">
       <div>
         <h3>Activity &amp; Audit Log</h3>
-        <div class="tech-note">Real server-side audit events for accountability, security review, and Data Privacy Act compliance.</div>
+        <div class="tech-note">Account activity and record changes.</div>
       </div>
       <button class="btn btn-sm" ${bindAction('click',(event,element)=>{exportActivityLog()})}>Export CSV</button>
     </div>
