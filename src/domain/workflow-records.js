@@ -171,6 +171,9 @@ export function realApprovalUiUser(u){
     ),
     registrationContext:u.registration_context||'public',
     emailConfirmedAt:u.email_confirmed_at||'',
+    emailVerificationSkipped:u.email_verification_skipped===true,
+    // Legacy registrations used the profile photo as their submitted selfie.
+    verificationSelfie:u.selfie_verification_signed_url||u.profile_signed_url||'',
     profilePhoto:u.profile_signed_url||'',
     idFileData:u.verification_signed_url||'',
     idFile:u.id_file_url?u.id_file_url.split('/').pop():'Verification document',

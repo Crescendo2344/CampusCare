@@ -338,11 +338,10 @@
       <div class="alert alert-danger" id="login-err"></div>
       <div class="form-group"><label>Username or Email</label><input id="li-user" type="text" placeholder="Enter username or email" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
       <div class="form-group"><label>Password</label><input id="li-pass" type="password" placeholder="Enter password" data-action-input="shell-13" data-action-keydown="shell-14"></div>
-      <div class="auth-recovery-links">
-        <a href="#" style="font-size:.75rem;color:var(--primary);text-decoration:none" data-action-click="shell-15">Resend verification email</a>
+      <button class="btn btn-primary" style="width:100%;margin-top:.3rem" data-action-click="shell-17">Login</button>
+      <div class="auth-recovery-links" style="margin-top:.6rem">
         <a href="#" style="font-size:.75rem;color:var(--primary);text-decoration:none" data-action-click="shell-16">Forgot password?</a>
       </div>
-      <button class="btn btn-primary" style="width:100%;margin-top:.3rem" data-action-click="shell-17">Login to CampusCare</button>
     </div>
 
     <!-- REGISTER -->
@@ -403,15 +402,13 @@
       </div>
       <p class="form-note" style="margin:-.4rem 0 .8rem">Your date of birth helps us verify your identity against your uploaded ID and is used for your medical record.</p>
       <div class="form-group">
-        <label>Selfie Photo <span class="required">*</span></label>
-        <p class="form-note" style="margin:0 0 .4rem">Used to verify it's really you, and becomes your profile photo. You can change it anytime later.</p>
+        <label>Selfie Verification <span class="required">*</span></label>
+        <p class="form-note" style="margin:0 0 .4rem">Take a live camera photo of yourself holding the same School ID, COR, or Employee ID you upload below. Keep your full face and document visible, with the text readable. This is private verification evidence, separate from your profile picture.</p>
         <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
-          <div id="r-selfie-preview-wrap" style="width:60px;height:60px;border-radius:50%;background:var(--overlay);border:1px solid var(--glass-border-soft);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+          <div id="r-selfie-preview-wrap" style="width:180px;height:135px;max-width:100%;border-radius:12px;background:var(--overlay);border:1px solid var(--glass-border-soft);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:26px;height:26px;color:var(--ink-muted)"><path stroke-linecap="round" stroke-linejoin="round" d="M15 8a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 20a7.5 7.5 0 0115 0"/></svg>
           </div>
-          <button type="button" class="btn btn-sm" data-action-click="shell-29">Upload Photo</button>
-          <button type="button" class="btn btn-sm btn-info" data-action-click="shell-30"><i class="bi bi-camera" aria-hidden="true"></i> Use Camera</button>
-          <input type="file" id="r-selfie-file" accept="image/*" style="display:none" data-action-change="shell-31">
+          <button type="button" class="btn btn-sm btn-info" id="selfie-camera-button" data-action-click="shell-30"><i class="bi bi-camera" aria-hidden="true"></i> Take Verification Selfie</button>
         </div>
       </div>
       <div class="form-group">
@@ -438,15 +435,14 @@
         <div style="width:56px;height:56px;border-radius:50%;background:var(--warning-bg);display:flex;align-items:center;justify-content:center;margin:0 auto .75rem;font-size:26px">🕐</div>
         <h3 style="font-size:1rem;margin-bottom:.5rem">Account Pending Verification</h3>
         <p style="font-size:.83rem;color:var(--ink-muted);line-height:1.6">
-          Thanks for registering, <strong id="pending-name">there</strong>! Our clinic staff will verify your uploaded ID and selfie and approve your account within <strong>24–48 hours</strong>.
+          Thanks for registering, <strong id="pending-name">there</strong>! Our clinic staff will verify your uploaded ID and selfie and review your registration. Email confirmation is temporarily not required.
         </p>
       </div>
       <div class="demo-accounts" style="font-size:.76rem">
         <strong>What happens next?</strong>
-        Staff will cross-check your uploaded ID/COR against your selfie and details. Try logging in again after 24–48 hours — you don't need to resubmit anything.
+        Staff will cross-check your uploaded ID/COR against your selfie and details. You can log in after clinic approval — you do not need to click an email confirmation link.
       </div>
       <div style="display:grid;gap:.5rem;margin-top:.9rem">
-        <button class="btn btn-info" style="width:100%" data-action-click="shell-37"><i class="bi bi-envelope-check"></i> Resend Verification Email</button>
         <button class="btn btn-primary" style="width:100%" data-action-click="shell-38">Close</button>
       </div>
     </div>

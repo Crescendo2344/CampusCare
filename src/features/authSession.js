@@ -65,6 +65,7 @@ async function restoreAuthenticatedAccount(){
     appState.auth.currentUser=normalizeSupabaseUser(hydratedProfile);
     appState.auth.currentUser.lastLogin=session.user.last_sign_in_at||profile.last_login_at||appState.auth.currentUser.lastLogin||'';
     appState.auth.currentUser.emailConfirmedAt=session.user.email_confirmed_at||null;
+    appState.auth.currentUser.emailVerificationSkipped=session.user?.app_metadata?.email_verification_skipped===true;
 
     if(String(appState.auth.currentUser.status).toLowerCase()!=='active'){
       await appState.supabaseClient.supabaseClient.auth.signOut();

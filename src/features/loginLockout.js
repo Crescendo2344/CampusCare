@@ -74,6 +74,7 @@ export async function doLogin(){
     appState.auth.currentUser=normalizeSupabaseUser(profile);
     appState.auth.currentUser.lastLogin=data.user?.last_sign_in_at||new Date().toISOString();
     appState.auth.currentUser.emailConfirmedAt=data.user?.email_confirmed_at||null;
+    appState.auth.currentUser.emailVerificationSkipped=data.user?.app_metadata?.email_verification_skipped===true;
     try{await auditAction({action:'record_session',event:'LOGIN'});}catch(e){console.error('Login audit:',e);}
     await syncCampusCareSessionUI();
     if(profile.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
@@ -82,7 +83,7 @@ export async function doLogin(){
   }catch(e){
     toast(e?.message||'Invalid username/email or password.','error');
   }finally{
-    if(loginBtn){loginBtn.disabled=false;loginBtn.textContent=loginBtnText||'Login to CampusCare';}
+    if(loginBtn){loginBtn.disabled=false;loginBtn.textContent=loginBtnText||'Login';}
   }
 }
 
@@ -239,7 +240,6 @@ export async function doRegister() {
   const dob=document.getElementById('r-dob').value;
   const sex=document.getElementById('r-sex').value;
   const fileInput=document.getElementById('r-id-file');
-  const selfieInput=document.getElementById('r-selfie-file');
   const privacyConsent=document.getElementById('r-privacy-consent');
 
   if(!privacyConsent?.checked){
@@ -305,8 +305,8 @@ export async function doRegister() {
     registrationToast('Password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.','error');
     return;
   }
-  if(!selfieInput.files.length&&!appState.camera.capturedSelfieDataUrl){
-    registrationToast('Please upload or capture a selfie photo for verification.','error');
+  if(!appState.camera.capturedSelfieDataUrl){
+    registrationToast('Use the camera to take a verification selfie while holding the document you will upload.','error');
     return;
   }
   if(!fileInput.files.length&&!appState.camera.capturedIdDataUrl){
@@ -321,7 +321,7 @@ export async function doRegister() {
 
   let selfieFile,verificationFile;
   try{
-    selfieFile=selfieInput.files[0]||dataUrlToRegistrationFile(appState.camera.capturedSelfieDataUrl,'profile.jpg');
+    selfieFile=dataUrlToRegistrationFile(appState.camera.capturedSelfieDataUrl,'selfie-verification.jpg');
     verificationFile=fileInput.files[0]||dataUrlToRegistrationFile(appState.camera.capturedIdDataUrl,'verification.jpg');
   }catch(e){
     registrationToast(e?.message||'Could not prepare the uploaded files.','error');
@@ -351,7 +351,9 @@ export async function doRegister() {
   form.append('email',email);
   form.append('password',pass);
   form.append('metadata',JSON.stringify(metadata));
-  form.append('selfie',selfieFile,selfieFile.name||'profile.jpg');
+  form.append('selfie',selfieFile,'selfie-verification.jpg');
+  // Registration selfies come only from the live camera flow, with staff checking the evidence.
+  form.append('selfie_capture_source','camera');
   form.append('verification',verificationFile,verificationFile.name||'verification');
 
   const submitBtn=document.getElementById('registration-submit-button');
@@ -385,7 +387,11 @@ export async function doRegister() {
 
     ['r-fname','r-lname','r-user','r-email','r-pass','r-contact','r-idno','r-dob','r-sex']
       .forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-    fileInput.value='';selfieInput.value='';
+    fileInput.value='';
+    const selfiePreview=document.getElementById('r-selfie-preview-wrap');
+    if(selfiePreview)selfiePreview.replaceChildren();
+    const selfieButton=document.getElementById('selfie-camera-button');
+    if(selfieButton)selfieButton.textContent='Take Verification Selfie';
     const preview=document.getElementById('r-file-preview');if(preview)preview.textContent='';
     const consent=document.getElementById('r-privacy-consent');if(consent)consent.checked=false;
     appState.camera.capturedSelfieDataUrl=null;appState.camera.capturedIdDataUrl=null;
