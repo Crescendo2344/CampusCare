@@ -118,7 +118,7 @@ export function openPatientModal(id=null){
         <div class="form-group"><label>Emergency Contact No.</label><input id="pm-econtact" maxlength="100" value="${escapeHtml(pt?.emergencyContact||'')}"></div>
       </div>
 
-      ${realMode&&editing?`<div class="tech-note">Changes to this real patient record are written to the CampusCare Activity/Audit Log.</div>`:''}
+      ${realMode&&editing?`<div class="tech-note">Changes are recorded in the activity log.</div>`:''}
 
       ${!editing?`<div class="privacy-agree" style="margin-top:1rem">
         <input type="checkbox" id="pm-privacy-ack">

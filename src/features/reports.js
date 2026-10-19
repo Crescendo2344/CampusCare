@@ -76,7 +76,6 @@ export async function renderReports(){
       <div class="card-header">
         <div>
           <h3>Generate Detailed Report</h3>
-          <div class="tech-note">Exportable operational records use the same synchronized Supabase data as the analytics above.</div>
         </div>
       </div>
       <div class="form-row">
