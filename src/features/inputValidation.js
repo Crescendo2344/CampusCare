@@ -38,16 +38,6 @@ export function previewFile(input,previewId){
   if(el&&input.files[0])el.textContent='✓ '+input.files[0].name;
 }
 
-export function previewSelfie(input){
-  const wrap=document.getElementById('r-selfie-preview-wrap');
-  const file=input.files&&input.files[0];
-  if(!wrap||!file)return;
-  appState.camera.capturedSelfieDataUrl=null; // a freshly-chosen file takes priority over any earlier camera capture
-  const reader=new FileReader();
-  reader.onload=e=>{ wrap.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`; };
-  reader.readAsDataURL(file);
-}
-
 export function resetSelfiePreview(){
   const wrap=document.getElementById('r-selfie-preview-wrap');
   if(wrap)wrap.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:26px;height:26px;color:var(--ink-muted)"><path stroke-linecap="round" stroke-linejoin="round" d="M15 8a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 20a7.5 7.5 0 0115 0"/></svg>`;

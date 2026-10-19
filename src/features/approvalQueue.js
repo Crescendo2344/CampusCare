@@ -127,7 +127,7 @@ export function reviewApproval(id){
   if(!u)return;
 
   const initials=((u.fname?.[0]||'')+(u.lname?.[0]||'')).toUpperCase()||'P';
-  const emailState=u.emailConfirmedAt?'Confirmed':'Not yet confirmed';
+  const emailState=u.emailVerificationSkipped?'Temporarily skipped':u.emailConfirmedAt?'Confirmed':'Not yet confirmed';
   const submitted=u.createdAt?fmtDateTime(u.createdAt):'—';
 
   openModal(`<div class="modal modal-xl approval-review-modal">
@@ -182,10 +182,10 @@ export function reviewApproval(id){
           <h4>Identity Comparison</h4>
           <div class="approval-compare">
             <div class="approval-preview-card approval-selfie">
-              <div class="approval-preview-title">Submitted Selfie</div>
+              <div class="approval-preview-title">Selfie Verification</div>
               <div class="approval-preview-body">
-                ${u.profilePhoto
-                  ?`<img src="${escapeHtml(u.profilePhoto)}" alt="Applicant selfie">`
+                ${u.verificationSelfie
+                  ?`<img src="${escapeHtml(u.verificationSelfie)}" alt="Applicant holding their verification document">`
                   :`<span class="approval-applicant-avatar" style="width:72px;height:72px">${initials}</span>`}
               </div>
             </div>
@@ -196,7 +196,7 @@ export function reviewApproval(id){
           </div>
 
           <div class="approval-doc-actions">
-            ${u.profilePhoto?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{showFilePreview((String(u.fname)+" "+String(u.lname)+" - Selfie"),(String(u.profilePhoto)))})}><i class="bi bi-arrows-fullscreen"></i> Open Selfie</button>`:''}
+            ${u.verificationSelfie?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{showFilePreview((String(u.fname)+" "+String(u.lname)+" - Selfie"),(String(u.verificationSelfie)))})}><i class="bi bi-arrows-fullscreen"></i> Open Selfie</button>`:''}
             ${u.idFileData?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{showFilePreview((String(u.idFile)),(String(u.idFileData)))})}><i class="bi bi-arrows-fullscreen"></i> Open Document</button>`:''}
           </div>
 

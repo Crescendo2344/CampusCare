@@ -29,7 +29,7 @@ export function createAccountEmailHandler({createClient,env,action}){
       if(String(data.user.email||'').toLowerCase()!==account.email.toLowerCase())return json({error:'Your account email needs review. Please contact the clinic.'},409);
       if(action==='resend'&&data.user.email_confirmed_at)return json({error:'Your email is already verified. Please log in or use Forgot password.'},409);
       if(action==='reset'){
-        if(!data.user.email_confirmed_at)return json({error:'Please verify your email first using Resend verification email.'},409);
+        if(!data.user.email_confirmed_at)return json({error:'Please contact the clinic for help activating this registration.'},409);
         if(account.status!=='Active')return json({error:'Your registration is still pending clinic approval.'},403);
         if(account.password_changed_at&&Date.now()<new Date(account.password_changed_at).getTime()+week)return json({error:'You recently changed your password. Please wait seven days before resetting it again.'},429);
       }

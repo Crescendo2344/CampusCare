@@ -25,13 +25,14 @@ if(process.env.CAMPUSCARE_CHROMIUM_PROVIDER){
   const provider=(await import(process.env.CAMPUSCARE_CHROMIUM_PROVIDER)).default;
   executablePath=await provider.executablePath();
 }
-const browser=await chromium.launch({headless:true,...(executablePath?{executablePath,args:['--no-sandbox','--disable-dev-shm-usage']}: {})});
+// A synthetic camera exercises real getUserMedia and capture without accessing a person's camera.
+const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream'],...(executablePath?{executablePath}: {})});
 const authId='00000000-0000-4000-8000-000000000001';
 const now=Math.floor(Date.now()/1000),token=['eyJhbGciOiJIUzI1NiJ9',Buffer.from(JSON.stringify({sub:authId,role:'authenticated',exp:now+3600,iat:now})).toString('base64url'),'fixture-signature'].join('.');
 let cases=0;
 try{
  for(const mobile of [false,true])for(const role of ['Patient','Doctor','Staff','Administrator']){
-  const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1440,height:1000},isMobile:mobile,hasTouch:mobile});
+  const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1440,height:1000},isMobile:mobile,hasTouch:mobile,permissions:['camera']});
   const page=await context.newPage(),errors=[],requests=[];
   page.on('pageerror',error=>errors.push(error.message));
   page.on('console',message=>{
@@ -59,7 +60,7 @@ try{
    }else if(path.endsWith('/resend-verification')||path.endsWith('/request-password-reset')){
     if(request.postDataJSON().identifier==='not-registered@example.test')return route.fulfill({status:404,contentType:'application/json',body:JSON.stringify({error:'No CampusCare account matches that username or email.'})});
     response={ok:true};
-   }else if(path.endsWith('/register-patient'))response={ok:true,email_confirmation_required:true};
+   }else if(path.endsWith('/register-patient'))response={ok:true,email_confirmation_required:false};
    else if(path.endsWith('/student-reports'))response={ok:true,report:buildStudentReport({users:[{user_id:10,first_name:'Morning',last_name:'Student',id_number:'ST10',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'},{user_id:11,first_name:'Evening',last_name:'Student',id_number:'ST11',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'}],patients:[{patient_id:10,user_id:10,class_session:'Morning'},{patient_id:11,user_id:11,class_session:'Evening'}],appointments:[{appointment_id:10,patient_id:10,clinic:'Dental Clinic',appointment_date:request.postDataJSON().from,status:'Completed'}]},request.postDataJSON())};
    else if(path.includes('/functions/v1/'))response={ok:true,notifications:[],requests:[],doctor_leaves:[],messages:[],contacts:[doctor],resources:[],surveys:[],users:[],doctors:[doctor],counts:{},items:{}};
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(response)});
@@ -122,14 +123,11 @@ try{
       assert(await page.evaluate(()=>document.querySelector('.landing-route.active').getBoundingClientRect().bottom<=innerHeight+2),`${route}: bottom is clipped`);
     }
     await page.locator('.landing-get-started').click();
-    const links=await page.locator('.auth-recovery-links a').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().top));
-    assert(links[0]<links[1],'Resend verification must appear above Forgot password');
+    const loginBox=await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).boundingBox();
+    const forgotBox=await page.getByRole('link',{name:'Forgot password?',exact:true}).boundingBox();
+    assert(forgotBox.y>loginBox.y+loginBox.height,'Forgot password must be below Login');
+    assert.equal(await page.getByText('Resend verification email',{exact:false}).count(),0);
     // Unknown identifiers stay on the request form and never show email-sent feedback.
-    await page.getByRole('link',{name:'Resend verification email',exact:true}).click();
-    await page.locator('#resend-verify-id').fill('not-registered@example.test');
-    await page.locator('#resend-verify-btn').click();
-    await page.locator('#resend-verify-msg').getByText('No CampusCare account matches that username or email.',{exact:true}).waitFor();
-    await page.evaluate(()=>window.__fixtureApp.features.modals.closeAllModals());
     await page.getByRole('link',{name:'Forgot password?',exact:true}).click();
     await page.locator('#fp-identifier').fill('not-registered@example.test');await page.locator('#fp-send-btn').click();
     await page.locator('#fp-err').getByText('No CampusCare account matches that username or email.',{exact:true}).waitFor();
@@ -144,14 +142,36 @@ try{
     await page.evaluate(()=>{
       // The date picker stores its chosen date in a hidden field.
       document.getElementById('r-dob').value='2000-01-01';
-      for(const id of ['r-selfie-file','r-id-file']){
+      for(const id of ['r-id-file']){
         const transfer=new DataTransfer();transfer.items.add(new File(['fixture'],'fixture.png',{type:'image/png'}));document.getElementById(id).files=transfer.files;
       }
       Object.assign(window.__fixtureApp.state.documentScanner,{lastOcrRawText:'Unclear printed document',lastOcrConfidence:25,lastOcrDocumentType:'Document'});
       window.__fixtureApp.features.documentScanner.recheckNameMatch();
     });
     assert((await page.locator('#id-analyze-status').textContent()).includes('You can continue with registration.'));
+    assert.equal(await page.locator('#r-selfie-file').count(),0,'Selfie file upload must be unavailable');
     await page.locator('#r-privacy-consent').check();
+    await page.locator('#registration-submit-button').click();
+    await page.getByText('Use the camera to take a verification selfie while holding the document you will upload.',{exact:true}).waitFor();
+    assert(!requests.some(request=>request.path.endsWith('/register-patient')),'Missing camera selfie must block submission');
+    await page.locator('#selfie-camera-button').click();
+    await page.waitForFunction(()=>document.getElementById('camera-video')?.readyState>=2);
+    await page.locator('#active-modal').getByRole('button',{name:'Capture',exact:false}).click();
+    await page.waitForFunction(()=>Boolean(window.__fixtureApp.state.camera.capturedSelfieDataUrl));
+    assert(await page.locator('#r-selfie-preview-wrap img').isVisible());
+    assert(await page.evaluate(()=>!window.__fixtureApp.state.camera._cameraStream),'Capture must stop the camera');
+    // Retake may be canceled without losing the first capture; closing the backdrop must release tracks.
+    await page.locator('#selfie-camera-button').click();
+    await page.waitForFunction(()=>document.getElementById('camera-video')?.readyState>=2);
+    await page.evaluate(()=>{window.__fixtureCameraTracks=window.__fixtureApp.state.camera._cameraStream.getTracks();document.getElementById('active-modal').click();});
+    await page.waitForFunction(()=>window.__fixtureCameraTracks.every(track=>track.readyState==='ended'));
+    // A denied permission offers browser guidance without exposing a selfie upload fallback.
+    await page.evaluate(()=>{window.__fixtureGetUserMedia=navigator.mediaDevices.getUserMedia;navigator.mediaDevices.getUserMedia=async()=>{throw new Error('Permission denied');};});
+    await page.locator('#selfie-camera-button').click();
+    await page.getByText('Camera access is required. Allow camera permission, or open CampusCare in Chrome or Safari and try again.',{exact:true}).waitFor();
+    await page.evaluate(()=>{navigator.mediaDevices.getUserMedia=window.__fixtureGetUserMedia;});
+
+
     await page.evaluate(()=>window.scrollTo(0,document.scrollingElement.scrollHeight));
     const submit=await page.locator('#registration-submit-button').boundingBox();assert(submit.y>=0&&submit.y+submit.height<=640+(mobile?0:160),'Registration submit is clipped');
     await page.locator('#registration-submit-button').click();await page.locator('#pending-section').waitFor({state:'visible'});
@@ -170,10 +190,10 @@ try{
   await page.locator('.landing-get-started').click();
   assert.equal(await page.locator('#landing-navbar').evaluate(nav=>getComputedStyle(nav).backgroundColor),'rgb(10, 20, 32)');
   assert.equal(await page.locator('#auth-theme-toggle-btn').count(),0);
-  await page.getByRole('button',{name:'Login to CampusCare',exact:true}).click();
+  await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).click();
   await page.getByText('Enter your username/email and password.',{exact:true}).waitFor();
   await page.locator('#li-user').fill(profile.email);await page.locator('#li-pass').fill('Fixture-only-password1!');
-  await page.getByRole('button',{name:'Login to CampusCare',exact:true}).click();
+  await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).click();
   await page.locator('#app.visible').waitFor();
   await page.waitForFunction(role=>window.__fixtureApp.state.auth.currentUser?.role===role,role);
   // Walk every visible role route through its actual generated click callback.
