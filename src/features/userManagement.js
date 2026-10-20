@@ -1,3 +1,4 @@
+import {limitTableRows} from '../ui/table-scroll.js';
 import {canEditApprovedUser} from '../../supabase/functions/_shared/admin-user-edit.js';
 // userManagement: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
@@ -306,12 +307,12 @@ export function renderUserTable(){
     : appState.data.DB.users;
   let users=sourceUsers.filter(u=>{
     const name=`${u.fname} ${u.lname} ${u.username} ${u.email}`.toLowerCase();
-    const matchStatus = stat ? (stat==='Archived'?!!u.archived:(u.status===stat&&!u.archived)) : !u.archived;
+    const matchStatus = stat ? (stat==='Archived'?!!u.archived:(u.status===stat&&!u.archived)) : true;
     return (!q||name.includes(q.toLowerCase()))&&(!role||u.role===role)&&matchStatus;
   });
   const el=document.getElementById('user-table');
   if(!el)return;
-  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>#</th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Type/Dept</th><th>Last Login</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
+  el.innerHTML=`<div class="table-wrap user-table-scroll" tabindex="0" role="region" aria-label="Users table, scroll for more users"><table><thead><tr><th>Photo</th><th>#</th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Type/Dept</th><th>Last Login</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
     users.map(u=>`<tr class="user-detail-row-click" ${u.archived?'style="opacity:.6"':''} ${bindAction('click',(event,element)=>{openUserDetails((u.id))})} title="Open complete user information">
       <td>${userAvatarHtml(u,32)}</td>
       <td>${u._realSupabase?(u.dbUserId??u.id):u.id}</td>
@@ -330,6 +331,7 @@ export function renderUserTable(){
       </div></td>
     </tr>`).join('')
   }</tbody></table></div>`;
+  limitTableRows(el.querySelector('.user-table-scroll'),10);
 }
 
 export function suspendUser(id){

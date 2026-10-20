@@ -28,3 +28,8 @@ test('brightness and sharpness come from actual face pixels',()=>{
  for(let y=0;y<8;y++)for(let x=0;x<8;x++)for(let c=0;c<3;c++)pixels[(y*8+x)*4+c]=(x+y)%2?220:20;
  const result=faceImageQuality(pixels,8,8);assert.equal(result.brightness,120);assert(result.sharpness>100);
 });
+
+// A physically identical oval must accept a naturally larger frame-relative face on portrait cameras.
+test('portrait selfie framing follows the same physical oval proportions',()=>{
+ assert.equal(assessSelfieFrame({faces:[{x:120,y:65,width:240,height:300}],width:480,height:640,brightness:120,sharpness:80}).ready,true);
+});

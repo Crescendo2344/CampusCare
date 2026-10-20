@@ -107,3 +107,8 @@
 #edituser-review td {overflow-wrap:anywhere}
 @media(max-width:640px) {.voice-recording .voice-wave {flex:1;max-width:180px}}
 .msgr-pending-attach {flex-wrap:nowrap}
+/* Users beyond the first ten stay in one keyboard-accessible scrolling table with a pinned header. */
+.user-table-scroll {overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.user-table-scroll thead {position:sticky;top:0;z-index:2;background:#e4edf7}
+[data-theme="dark"] .user-table-scroll thead {background:#25333f}
+.user-table-scroll:focus-visible {outline:2px solid var(--primary);outline-offset:2px}

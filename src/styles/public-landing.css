@@ -191,3 +191,8 @@ html {scrollbar-gutter:stable}
   #landing-navbar .landing-get-started,#landing-hero .landing-book-appointment {transition:none}
   #landing-navbar .landing-get-started:hover,#landing-hero .landing-book-appointment:hover {transform:none}
 }
+/* Public pages keep their light reference palette even when the signed-in workspace uses dark mode. */
+#landing-page .public-faq details,#landing-page .public-faq details[open] {background:#fff;border:1px solid #d2e0e9;box-shadow:0 4px 14px #244a600a;backdrop-filter:none}
+#landing-page .public-faq details:hover {background:#f4f9fc}
+#landing-page .public-faq summary {color:#14334c}
+#landing-page .public-faq details p {color:#405e75}

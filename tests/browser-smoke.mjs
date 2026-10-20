@@ -100,6 +100,12 @@ try{
   });
   await page.goto(baseUrl);await page.waitForFunction(()=>Boolean(window.__fixtureApp));
   if(!mobile&&role==='Patient'){
+    await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingRoute('contact',false));
+    for(const theme of ['light','dark']){
+      await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+      assert.equal(await page.locator('.public-faq details').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');
+    }
+    await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingRoute('home',false));
     // The compact translucent panel must remain readable at every breakpoint.
     for(const width of [320,360,768,1366])for(const theme of ['light','dark']){
       await page.setViewportSize({width,height:800});
@@ -253,6 +259,15 @@ try{
     await page.locator('#selfie-camera-button').click();
     await page.getByRole('button',{name:'Start Camera',exact:true}).click();
     await page.waitForFunction(()=>document.getElementById('camera-video')?.readyState>=2);
+    assert(await page.locator('#camera-video').evaluate(video=>getComputedStyle(video).transform.includes('-1')),'Selfie preview should mirror the front camera');
+    await page.locator('#camera-mirror-preview').uncheck();assert.equal(await page.locator('#camera-video').evaluate(video=>getComputedStyle(video).transform),'none');
+    await page.locator('#camera-mirror-preview').check();
+    for(const ratio of ['4/3','3/4']){
+      await page.locator('#selfie-stage').evaluate((stage,ratio)=>stage.style.aspectRatio=ratio,ratio);
+      const shape=await page.locator('.selfie-guide-oval').evaluate(oval=>{const r=oval.getBoundingClientRect();return r.width/r.height;});
+      assert(Math.abs(shape-.75)<.02,'Selfie oval must keep a 3:4 shape in landscape and portrait');
+    }
+    await page.locator('#selfie-stage').evaluate(stage=>stage.style.aspectRatio='4/3');
     if(mobile){
       await page.getByText('Automatic guidance is unavailable. Use the outline and capture for clinic review.',{exact:true}).waitFor();
       assert(await page.locator('#camera-capture-button').isDisabled());
@@ -328,7 +343,7 @@ try{
           const pose=window.__fixtureIdPose;let x=60,y=56,w=200,h=128;
           if(pose==='far'){x=110;y=90;w=100;h=60;}
           if(pose==='close'){x=2;y=20;w=316;h=200;}
-          if(pose==='center'){x=110;y=56;}
+          if(pose==='center'){x=165;y=56;w=140;h=90;}
           g.fillStyle=pose==='dark'?'#000':'#141414';g.fillRect(0,0,320,240);
           g.fillStyle=pose==='dark'?'#232323':'#c8c8c8';g.fillRect(x,y,w,h);
           g.fillStyle=pose==='dark'?'#000':'#222';g.font='12px sans-serif';g.fillText(window.__fixtureIdLabel||'ID BACK',x+15,y+30);
@@ -340,6 +355,7 @@ try{
     await page.locator('#r-id-camera-button').click();
     await page.getByText('Move the ID closer to the camera',{exact:true}).waitFor();
     assert(await page.locator('#camera-capture-button').isDisabled());
+    assert(await page.locator('#selfie-manual-button').isVisible(),'Staff-review capture is immediately available for distant or blurry IDs');
     for(const [pose,prompt]of [['close','Move the ID back a little'],['center','Center the ID inside the rectangle'],['dark','Improve the lighting on the ID'],['good','Good framing — keep the ID still']]){
       await page.evaluate(pose=>window.__fixtureIdPose=pose,pose);await page.getByText(prompt,{exact:true}).waitFor();
     }
@@ -347,6 +363,10 @@ try{
     await page.locator('#camera-capture-button').click();
     assert(await page.locator('#r-id-preview img[alt="ID back"]').isVisible());
     assert(await page.evaluate(()=>!window.__fixtureApp.state.camera._cameraStream));
+    await page.locator('#r-id-camera-button').click();await page.evaluate(()=>window.__fixtureIdPose='far');
+    await page.getByText('Move the ID closer to the camera',{exact:true}).waitFor();
+    await page.locator('#selfie-manual-button').click();assert(await page.locator('#r-id-preview img[alt="ID back"]').isVisible());
+    await page.evaluate(()=>window.__fixtureIdPose='good');
     // A front retake advances to the flip step; canceling the back retake keeps the saved back.
     await page.locator('#r-id-show-front').click();
     await page.evaluate(()=>window.__fixtureIdLabel='ID FRONT');
@@ -594,6 +614,16 @@ try{
     assert.equal(managedUsers[1].first_name,'Updated');assert.equal(managedUsers[1].contact_number,'09987654321');assert.equal(managedUsers[1].status,'Active');
     await updated().getByRole('button',{name:'Suspend',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Reactivate',exact:true}).waitFor();
     await updated().getByRole('button',{name:'Reactivate',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Suspend',exact:true}).waitFor();
+    managedUsers.push(...Array.from({length:12},(_,i)=>({...profile,user_id:200+i,auth_user_id:'scroll-'+i,first_name:'Scroll',last_name:String(i),username:'scroll'+i,status:i===0?'Archived':i===1?'Suspended':'Active'})));
+    await page.evaluate(()=>window.__fixtureApp.features.userManagement.renderUsers());
+    assert.equal(await page.locator('#user-table tbody tr').count(),15,'All Status includes archived and suspended accounts');
+    const scroller=page.locator('.user-table-scroll');
+    assert(await scroller.evaluate(el=>el.scrollHeight>el.clientHeight),'More than ten users must scroll inside the table');
+    assert(await scroller.evaluate(el=>{const rows=el.querySelectorAll('tbody tr'),r=el.getBoundingClientRect();return rows[9].getBoundingClientRect().bottom<=r.bottom+2&&rows[10].getBoundingClientRect().bottom>r.bottom+2;}),'Ten full user rows fit before scrolling');
+    await page.locator('#usr-status').selectOption('Archived');assert.equal(await page.locator('#user-table tbody tr').count(),1);
+    await page.locator('#usr-status').selectOption('Suspended');assert.equal(await page.locator('#user-table tbody tr').count(),1);
+    await page.locator('#usr-status').selectOption('');await scroller.evaluate(el=>el.scrollTop=el.scrollHeight);assert(await scroller.evaluate(el=>el.scrollTop>0));
+
   }
   // Brand navigation works from every role; Patient history returns to the actual previous page.
   await page.locator('.sb-brand').evaluate(element=>element.click());
