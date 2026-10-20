@@ -461,6 +461,26 @@ try{
   assert.equal(await page.locator('#active-modal .modal-header .close-btn').count(),1);
   assert.equal(await page.locator('#active-modal .modal-footer').getByRole('button',{name:'Close',exact:true}).count(),0);
   await page.locator('#active-modal .close-btn').click();
+  if(role==='Administrator'){
+    // Use synthetic registration images to exercise the real review/preview controls without patient data.
+    await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp,canvas=document.createElement('canvas');canvas.width=40;canvas.height=60;
+      canvas.getContext('2d').fillRect(0,0,40,60);const photo=canvas.toDataURL('image/jpeg');
+      state.approvalQueue.realPendingApprovals=[{user_id:77,first_name:'Review',last_name:'Fixture',person_type:'Student',verification_document_type:'Student ID',id_file_url:'id-front.jpg',selfie_verification_signed_url:photo,verification_signed_url:photo,verification_back_signed_url:photo}];
+      features.approvalQueue.reviewApproval(77);window.__reviewNode=document.getElementById('active-modal');
+    });
+    for(const [label,method]of [['Open Selfie','close'],['Open ID Front','escape'],['Open ID Back','backdrop']]){
+      await page.getByRole('button',{name:label,exact:true}).click();
+      await page.locator('#preview-img').waitFor();
+      if(method==='close')await page.locator('#active-modal .close-btn').click();
+      if(method==='escape')await page.keyboard.press('Escape');
+      if(method==='backdrop')await page.locator('#active-modal').evaluate(el=>el.click());
+      await page.locator('.approval-review-modal').waitFor();
+      assert(await page.evaluate(()=>document.getElementById('active-modal')===window.__reviewNode),'Preview must return to the original review dialog');
+      assert(await page.getByRole('button',{name:'Approve Registration',exact:true}).isVisible());
+    }
+    await page.locator('#active-modal .close-btn').click();
+  }
   // Walk every visible role route through its actual generated click callback.
   const navIds=await page.locator('#sidebar nav [id^="nav-"]').evaluateAll(elements=>elements.map(element=>element.id));
   assert(navIds.length>0);assert(!navIds.includes('nav-task-center'));
@@ -693,7 +713,15 @@ try{
     await page.evaluate(()=>window.__fixtureApp.features.modals.closeAllModals());
   }
   // Confirm sign-out through the same dialog and real SDK request path used in production.
-  await page.locator('.sb-logout').evaluate(element=>element.click());
+  if(mobile){
+    // Emulate the shorter usable height caused by mobile browser controls; only the menu list scrolls.
+    await page.setViewportSize({width:390,height:520});
+    await page.evaluate(()=>window.__fixtureApp.features.topbarAndNavigation.toggleSidebar(true));
+    await page.locator('#sidebar-nav').evaluate(nav=>nav.scrollTop=nav.scrollHeight);
+    assert(await page.locator('.sb-logout').evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=visualViewport.height+visualViewport.offsetTop;}),'Logout must remain above mobile browser controls');
+    if(role==='Administrator')assert(await page.locator('#sidebar-nav').evaluate(el=>el.scrollHeight>el.clientHeight),'Long admin menus must scroll internally');
+  }
+  await page.getByRole('button',{name:'Logout',exact:true}).click();
   await page.locator('#cc-confirm-ok-btn').click();
   await page.waitForFunction(()=>window.__fixtureApp.state.auth.currentUser===null);
   await page.getByText('Logged out successfully.',{exact:true}).waitFor();

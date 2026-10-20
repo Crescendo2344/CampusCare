@@ -5,8 +5,14 @@ import {bindAction} from '../dependencies.js';
 // ================================================================
 // MODALS
 // ================================================================
-export function openModal(html){
-  closeAllModals();
+// File previews keep the existing dialog DOM, including its scroll position and in-progress inputs.
+const parentDialogs=()=>appState.clinicInformation.modalParents||(appState.clinicInformation.modalParents=[]);
+export function openModal(html,{preserveParent=false}={}){
+  const parent=appState.clinicInformation.activeModal;
+  if(preserveParent&&parent?.isConnected){
+    parentDialogs().push({element:parent,focus:document.activeElement,scrollTop:parent.scrollTop});
+    parent.removeAttribute('id');parent.style.display='none';parent.inert=true;
+  }else closeAllModals();
   const wrap=document.createElement('div');
   wrap.className='overlay show';
   wrap.id='active-modal';
@@ -31,7 +37,19 @@ export function openModal(html){
   document.getElementById('modals').appendChild(wrap);wrap.focus();
   appState.clinicInformation.activeModal=wrap;
 }
+// Dismiss a preview back to the same parent rather than rebuilding a registration review.
+export function closeTopModal(){
+  appState.clinicInformation.activeModal?.remove();
+  const previous=parentDialogs().pop();
+  if(previous?.element.isConnected){
+    const parent=previous.element;parent.id='active-modal';parent.style.display='';parent.inert=false;
+    appState.clinicInformation.activeModal=parent;parent.scrollTop=previous.scrollTop;
+    (previous.focus?.isConnected?previous.focus:parent).focus({preventScroll:true});
+  }else appState.clinicInformation.activeModal=null;
+}
 export function closeAllModals(){
+  // Navigation and logout clear all suspended dialogs so old records cannot reappear later.
+  parentDialogs().length=0;
   document.getElementById('modals').innerHTML='';
   appState.clinicInformation.activeModal=null;
 }
@@ -67,7 +85,7 @@ export function showFilePreview(fileName, fileDataUrl) {
     <div class="modal modal-lg">
       <div class="modal-header">
         <h3>${escapeHtml(fileName)}</h3>
-        <button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button>
+        <button class="close-btn" ${bindAction('click',(event,element)=>{closeTopModal()})}>✕</button>
       </div>
       <div class="modal-body" style="text-align:center;max-height:68vh;overflow:auto;background:rgba(0,0,0,.04);border-radius:10px" id="preview-img-wrap">
         ${preview}
@@ -75,10 +93,10 @@ export function showFilePreview(fileName, fileDataUrl) {
       ${isImage?`<p class="form-note no-print" style="text-align:center;margin-top:.4rem">Click the photo to zoom in, click again to zoom out.</p>`:''}
       <div class="modal-footer">
         ${isImage?`<button class="btn btn-sm" ${bindAction('click',(event,element)=>{zoomImageStep(-1)})}>➖ Zoom Out</button><button class="btn btn-sm" ${bindAction('click',(event,element)=>{zoomImageStep(1)})}>➕ Zoom In</button>`:''}
-        <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
+        <button class="btn" ${bindAction('click',(event,element)=>{closeTopModal()})}>Close</button>
       </div>
     </div>
-  `);
+  `,{preserveParent:true});
 }
 
 export function toggleImageZoom(img){
