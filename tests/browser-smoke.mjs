@@ -13,7 +13,7 @@ if(!baseUrl){
     const pathname=new URL(request.url,'http://localhost').pathname;
     let file=path.resolve(root,'.'+pathname);
     if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||fs.statSync(file).isDirectory())file=root+'/index.html';
-    const type={'.html':'text/html','.js':'application/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml'}[path.extname(file)]||'application/octet-stream';
+    const type={'.html':'text/html','.js':'application/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml','.wasm':'application/wasm'}[path.extname(file)]||'application/octet-stream';
     response.writeHead(200,{'Content-Type':type});fs.createReadStream(file).pipe(response);
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -37,11 +37,23 @@ try{
   page.on('pageerror',error=>errors.push(error.message));
   page.on('console',message=>{
     // Unknown-account cases deliberately return HTTP 404; their visible error handling is asserted below.
+    const modelInfo=/^INFO: Created TensorFlow Lite XNNPACK delegate for CPU\.$/.test(message.text());
     const expectedRejection=/\/(resend-verification|request-password-reset)$/.test(message.location().url||'')&&message.text().includes('status of 404');
-    if(message.type()==='error'&&!message.text().includes('net::ERR')&&!expectedRejection)errors.push(message.text());
+    if(message.type()==='error'&&!message.text().includes('net::ERR')&&!expectedRejection&&!modelInfo)errors.push(message.text());
   });
   // Capture the public lifecycle event only inside this test realm, with no production globals added.
   await page.addInitScript(()=>document.addEventListener('campuscare:ready',event=>{window.__fixtureApp=event.detail;},{once:true}));
+  // Keep the real detector/worker on desktop; only its synthetic frame results are varied for UI assertions.
+  await page.addInitScript(mobile=>{
+    const NativeWorker=window.Worker;
+    window.Worker=class extends NativeWorker{
+      constructor(url,options){
+        if(mobile&&String(url).includes('face-detector.worker'))throw new Error('Fixture: worker unavailable');
+        super(url,options);
+        this.addEventListener('message',event=>{if(event.data.type==='result'&&window.__fixtureGuidance)Object.assign(event.data,window.__fixtureGuidance);});
+      }
+    };
+  },mobile);
   const profile={user_id:1,auth_user_id:authId,first_name:'Fixture',last_name:role,username:'fixture',email:'fixture@example.test',role,status:'Active',verified:true,person_type:'Staff',work_days:['Mon','Tue','Wed','Thu','Fri'],start_time:'08:00',end_time:'17:00',slot_duration:60,max_patients:20,specialty:'General Medicine'};
   const doctor={...profile,user_id:2,auth_user_id:'00000000-0000-4000-8000-000000000002',role:'Doctor',first_name:'Fixture',last_name:'Doctor'};
   const patient={patient_id:4,user_id:1,birth_date:'2000-01-01',college:'CCICT',person_type:'Student',archived:false};
@@ -129,6 +141,10 @@ try{
     assert.equal(await page.getByText('Resend verification email',{exact:false}).count(),0);
     // Unknown identifiers stay on the request form and never show email-sent feedback.
     await page.getByRole('link',{name:'Forgot password?',exact:true}).click();
+    for(const selector of ['#fp-send-btn','#forgot-step1 [data-action-click="shell-40"]']){
+      const centered=await page.locator(selector).evaluate(button=>{const text=document.createRange();text.selectNodeContents(button);const a=button.getBoundingClientRect(),b=text.getBoundingClientRect();return Math.abs((a.left+a.right-b.left-b.right)/2)<2;});
+      assert(centered,'Reset actions must have centered labels');
+    }
     await page.locator('#fp-identifier').fill('not-registered@example.test');await page.locator('#fp-send-btn').click();
     await page.locator('#fp-err').getByText('No CampusCare account matches that username or email.',{exact:true}).waitFor();
     assert(await page.locator('#forgot-step1').isVisible());assert(!await page.locator('#forgot-step2').isVisible());
@@ -155,20 +171,45 @@ try{
     await page.getByText('Use the camera to take a verification selfie while holding the document you will upload.',{exact:true}).waitFor();
     assert(!requests.some(request=>request.path.endsWith('/register-patient')),'Missing camera selfie must block submission');
     await page.locator('#selfie-camera-button').click();
+    await page.getByRole('button',{name:'Start Camera',exact:true}).click();
     await page.waitForFunction(()=>document.getElementById('camera-video')?.readyState>=2);
-    await page.locator('#active-modal').getByRole('button',{name:'Capture',exact:false}).click();
+    if(mobile){
+      await page.getByText('Automatic guidance is unavailable. Use the outline and capture for clinic review.',{exact:true}).waitFor();
+      assert(await page.locator('#camera-capture-button').isDisabled());
+      await page.locator('#selfie-manual-button').click();
+    }else{
+      await page.waitForFunction(()=>document.getElementById('selfie-stage')?.dataset.detector==='ready');
+      await page.getByText('Position your face inside the oval',{exact:true}).waitFor();
+      // Actual fake-device color bars have no face; assert guidance before injecting known geometry.
+      assert(await page.locator('#camera-capture-button').isDisabled());
+      const geometry={x:234,y:70,width:172,height:196,keypoints:[{x:.45,y:.3},{x:.55,y:.3},{x:.5,y:.35}]};
+      const feed=async(changes,expected)=>{
+        await page.evaluate(data=>window.__fixtureGuidance=data,{faces:[geometry],width:640,height:480,brightness:120,sharpness:80,...changes});
+        await page.getByText(expected,{exact:true}).waitFor();
+      };
+      await feed({faces:[{...geometry,width:70,height:80}]},'Move closer to the camera');
+      await feed({faces:[{...geometry,width:330,height:330}]},'Move back a little');
+      await feed({brightness:25},'Move to brighter, even lighting');
+      await feed({},'Good position — keep your document visible');
+      assert(await page.locator('#camera-capture-button').isEnabled());
+      if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/guided-selfie.png`,fullPage:true});
+      await page.locator('#camera-capture-button').click();
+    }
     await page.waitForFunction(()=>Boolean(window.__fixtureApp.state.camera.capturedSelfieDataUrl));
     assert(await page.locator('#r-selfie-preview-wrap img').isVisible());
     assert(await page.evaluate(()=>!window.__fixtureApp.state.camera._cameraStream),'Capture must stop the camera');
     // Retake may be canceled without losing the first capture; closing the backdrop must release tracks.
     await page.locator('#selfie-camera-button').click();
+    await page.getByRole('button',{name:'Start Camera',exact:true}).click();
     await page.waitForFunction(()=>document.getElementById('camera-video')?.readyState>=2);
     await page.evaluate(()=>{window.__fixtureCameraTracks=window.__fixtureApp.state.camera._cameraStream.getTracks();document.getElementById('active-modal').click();});
     await page.waitForFunction(()=>window.__fixtureCameraTracks.every(track=>track.readyState==='ended'));
     // A denied permission offers browser guidance without exposing a selfie upload fallback.
     await page.evaluate(()=>{window.__fixtureGetUserMedia=navigator.mediaDevices.getUserMedia;navigator.mediaDevices.getUserMedia=async()=>{throw new Error('Permission denied');};});
     await page.locator('#selfie-camera-button').click();
+    await page.getByRole('button',{name:'Start Camera',exact:true}).click();
     await page.getByText('Camera access is required. Allow camera permission, or open CampusCare in Chrome or Safari and try again.',{exact:true}).waitFor();
+    await page.locator('#active-modal').getByRole('button',{name:'Cancel',exact:true}).click();
     await page.evaluate(()=>{navigator.mediaDevices.getUserMedia=window.__fixtureGetUserMedia;});
 
 

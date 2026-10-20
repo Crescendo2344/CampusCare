@@ -37,5 +37,6 @@ export function initializeOptionalState(){
   appState.camera.capturedSelfieDataUrl=null;
   appState.camera.capturedIdDataUrl=null;
   appState.camera._cameraStream=null;
+  appState.camera.selfieGuidance=null;
 
 }
