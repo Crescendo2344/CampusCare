@@ -41,6 +41,13 @@ export function assessIdFrame({box,width,height,brightness=null,sharpness=null})
   return result('ready','Good framing — keep the ID still',true);
 }
 
+// Basic presence gates capture; distance, sharpness, and lighting remain advisory for staff review.
+export function hasIdEvidence({box,width,height}){
+  if(!box||!width||!height)return false;
+  const area=box.width*box.height/(width*height);
+  return area>=.02&&area<=.9&&box.x>0&&box.y>0&&box.x+box.width<width&&box.y+box.height<height;
+}
+
 export function analyzeIdPixels(pixels,width,height){
   const box=detectIdBoundary(pixels,width,height);let quality={brightness:null,sharpness:null};
   if(box){
@@ -48,5 +55,5 @@ export function analyzeIdPixels(pixels,width,height){
     for(let y=0;y<box.height;y++)crop.set(pixels.subarray(((box.y+y)*width+box.x)*4,((box.y+y)*width+box.x+box.width)*4),y*box.width*4);
     quality=imageQuality(crop,box.width,box.height);
   }
-  return {box,width,height,...quality,...assessIdFrame({box,width,height,...quality})};
+  return {box,width,height,documentVisible:hasIdEvidence({box,width,height}),...quality,...assessIdFrame({box,width,height,...quality})};
 }

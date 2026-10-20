@@ -180,7 +180,7 @@ export async function openPrivacyNotice(){
   }
 
   const v=appState.data.DB.settings?.privacyPolicyVersion||'1.0';
-  openModal(`<div class="modal modal-lg">
+  openModal(`<div class="modal modal-lg privacy-notice">
     <div class="modal-header"><h3>CampusCare Privacy Notice &amp; Consent</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
     <div class="modal-body" style="font-size:.8rem;line-height:1.65">
       <div class="alert alert-info show">CampusCare is designed to support responsible processing of personal and health information under the Data Privacy Act of 2012 (RA 10173). Actual institutional compliance also depends on CTU policies, personnel, security controls, and lawful records-management procedures.</div>

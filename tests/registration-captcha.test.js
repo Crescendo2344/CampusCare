@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 test('an async script renders after its load event without calling the incompatible ready API',async()=>{
-  const dom=new JSDOM('<div id="registration-captcha-section" hidden><div id="registration-captcha-widget"></div><p id="registration-captcha-status"></p><button id="registration-security-retry" hidden>Try again</button></div>');
+  const dom=new JSDOM('<div id="registration-captcha-section" hidden><div id="registration-captcha-frame"><div id="registration-captcha-widget"></div></div><p id="registration-captcha-status"></p><button id="registration-security-retry" hidden>Try again</button></div>');
   const previous={window:globalThis.window,document:globalThis.document,fetch:globalThis.fetch};
   globalThis.window=dom.window;globalThis.document=dom.window.document;
   globalThis.fetch=async()=>Response.json({captcha_required:true,site_key:'0x4-fixture-key'});
@@ -22,7 +22,10 @@ test('an async script renders after its load event without calling the incompati
   try{
     const module=await import('../src/verification/registration-captcha.js');
     await module.prepareRegistrationCaptcha('https://fixture.test','fixture-key');
-    assert.equal(callbacks.size,'compact','Narrow cards must use the provider compact layout');
+    assert.equal(callbacks.size,'normal','Narrow cards keep a horizontal provider layout');
+    Object.defineProperty(dom.window.document.getElementById('registration-captcha-frame'),'clientWidth',{value:240,configurable:true});onResize();
+    assert.equal(dom.window.document.getElementById('registration-captcha-widget').style.transform,'scale(0.8)');
+    assert.equal(dom.window.document.getElementById('registration-captcha-frame').style.height,'52px');
     assert.equal(scripts,1);assert.equal(renders,1);assert.equal(readyCalls,0);
     assert.equal(dom.window.document.getElementById('registration-captcha-section').hidden,false);
     assert.equal(await module.registrationCaptchaToken('https://fixture.test','fixture-key'),'fixture-token');
@@ -40,7 +43,7 @@ test('an async script renders after its load event without calling the incompati
     callbacks['expired-callback']();
     await assert.rejects(module.registrationCaptchaToken('https://fixture.test','fixture-key'),/Complete the security check/);
     assert.equal(dom.window.document.getElementById('registration-security-retry').hidden,false,'Refreshing config must preserve an actionable expiry');
-    Object.defineProperty(dom.window.document.getElementById('registration-captcha-widget'),'clientWidth',{value:340});
+    Object.defineProperty(dom.window.document.getElementById('registration-captcha-frame'),'clientWidth',{value:340});
     onResize();
     await module.prepareRegistrationCaptcha('https://fixture.test','fixture-key',{refresh:true});
     assert.equal(callbacks.size,'flexible');

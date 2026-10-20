@@ -222,6 +222,11 @@ try{
     const forgotBox=await page.getByRole('link',{name:'Forgot password?',exact:true}).boundingBox();
     assert(forgotBox.y>loginBox.y+loginBox.height,'Forgot password must be below Login');
     assert.equal(await page.getByText('Resend verification email',{exact:false}).count(),0);
+    await page.evaluate(()=>window.__fixtureApp.features.loginLockout.openPrivacyNotice());
+    await page.locator('.privacy-notice').waitFor();
+    assert.equal(await page.locator('.privacy-notice .alert-success').evaluate(el=>getComputedStyle(el).display),'block');
+    assert(await page.locator('.privacy-notice .alert-success strong').evaluate(el=>el.getBoundingClientRect().width>150),'Privacy heading must not collapse to a narrow column');
+    await page.locator('.privacy-notice .modal-header .close-btn').click();
     // CAPTCHA appears before consent in both visual and keyboard reading order.
     assert(await page.evaluate(()=>document.getElementById('registration-captcha-section').compareDocumentPosition(document.querySelector('.privacy-agree'))&Node.DOCUMENT_POSITION_FOLLOWING));
     // Unknown identifiers stay on the request form and never show email-sent feedback.
@@ -269,9 +274,10 @@ try{
     }
     await page.locator('#selfie-stage').evaluate(stage=>stage.style.aspectRatio='4/3');
     if(mobile){
-      await page.getByText('Camera checks could not start. Close and retry in Chrome or Safari with camera access.',{exact:true}).waitFor();
+      await page.waitForFunction(()=>document.getElementById('selfie-stage')?.dataset.inference==='main');
+      await page.getByText('Position your face inside the square',{exact:true}).waitFor();
       assert(await page.locator('#camera-capture-button').isDisabled());
-      assert(await page.locator('#selfie-manual-button').isHidden(),'Unavailable checks must not allow an unchecked selfie');
+      assert(await page.locator('#selfie-manual-button').isHidden(),'Compatibility checks must not allow an unchecked selfie');
       // Remaining registration scenarios use synthetic approved evidence, not a camera bypass.
       await page.evaluate(()=>{const canvas=document.getElementById('camera-canvas');canvas.width=320;canvas.height=240;window.__fixtureApp.state.camera.capturedSelfieDataUrl=canvas.toDataURL();document.getElementById('r-selfie-preview-wrap').innerHTML='<img alt="Synthetic test evidence" src="'+canvas.toDataURL()+'">';window.__fixtureApp.features.camera.stopCamera();window.__fixtureApp.features.modals.closeAllModals();});
     }else{
@@ -346,11 +352,12 @@ try{
         const draw=()=>{
           const pose=window.__fixtureIdPose;let x=60,y=56,w=200,h=128;
           if(pose==='far'){x=110;y=90;w=100;h=60;}
+          if(pose==='missing'){w=0;h=0;}
           if(pose==='close'){x=2;y=20;w=316;h=200;}
           if(pose==='center'){x=165;y=56;w=140;h=90;}
           g.fillStyle=pose==='dark'?'#000':'#141414';g.fillRect(0,0,320,240);
           g.fillStyle=pose==='dark'?'#232323':'#c8c8c8';g.fillRect(x,y,w,h);
-          g.fillStyle=pose==='dark'?'#000':'#222';g.font='12px sans-serif';g.fillText(window.__fixtureIdLabel||'ID BACK',x+15,y+30);
+          g.fillStyle=pose==='dark'?'#000':'#222';g.font='12px sans-serif';if(pose!=='missing')g.fillText(window.__fixtureIdLabel||'ID BACK',x+15,y+30);
         };
         draw();const stream=canvas.captureStream(10),timer=setInterval(draw,100);
         stream.getTracks().forEach(track=>track.addEventListener('ended',()=>clearInterval(timer)));return stream;
@@ -360,6 +367,9 @@ try{
     await page.getByText('Move the ID closer to the camera',{exact:true}).waitFor();
     assert(await page.locator('#camera-capture-button').isEnabled(),'Main ID capture must allow distant or blurry frames');
     assert.equal(await page.locator('#selfie-manual-button').count(),0,'ID capture must not need a separate review action');
+    await page.evaluate(()=>window.__fixtureIdPose='missing');
+    await page.getByText('Place the ID inside the rectangle, with all four corners visible',{exact:true}).waitFor();
+    assert(await page.locator('#camera-capture-button').isDisabled(),'An empty scene must not count as an ID');
     for(const [pose,prompt]of [['close','Move the ID back a little'],['center','Center the ID inside the rectangle'],['dark','Improve the lighting on the ID'],['good','Good framing — keep the ID still']]){
       await page.evaluate(pose=>window.__fixtureIdPose=pose,pose);await page.getByText(prompt,{exact:true}).waitFor();
     }
@@ -484,6 +494,14 @@ try{
   }
 
   assert.equal(await page.locator('.msgr-bubble .msgr-bubble-time').count(),0,'Timestamps must sit outside message bubbles');
+  // Long attachment names must remain visible rather than leaving only a trash button on phones.
+  for(const attachment of [{type:'file',name:'Resume_JophetSanchez_done.docx'},{type:'image',name:'School ID front.jpg'},{type:'file',name:'https://example.test/clinic-information'}]){
+    await page.evaluate(attachment=>{window.__fixtureApp.state.messaging.pendingAttachment=attachment;window.__fixtureApp.features.messaging.showPendingAttachPreview();},attachment);
+    assert(await page.locator('.pending-attachment-name').isVisible());
+    assert.equal(await page.locator('.pending-attachment-name').textContent(),attachment.name);
+    assert(await page.locator('.pending-attachment-name').evaluate(el=>{const r=el.getBoundingClientRect();return r.width>20&&r.right<=innerWidth;}));
+    await page.getByRole('button',{name:'Remove attachment',exact:true}).click();
+  }
   for(const label of ['Send a photo','Send a file','Record a voice message','Conversation info','Send message'])assert.equal(await page.getByRole('button',{name:label,exact:true}).locator('svg').count(),1);
   await page.locator('[data-msg-id="902"]').getByRole('button',{name:'More message options',exact:true}).click();
   const sheet=page.getByRole('group',{name:'Message actions'});await sheet.waitFor();
