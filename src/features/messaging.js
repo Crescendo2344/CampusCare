@@ -1,5 +1,5 @@
 import {reconcileMessages} from '../ui/message-list.js';
-import {createVoicePlayer,startVoiceMeter} from '../ui/voice-message.js';
+import {createVoicePlayer,startVoiceMeter,prepareVoiceContext} from '../ui/voice-message.js';
 import {appIcon} from '../ui/app-icons.js';
 import {createFeatureSyncService} from '../services/feature-sync.js';
 // messaging: imported feature APIs; state belongs to explicit application namespaces.
@@ -215,7 +215,7 @@ export function contactItemHtml(ct){
   let preview='No message';
   if(ct.last){
     if(ct.last.deleted)preview='Message deleted';
-    else if(ct.last.attachment)preview=attachmentPreviewLabel(ct.last.attachment);
+    else if(ct.last.attachment)preview=ct.last.attachment.type==='image'?'sent a photo':ct.last.attachment.type==='audio'?'sent a voice message':'sent a file';
     else preview=(ct.last.message||'').substring(0,42)+((ct.last.message||'').length>42?'…':'');
   }
 
@@ -838,10 +838,11 @@ export async function toggleVoiceRecording(toId){
   if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){toast('Your browser does not support voice recording.','error');return;}
   if(!host||btn?.disabled)return;
   const account=appState.auth.currentUser;let stream,recorder,meter,limit,discarded=false,stopped=false;
+  const audioContext=prepareVoiceContext();
   if(btn)btn.disabled=true;
   try{
     stream=await navigator.mediaDevices.getUserMedia({audio:true});
-    if(appState.auth.currentUser!==account||appState.messaging.activeConversationId!==Number(toId)||!host.isConnected){stream.getTracks().forEach(t=>t.stop());return;}
+    if(appState.auth.currentUser!==account||appState.messaging.activeConversationId!==Number(toId)||!host.isConnected){stream.getTracks().forEach(t=>t.stop());audioContext?.close().catch(()=>{});return;}
     clearPendingAttachment();
     const preferred=['audio/webm;codecs=opus','audio/mp4','audio/webm'].find(type=>MediaRecorder.isTypeSupported(type));
     recorder=new MediaRecorder(stream,preferred?{mimeType:preferred}:{});
@@ -874,13 +875,13 @@ export async function toggleVoiceRecording(toId){
       showPendingAttachPreview();
     };
     recorder.onerror=()=>{stop(true);toast('Recording failed. Please try again.','error');};
-    meter=startVoiceMeter(host,stream,{onStop:()=>stop(false),onDiscard:()=>stop(true)});
+    meter=startVoiceMeter(host,stream,{onStop:()=>stop(false),onDiscard:()=>stop(true),context:audioContext});
     recorder.start(250);btn?.classList.add('recording');
     document.querySelectorAll('.msgr-input-bar [aria-label="Send a photo"],.msgr-input-bar [aria-label="Send a file"]').forEach(control=>control.disabled=true);
     if(btn){btn.innerHTML=appIcon('stop');btn.setAttribute('aria-label','Stop recording');btn.setAttribute('aria-pressed','true');}
     // Bound microphone lifetime and file size; stopped recordings remain drafts until Send is pressed.
     limit=setTimeout(()=>stop(false),5*60*1000);
-  }catch{stream?.getTracks().forEach(t=>t.stop());meter?.dispose();appState.messaging.stopVoiceRecording=null;toast('Microphone access was denied or unavailable.','error');}
+  }catch{stream?.getTracks().forEach(t=>t.stop());meter?.dispose();audioContext?.close().catch(()=>{});appState.messaging.stopVoiceRecording=null;toast('Microphone access was denied or unavailable.','error');}
   finally{if(btn?.isConnected)btn.disabled=false;}
 }
 

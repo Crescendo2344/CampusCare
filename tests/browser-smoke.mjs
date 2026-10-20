@@ -460,7 +460,7 @@ try{
     features.messaging.renderChatMessages(100090);
     document.getElementById('msgr-text-input').value='Unsent composer draft';
     window.__fixtureMessageRow=document.querySelector('[data-msg-id="902"]');
-    document.getElementById('msgr-messages').scrollTop=120;
+    const scroller=document.getElementById('msgr-messages');scroller.dispatchEvent(new WheelEvent('wheel',{deltaY:-300}));scroller.scrollTop=120;scroller.dispatchEvent(new Event('scroll'));
     window.__fixtureReadTop=document.getElementById('msgr-messages').scrollTop;
     state.data.DB.messages.push({...base,id:1099,dbMessageId:1099,message:'New message while reading history',createdAt:'2026-10-20T08:59:00Z'});
     features.messaging.refreshMessageViews();features.authSession.refreshActivePageAfterSync();
@@ -469,17 +469,31 @@ try{
   assert.equal(await page.locator('#msgr-text-input').inputValue(),'Unsent composer draft');
   assert(await page.evaluate(()=>Math.abs(document.getElementById('msgr-messages').scrollTop-window.__fixtureReadTop)<2));
   assert.equal(await page.evaluate(()=>window.__fixtureApp.state.messaging.activeConversationId),100090);
+  await page.evaluate(()=>{
+    const {features}=window.__fixtureApp;features.messaging.renderChatMessages(100090,{scrollToEnd:true});
+    const late=document.createElement('div');late.id='fixture-late-media';late.style.height='20px';document.querySelector('[data-msg-id="1099"] .msgr-bubble').append(late);
+  });
+  await page.waitForTimeout(80);
+  await page.evaluate(()=>document.getElementById('fixture-late-media').style.height='300px');
+  await page.waitForFunction(()=>{const el=document.getElementById('msgr-messages');return el.scrollHeight-el.clientHeight-el.scrollTop<3;},{},{timeout:2500});
+  assert(await page.locator('#msgr-messages').evaluate(el=>el.scrollHeight-el.clientHeight-el.scrollTop<3),'Latest message must stay visible after late media/layout growth');
+  await page.evaluate(()=>window.__fixtureApp.features.messaging.refreshMessageViews());await page.waitForTimeout(80);
+  assert(await page.locator('#msgr-messages').evaluate(el=>el.scrollHeight-el.clientHeight-el.scrollTop<3),'Refresh must remain at the latest message');
   // A real oscillator stream exercises MediaRecorder and the live meter without a person's microphone.
   await page.evaluate(()=>{
     window.__fixtureAudioContext=new AudioContext();const oscillator=window.__fixtureAudioContext.createOscillator(),gain=window.__fixtureAudioContext.createGain(),destination=window.__fixtureAudioContext.createMediaStreamDestination();
     gain.gain.value=.2;oscillator.connect(gain);gain.connect(destination);oscillator.start();
+    window.__fixtureVoiceGain=gain;
     window.__fixtureOriginalMedia=navigator.mediaDevices.getUserMedia;
     navigator.mediaDevices.getUserMedia=async constraints=>constraints.audio?destination.stream.clone():window.__fixtureOriginalMedia.call(navigator.mediaDevices,constraints);
   });
   await page.getByRole('button',{name:'Record a voice message',exact:true}).click();
   await page.locator('.voice-recording').waitFor();await page.locator('.voice-recording [role="timer"]').getByText('0:01',{exact:true}).waitFor();
   assert(await page.locator('.voice-recording .voice-wave i').evaluateAll(bars=>bars.some(bar=>parseFloat(bar.style.height)>2)),'The meter must reflect real microphone levels');
-  await page.evaluate(()=>window.__fixtureApp.features.messaging.refreshMessageViews());
+  const loud=await page.locator('.voice-recording .voice-wave i').last().evaluate(bar=>parseFloat(bar.style.height));
+  await page.evaluate(()=>window.__fixtureVoiceGain.gain.value=0);await page.waitForTimeout(300);
+  assert(await page.locator('.voice-recording .voice-wave i').last().evaluate(bar=>parseFloat(bar.style.height))<loud,'Live amplitude must fall when the microphone goes silent');
+  await page.evaluate(()=>{window.__fixtureVoiceGain.gain.value=.2;window.__fixtureApp.features.messaging.refreshMessageViews();});
   assert(await page.locator('.voice-recording').isVisible(),'Background refresh must not replace a recording');
   if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#msgr-chat').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/voice-recording-${mobile?'mobile':'desktop'}.png`});
   await page.getByRole('button',{name:'Stop voice recording',exact:true}).click();
@@ -498,6 +512,10 @@ try{
   await page.evaluate(()=>window.__fixtureApp.features.messaging.refreshMessageViews());
   assert(await page.evaluate(()=>document.querySelector('[data-msg-id="1100"] audio')===window.__fixtureVoiceAudio&&!window.__fixtureVoiceAudio.paused),'Incoming audio survives quiet updates');
   if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#msgr-chat').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/voice-playback-${mobile?'mobile':'desktop'}.png`});
+  await page.evaluate(()=>{
+    const {state,features}=window.__fixtureApp;state.data.DB.messages.push({id:1101,fromUserId:state.auth.currentUser.id,toUserId:100090,message:'',attachment:{type:'file',name:'Clinic form.pdf',dataUrl:'data:application/pdf;base64,AA=='},createdAt:'2026-10-20T09:01:00Z',isRead:true,_realSupabase:true});features.messaging.refreshMessageViews();
+  });
+  assert.match(await page.locator('.msgr-contact-item.active .msgr-contact-preview').innerText(),/^You: sent a file$/);
   await page.evaluate(()=>window.__fixtureVoiceAudio.pause());
   await page.getByRole('button',{name:'Record a voice message',exact:true}).click();await page.locator('.voice-recording').waitFor();
   await page.getByRole('button',{name:'Discard voice recording',exact:true}).click();
