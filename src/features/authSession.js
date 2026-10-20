@@ -5,7 +5,7 @@ import {normalizeSupabaseUser,syncAdminDirectoryFromSupabase,syncCurrentPatientF
 import {initApp} from './appInitialization.js';
 import {syncPublicSystemSettings} from './systemSettings.js';
 import {syncRealMedicationReminders,syncRealTreatments} from './treatmentService.js';
-import {syncRealMessages} from './messaging.js';
+import {syncRealMessages,refreshMessageViews} from './messaging.js';
 import {syncRealHealthResources} from './navigationRaceProtection.js';
 import {syncRealIssueReports} from './issueReports.js';
 import {syncRealWorkflowRequests} from './workflowRequests.js';
@@ -169,7 +169,8 @@ export function refreshActivePageAfterSync(){
   if(pageId!==appState.navigationRaceProtection.campusActivePageId)return;
 
   try{
-    if(pageId==='dashboard')renderDashboard();
+    if(pageId==='messages'&&document.getElementById('msgr-shell'))refreshMessageViews();
+    else if(pageId==='dashboard')renderDashboard();
     else renderPage(pageId);
   }catch(err){
     console.error('Page refresh after database sync:',err);

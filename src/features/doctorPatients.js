@@ -60,7 +60,7 @@ export function renderMyPatientsTable(){
       <td><strong>${p.fname} ${p.lname}</strong><br><span class="text-muted">${p.idNo}</span></td>
       <td>${collegeBadge(p.college)}</td><td>${priorityBadge(p.personType)}</td>
       <td>${p.blood||'-'}</td>
-      <td class="${p.allergies&&p.allergies!=='None'?'text-danger':''}">${p.allergies||'None'}</td>
+      <td class="${p.allergies&&p.allergies!=='None'?'text-danger':''}">${escapeHtml(p.allergies?.trim()||'—')}</td>
       <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
         <button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewPatient((p.id))})}>View</button>
         <button class="btn btn-xs btn-primary" ${bindAction('click',(event,element)=>{openAddTreatmentModalPt((p.id))})}>Add Treatment</button>
