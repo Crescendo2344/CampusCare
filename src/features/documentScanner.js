@@ -7,7 +7,7 @@ import {appointmentRecords} from './appointmentService.js';
 import {inventoryRecords} from './inventoryService.js';
 // ================================================================
 // REGISTRATION DOCUMENT SCANNER
-// Reads School ID, Employee ID, or COR uploads locally in the browser.
+// Reads Student and Employee ID front photos locally in the browser.
 // OCR is assistive only: a low-confidence scan never blocks registration.
 // ================================================================
 
@@ -138,14 +138,23 @@ export async function scanRegistrationDocumentFile(file){
   await analyzeIdImage(enhanced,original);
 }
 
+// Invalidate in-flight recognition when an ID is replaced or the person type changes.
+export function clearRegistrationScan(){
+  appState.documentScanner.scanVersion=(appState.documentScanner.scanVersion||0)+1;
+  Object.assign(appState.documentScanner,{lastOcrRawText:'',lastOcrCleanText:'',lastOcrConfidence:0,lastOcrDocumentType:'',lastOcrDetectedId:''});
+  scannerStatus();
+}
+
 export async function analyzeIdImage(dataUrl,fallbackDataUrl=''){
+  clearRegistrationScan();
+  const version=appState.documentScanner.scanVersion,current=()=>version===appState.documentScanner.scanVersion;
   scannerStatus('Scanning text and checking the document…','',18);
   try{
     const Tesseract=await loadTesseract();
     const run=async source=>{
       const result=await Tesseract.recognize(source,'eng',{
         logger:m=>{
-          if(m.status==='recognizing text'&&Number.isFinite(m.progress)){
+          if(current()&&m.status==='recognizing text'&&Number.isFinite(m.progress)){
             scannerStatus('Scanning text and checking the document…','',20+Math.round(m.progress*68));
           }
         }
@@ -154,6 +163,7 @@ export async function analyzeIdImage(dataUrl,fallbackDataUrl=''){
     };
 
     let data=await run(dataUrl);
+    if(!current())return;
     // One fallback OCR pass is used only when the enhanced image scored poorly.
     if((Number(data.confidence)||0)<42&&fallbackDataUrl){
       scannerStatus('Trying the original image for a clearer read…','',72);
@@ -161,6 +171,7 @@ export async function analyzeIdImage(dataUrl,fallbackDataUrl=''){
       if((Number(fallback.confidence)||0)>(Number(data.confidence)||0))data=fallback;
     }
 
+    if(!current())return;
     appState.documentScanner.lastOcrRawText=String(data.text||'').trim();
     appState.documentScanner.lastOcrConfidence=Math.round(Number(data.confidence)||0);
     appState.documentScanner.lastOcrCleanText=appState.documentScanner.lastOcrRawText
@@ -170,6 +181,7 @@ export async function analyzeIdImage(dataUrl,fallbackDataUrl=''){
 
     handleOcrResult();
   }catch(e){
+    if(!current())return;
     appState.documentScanner.lastOcrRawText='';
     appState.documentScanner.lastOcrCleanText='';
     scannerStatus(
@@ -190,7 +202,7 @@ export function normalizeOcrText(value=''){
 
 export function detectRegistrationDocumentType(rawText=''){
   const t=normalizeOcrText(rawText);
-  if(/\b(certificate of registration|registration form|officially enrolled|semester|school year)\b/.test(t))return 'COR';
+  if(/\b(certificate of registration|registration form|officially enrolled)\b/.test(t))return 'COR';
   if(/\b(employee id|employee no|faculty|personnel|staff id)\b/.test(t))return 'Employee ID';
   if(/\b(student id|student no|student number|college|university)\b/.test(t))return 'School ID';
   return 'Document';
@@ -286,7 +298,7 @@ export function recheckNameMatch(justAutoFilled=false){
   const lastMatch=typedLast?scanned.includes(typedLast):null;
   const idMatch=appState.documentScanner.lastOcrDetectedId&&typedId?appState.documentScanner.lastOcrDetectedId===typedId:null;
 
-  const expectedDocs=pt==='Student'?['School ID','COR']:['Employee ID'];
+  const expectedDocs=pt==='Student'?['School ID','Student ID']:['Employee ID'];
   const docOkay=appState.documentScanner.lastOcrDocumentType==='Document'||expectedDocs.includes(appState.documentScanner.lastOcrDocumentType);
 
   const findings=[];
@@ -299,7 +311,7 @@ export function recheckNameMatch(justAutoFilled=false){
   if(!docOkay){
     tone='warning';
     headline=pt==='Student'
-      ? `This looks like ${escapeHtml(appState.documentScanner.lastOcrDocumentType)}, while Student registration expects a School ID or COR.`
+      ? `This looks like ${escapeHtml(appState.documentScanner.lastOcrDocumentType)}, while Student registration expects a Student ID.`
       : `This looks like ${escapeHtml(appState.documentScanner.lastOcrDocumentType)}, while personnel registration expects an Employee ID.`;
   }else if(typedFirst&&typedLast&&firstMatch&&lastMatch&&(idMatch!==false)){
     tone='success';
@@ -333,6 +345,14 @@ export function sanitizeRegistrationId(el){
 
 export function updateRegistrationIdentityFields(){
   const pt=document.getElementById('r-ptype')?.value||'Student';
+  // Evidence collected for a different person type must not be reused silently.
+  if(appState.camera.registrationPersonType&&appState.camera.registrationPersonType!==pt){
+    appState.camera.registrationIds={front:null,back:null};appState.camera.capturedSelfieDataUrl=null;
+    for(const side of ['front','back']){document.getElementById('r-id-'+side+'-preview')?.replaceChildren();const status=document.getElementById('r-id-'+side+'-status');if(status)status.textContent='Not provided';}
+    document.getElementById('r-selfie-preview-wrap')?.replaceChildren();
+    clearRegistrationScan();
+  }
+  appState.camera.registrationPersonType=pt;
   const unitLabel=document.getElementById('r-unit-label');
   const unitSelect=document.getElementById('r-college');
   const idLabel=document.getElementById('r-idno-label');
@@ -377,11 +397,11 @@ export function updateRegistrationIdentityFields(){
   }
 
   if(verificationLabel){
-    verificationLabel.innerHTML=(isStudent?'Upload School ID or COR':'Upload Employee ID')+' <span class="required">*</span>';
+    verificationLabel.innerHTML=(isStudent?'Student ID — Front and Back':'Employee ID — Front and Back')+' <span class="required">*</span>';
   }
   if(verificationHelp){
     verificationHelp.textContent=isStudent
-      ? 'Click to upload School ID or COR'
+      ? 'Click to upload Student ID'
       : 'Click to upload Employee ID';
   }
 

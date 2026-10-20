@@ -30,7 +30,7 @@ Deno.serve(async(req)=>{
 
     if(req.method==="GET"){
       const {data,error}=await admin.from("users")
-        .select("user_id,auth_user_id,first_name,last_name,username,email,contact_number,person_type,college,id_number,status,verified,profile_image_url,id_file_url,verification_selfie_url,created_at,patients(patient_id,birth_date,sex,blood_type,address,emergency_contact_name,emergency_contact_number,medical_history,allergies)")
+        .select("user_id,auth_user_id,first_name,last_name,username,email,contact_number,person_type,college,id_number,status,verified,profile_image_url,id_file_url,id_back_file_url,verification_selfie_url,created_at,patients(patient_id,birth_date,sex,blood_type,address,emergency_contact_name,emergency_contact_number,medical_history,allergies)")
         .eq("role","Patient")
         .eq("status","Pending")
         .order("created_at",{ascending:false});
@@ -38,7 +38,9 @@ Deno.serve(async(req)=>{
 
       const rows=[];
       for(const r of data||[]){
-        let profileUrl=null,verificationUrl=null,selfieUrl=null;
+        let profileUrl=null,verificationUrl=null,selfieUrl=null,backUrl=null;
+        // Sign both private ID sides only after reviewer authorization above.
+        if(r.id_back_file_url){const x=await admin.storage.from("campuscare-verification").createSignedUrl(r.id_back_file_url,900);backUrl=x.data?.signedUrl||null;}
         // Verification selfies remain private and are signed only after the staff-role guard above.
         if(r.verification_selfie_url){
           const x=await admin.storage.from("campuscare-verification").createSignedUrl(r.verification_selfie_url,900);
@@ -81,7 +83,8 @@ Deno.serve(async(req)=>{
           selfie_verification_signed_url:selfieUrl,
           patients:undefined,
           profile_signed_url:profileUrl,
-          verification_signed_url:verificationUrl
+          verification_signed_url:verificationUrl,
+          verification_back_signed_url:backUrl
         });
       }
       return json({ok:true,users:rows});

@@ -5,13 +5,14 @@ import {toggleTheme} from './theme.js';
 import {sanitizeInput} from './inputValidation.js';
 import {closePendingPanel,doLogin,doRegister,hidePasswordChecklist,openPrivacyNotice,showPasswordChecklist,updatePasswordStrength} from './loginLockout.js';
 import {closeForgotPassword,hideRecoveryPasswordChecklist,logout,openForgotPassword,sendPasswordResetEmail,showForgotStep,showRecoveryPasswordChecklist,submitNewPassword,updateRecoveryPasswordStrength} from './passwordRecovery.js';
-import {handleIdFileChange,recheckNameMatch,sanitizeRegistrationId,updateRegistrationIdentityFields} from './documentScanner.js';
+import {recheckNameMatch,sanitizeRegistrationId,updateRegistrationIdentityFields} from './documentScanner.js';
 import {openCampusDatePicker} from './datePicker.js';
 import {openCamera} from '../app/optional-features.js';
 import {handleTopSearchKey,renderTopSearch,toggleSidebar} from './topbarAndNavigation.js';
 import {openProfileDetails} from './accountSettings.js';
 import {markAllRead,toggleNotifPanel} from './assistant.js';
 import {navTo} from './navigationRaceProtection.js';
+import {handleRegistrationIdUpload} from './idVerification.js';
 import {registerNamedAction} from '../dependencies.js';
 // Shell controls use registered lexical callbacks, never HTML inline JavaScript.
 
@@ -46,10 +47,12 @@ export function initializeFeature(){
   registerNamedAction('shell-26',(event,element)=>{updateRegistrationIdentityFields()});
   registerNamedAction('shell-27',(event,element)=>{sanitizeRegistrationId(element)});
   registerNamedAction('shell-28',(event,element)=>{openCampusDatePicker('r-dob','Select Date of Birth','',appState.clinicInformation.TODAY,'')});
+  // Each side has its own accepted file and guided camera capture.
+  for(const side of ['front','back']){
+    registerNamedAction('id-'+side+'-upload',(event,input)=>handleRegistrationIdUpload(input,side));
+    registerNamedAction('id-'+side+'-camera',()=>openCamera('id-'+side));
+  }
   registerNamedAction('shell-30',(event,element)=>{openCamera('selfie')});
-  registerNamedAction('shell-32',(event,element)=>{document.getElementById('r-id-file').click()});
-  registerNamedAction('shell-33',(event,element)=>{handleIdFileChange(element)});
-  registerNamedAction('shell-34',(event,element)=>{event.stopPropagation();openCamera('id')});
   registerNamedAction('shell-35',(event,element)=>{event.preventDefault();openPrivacyNotice()});
   registerNamedAction('shell-36',(event,element)=>{doRegister()});
   registerNamedAction('shell-38',(event,element)=>{closePendingPanel()});

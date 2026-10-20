@@ -54,6 +54,8 @@ try{
       }
     };
   },mobile);
+  // OCR is isolated from third-party networks; live framing still analyzes real camera pixels.
+  await page.addInitScript(()=>{window.Tesseract={recognize:async()=>({data:{confidence:25,text:'Unclear printed document'}})};});
   const profile={user_id:1,auth_user_id:authId,first_name:'Fixture',last_name:role,username:'fixture',email:'fixture@example.test',role,status:'Active',verified:true,person_type:'Staff',work_days:['Mon','Tue','Wed','Thu','Fri'],start_time:'08:00',end_time:'17:00',slot_duration:60,max_patients:20,specialty:'General Medicine'};
   const doctor={...profile,user_id:2,auth_user_id:'00000000-0000-4000-8000-000000000002',role:'Doctor',first_name:'Fixture',last_name:'Doctor'};
   const patient={patient_id:4,user_id:1,birth_date:'2000-01-01',college:'CCICT',person_type:'Student',archived:false};
@@ -151,6 +153,10 @@ try{
     await page.evaluate(()=>window.__fixtureApp.features.passwordRecovery.closeForgotPassword());
     await page.getByRole('button',{name:'Register',exact:true}).click();
     await scrollDown();
+    await page.locator('#r-ptype').selectOption('Teaching Personnel');
+    await page.waitForFunction(()=>document.getElementById('r-verification-label').textContent.includes('Employee ID — Front and Back'));
+    await page.locator('#r-ptype').selectOption('Student');
+    await page.waitForFunction(()=>document.getElementById('r-verification-label').textContent.includes('Student ID — Front and Back'));
     // Populate a valid registration and an OCR name mismatch at the requested 25% boundary.
     const fields={'r-fname':'Fixture','r-lname':'Student','r-user':'fixture.student','r-email':'fixture@example.test','r-pass':'Fixture-only-password1!','r-idno':'1234567'};
     for(const [id,value]of Object.entries(fields))await page.locator('#'+id).fill(value);
@@ -158,9 +164,6 @@ try{
     await page.evaluate(()=>{
       // The date picker stores its chosen date in a hidden field.
       document.getElementById('r-dob').value='2000-01-01';
-      for(const id of ['r-id-file']){
-        const transfer=new DataTransfer();transfer.items.add(new File(['fixture'],'fixture.png',{type:'image/png'}));document.getElementById(id).files=transfer.files;
-      }
       Object.assign(window.__fixtureApp.state.documentScanner,{lastOcrRawText:'Unclear printed document',lastOcrConfidence:25,lastOcrDocumentType:'Document'});
       window.__fixtureApp.features.documentScanner.recheckNameMatch();
     });
@@ -212,6 +215,63 @@ try{
     await page.locator('#active-modal').getByRole('button',{name:'Cancel',exact:true}).click();
     await page.evaluate(()=>{navigator.mediaDevices.getUserMedia=window.__fixtureGetUserMedia;});
 
+
+    // Both ID sides are mandatory even after a successful selfie.
+    await page.locator('#registration-submit-button').click();
+    await page.getByText('Provide the front and back of your Student or Employee ID.',{exact:true}).waitFor();
+    assert(!requests.some(request=>request.path.endsWith('/register-patient')));
+    const front=await page.evaluate(()=>{
+      const c=document.createElement('canvas');c.width=640;c.height=480;const g=c.getContext('2d');g.fillStyle='#141414';g.fillRect(0,0,640,480);g.fillStyle='#ddd';g.fillRect(120,112,400,256);g.fillStyle='#222';g.font='24px sans-serif';g.fillText('STUDENT ID FRONT',145,190);return c.toDataURL('image/png').split(',')[1];
+    });
+    await page.locator('#r-id-file').setInputFiles({name:'front.png',mimeType:'image/png',buffer:Buffer.from(front,'base64')});
+    await page.getByRole('button',{name:'Use Front Photo',exact:true}).click();
+    assert(await page.locator('#r-id-front-preview img').isVisible());
+    await page.locator('#registration-submit-button').click();
+    assert(!requests.some(request=>request.path.endsWith('/register-patient')),'One side must not reach registration');
+    // A duplicate upload is rejected without replacing existing evidence.
+    await page.locator('#r-id-back-file').setInputFiles({name:'back.png',mimeType:'image/png',buffer:Buffer.from(front,'base64')});
+    await page.getByRole('button',{name:'Use Back Photo',exact:true}).click();
+    await page.getByText('Use a different photo for the front and back of your ID.',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Choose another photo',exact:true}).click();
+    // Feed an actual canvas MediaStream to exercise ID boundary/quality detection end to end.
+    await page.evaluate(()=>{
+      window.__fixtureIdPose='far';
+      navigator.mediaDevices.getUserMedia=async()=>{
+        const canvas=document.createElement('canvas');canvas.width=320;canvas.height=240;const g=canvas.getContext('2d');
+        const draw=()=>{
+          const pose=window.__fixtureIdPose;let x=60,y=56,w=200,h=128;
+          if(pose==='far'){x=110;y=90;w=100;h=60;}
+          if(pose==='close'){x=2;y=20;w=316;h=200;}
+          if(pose==='center'){x=110;y=56;}
+          g.fillStyle=pose==='dark'?'#000':'#141414';g.fillRect(0,0,320,240);
+          g.fillStyle=pose==='dark'?'#232323':'#c8c8c8';g.fillRect(x,y,w,h);
+          g.fillStyle=pose==='dark'?'#000':'#222';g.font='12px sans-serif';g.fillText(window.__fixtureIdLabel||'ID BACK',x+15,y+30);
+        };
+        draw();const stream=canvas.captureStream(10),timer=setInterval(draw,100);
+        stream.getTracks().forEach(track=>track.addEventListener('ended',()=>clearInterval(timer)));return stream;
+      };
+    });
+    await page.locator('[data-action-click="id-back-camera"]').click();
+    await page.getByText('Move the ID closer to the camera',{exact:true}).waitFor();
+    assert(await page.locator('#camera-capture-button').isDisabled());
+    for(const [pose,prompt]of [['close','Move the ID back a little'],['center','Center the ID inside the rectangle'],['dark','Improve the lighting on the ID'],['good','Good framing — keep the ID still']]){
+      await page.evaluate(pose=>window.__fixtureIdPose=pose,pose);await page.getByText(prompt,{exact:true}).waitFor();
+    }
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/guided-id-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+    await page.locator('#camera-capture-button').click();
+    assert(await page.locator('#r-id-back-preview img').isVisible());
+    assert(await page.evaluate(()=>!window.__fixtureApp.state.camera._cameraStream));
+    // A front retake advances to the flip step; canceling the back retake keeps the saved back.
+    await page.evaluate(()=>window.__fixtureIdLabel='ID FRONT');
+    await page.locator('[data-action-click="id-front-camera"]').click();
+    await page.getByText('Good framing — keep the ID still',{exact:true}).waitFor();
+    await page.locator('#camera-capture-button').click();
+    await page.getByText('Front saved — flip your ID',{exact:true}).waitFor();
+    await page.locator('#active-modal').getByRole('button',{name:'Photograph Back',exact:true}).click();
+    await page.waitForFunction(()=>document.getElementById('camera-video')?.readyState>=2);
+    await page.locator('#active-modal').getByRole('button',{name:'Cancel',exact:true}).click();
+    assert(await page.locator('#r-id-back-preview img').isVisible());
+    await page.evaluate(()=>{navigator.mediaDevices.getUserMedia=window.__fixtureGetUserMedia;});
 
     await page.evaluate(()=>window.scrollTo(0,document.scrollingElement.scrollHeight));
     const submit=await page.locator('#registration-submit-button').boundingBox();assert(submit.y>=0&&submit.y+submit.height<=640+(mobile?0:160),'Registration submit is clipped');

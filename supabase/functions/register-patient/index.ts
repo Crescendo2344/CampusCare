@@ -26,18 +26,19 @@ Deno.serve(async(req:Request)=>{
     const metadataRaw=String(form.get("metadata")||"{}");
     const selfie=form.get("selfie");
     const verification=form.get("verification");
+    const verificationBack=form.get("verification_back");
 
-    if(!email||!password||!(selfie instanceof File)||!(verification instanceof File))
-      return json({error:"Email, password, selfie, and verification document are required."},400);
+    if(!email||!password||!(selfie instanceof File)||!(verification instanceof File)||!(verificationBack instanceof File))
+      return json({error:"Email, password, selfie, and front and back ID photos are required."},400);
     if(form.get("selfie_capture_source")!=="camera")return json({error:"Take a live camera verification selfie while holding your document."},400);
-    if(!selfie.size||!verification.size)return json({error:"Selfie and verification document must not be empty."},400);
+    if(!selfie.size||!verification.size||!verificationBack.size)return json({error:"Selfie and verification document must not be empty."},400);
     if(password.length<8) return json({error:"Password must contain at least 8 characters."},400);
     if(selfie.size>5*1024*1024) return json({error:"Verification selfie must be 5 MB or smaller."},400);
-    if(verification.size>10*1024*1024) return json({error:"Verification document must be 10 MB or smaller."},400);
+    if(verification.size>10*1024*1024||verificationBack.size>10*1024*1024) return json({error:"Verification document must be 10 MB or smaller."},400);
     if(!["image/jpeg","image/png","image/webp"].includes(selfie.type))
       return json({error:"Verification selfie must be JPG, PNG, or WebP."},400);
-    if(!["image/jpeg","image/png","image/webp","application/pdf"].includes(verification.type))
-      return json({error:"Verification document must be JPG, PNG, WebP, or PDF."},400);
+    if(!["image/jpeg","image/png","image/webp"].includes(verification.type)||!["image/jpeg","image/png","image/webp"].includes(verificationBack.type))
+      return json({error:"Front and back ID photos must be JPG, PNG, or WebP. COR and PDF files are not accepted."},400);
 
     let metadata:Record<string,unknown>={};
     try{metadata=JSON.parse(metadataRaw)}catch{return json({error:"Invalid registration metadata."},400)}
@@ -47,6 +48,12 @@ Deno.serve(async(req:Request)=>{
     metadata.registration_context="public";
     metadata.role="Patient";
     if(metadata.privacy_consent!==true)return json({error:"Privacy consent is required."},400);
+    if(metadata.verification_document_type&&!["Student ID","Employee ID"].includes(String(metadata.verification_document_type)))return json({error:"Use a Student or Employee ID. COR is not accepted."},400);
+    metadata.verification_document_type=metadata.person_type==="Student"?"Student ID":"Employee ID";
+    // The two sides must be distinct evidence, not the exact same uploaded image twice.
+    const frontDigest=new Uint8Array(await crypto.subtle.digest("SHA-256",await verification.arrayBuffer()));
+    const backDigest=new Uint8Array(await crypto.subtle.digest("SHA-256",await verificationBack.arrayBuffer()));
+    if(frontDigest.every((byte,index)=>byte===backDigest[index]))return json({error:"Use different photos for the front and back of your ID."},400);
     if(!metadata.birth_date && metadata.date_of_birth) metadata.birth_date=metadata.date_of_birth;
     if(!metadata.contact_number && metadata.contact_no) metadata.contact_number=metadata.contact_no;
 
@@ -79,7 +86,8 @@ Deno.serve(async(req:Request)=>{
       return map[file.type]||"bin";
     };
     const selfiePath=`${uid}/selfie-verification.${ext(selfie)}`;
-    const verificationPath=`${uid}/verification.${ext(verification)}`;
+    const verificationPath=`${uid}/id-front.${ext(verification)}`;
+    const verificationBackPath=`${uid}/id-back.${ext(verificationBack)}`;
 
     const {error:selfieError}=await adminClient.storage.from("campuscare-verification").upload(selfiePath,selfie,{contentType:selfie.type,upsert:true});
     if(selfieError)throw new Error("Verification selfie could not be saved. Please try again.");
@@ -88,9 +96,12 @@ Deno.serve(async(req:Request)=>{
     const {error:verificationError}=await adminClient.storage.from("campuscare-verification").upload(verificationPath,verification,{contentType:verification.type,upsert:true});
     if(verificationError)throw new Error("Verification document could not be saved. Please try again.");
     uploadedPaths.push(verificationPath);
+    const {error:backError}=await adminClient.storage.from("campuscare-verification").upload(verificationBackPath,verificationBack,{contentType:verificationBack.type,upsert:true});
+    if(backError)throw new Error("Back ID photo could not be saved. Please try again.");
+    uploadedPaths.push(verificationBackPath);
 
     const {data:profileRow,error:profileError}=await adminClient.from("users")
-      .update({verification_selfie_url:selfiePath,id_file_url:verificationPath,profile_image_url:null,role:"Patient",status:"Pending",verified:false})
+      .update({verification_selfie_url:selfiePath,id_file_url:verificationPath,id_back_file_url:verificationBackPath,profile_image_url:null,role:"Patient",status:"Pending",verified:false})
       .eq("auth_user_id",uid)
       .select("user_id")
       .maybeSingle();

@@ -12,6 +12,7 @@ import {escapeHtml} from './issueReports.js';
 import {fmtDate} from './inputValidation.js';
 import {updateRegistrationIdentityFields} from './documentScanner.js';
 import {authTab} from './authentication.js';
+import {registrationIdSides,resetRegistrationIds} from './idVerification.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
 // ================================================================
 // LOGIN ATTEMPT LOCKOUT — basic brute-force protection
@@ -239,7 +240,7 @@ export async function doRegister() {
   const idNo=document.getElementById('r-idno').value.trim();
   const dob=document.getElementById('r-dob').value;
   const sex=document.getElementById('r-sex').value;
-  const fileInput=document.getElementById('r-id-file');
+  const idSides=registrationIdSides();
   const privacyConsent=document.getElementById('r-privacy-consent');
 
   if(!privacyConsent?.checked){
@@ -309,24 +310,15 @@ export async function doRegister() {
     registrationToast('Use the camera to take a verification selfie while holding the document you will upload.','error');
     return;
   }
-  if(!fileInput.files.length&&!appState.camera.capturedIdDataUrl){
-    registrationToast(
-      ptype==='Student'
-        ? 'Please upload or capture your School ID or COR.'
-        : 'Please upload or capture your Employee ID.',
-      'error'
-    );
-    return;
-  }
-
-  let selfieFile,verificationFile;
+  if(!idSides.front||!idSides.back){registrationToast('Provide the front and back of your Student or Employee ID.','error');return;}
+  if(appState.documentScanner.lastOcrDocumentType==='COR'){registrationToast('COR is not accepted. Use the front and back of your Student or Employee ID.','error');return;}
+  let selfieFile,verificationFile,verificationBackFile;
   try{
     selfieFile=dataUrlToRegistrationFile(appState.camera.capturedSelfieDataUrl,'selfie-verification.jpg');
-    verificationFile=fileInput.files[0]||dataUrlToRegistrationFile(appState.camera.capturedIdDataUrl,'verification.jpg');
-  }catch(e){
-    registrationToast(e?.message||'Could not prepare the uploaded files.','error');
-    return;
-  }
+    verificationFile=idSides.front.file||dataUrlToRegistrationFile(idSides.front.dataUrl,'id-front.jpg');
+    verificationBackFile=idSides.back.file||dataUrlToRegistrationFile(idSides.back.dataUrl,'id-back.jpg');
+  }catch(error){registrationToast(error?.message||'Could not prepare the ID photos.','error');return;}
+
 
   await syncRegistrationPrivacyVersion();
 
@@ -339,7 +331,7 @@ export async function doRegister() {
     college,
     id_number:idNo,
     registration_context:'public',
-    verification_document_type:ptype==='Student'?'School ID or COR':'Employee ID',
+    verification_document_type:ptype==='Student'?'Student ID':'Employee ID',
     date_of_birth:dob,
     sex,
     privacy_consent:true,
@@ -354,7 +346,8 @@ export async function doRegister() {
   form.append('selfie',selfieFile,'selfie-verification.jpg');
   // Registration selfies come only from the live camera flow, with staff checking the evidence.
   form.append('selfie_capture_source','camera');
-  form.append('verification',verificationFile,verificationFile.name||'verification');
+  form.append('verification',verificationFile,verificationFile.name||'id-front');
+  form.append('verification_back',verificationBackFile,verificationBackFile.name||'id-back');
 
   const submitBtn=document.getElementById('registration-submit-button');
   const oldText=submitBtn?.textContent;
@@ -387,7 +380,7 @@ export async function doRegister() {
 
     ['r-fname','r-lname','r-user','r-email','r-pass','r-contact','r-idno','r-dob','r-sex']
       .forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-    fileInput.value='';
+    resetRegistrationIds();
     const selfiePreview=document.getElementById('r-selfie-preview-wrap');
     if(selfiePreview)selfiePreview.replaceChildren();
     const selfieButton=document.getElementById('selfie-camera-button');
