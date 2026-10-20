@@ -28,7 +28,7 @@ export async function prepareRegistrationCaptcha(url,key,{refresh=false}={}){
       const turnstile=await loadTurnstile();
       if(widgetId!==null&&previous!==config.site_key){turnstile.remove(widgetId);widgetId=null;token='';verifiedAt=0;}
       if(widgetId===null){
-        await new Promise(resolve=>turnstile.ready(resolve));
+        // loadTurnstile already waits for script.onload; ready() rejects async/defer script tags.
         widgetId=turnstile.render('#registration-captcha-widget',{
           sitekey:config.site_key,action:'campuscare_register',size:'flexible',theme:'auto',
           callback:value=>{token=value;verifiedAt=Date.now();status('Security check complete.');},

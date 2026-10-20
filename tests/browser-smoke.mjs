@@ -65,7 +65,7 @@ try{
    if(url.origin===new URL(baseUrl).origin)return route.continue();
    if(url.hostname==='challenges.cloudflare.com')return route.fulfill({contentType:'application/javascript',body:`
      // Simulate only the provider widget; backend token enforcement has separate handler tests.
-     window.turnstile={ready:fn=>fn(),render:(selector,options)=>{window.__fixtureTurnstile=options;const button=document.createElement('button');button.id='fixture-captcha-solve';button.type='button';button.textContent='Verify security check';button.onclick=()=>options.callback('fixture-captcha-'+Date.now());document.querySelector(selector).appendChild(button);return 'fixture-widget';},reset:()=>{window.__fixtureCaptchaResets=(window.__fixtureCaptchaResets||0)+1;},remove:()=>document.getElementById('registration-captcha-widget').replaceChildren()};
+     window.turnstile={ready:()=>{throw new Error('Turnstile ready() cannot be used with an async script');},render:(selector,options)=>{window.__fixtureTurnstile=options;const button=document.createElement('button');button.id='fixture-captcha-solve';button.type='button';button.textContent='Verify security check';button.onclick=()=>options.callback('fixture-captcha-'+Date.now());document.querySelector(selector).appendChild(button);return 'fixture-widget';},reset:()=>{window.__fixtureCaptchaResets=(window.__fixtureCaptchaResets||0)+1;},remove:()=>document.getElementById('registration-captcha-widget').replaceChildren()};
     `});
    if(!url.hostname.endsWith('.supabase.co'))return route.abort();
    const path=url.pathname;requests.push({path,method:request.method(),body:request.headers()['content-type']?.includes('application/json')?request.postDataJSON():null});
