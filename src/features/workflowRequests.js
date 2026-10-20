@@ -1,3 +1,4 @@
+import {emailValidationError,normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {createFeatureSyncService} from '../services/feature-sync.js';
 import {maskEmail,maskPhone} from '../shared/privacy-formatting.js';
 // workflowRequests: imported feature APIs; state belongs to explicit application namespaces.
@@ -274,18 +275,16 @@ export async function saveAccount(){
   hideAlert(msg);
 
   const email=document.getElementById('acc-email').value.trim().toLowerCase();
-  const contact=document.getElementById('acc-contact').value.replace(/\D/g,'').slice(0,11);
+  const contactRaw=document.getElementById('acc-contact').value.trim();
+  const contact=normalizePhilippineMobile(contactRaw);
 
-  if(!email||!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)){
-    showAlert(msg,'Please enter a valid email address.');
+  // Apply the registration rules to profile edits without truncating an international number.
+  if(emailValidationError(email)){
+    showAlert(msg,emailValidationError(email));
     return;
   }
-  if(contact&&contact.length!==11){
-    showAlert(msg,'Contact number must be exactly 11 digits (e.g. 09XXXXXXXXX).');
-    return;
-  }
-  if(contact&&!/^09\d{9}$/.test(contact)){
-    showAlert(msg,'Please enter a valid Philippine mobile number starting with 09.');
+  if(contactRaw&&!contact){
+    showAlert(msg,'Use a Philippine mobile number starting with 09 or +639.');
     return;
   }
 

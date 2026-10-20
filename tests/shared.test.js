@@ -10,7 +10,7 @@ test('input policies preserve supported names and normalize account/contact valu
     ['name',"Jo  Sánchez42!",'Jo Sánchez'],
     ['username','jo name!_234','joname_234'],
     ['email',' JO@CTU.EDU.PH ','jo@ctu.edu.ph'],
-    ['phone','+63 (905) 424-7230','63905424723'],
+    ['phone','+63 (905) 424-7230','+639054247230'],
     ['password','a b\tc','abc'],
     ['idno','CTU 2026/123','CTU2026123'],
     ['identifier',' JO@ctu.edu.ph! ','JO@ctu.edu.ph'],

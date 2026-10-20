@@ -10,10 +10,11 @@ export function sanitizeValue(value,type){
       v=v.replace(/[^A-Za-z0-9_.-]/g,'').slice(0,20);
       break;
     case 'email':
-      v=v.replace(/\s/g,'').toLowerCase().replace(/[^a-z0-9@._+-]/g,'').slice(0,150);
+      v=v.trim().toLowerCase().slice(0,150);
       break;
     case 'phone':
-      v=v.replace(/\D/g,'').slice(0,11);
+      // Retain an initial + for international numbers; validation checks the full prefix.
+      v=v.replace(/[^\d+]/g,'').replace(/(?!^)\+/g,'').slice(0,16);
       break;
     case 'password':
       v=v.replace(/\s/g,'').slice(0,64);

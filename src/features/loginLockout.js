@@ -1,4 +1,5 @@
 // loginLockout: imported feature APIs; state belongs to explicit application namespaces.
+import {emailValidationError,normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {state as appState} from '../app/state.js';
 import {initializeSupabaseClient} from './supabaseClient.js';
 import {registrationToast,showAlert,toast} from './theme.js';
@@ -9,7 +10,7 @@ import {refreshRealApprovalQueue} from './approvalQueue.js';
 import {syncPublicSystemSettings} from './systemSettings.js';
 import {closeAllModals,openModal} from './modals.js';
 import {escapeHtml} from './issueReports.js';
-import {fmtDate} from './inputValidation.js';
+import {fmtDate,validateRegistrationContact} from './inputValidation.js';
 import {updateRegistrationIdentityFields} from './documentScanner.js';
 import {authTab} from './authentication.js';
 import {registrationIdSides,resetRegistrationIds} from './idVerification.js';
@@ -235,7 +236,8 @@ export async function doRegister() {
   const uname=document.getElementById('r-user').value.trim();
   const email=document.getElementById('r-email').value.trim().toLowerCase();
   const pass=document.getElementById('r-pass').value;
-  const contact=document.getElementById('r-contact').value.trim();
+  const contactRaw=document.getElementById('r-contact').value.trim();
+  const contact=normalizePhilippineMobile(contactRaw);
   const ptype=document.getElementById('r-ptype').value;
   const college=document.getElementById('r-college').value;
   const idNo=document.getElementById('r-idno').value.trim();
@@ -260,16 +262,18 @@ export async function doRegister() {
     registrationToast('Username must be 4–20 characters using letters, numbers, periods, underscores, or hyphens.','error');
     return;
   }
-  if(email.length>150){
-    registrationToast('Email must not exceed 150 characters.','error');
+  if(emailValidationError(email)){
+    validateRegistrationContact(document.getElementById('r-email'));
+    registrationToast(emailValidationError(email),'error');
     return;
   }
   if(pass.length>64){
     registrationToast('Password must not exceed 64 characters.','error');
     return;
   }
-  if(contact&&!/^09\d{9}$/.test(contact)){
-    registrationToast('Contact number must contain 11 digits and start with 09.','error');
+  if(contactRaw&&!contact){
+    validateRegistrationContact(document.getElementById('r-contact'));
+    registrationToast('Use a Philippine mobile number starting with 09 or +639.','error');
     return;
   }
   const expectedIdLength=ptype==='Student'?7:5;

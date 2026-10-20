@@ -1,9 +1,11 @@
 // Execute the real registration handler with fake Auth/Storage clients and no production records.
+import {emailValidationError,normalizePhilippineMobile} from '../supabase/functions/_shared/contact-validation.js';
+import {createMailDomainValidator} from '../supabase/functions/_shared/mail-domain.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
-async function fixture({requireEmail=false,uploadFailure=false,captcha=false,env={},rateFailure=false,providerFailure=false,verdict={}}={}){
+async function fixture({requireEmail=false,uploadFailure=false,captcha=false,env={},rateFailure=false,providerFailure=false,verdict={},mailResponse={Status:0,Answer:[{type:15,data:'10 mail.example.test.'}]}}={}){
   let handler;const creates=[],signups=[],uploads=[],updates=[],deletes=[],removes=[],limits=[],verifications=[],buckets=new Map(),usedTokens=new Set();
   const client={rpc:async(name,args)=>{
     assert.equal(name,'consume_registration_limit');limits.push(args);if(rateFailure)return {error:new Error('Unavailable')};
@@ -13,19 +15,21 @@ async function fixture({requireEmail=false,uploadFailure=false,captcha=false,env
     from(table){return {select(){return this;},ilike(){return this;},limit:async()=>({data:[]}),update(body){updates.push(body);return this;},eq(){return this;},maybeSingle:async()=>({data:{user_id:1}}),insert:async()=>({error:null})};},
     storage:{from(bucket){return {upload:async(path,file)=>{uploads.push({bucket,path,size:file.size});return {error:uploadFailure&&uploads.length===2?new Error('Fixture upload failed'):null};},remove:async paths=>{removes.push(paths);return {};}};}}};
   globalThis.__registrationClient=()=>client;
+  globalThis.__registrationContact={emailValidationError,normalizePhilippineMobile,createMailDomainValidator};
   const environment={SUPABASE_URL:'https://fixture.test',SUPABASE_ANON_KEY:'fixture',SUPABASE_SERVICE_ROLE_KEY:'fixture-private-key',CAMPUSCARE_REQUIRE_EMAIL_CONFIRMATION:String(requireEmail),...(captcha?{TURNSTILE_SITE_KEY:'0x4-fixture-site-key',TURNSTILE_SECRET_KEY:'fixture-secret'}:{}),...env};
   globalThis.Deno={env:{get:name=>environment[name]},serve:fn=>{handler=fn;}};
   globalThis.__registrationFetch=async(url,options)=>{
+    if(['dns.google','cloudflare-dns.com'].includes(new URL(url).hostname))return Response.json(mailResponse);
     assert.equal(url,'https://challenges.cloudflare.com/turnstile/v0/siteverify');verifications.push(options);
     if(providerFailure)throw new Error('Provider down');
     const token=options.body.get('response'),duplicate=usedTokens.has(token);usedTokens.add(token);
     return Response.json({success:!duplicate,hostname:'campuscare-brown-two.vercel.app',action:'campuscare_register',...verdict});
   };
   const source=readFileSync('supabase/functions/register-patient/index.ts','utf8').replace(/^import[^\n]+\n/gm,'');
-  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const createClient=globalThis.__registrationClient;const fetch=globalThis.__registrationFetch;\n'+source)+'\n// '+Math.random()).toString('base64'));
-  const call=async({source='camera',consent=true,back=true,same=false,type='image/png',documentType='Student ID',token='fixture-captcha',ip='198.51.100.1',xff='',email='fixture@example.test',id='1234567',size=null}={})=>{
+  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const {emailValidationError,normalizePhilippineMobile,createMailDomainValidator}=globalThis.__registrationContact;const createClient=globalThis.__registrationClient;const fetch=globalThis.__registrationFetch;\n'+source)+'\n// '+Math.random()).toString('base64'));
+  const call=async({source='camera',consent=true,back=true,same=false,type='image/png',documentType='Student ID',token='fixture-captcha',ip='198.51.100.1',xff='',email='fixture@example.test',contact='',id='1234567',size=null}={})=>{
     const form=new FormData();form.set('email',email);form.set('captcha_token',token);form.set('password','Fixture-password1!');form.set('selfie_capture_source',source);
-    form.set('metadata',JSON.stringify({username:'fixture',id_number:id,person_type:'Student',verification_document_type:documentType,privacy_consent:consent,role:'Administrator',registration_context:'internal'}));
+    form.set('metadata',JSON.stringify({username:'fixture',contact_no:contact,id_number:id,person_type:'Student',verification_document_type:documentType,privacy_consent:consent,role:'Administrator',registration_context:'internal'}));
     form.set('selfie',new File(['selfie'],'camera.jpg',{type:'image/jpeg'}));form.set('verification',new File(['document'],'id.png',{type}));if(back)form.set('verification_back',new File([same?'document':'back-document'],'id-back.png',{type:'image/png'}));
     return handler(new Request('https://fixture.test',{method:'POST',headers:{'cf-connecting-ip':ip,'x-forwarded-for':xff,...(size?{'content-length':String(size)}:{})},body:form}));
   };
@@ -89,4 +93,19 @@ test('rate storage failure and oversized requests fail before account creation',
   const body=new ReadableStream({start(controller){controller.enqueue(new Uint8Array(27*1024*1024));controller.close();}});
   const streamed=new Request('https://fixture.test',{method:'POST',headers:{'content-type':'multipart/form-data; boundary=fixture'},body,duplex:'half'});
   assert.equal((await f.request(streamed)).status,413,'Missing Content-Length must not bypass the byte ceiling');
+});
+
+// Direct API calls cannot bypass typo and Philippine-number checks.
+test('registration rejects mistyped domains and normalizes international contact numbers before Auth',async()=>{
+  for(const email of ['jo@gmal.com','jo@gmial.com','jo@ctu.edu.p','jo..s@gmail.com']){
+    const f=await fixture();assert.equal((await f.call({email})).status,400);assert.equal(f.creates.length,0);
+  }
+  let f=await fixture();assert.equal((await f.call({contact:'08123456789'})).status,400);assert.equal(f.creates.length,0);
+  f=await fixture();assert.equal((await f.call({contact:'+63 917 123 4567'})).status,200);assert.equal(f.creates[0].user_metadata.contact_number,'09171234567');
+});
+
+test('unroutable mail domains and DNS outages cannot create accounts',async()=>{
+  for(const [mailResponse,status] of [[{Status:3},400],[{Status:0,Answer:[{type:15,data:'0 .'}]},400],[{Status:2},503]]){
+    const f=await fixture({mailResponse});assert.equal((await f.call()).status,status);assert.equal(f.creates.length,0);assert.equal(f.uploads.length,0);
+  }
 });

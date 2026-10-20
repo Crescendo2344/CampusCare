@@ -1,4 +1,5 @@
 // inputValidation: imported feature APIs; state belongs to explicit application namespaces.
+import {emailValidationError,normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {state as appState} from '../app/state.js';
 import {displayMarkup,formatters,sanitizeValue,scheduleRules} from '../dependencies.js';
 // ================================================================
@@ -15,6 +16,17 @@ export function sanitizeInput(el,type){
     const pos=Math.max(0,(start||v.length)-Math.max(0,diff));
     try{el.setSelectionRange(pos,pos);}catch(e){}
   }
+}
+
+// Show actionable inline feedback after leaving a field; typing clears a stale error immediately.
+export function validateRegistrationContact(el,showError=true){
+  const email=el.id==='r-email';
+  const message=el.value?(email?emailValidationError(el.value):(normalizePhilippineMobile(el.value)?'':'Use 09 followed by 9 digits, or +63 followed by 10 digits starting with 9.')):'';
+  const node=document.getElementById(el.id+'-error');
+  if(node){node.textContent=showError?message:'';node.hidden=!(showError&&message);}
+  el.setAttribute('aria-invalid',String(Boolean(showError&&message)));
+  el.setCustomValidity(message);
+  return message;
 }
 
 export function getSemester(...args){return formatters.getSemester(...args);}
