@@ -433,6 +433,12 @@
         <input type="checkbox" id="r-privacy-consent">
         <label for="r-privacy-consent">I have read and agree to the <a data-action-click="shell-35">CampusCare Privacy Notice and Consent</a>. I understand that my personal and health information will be collected and processed for CTU clinic registration, consultation, treatment, appointment, certificate, inventory-linked clinical operations, reporting, and other legitimate clinic purposes.</label>
       </div>
+      <!-- Turnstile appears here only after its production keys are configured on the server. -->
+      <div id="registration-captcha-section" hidden>
+        <div id="registration-captcha-widget"></div>
+        <p id="registration-captcha-status" role="status" aria-live="polite"></p>
+        <button type="button" class="btn btn-sm" data-action-click="registration-security-retry">Retry security check</button>
+      </div>
       <button class="btn btn-primary" style="width:100%" id="registration-submit-button" data-action-click="shell-36">Submit Registration</button>
     </div>
 

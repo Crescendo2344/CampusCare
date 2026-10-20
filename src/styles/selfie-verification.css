@@ -47,3 +47,9 @@
 /* Keep both ID sides adjacent on wide clinic review screens. */
 .approval-compare{grid-template-columns:repeat(3,minmax(0,1fr));}
 @media(max-width:680px){.approval-compare{grid-template-columns:1fr;}}
+
+/* Human verification stays within the narrow registration card on phones. */
+#registration-captcha-section{margin:.8rem 0;min-width:0}
+#registration-captcha-section[hidden]{display:none}
+#registration-captcha-widget{min-width:0;max-width:100%}
+#registration-captcha-status{font-size:.78rem;line-height:1.5;color:var(--ink-muted);margin:.5rem 0}
