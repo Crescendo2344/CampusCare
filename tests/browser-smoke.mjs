@@ -95,7 +95,13 @@ try{
     // A solid panel must remain readable without backdrop filtering at every breakpoint.
     for(const width of [320,360,768,1366])for(const theme of ['light','dark']){
       await page.setViewportSize({width,height:800});
-      await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+      await page.evaluate(theme=>{
+        document.documentElement.dataset.theme=theme;
+        window.__fixtureApp.features.authentication.pauseLandingCarouselTimer();
+        const viewport=document.getElementById('hero-carousel-viewport');
+        viewport.scrollTo({left:4*viewport.clientWidth,behavior:'instant'});
+      },theme);
+      await page.waitForTimeout(250);
       const layout=await page.evaluate(()=>({
         overflow:document.documentElement.scrollWidth>window.innerWidth+1,
         font:parseFloat(getComputedStyle(document.querySelector('.hero-mini-card p')).fontSize),
@@ -109,7 +115,7 @@ try{
       assert.equal(layout.navbar,'rgb(10, 20, 32)');
       assert.equal(layout.overflow,false,`${width} ${theme}: horizontal overflow`);
       assert(layout.font>=14,`${width} ${theme}: unreadable carousel font`);
-      assert.equal(layout.background,'rgb(22, 44, 61)');assert.equal(layout.blur,'none');
+      assert.equal(layout.background,'rgb(56, 85, 109)');assert.equal(layout.blur,'none');
       if(width>1100){
         // Desktop carousel and navbar CTA share a right edge.
         const edges=await page.evaluate(()=>({carousel:document.querySelector('.hero-info-carousel').getBoundingClientRect().right,cta:document.querySelector('.landing-get-started').getBoundingClientRect().right}));
@@ -142,6 +148,11 @@ try{
     };
     for(const route of ['home','services','about','contact']){
       await page.evaluate(route=>window.__fixtureApp.features.authentication.landingNavTo(route),route);
+      if(process.env.CAMPUSCARE_VISUAL_DIR){
+        await page.evaluate(()=>window.scrollTo(0,0));
+        await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/public-${route}-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+      }
+      if(route==='about')assert(await page.evaluate(()=>document.querySelector('.public-team-grid').compareDocumentPosition(document.querySelector('.public-achievement-card'))&Node.DOCUMENT_POSITION_FOLLOWING),'The milestone should follow the clinic team');
       const long=await page.evaluate(()=>document.scrollingElement.scrollHeight>innerHeight+50);
       if(long)await scrollDown();
       await page.evaluate(()=>window.scrollTo(0,document.scrollingElement.scrollHeight));
@@ -152,6 +163,8 @@ try{
     const forgotBox=await page.getByRole('link',{name:'Forgot password?',exact:true}).boundingBox();
     assert(forgotBox.y>loginBox.y+loginBox.height,'Forgot password must be below Login');
     assert.equal(await page.getByText('Resend verification email',{exact:false}).count(),0);
+    // CAPTCHA appears before consent in both visual and keyboard reading order.
+    assert(await page.evaluate(()=>document.getElementById('registration-captcha-section').compareDocumentPosition(document.querySelector('.privacy-agree'))&Node.DOCUMENT_POSITION_FOLLOWING));
     // Unknown identifiers stay on the request form and never show email-sent feedback.
     await page.getByRole('link',{name:'Forgot password?',exact:true}).click();
     for(const selector of ['#fp-send-btn','#forgot-step1 [data-action-click="shell-40"]']){
@@ -302,7 +315,17 @@ try{
       await page.getByText('Complete the security check below before registering.',{exact:true}).waitFor();
       assert(!requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'));
       await page.locator('#fixture-captcha-solve').click();
+      await page.evaluate(()=>window.__fixtureTurnstile['error-callback']());
+      await page.locator('#registration-security-retry').waitFor({state:'visible'});
+      if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#registration-captcha-section').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/security-retry.png`});
+      const resets=await page.evaluate(()=>window.__fixtureCaptchaResets||0);
+      await page.locator('#registration-security-retry').click();
+      await page.waitForFunction(()=>document.getElementById('registration-captcha-section').dataset.state==='waiting');
+      assert(await page.evaluate(previous=>(window.__fixtureCaptchaResets||0)>previous,resets));
+      await page.locator('#fixture-captcha-solve').click();
+      assert(await page.locator('#registration-security-retry').isHidden());
       await page.evaluate(()=>window.__fixtureTurnstile['expired-callback']());
+      await page.locator('#registration-security-retry').waitFor({state:'visible'});
       await page.locator('#registration-submit-button').click();
       assert(!requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'),'Expired tokens must not submit');
       await page.locator('#fixture-captcha-solve').click();

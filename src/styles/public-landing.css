@@ -1,0 +1,145 @@
+/* Public-page presentation is scoped here so dashboard and registration themes stay independent.
+   Opaque card surfaces preserve the reference design without relying on device blur support. */
+/* Reserve navbar space without a collapsing route margin or a blank footer strip. */
+#landing-page {padding-top:var(--landing-nav-h)}
+#landing-page .landing-route {margin-top:0}
+#landing-navbar .landing-nav-toggle svg {width:22px;height:22px}
+#landing-page .landing-static-page {
+  --ink:#14334c;
+  --ink-muted:#405e75;
+  --primary:#087fa6;
+  --primary-mid:#2ca5ce;
+  --primary-dark:#086789;
+  color:var(--ink);
+  background:radial-gradient(ellipse at bottom left,#bee9e6 0,transparent 44%),radial-gradient(ellipse at top right,#d8e5fa 0,transparent 50%),#eff7fa;
+  padding:24px max(24px,6vw) 32px;
+}
+#landing-page .landing-static-inner {max-width:1190px;min-height:0;padding:0;gap:0}
+#landing-page .public-page-kicker {color:#006b92;font-size:.8rem;margin:0 0 10px;letter-spacing:.1em}
+#landing-page .public-page-title {color:var(--ink);font-size:clamp(1.6rem,2.4vw,2rem);line-height:1.2;font-weight:850;letter-spacing:-.8px}
+#landing-page .public-page-sub {color:var(--ink-muted);font-size:.94rem;line-height:1.6;max-width:650px;margin:12px auto 26px}
+#landing-page :is(.public-story-card,.public-info-panel,.public-contact-card,.public-rights-card,.public-team-card,.public-services-grid .feature-card) {
+  background:#fff;border:1px solid #d2e0e9;border-radius:18px;box-shadow:0 10px 28px #244a6010;
+  backdrop-filter:none;-webkit-backdrop-filter:none;min-width:0;
+}
+#landing-page :is(.public-story-card,.public-info-panel) {padding:20px;align-self:start}
+#landing-page :is(.public-story-card h3,.public-info-panel h3,.public-contact-card h3,.public-guide-head h3) {color:var(--ink);font-size:1rem;margin:0 0 8px;line-height:1.4}
+#landing-page :is(.public-story-card p,.public-info-panel p,.public-contact-card p) {color:var(--ink-muted);font-size:.875rem;line-height:1.6}
+#landing-page .public-services-grid {grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+#landing-page .public-services-grid .feature-card {min-height:192px;padding:20px;transform:none}
+#landing-page .public-services-grid .feature-card h4 {color:var(--ink);font-size:.94rem;line-height:1.4;margin:0 0 8px}
+#landing-page .public-services-grid .feature-card p {color:var(--ink-muted);font-size:.875rem;line-height:1.55}
+#landing-page .public-services-grid .fc-icon {width:44px;height:44px;border-radius:12px;color:#fff;background:linear-gradient(145deg,#30aed4,#076582);box-shadow:0 4px 10px #1387ad30;margin-bottom:12px}
+#landing-page .public-services-grid .fc-icon svg {width:24px;height:24px}
+#landing-page .public-about-grid {grid-template-columns:1.1fr 1fr;gap:20px;align-items:start}
+#landing-page .public-about-points {gap:12px;margin-top:14px}
+#landing-page .public-about-point {padding:12px;border-radius:14px;background:#fff;border:1px solid #d2e0e9;box-shadow:none}
+#landing-page .public-about-point strong {color:var(--ink);font-size:.82rem}
+#landing-page .public-about-point span {color:var(--ink-muted);font-size:.875rem;line-height:1.5}
+#landing-page .landing-steps {margin:0}
+#landing-page .landing-steps .step-item {padding:10px 12px;background:#f3f8fb;border:1px solid #cbdfe9;border-radius:13px;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+#landing-page .step-item .step-num {margin:0;width:30px;height:30px}
+#landing-page .step-item h5 {color:var(--ink);font-size:.875rem;margin:0 0 2px}
+#landing-page .step-item p {font-size:.8rem;line-height:1.45;margin:0}
+#landing-page .public-guide-section {border-top:1px solid #ffffffa0;margin-top:20px;padding-top:22px}
+#landing-page .public-guide-head {align-items:center;margin-bottom:12px}
+#landing-page .public-guide-head h3 {margin:0}
+#landing-page .public-guide-head p {color:var(--ink-muted);font-size:.8rem;max-width:570px}
+/* The visit sequence reads left-to-right on desktop, then becomes a vertical list on phones. */
+#landing-page .public-visit-steps {position:relative;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;margin:16px 0 24px}
+#landing-page .public-visit-steps::before {content:'';position:absolute;top:21px;left:10%;right:10%;border-top:2px dashed #7bc7e0}
+#landing-page .public-visit-step {position:relative;min-width:0;text-align:center;padding:0 6px;border:0;border-radius:0;background:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+#landing-page .public-visit-step .num {width:44px;height:44px;border:4px solid #fff;border-radius:50%;font-size:.94rem;margin:0 auto 10px}
+#landing-page .public-visit-step strong {color:var(--ink);font-size:.94rem;margin-bottom:6px}
+#landing-page .public-visit-step span {display:block;color:var(--ink-muted);font-size:.875rem;line-height:1.5}
+#landing-page .public-bring-grid {gap:0;padding:8px 0;border-block:1px solid #bed5e1;margin:0 0 20px}
+#landing-page .public-bring-card {border:0;border-left:4px solid #23aaa8;padding:14px 18px;border-radius:0;background:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+#landing-page .public-bring-card h4 {color:var(--ink);font-size:.94rem;margin-bottom:6px}
+#landing-page .public-bring-card p {color:var(--ink-muted);font-size:.875rem;line-height:1.5}
+#landing-page .public-dental-referral {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;padding:0;margin-top:0;border:1px solid #97cfdd;border-radius:18px;background:#2396b215;overflow:hidden}
+#landing-page .public-dental-referral>div {padding:18px 20px;border:0;border-right:1px solid #a7cbd8;background:none;border-radius:0}
+#landing-page .public-dental-referral>div:last-child {border-right:0}
+#landing-page .public-dental-referral strong {display:block;font-size:.94rem;color:var(--ink);margin-bottom:4px}
+#landing-page .public-dental-referral span {display:block;font-size:.875rem;line-height:1.5;color:var(--ink-muted)}
+#landing-page .public-team-grid {gap:10px;margin-top:0}
+#landing-page .public-team-card {padding:14px 12px;border-radius:15px}
+#landing-page .public-team-avatar {background:linear-gradient(145deg,#27a9d1,#24a8a7);border:0;color:#fff;width:44px;height:44px;margin-bottom:8px}
+#landing-page .public-team-card strong {color:var(--ink);font-size:.8rem}
+#landing-page .public-team-card span {color:var(--ink-muted);font-size:.875rem;line-height:1.4}
+#landing-page .public-rights-grid {margin-top:0;gap:12px}
+#landing-page .public-rights-card {padding:14px}
+#landing-page .public-rights-card h4 {color:var(--ink);font-size:.875rem;margin-bottom:6px}
+#landing-page .public-rights-card ul {color:var(--ink-muted);font-size:.875rem;line-height:1.6}
+#landing-page .public-milestone-heading {margin-top:30px}
+#landing-page .public-achievement-card.photo-achievement {grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:0;border:1px solid #c4deed;border-radius:16px;background:#cadff080;margin-top:0}
+#landing-page .public-achievement-photo {min-height:210px}
+#landing-page .public-achievement-photo::after {display:none}
+#landing-page .public-achievement-copy {padding:24px 28px}
+#landing-page .public-achievement-kicker {color:#006d91;font-size:.7rem}
+#landing-page .public-achievement-copy h4 {color:var(--ink);font-size:1rem;margin-bottom:8px}
+#landing-page .public-achievement-copy p {color:var(--ink-muted);font-size:.875rem;line-height:1.6}
+#landing-page .public-contact-card a {color:#07698d;font-size:.94rem}
+#landing-page .public-hours-row {color:var(--ink-muted);border-color:#d2e0e9;font-size:.875rem}
+#landing-page .public-hours-row strong {color:var(--ink)}
+/* A lighter photograph and blue-grey advisory panel echo the supplied home reference.
+   Solid fallback colors maintain legibility when transparency is unavailable. */
+#landing-hero {min-height:calc(100svh - var(--landing-nav-h));padding-block:28px;background-image:linear-gradient(90deg,rgba(5,17,29,.84),rgba(5,22,36,.42) 55%,rgba(12,30,55,.64)),url('/ctu-campus.png')}
+#landing-hero .landing-hero-grid {row-gap:24px;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}
+#landing-hero .landing-hero-text h1 {font-size:clamp(2.25rem,3.25vw,3.5rem);line-height:1.1;letter-spacing:-1px;margin-bottom:20px}
+#landing-hero .landing-hero-text h1 span {color:#a6c4ff}
+#landing-hero .landing-hero-text p {font-size:1rem;line-height:1.7}
+#landing-hero .landing-hero-visual {min-height:0}
+#landing-hero .hero-info-carousel {width:min(100%,455px);height:440px;background:#38556d;background-image:linear-gradient(145deg,#38779c80,#626b8540);border-color:#b2d2e65c;box-shadow:0 20px 50px #03142133}
+#landing-hero .hero-carousel-slide {padding:20px}
+#landing-hero .hero-mini-card {background:#25465c;border-color:#7294ac80}
+#landing-hero :is(.hero-slide-icon,.landing-impact-icon) svg {width:22px;height:22px}
+#landing-hero .hero-slide-icon {background:#ffffff12;border-color:#d9f0ff40}
+#landing-hero .landing-impact-item {padding:12px;background:#324b5a;border-color:#b6d4df40;border-radius:14px}
+#landing-hero .landing-impact-copy strong {font-size:.85rem}
+#landing-hero .landing-impact-copy span {font-size:.8rem;line-height:1.45}
+#landing-hero .landing-impact-icon {width:34px;height:34px;flex:0 0 34px;background:#b3e4f414;border:1px solid #b6d4df40;border-radius:10px}
+/* Security feedback is separate from consent, with recovery shown only when actionable. */
+#registration-captcha-section {padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--overlay);margin:18px 0}
+.registration-security-heading {display:flex;align-items:center;gap:8px;margin-bottom:12px;color:var(--ink)}
+.registration-security-heading svg {width:21px;height:21px;color:var(--primary);flex-shrink:0}
+.registration-security-heading h4 {font-size:.875rem;margin:0}
+.registration-security-feedback {display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:8px}
+#registration-captcha-status {color:var(--ink);margin:0;font-size:.875rem;line-height:1.5;flex:1 1 180px}
+.registration-security-retry {display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:8px 12px;border:1px solid var(--primary);border-radius:9px;background:var(--overlay-strong);color:var(--ink);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.registration-security-retry svg {width:17px;height:17px;color:var(--primary)}
+.registration-security-retry:hover {background:var(--primary-light)}
+.registration-security-retry:focus-visible {outline:3px solid var(--primary);outline-offset:3px}
+.registration-security-retry[hidden] {display:none}
+#registration-captcha-section[data-state="error"],#registration-captcha-section[data-state="expired"] {border-color:#ba7d22}
+#registration-captcha-section[data-state="complete"] .registration-security-heading svg {color:#21834b}
+@media(max-width:1100px) {
+  #landing-hero .landing-hero-grid {grid-template-columns:minmax(0,1fr)}
+  #landing-hero .hero-info-carousel {max-width:600px;width:100%;height:460px}
+}
+@media(max-width:900px) {
+  #landing-page .public-services-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
+  #landing-page .public-about-grid {grid-template-columns:1fr}
+  #landing-page .public-team-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
+  #landing-page .public-visit-steps {grid-template-columns:1fr;gap:18px}
+  #landing-page .public-visit-steps::before {top:10px;bottom:10px;left:21px;right:auto;border-top:0;border-left:2px dashed #7bc7e0}
+  #landing-page .public-visit-step {padding-left:64px;text-align:left;min-height:44px}
+  #landing-page .public-visit-step .num {position:absolute;left:0;top:0}
+  #landing-page .public-bring-grid,#landing-page .public-dental-referral {grid-template-columns:1fr}
+  #landing-page .public-dental-referral>div {border-right:0;border-bottom:1px solid #a7cbd8}
+  #landing-page .public-dental-referral>div:last-child {border-bottom:0}
+}
+@media(max-width:620px) {
+  #landing-page .landing-static-page {padding:24px 16px 32px}
+  #landing-page .public-services-grid,#landing-page .public-rights-grid,#landing-page .public-achievement-card.photo-achievement {grid-template-columns:1fr}
+  #landing-page .public-services-grid .feature-card {min-height:0}
+  #landing-page .public-guide-head {display:block}
+  #landing-page .public-guide-head p {margin-top:6px}
+  #landing-page .public-achievement-copy {padding:20px}
+  #landing-hero .landing-hero-text h1 {font-size:clamp(2rem,8vw,2.6rem)}
+  #landing-hero .hero-info-carousel {height:560px}
+  #landing-hero .hero-carousel-slide {padding:16px}
+  #registration-captcha-section {padding:12px}
+}
+@media(forced-colors:active) {
+  #landing-hero .landing-hero-text h1 span {color:CanvasText}
+}

@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 test('an async script renders after its load event without calling the incompatible ready API',async()=>{
-  const dom=new JSDOM('<div id="registration-captcha-section" hidden><div id="registration-captcha-widget"></div><p id="registration-captcha-status"></p></div>');
+  const dom=new JSDOM('<div id="registration-captcha-section" hidden><div id="registration-captcha-widget"></div><p id="registration-captcha-status"></p><button id="registration-security-retry" hidden>Try again</button></div>');
   const previous={window:globalThis.window,document:globalThis.document,fetch:globalThis.fetch};
   globalThis.window=dom.window;globalThis.document=dom.window.document;
   globalThis.fetch=async()=>Response.json({captcha_required:true,site_key:'0x4-fixture-key'});
@@ -25,6 +25,16 @@ test('an async script renders after its load event without calling the incompati
     assert.equal(dom.window.document.getElementById('registration-captcha-section').hidden,false);
     assert.equal(await module.registrationCaptchaToken('https://fixture.test','fixture-key'),'fixture-token');
     assert.equal(renders,1,'Refreshing configuration must reuse the existing widget');
+    assert.equal(dom.window.document.getElementById('registration-security-retry').hidden,true);
+    callbacks['error-callback']();
+    assert.equal(dom.window.document.getElementById('registration-security-retry').hidden,false);
+    assert.equal(dom.window.document.getElementById('registration-captcha-section').dataset.state,'error');
+    module.resetRegistrationCaptcha();
+    assert.equal(dom.window.document.getElementById('registration-security-retry').hidden,true);
+    callbacks.callback('fixture-token-2');
+    assert.equal(dom.window.document.getElementById('registration-captcha-section').dataset.state,'complete');
+    callbacks['timeout-callback']();
+    assert.equal(dom.window.document.getElementById('registration-security-retry').hidden,false);
     callbacks['expired-callback']();
     await assert.rejects(module.registrationCaptchaToken('https://fixture.test','fixture-key'),/Complete the security check/);
   }finally{Object.assign(globalThis,previous);dom.window.close();}
