@@ -134,3 +134,54 @@
 #sidebar-nav {flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 #sidebar>.sb-bottom {margin-top:0;padding-bottom:max(.6rem,env(safe-area-inset-bottom))}
 #sidebar .sb-logout {min-height:40px}
+
+/* Reports keep filters, exact tables and planning estimates in distinct views. */
+.reports-workspace{max-width:1440px;margin:0 auto;min-width:0}
+.reports-workspace [hidden]{display:none!important}
+.report-page-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1.2rem}
+.report-page-heading h2{font-size:1.4rem;margin:0 0 .25rem}
+.report-page-heading p{margin:0;color:var(--ink-muted)}
+.report-control-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.85rem;align-items:start}
+.report-control-grid .form-group{margin:0;min-width:0}
+.report-control-grid input,.report-control-grid select,.report-control-grid .modern-date-btn{width:100%;min-height:42px;box-sizing:border-box}
+.report-control-grid .modern-date-btn{justify-content:flex-start;white-space:normal;text-align:left}
+.report-presets{display:flex;gap:.45rem;align-items:center;flex-wrap:wrap;margin-top:.85rem}
+.report-presets>span{font-size:.75rem;color:var(--ink-muted);margin-right:.25rem}
+.report-tabs{display:flex;gap:.35rem;border-bottom:1px solid var(--glass-border);margin-bottom:1rem;overflow-x:auto}
+.report-tabs button{font:inherit;color:var(--ink-muted);border:0;border-bottom:3px solid transparent;background:transparent;padding:.85rem 1.1rem;white-space:nowrap;cursor:pointer;display:flex;gap:.5rem;align-items:center}
+.report-tabs button[aria-selected=true]{color:var(--primary-mid);border-bottom-color:var(--primary-mid);font-weight:700;background:var(--glass-surface)}
+.report-tabs button:focus-visible,.report-template:focus-visible{outline:2px solid var(--primary-mid);outline-offset:-3px}
+.report-template-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.65rem;margin-bottom:1rem}
+.report-template{display:flex;justify-content:space-between;align-items:center;text-align:left;gap:.75rem;border:1px solid var(--glass-border);border-radius:12px;background:var(--glass-surface);color:var(--ink);padding:1rem;cursor:pointer;font:inherit;font-weight:600}
+.report-template:hover{border-color:var(--primary-mid)}
+#rpt-custom-controls{margin-bottom:1rem}
+.report-answer{border-left:3px solid var(--primary-mid);padding:.5rem 1rem;display:flex;flex-direction:column;margin-bottom:1.2rem}
+.report-answer>span,.report-answer>small{color:var(--ink-muted)}
+.report-answer>strong{font-size:2rem;line-height:1.5}
+.report-bars{display:grid;gap:.65rem;margin:1rem 0 1.5rem}
+.report-bar-row{display:grid;grid-template-columns:minmax(100px,32%) 1fr minmax(36px,auto);gap:.7rem;align-items:center;font-size:.8rem}
+.report-bar-row>span{overflow-wrap:anywhere}
+.report-bar-track{height:12px;border-radius:6px;background:var(--glass-surface);overflow:hidden}
+.report-bar-track i{display:block;height:100%;background:var(--primary-mid);border-radius:6px}
+.report-bar-row strong{text-align:right}
+.report-table-scroll{max-height:440px;overflow:auto}
+.report-table-scroll thead{position:sticky;top:0;background:var(--glass-surface-strong);z-index:1}
+.report-details{margin:1rem 0}
+.report-details>summary{cursor:pointer;padding:.6rem 0;font-weight:600}
+.report-two-column{display:grid;grid-template-columns:1fr 1fr;gap:2rem}
+.report-projection .report-bar-track i,.report-forecast-key i.projected{background:#8c79da}
+.report-forecast-key{display:flex;flex-wrap:wrap;gap:1rem;font-size:.76rem;color:var(--ink-muted);margin:1rem 0}
+.report-forecast-key i{display:inline-block;width:10px;height:10px;background:var(--primary-mid);border-radius:3px;margin-right:.35rem}
+.report-stale{border:1px solid var(--primary-mid);border-radius:8px;padding:.75rem;background:var(--glass-surface);font-size:.82rem}
+.report-date-value{font-size:1.1rem!important}
+@media(max-width:640px){
+  .report-page-heading{align-items:flex-start;flex-direction:column}
+  .report-control-grid{grid-template-columns:1fr}
+  .report-tabs button{padding:.8rem .65rem;font-size:.83rem}
+  .report-two-column{grid-template-columns:1fr;gap:.7rem}
+  .reports-workspace .card{padding:1rem}
+  .report-control-grid input,.report-control-grid select{font-size:16px}
+  .report-template-grid{grid-template-columns:1fr 1fr}
+  .report-template{font-size:.8rem;padding:.8rem}
+}
+@media print{.report-filter-card,.report-tabs,.report-template-grid,#rpt-custom-controls,#student-report-filters{display:none!important}}

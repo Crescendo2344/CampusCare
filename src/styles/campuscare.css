@@ -2683,14 +2683,7 @@ tbody tr:hover td{background:var(--overlay)}
 }
 #session-restore-skeleton.show{display:flex}
 #session-restore-skeleton .restore-shell{width:min(820px,calc(100vw - 2rem))}
-#session-restore-skeleton::before{
-  content:'Loading CampusCare…';
-  position:absolute;
-  top:calc(50% - 215px);
-  color:var(--ink-muted);
-  font-size:.82rem;
-  font-weight:600;
-}
+/* Session restoration uses the existing accessible skeleton without a text overlay. */
 
 
 /* Clickable record links inside appointment tables/modals. */
