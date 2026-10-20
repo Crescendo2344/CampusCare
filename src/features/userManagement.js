@@ -1,3 +1,4 @@
+import {canEditApprovedUser} from '../../supabase/functions/_shared/admin-user-edit.js';
 // userManagement: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
@@ -170,7 +171,7 @@ export async function openUserDetails(id){
       </div>
       <div class="modal-footer">
         <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
-        <button class="btn btn-primary" ${bindAction('click',(event,element)=>{closeAllModals();openEditUserModal((u.id))})}>Edit User</button>
+        ${canEditApprovedUser({...u,status:d.status})?`<button class="btn btn-primary" ${bindAction('click',()=>openEditUserModal(u.id))}>Edit User</button>`:''}
       </div>
     </div>`);
   }catch(e){
@@ -321,7 +322,7 @@ export function renderUserTable(){
       <td class="text-muted">${formatLastLogin(u.lastLogin)}</td>
       <td>${u.archived?'<span class="badge badge-gray">Archived</span>':statusBadge(u.status)}</td>
       <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
-        ${!u.archived?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{openEditUserModal((u.id))})}>Edit</button>`:''}
+        ${canEditApprovedUser(u)?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{openEditUserModal((u.id))})}>Edit</button>`:''}
         ${!u.archived&&u.status==='Active'&&u.id!==appState.auth.currentUser.id?`<button class="btn btn-xs btn-warning" ${bindAction('click',(event,element)=>{suspendUser((u.id))})}>Suspend</button>`:''}
         ${!u.archived&&u.status==='Pending'?`<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{approveUser((u.id))})}>Approve</button><button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{rejectUser((u.id))})}>Reject</button>`:''}
         ${!u.archived&&u.status==='Suspended'?`<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{reactivateUser((u.id))})}>Reactivate</button>`:''}
@@ -332,6 +333,7 @@ export function renderUserTable(){
 }
 
 export function suspendUser(id){
+  if(appState.data.DB.users.find(x=>x.id===id)?.status!=='Active')return;
   const u=appState.data.DB.users.find(x=>x.id===id);if(!u)return;
   if(appState.auth.currentUser?.role==='Administrator'&&id===appState.auth.currentUser.id&&'Suspended'!=='Active'){
     toast('You cannot suspend or archive your own administrator account.','warning');return;
@@ -358,6 +360,7 @@ export function suspendUser(id){
 }
 
 export function reactivateUser(id){
+  if(appState.data.DB.users.find(x=>x.id===id)?.status!=='Suspended')return;
   const u=appState.data.DB.users.find(x=>x.id===id);if(!u)return;
   if(appState.auth.currentUser?.role==='Administrator'&&id===appState.auth.currentUser.id&&'Active'!=='Active'){
     toast('You cannot suspend or archive your own administrator account.','warning');return;

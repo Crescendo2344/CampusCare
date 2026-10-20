@@ -1,4 +1,6 @@
 // userForm: imported feature APIs; state belongs to explicit application namespaces.
+import {canEditApprovedUser,buildUserEditPatch} from '../../supabase/functions/_shared/admin-user-edit.js';
+import {escapeHtml} from './issueReports.js';
 import {state as appState} from '../app/state.js';
 import {closeAllModals,openModal} from './modals.js';
 import {showAlert,showConfirmDialog,toast} from './theme.js';
@@ -84,60 +86,55 @@ export async function saveNewUser(){
 }
 
 export function openEditUserModal(id){
-  const u=appState.data.DB.users.find(x=>x.id===id);if(!u)return;
+  const u=appState.data.DB.users.find(x=>x.id===Number(id));if(!u)return;
+  if(appState.auth.currentUser?.role!=='Administrator'){toast('Administrator access required.','warning');return;}
+  if(!canEditApprovedUser(u)){toast('Approve this account before editing it. Archived accounts must be restored first.','warning');return;}
   openModal(`<div class="modal">
-    <div class="modal-header"><h3>Edit User – ${u.fname} ${u.lname}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-    <div class="modal-body">
-      <div id="edituser-msg"></div>
-      <div class="form-row">
-        <div class="form-group"><label>First Name</label><input id="eu-fname" value="${u.fname}"></div>
-        <div class="form-group"><label>Last Name</label><input id="eu-lname" value="${u.lname}"></div>
-        <div class="form-group"><label>Email</label><input id="eu-email" type="email" value="${u.email}"></div>
-        <div class="form-group"><label>Contact</label><input id="eu-contact" value="${u.contact||''}"></div>
-        <div class="form-group"><label>Status</label>
-          <select id="eu-status"><option ${u.status==='Active'?'selected':''}>Active</option><option ${u.status==='Pending'?'selected':''}>Pending</option><option ${u.status==='Suspended'?'selected':''}>Suspended</option></select>
-        </div>
-        ${u.role==='Doctor'?`<div class="form-group"><label>Specialty</label>
-          <select id="eu-spec"><option ${u.specialty==='General Medicine'?'selected':''}>General Medicine</option><option ${u.specialty==='Dental'?'selected':''}>Dental</option></select>
-        </div>`:''}
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
-      <button class="btn btn-primary" ${bindAction('click',(event,element)=>{saveEditUser((id))})}>Save</button>
-    </div>
+    <div class="modal-header"><h3>Edit User – ${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</h3><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body"><div id="edituser-msg"></div>
+      <div class="form-row" id="edituser-fields">
+        <div class="form-group"><label for="eu-fname">First Name</label><input id="eu-fname" maxlength="100" value="${escapeHtml(u.fname)}"></div>
+        <div class="form-group"><label for="eu-lname">Last Name</label><input id="eu-lname" maxlength="100" value="${escapeHtml(u.lname)}"></div>
+        <div class="form-group"><label for="eu-email">Email</label><input id="eu-email" type="email" maxlength="150" value="${escapeHtml(u.email)}"></div>
+        <div class="form-group"><label for="eu-contact">Contact</label><input id="eu-contact" type="tel" placeholder="09 or +63" value="${escapeHtml(u.contact||'')}"></div>
+        ${u.role==='Doctor'?`<div class="form-group"><label for="eu-spec">Specialty</label><select id="eu-spec">${['General Medicine','Dental','Eye','Mental Health'].map(value=>`<option ${u.specialty===value?'selected':''}>${value}</option>`).join('')}</select></div>`:''}
+      </div><section id="edituser-review" hidden></section>
+    </div><div class="modal-footer" id="edituser-actions"><button class="btn btn-primary" ${bindAction('click',()=>saveEditUser(u.id))}>Review Changes</button></div>
   </div>`);
 }
-
 export async function saveEditUser(id){
-  const u=appState.data.DB.users.find(x=>x.id===id);if(!u)return;
+  const u=appState.data.DB.users.find(x=>x.id===Number(id));if(!u)return;
   const msg=document.getElementById('edituser-msg');
-
-  if(!u._realSupabase){
-    showAlert(msg,'This demo account has not been migrated to Supabase yet.','warning');
-    return;
-  }
-
-  try{
-    await adminUserAction({
-      action:'update',
-      user_id:u.dbUserId,
-      first_name:document.getElementById('eu-fname').value.trim()||u.fname,
-      last_name:document.getElementById('eu-lname').value.trim()||u.lname,
-      email:document.getElementById('eu-email').value.trim().toLowerCase()||u.email,
-      contact_number:document.getElementById('eu-contact').value,
-      specialty:u.role==='Doctor'?document.getElementById('eu-spec').value:undefined
-    });
-    toast('User updated.','success');
-    closeAllModals();
-    await renderUsers();
-  }catch(e){
-    showAlert(msg,e?.message||'Unable to update user.');
-  }
+  if(appState.auth.currentUser?.role!=='Administrator'||!canEditApprovedUser(u)){showAlert(msg,'Only approved accounts can be edited by an administrator.');return;}
+  if(!u._realSupabase){showAlert(msg,'This account has not been migrated to Supabase yet.','warning');return;}
+  const original={...u,first_name:u.fname,last_name:u.lname,contact_number:u.contact||''};
+  const result=buildUserEditPatch({first_name:document.getElementById('eu-fname').value,last_name:document.getElementById('eu-lname').value,email:document.getElementById('eu-email').value,contact_number:document.getElementById('eu-contact').value,...(u.role==='Doctor'?{specialty:document.getElementById('eu-spec').value}:{})},original);
+  if(result.error){showAlert(msg,result.error);return;}
+  const patch=result.patch;if(!Object.keys(patch).length){showAlert(msg,'No changes to save.','info');return;}
+  const fields=document.getElementById('edituser-fields'),review=document.getElementById('edituser-review'),actions=document.getElementById('edituser-actions'),modal=document.getElementById('active-modal');
+  const labels={first_name:'First Name',last_name:'Last Name',email:'Email',contact_number:'Contact',specialty:'Specialty'};
+  // Freeze a reviewed snapshot; returning to editing preserves the original form and its unsaved values.
+  fields.hidden=true;review.hidden=false;msg.innerHTML='';
+  review.innerHTML=`<h4>Confirm user changes</h4><p>Are you sure you want to update <strong>${escapeHtml(u.username||u.email)}</strong>?</p><div class="table-wrap"><table><thead><tr><th>Field</th><th>Current</th><th>New</th></tr></thead><tbody>${Object.entries(patch).map(([key,value])=>`<tr><td>${labels[key]}</td><td>${escapeHtml(original[key]||'—')}</td><td>${escapeHtml(value||'—')}</td></tr>`).join('')}</tbody></table></div>`;
+  const back=()=>{fields.hidden=false;review.hidden=true;actions.innerHTML=`<button class="btn btn-primary" ${bindAction('click',()=>saveEditUser(u.id))}>Review Changes</button>`;};
+  actions.innerHTML=`<button class="btn" ${bindAction('click',back)}>Back to Editing</button><button id="confirm-user-edit" class="btn btn-primary" ${bindAction('click',async()=>{
+    if(!canEditApprovedUser(appState.data.DB.users.find(x=>x.id===u.id))){showAlert(msg,'This account is no longer available for editing.');return;}
+    const buttons=[...actions.querySelectorAll('button')];buttons.forEach(button=>button.disabled=true);
+    try{
+      const result=await adminUserAction({action:'update',user_id:u.dbUserId,...patch,confirmed:true});
+      const saved=result.user;
+      if(!saved)throw new Error('The update could not be verified. Reload the account before retrying.');
+      Object.assign(u,{fname:saved.first_name,lname:saved.last_name,email:saved.email,contact:saved.contact_number||'',contactNo:saved.contact_number||'',specialty:saved.specialty||''});
+      if(modal.isConnected)closeAllModals();toast('User changes saved.','success');
+      if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
+    }catch(error){if(modal.isConnected)showAlert(msg,error?.message||'Unable to update user.');else toast(error?.message||'Unable to update user.','error');}
+    finally{buttons.forEach(button=>button.disabled=false);}
+  })}>Confirm Changes</button>`;
 }
 
 export function openDoctorScheduleEdit(docId){
   const doc=appState.data.DB.users.find(u=>u.id===docId);if(!doc)return;
+  if(appState.auth.currentUser?.role!=='Administrator'||!canEditApprovedUser(doc)){toast('Approve or restore this account before editing its schedule.','warning');return;}
   openModal(`<div class="modal">
     <div class="modal-header"><h3>Edit Schedule – Dr. ${doc.fname} ${doc.lname}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
     <div class="modal-body">
