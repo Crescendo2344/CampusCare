@@ -225,7 +225,16 @@ try{
     });
     await page.locator('#r-id-file').setInputFiles({name:'front.png',mimeType:'image/png',buffer:Buffer.from(front,'base64')});
     await page.getByRole('button',{name:'Use Front Photo',exact:true}).click();
-    assert(await page.locator('#r-id-front-preview img').isVisible());
+    await page.getByText('Front saved — add the back',{exact:true}).waitFor();
+    await page.locator('#active-modal').getByRole('button',{name:'Back to registration',exact:true}).click();
+    assert.equal(await page.locator('.registration-id-panel').count(),1,'Only one ID panel should occupy the form');
+    await page.getByText('Step 2 of 2 — Back of ID',{exact:true}).waitFor();
+    assert.equal(await page.locator('#r-id-preview img').count(),0,'The back step should request a new image');
+    await page.locator('#r-id-show-front').click();
+    assert(await page.locator('#r-id-preview img[alt="ID front"]').isVisible());
+    const framed=await page.locator('#r-id-preview').evaluate(preview=>{const frame=preview.getBoundingClientRect(),image=preview.querySelector('img').getBoundingClientRect();return image.height<=frame.height&&image.width<=frame.width;});
+    assert(framed,'The single preview must show the whole image without intrinsic-size clipping');
+    await page.locator('#r-id-show-back').click();
     await page.locator('#registration-submit-button').click();
     assert(!requests.some(request=>request.path.endsWith('/register-patient')),'One side must not reach registration');
     // A duplicate upload is rejected without replacing existing evidence.
@@ -251,7 +260,7 @@ try{
         stream.getTracks().forEach(track=>track.addEventListener('ended',()=>clearInterval(timer)));return stream;
       };
     });
-    await page.locator('[data-action-click="id-back-camera"]').click();
+    await page.locator('#r-id-camera-button').click();
     await page.getByText('Move the ID closer to the camera',{exact:true}).waitFor();
     assert(await page.locator('#camera-capture-button').isDisabled());
     for(const [pose,prompt]of [['close','Move the ID back a little'],['center','Center the ID inside the rectangle'],['dark','Improve the lighting on the ID'],['good','Good framing — keep the ID still']]){
@@ -259,22 +268,24 @@ try{
     }
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/guided-id-${mobile?'mobile':'desktop'}.png`,fullPage:true});
     await page.locator('#camera-capture-button').click();
-    assert(await page.locator('#r-id-back-preview img').isVisible());
+    assert(await page.locator('#r-id-preview img[alt="ID back"]').isVisible());
     assert(await page.evaluate(()=>!window.__fixtureApp.state.camera._cameraStream));
     // A front retake advances to the flip step; canceling the back retake keeps the saved back.
+    await page.locator('#r-id-show-front').click();
     await page.evaluate(()=>window.__fixtureIdLabel='ID FRONT');
-    await page.locator('[data-action-click="id-front-camera"]').click();
+    await page.locator('#r-id-camera-button').click();
     await page.getByText('Good framing — keep the ID still',{exact:true}).waitFor();
     await page.locator('#camera-capture-button').click();
     await page.getByText('Front saved — flip your ID',{exact:true}).waitFor();
     await page.locator('#active-modal').getByRole('button',{name:'Photograph Back',exact:true}).click();
     await page.waitForFunction(()=>document.getElementById('camera-video')?.readyState>=2);
     await page.locator('#active-modal').getByRole('button',{name:'Cancel',exact:true}).click();
-    assert(await page.locator('#r-id-back-preview img').isVisible());
+    assert(await page.locator('#r-id-preview img[alt="ID back"]').isVisible());
     await page.evaluate(()=>{navigator.mediaDevices.getUserMedia=window.__fixtureGetUserMedia;});
 
     await page.evaluate(()=>window.scrollTo(0,document.scrollingElement.scrollHeight));
     const submit=await page.locator('#registration-submit-button').boundingBox();assert(submit.y>=0&&submit.y+submit.height<=640+(mobile?0:160),'Registration submit is clipped');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.registration-id-panel').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/compact-id-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#registration-submit-button').click();await page.locator('#pending-section').waitFor({state:'visible'});
     assert(requests.some(request=>request.path.endsWith('/register-patient')),'OCR 25% must reach staff review submission');
     // Confirmation links always end at login, even for an already active account.

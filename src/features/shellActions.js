@@ -12,7 +12,7 @@ import {handleTopSearchKey,renderTopSearch,toggleSidebar} from './topbarAndNavig
 import {openProfileDetails} from './accountSettings.js';
 import {markAllRead,toggleNotifPanel} from './assistant.js';
 import {navTo} from './navigationRaceProtection.js';
-import {handleRegistrationIdUpload} from './idVerification.js';
+import {handleRegistrationIdUpload,selectRegistrationIdSide} from './idVerification.js';
 import {registerNamedAction} from '../dependencies.js';
 // Shell controls use registered lexical callbacks, never HTML inline JavaScript.
 
@@ -50,8 +50,9 @@ export function initializeFeature(){
   // Each side has its own accepted file and guided camera capture.
   for(const side of ['front','back']){
     registerNamedAction('id-'+side+'-upload',(event,input)=>handleRegistrationIdUpload(input,side));
-    registerNamedAction('id-'+side+'-camera',()=>openCamera('id-'+side));
+    registerNamedAction('id-show-'+side,()=>selectRegistrationIdSide(side));
   }
+  registerNamedAction('id-current-camera',()=>openCamera('id-'+(appState.camera.registrationIdSide||'front')));
   registerNamedAction('shell-30',(event,element)=>{openCamera('selfie')});
   registerNamedAction('shell-35',(event,element)=>{event.preventDefault();openPrivacyNotice()});
   registerNamedAction('shell-36',(event,element)=>{doRegister()});
