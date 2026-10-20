@@ -86,7 +86,7 @@ export function renderMyAccount(){
           <p class="form-note" style="margin:-.2rem 0 .8rem">${u.role==='Administrator'?'As an administrator, you can update your name directly from User Management.':`For security, your name can only be changed by an administrator. <a href="#" ${bindAction('click',(event,element)=>{openNameChangeRequest();return false;})} style="color:var(--primary);text-decoration:none">Request a name change →</a>`}</p>
           <div class="divider"></div>
           <div class="form-group"><label>Email</label><input id="acc-email" value="${u.email}" type="email" ${bindAction('input',(event,element)=>{sanitizeInput(element,'email')})}></div>
-          <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${u.contact||''}" inputmode="numeric" placeholder="09XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
+          <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${u.contact||''}" type="tel" inputmode="tel" maxlength="24" placeholder="09XXXXXXXXX or +639XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
           ${u.role==='Administrator'
             ? '<p class="form-note">As an administrator, updating your email or contact applies immediately — no verification code needed.</p>'
             : '<p class="form-note">Changing your email or contact requires a 6-digit verification code sent to your current verified email or phone. If you change your phone number, Supabase also sends an SMS code to the new number before the change is completed.</p>'}

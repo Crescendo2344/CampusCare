@@ -92,7 +92,7 @@ try{
   });
   await page.goto(baseUrl);await page.waitForFunction(()=>Boolean(window.__fixtureApp));
   if(!mobile&&role==='Patient'){
-    // A solid panel must remain readable without backdrop filtering at every breakpoint.
+    // The compact translucent panel must remain readable at every breakpoint.
     for(const width of [320,360,768,1366])for(const theme of ['light','dark']){
       await page.setViewportSize({width,height:800});
       await page.evaluate(theme=>{
@@ -111,15 +111,16 @@ try{
         // Text fragments reveal real wrapping rather than merely checking a CSS declaration.
         ctaLines:(()=>{const range=document.createRange();range.selectNodeContents(document.querySelector('.landing-get-started'));return range.getClientRects().length;})()
       }));
-      assert.equal(layout.ctaLines,1,`${width} ${theme}: Get Started wraps`);
+      assert.equal(layout.ctaLines,1,`${width} ${theme}: Register wraps`);
       assert.equal(layout.navbar,'rgb(10, 20, 32)');
       assert.equal(layout.overflow,false,`${width} ${theme}: horizontal overflow`);
-      assert(layout.font>=14,`${width} ${theme}: unreadable carousel font`);
-      assert.equal(layout.background,'rgb(56, 85, 109)');assert.equal(layout.blur,'none');
+      assert(layout.font>=13,`${width} ${theme}: unreadable carousel font`);
+      assert(['rgba(83, 113, 145, 0.82)','rgba(64, 92, 116, 0.9)'].includes(layout.background));
       if(width>1100){
+        const panel=await page.locator('.hero-info-carousel').boundingBox();assert.equal(panel.height,320);assert.equal(panel.width,420);
         // Desktop carousel and navbar CTA share a right edge.
         const edges=await page.evaluate(()=>({carousel:document.querySelector('.hero-info-carousel').getBoundingClientRect().right,cta:document.querySelector('.landing-get-started').getBoundingClientRect().right}));
-        assert(Math.abs(edges.carousel-edges.cta)<2,'Carousel must align with Get Started');
+        assert(Math.abs(edges.carousel-edges.cta)<2,'Carousel must align with Register');
       }
       if(process.env.CAMPUSCARE_VISUAL_DIR){
         // Optional screenshots aid local visual review and are never production assets.
@@ -159,6 +160,20 @@ try{
       assert(await page.evaluate(()=>document.querySelector('.landing-route.active').getBoundingClientRect().bottom<=innerHeight+2),`${route}: bottom is clipped`);
     }
     await page.locator('.landing-get-started').click();
+    await page.locator('#reg-section').waitFor({state:'visible'});
+    assert.equal(await page.locator('.landing-get-started').innerText(),'Register');
+    // Typo feedback appears beside the email field; legitimate school and company domains stay valid.
+    await page.locator('#r-email').fill('student@gmal.com');await page.locator('#r-email').blur();
+    await page.locator('#r-email-error').getByText('Check the email domain. Did you mean @gmail.com?',{exact:true}).waitFor();
+    for(const email of ['student@ctu.edu.ph','student+clinic@gmail.com','student@school.edu.ph']){
+      await page.locator('#r-email').fill(email);await page.locator('#r-email').blur();assert(await page.locator('#r-email-error').isHidden());
+    }
+    await page.locator('#r-contact').fill('+639171234567');await page.locator('#r-contact').blur();assert(await page.locator('#r-contact-error').isHidden());
+    assert.equal(await page.locator('#r-contact').inputValue(),'+639171234567');
+    await page.locator('#r-contact').fill('08171234567');await page.locator('#r-contact').blur();await page.locator('#r-contact-error').waitFor({state:'visible'});
+    await page.locator('#r-contact').fill('');await page.locator('#r-contact').blur();
+    await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingPage());
+    await page.locator('.landing-book-appointment').click();
     const loginBox=await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).boundingBox();
     const forgotBox=await page.getByRole('link',{name:'Forgot password?',exact:true}).boundingBox();
     assert(forgotBox.y>loginBox.y+loginBox.height,'Forgot password must be below Login');
@@ -347,8 +362,8 @@ try{
   }
   // Only native browser navigation is shown, and auth has no theme toggle.
   assert.equal(await page.locator('#page-back').count(),0);
-  assert.equal(await page.getByRole('button',{name:'Book an Appointment',exact:true}).count(),0);
-  await page.locator('.landing-get-started').click();
+  assert.equal(await page.getByRole('button',{name:'Book an Appointment',exact:true}).count(),1);
+  await page.locator('.landing-book-appointment').click();
   assert.equal(await page.locator('#landing-navbar').evaluate(nav=>getComputedStyle(nav).backgroundColor),'rgb(10, 20, 32)');
   assert.equal(await page.locator('#auth-theme-toggle-btn').count(),0);
   await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).click();

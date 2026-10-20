@@ -1,6 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2.117.3";
 
+import {emailValidationError,normalizePhilippineMobile} from '../_shared/contact-validation.js';
+import {createMailDomainValidator} from '../_shared/mail-domain.js';
+const checkMailDomain=createMailDomainValidator();
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -135,9 +139,15 @@ Deno.serve(async(req:Request)=>{
 
     // Apply independent email and ID limits even when callers rotate networks.
     const schoolId=String(metadata.id_number||"").trim();
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>150||!/^\d{5}(?:\d{2})?$/.test(schoolId))return json({error:"Enter a valid email and Student or Employee ID number."},400);
+    if(!/^\d{5}(?:\d{2})?$/.test(schoolId))return json({error:"Enter a valid email and Student or Employee ID number."},400);
+    const emailError=emailValidationError(email);if(emailError)return json({error:emailError},400);
+    const contactRaw=String(metadata.contact_number||'').trim();
+    if(contactRaw&&!normalizePhilippineMobile(contactRaw))return json({error:'Use a Philippine mobile number starting with 09 or +639.'},400);
+    if(contactRaw){metadata.contact_number=normalizePhilippineMobile(contactRaw);metadata.contact_no=metadata.contact_number;}
     const captchaError=await validateCaptcha(captcha,form.get("captcha_token"));if(captchaError)return captchaError;
     for(const [scope,value] of [["email",email],["id",schoolId]]){const denied=await registrationLimit(adminClient,scope,value,serviceKey);if(denied)return denied;}
+    // Validate arbitrary school and company domains without requiring a provider allowlist.
+    const domainError=await checkMailDomain(email.split('@')[1],fetch);if(domainError)return json({error:domainError.error},domainError.status);
     const publicClient=createClient(url,anonKey,{auth:{persistSession:false}});
 
     const username=String(metadata.username||"").trim();

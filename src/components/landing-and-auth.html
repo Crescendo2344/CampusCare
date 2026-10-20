@@ -12,7 +12,7 @@
       <a data-landing-link="contact" data-action-click="shell-5">Contact</a>
     </div>
     <div class="landing-nav-actions">
-      <button class="landing-login-btn landing-get-started" data-action-click="shell-6">Get Started</button>
+      <button class="landing-login-btn landing-get-started" data-action-click="shell-6">Register</button>
       <button class="landing-nav-toggle" data-action-click="shell-7" aria-label="Menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
@@ -29,6 +29,8 @@
           <span class="eyebrow"><i class="bi bi-activity" aria-hidden="true"></i> CTU Main Medical &amp; Dental Clinic</span>
           <h1>Your campus clinic, <span>here for you.</span></h1>
           <p>Free medical and dental care for every Technologist. Book a consultation, request medical certificates, view your health records, and message the clinic — anytime, from any device.</p>
+          <!-- Booking starts at login; registration has its own navbar entry point. -->
+          <div class="landing-hero-ctas"><button type="button" class="btn btn-primary landing-book-appointment" data-action-click="landing-book-appointment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6m10-6v6M3 10h18m-14 4h2m2 0h2m2 0h2m-10 3h2m2 0h2"/></svg>Book an Appointment</button></div>
           <div class="landing-stats">
             <div><strong>Medical Clinic</strong><span>Regular: Mon–Fri, 8:00 AM – 5:00 PM</span></div>
             <div><strong>FREE</strong><span>For students, faculty &amp; staff</span></div>
@@ -42,7 +44,22 @@
             <div class="hero-carousel-viewport" id="hero-carousel-viewport">
               <div class="hero-carousel-track" id="hero-carousel-track">
 
-                <article class="hero-carousel-slide" data-real-index="0" data-tone="clinic">
+                <article class="hero-carousel-slide" data-real-index="0" data-tone="fitness">
+                  <div class="hero-slide-inner">
+                    <div class="hero-slide-top">
+                      <div class="hero-slide-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c6-7-2-13-8-6-6-7-14-1-8 6l8 8 8-8Z"/><path d="M2 12h5l2-4 4 8 2-4h7"/></svg></div>
+                      <div class="hero-slide-copy"><span class="hero-slide-chip">Intramurals 2026–2027</span><h5>Fitness &amp; Clearance Guide</h5></div>
+                    </div>
+                    <p class="hero-slide-lead">Complete the eligibility requirements before bringing the form to the clinic.</p>
+                    <div class="hero-step-line">
+                      <div class="hero-step"><div class="hero-step-num">1</div><div><strong>Get your Eligibility Form</strong><span>Secure the official form from your coach and complete your personal/sports information.</span></div></div>
+                      <div class="hero-step"><div class="hero-step-num">2</div><div><strong>Complete required signatures</strong><span>Sign the waiver and obtain the required parent/guardian and coach signatures.</span></div></div>
+                      <div class="hero-step"><div class="hero-step-num">3</div><div><strong>Visit the clinic</strong><span>Bring the completed form after your enrollment medical requirements have been submitted.</span></div></div>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="hero-carousel-slide" data-real-index="1" data-tone="clinic">
                   <div class="hero-slide-inner">
                     <div class="hero-slide-top">
                       <div class="hero-slide-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12h5l3-8 4 16 3-8h5"/></svg></div>
@@ -52,13 +69,13 @@
                     <div class="hero-mini-grid">
                       <div class="hero-mini-card"><div class="mini-label"><i class="bi bi-geo-alt" aria-hidden="true"></i> Location</div><p>Ground Floor, Education Building, CTU Main Campus</p></div>
                       <div class="hero-mini-card"><div class="mini-label"><i class="bi bi-clock" aria-hidden="true"></i> Medical Hours</div><p>Mon–Fri 8 AM–5 PM · Extended until 9 PM · Weekend hours posted</p></div>
-                      <div class="hero-mini-card"><div class="mini-label"><i class="bi bi-bandaid" aria-hidden="true"></i> Emergencies</div><p>Walk in during clinic hours. Emergency concerns do not require booking.</p></div>
-                      <div class="hero-mini-card"><div class="mini-label"><i class="bi bi-emoji-smile" aria-hidden="true"></i> Dental</div><p>Daily slots are limited. Reserve early through CampusCare.</p></div>
+                      <div class="hero-mini-card"><div class="mini-label"><i class="bi bi-bandaid" aria-hidden="true"></i> Emergencies</div><p>Walk in during clinic hours. No booking required.</p></div>
+                      <div class="hero-mini-card"><div class="mini-label"><i class="bi bi-emoji-smile" aria-hidden="true"></i> Dental</div><p>Limited daily slots. Reserve early through CampusCare.</p></div>
                     </div>
                   </div>
                 </article>
 
-                <article class="hero-carousel-slide" data-real-index="1" data-tone="graduate">
+                <article class="hero-carousel-slide" data-real-index="2" data-tone="graduate">
                   <div class="hero-slide-inner">
                     <div class="hero-slide-top">
                       <div class="hero-slide-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 8 10-5 10 5-10 5-10-5Zm4 3v6c4 3 8 3 12 0v-6m4-3v9"/></svg></div>
@@ -70,21 +87,6 @@
                       <div class="hero-requirement"><i>02</i><span>Chest X-ray typewritten result</span></div>
                       <div class="hero-requirement"><i>03</i><span>Complete Blood Count (CBC) and Drug Test result</span></div>
                       <div class="hero-requirement"><i>04</i><span>Pregnancy documentation when applicable</span></div>
-                    </div>
-                  </div>
-                </article>
-
-                <article class="hero-carousel-slide" data-real-index="2" data-tone="fitness">
-                  <div class="hero-slide-inner">
-                    <div class="hero-slide-top">
-                      <div class="hero-slide-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c6-7-2-13-8-6-6-7-14-1-8 6l8 8 8-8Z"/><path d="M2 12h5l2-4 4 8 2-4h7"/></svg></div>
-                      <div class="hero-slide-copy"><span class="hero-slide-chip">Intramurals 2026–2027</span><h5>Fitness &amp; Clearance Guide</h5></div>
-                    </div>
-                    <p class="hero-slide-lead">Complete the eligibility requirements before bringing the form to the clinic.</p>
-                    <div class="hero-step-line">
-                      <div class="hero-step"><div class="hero-step-num">1</div><div><strong>Get your Eligibility Form</strong><span>Secure the official form from your coach and complete your personal/sports information.</span></div></div>
-                      <div class="hero-step"><div class="hero-step-num">2</div><div><strong>Complete required signatures</strong><span>Sign the waiver and obtain the required parent/guardian and coach signatures.</span></div></div>
-                      <div class="hero-step"><div class="hero-step-num">3</div><div><strong>Visit the clinic</strong><span>Bring the completed form after your enrollment medical requirements have been submitted.</span></div></div>
                     </div>
                   </div>
                 </article>
@@ -104,7 +106,6 @@
                     <div class="hero-referral-note">Persistent symptoms or conditions needing further evaluation may be referred to an appropriate medical facility. For emergencies on campus, proceed directly to the clinic or alert university personnel.</div>
                   </div>
                 </article>
-
               </div>
             </div>
 
@@ -353,7 +354,7 @@
       </div>
       <div class="form-row">
         <div class="form-group"><label>Username <span class="required">*</span></label><input id="r-user" type="text" maxlength="20" autocomplete="username" data-action-input="shell-20"></div>
-        <div class="form-group"><label>Email <span class="required">*</span></label><input id="r-email" type="email" maxlength="150" autocomplete="email" data-action-input="shell-21"></div>
+        <div class="form-group"><label>Email <span class="required">*</span></label><input id="r-email" type="email" maxlength="150" autocomplete="email" data-action-input="shell-21" data-action-blur="registration-contact-blur" aria-describedby="r-email-error"><p class="registration-field-error" id="r-email-error" aria-live="polite" hidden></p></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>Password <span class="required">*</span></label><input id="r-pass" type="password" minlength="8" maxlength="64" autocomplete="new-password" data-action-focus="shell-22" data-action-input="shell-23" data-action-blur="shell-24"></div>
@@ -365,7 +366,7 @@
           <div class="password-check" data-check="number"><span class="pw-check-icon"></span><span>One number</span></div>
           <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
         </div>
-        <div class="form-group"><label>Contact No.</label><input id="r-contact" type="text" inputmode="numeric" maxlength="11" autocomplete="tel" placeholder="09XXXXXXXXX" data-action-input="shell-25"></div>
+        <div class="form-group"><label>Contact No.</label><input id="r-contact" type="tel" inputmode="tel" maxlength="24" autocomplete="tel" placeholder="09XXXXXXXXX or +639XXXXXXXXX" data-action-input="shell-25" data-action-blur="registration-contact-blur" aria-describedby="r-contact-help r-contact-error"><p class="form-note" id="r-contact-help">Use 09XXXXXXXXX or +639XXXXXXXXX.</p><p class="registration-field-error" id="r-contact-error" aria-live="polite" hidden></p></div>
       </div>
       <div class="form-row">
         <div class="form-group">
