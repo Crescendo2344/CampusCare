@@ -411,14 +411,24 @@
           <button type="button" class="btn btn-sm btn-info" id="selfie-camera-button" data-action-click="shell-30"><i class="bi bi-camera" aria-hidden="true"></i> Take Verification Selfie</button>
         </div>
       </div>
-      <div class="form-group"><label id="r-verification-label">Student ID — Front and Back <span class="required">*</span></label><p class="form-note">Use the same original ID for both sides and your selfie. COR and PDF documents are not accepted.</p><div class="registration-id-grid">
-        <section class="registration-id-side"><h4>Front of ID</h4><div class="registration-id-preview" id="r-id-front-preview"></div><p id="r-id-front-status" aria-live="polite">Not provided</p>
-          <label class="btn btn-sm" for="r-id-file"><i class="bi bi-upload" aria-hidden="true"></i> Upload Front</label><input type="file" id="r-id-file" accept="image/jpeg,image/png,image/webp" class="id-file-input" data-action-change="id-front-upload">
-          <button type="button" class="btn btn-sm btn-info" data-action-click="id-front-camera"><i class="bi bi-camera" aria-hidden="true"></i> Photograph Front</button></section>
-        <section class="registration-id-side"><h4>Back of ID</h4><div class="registration-id-preview" id="r-id-back-preview"></div><p id="r-id-back-status" aria-live="polite">Not provided</p>
-          <label class="btn btn-sm" for="r-id-back-file"><i class="bi bi-upload" aria-hidden="true"></i> Upload Back</label><input type="file" id="r-id-back-file" accept="image/jpeg,image/png,image/webp" class="id-file-input" data-action-change="id-back-upload">
-          <button type="button" class="btn btn-sm btn-info" data-action-click="id-back-camera"><i class="bi bi-camera" aria-hidden="true"></i> Photograph Back</button></section>
-      </div><div id="id-analyze-status" class="registration-scanner-status" style="display:none"></div></div>
+      <!-- A single panel advances from front to back while retaining both private images. -->
+      <div class="form-group"><label id="r-verification-label">Student ID — Front and Back <span class="required">*</span></label>
+        <p class="form-note">Use the same original ID for both sides and your selfie. COR and PDF documents are not accepted.</p>
+        <section class="registration-id-panel" aria-label="ID photos">
+          <div class="registration-id-heading"><h4 id="r-id-step-title">Step 1 of 2 — Front of ID</h4><div class="registration-id-switch" aria-label="Review saved ID sides">
+            <button type="button" class="btn btn-xs" id="r-id-show-front" data-action-click="id-show-front" hidden>Front ✓</button>
+            <button type="button" class="btn btn-xs" id="r-id-show-back" data-action-click="id-show-back" hidden>Back ✓</button>
+          </div></div>
+          <div class="registration-id-preview" id="r-id-preview"><span>Front of your ID</span></div>
+          <p id="r-id-status" aria-live="polite">0 of 2 saved — start with the front.</p>
+          <div class="registration-id-actions">
+            <label class="btn btn-sm" id="r-id-upload-label" for="r-id-file">Upload Front</label>
+            <button type="button" class="btn btn-sm btn-info" id="r-id-camera-button" data-action-click="id-current-camera">Photograph Front</button>
+          </div>
+          <input type="file" id="r-id-file" aria-label="Upload front of ID" accept="image/jpeg,image/png,image/webp" class="id-file-input" data-action-change="id-front-upload">
+          <input type="file" id="r-id-back-file" aria-label="Upload back of ID" accept="image/jpeg,image/png,image/webp" class="id-file-input" data-action-change="id-back-upload">
+        </section><div id="id-analyze-status" class="registration-scanner-status" style="display:none"></div>
+      </div>
       <div class="privacy-agree">
         <input type="checkbox" id="r-privacy-consent">
         <label for="r-privacy-consent">I have read and agree to the <a data-action-click="shell-35">CampusCare Privacy Notice and Consent</a>. I understand that my personal and health information will be collected and processed for CTU clinic registration, consultation, treatment, appointment, certificate, inventory-linked clinical operations, reporting, and other legitimate clinic purposes.</label>

@@ -39,6 +39,8 @@ export function initializeOptionalState(){
   appState.camera._cameraStream=null;
   appState.camera.selfieGuidance=null;
   appState.camera.registrationIds={front:null,back:null};
+  // One shared preview starts at the front and advances after it is accepted.
+  appState.camera.registrationIdSide='front';
   appState.camera.registrationPersonType=null;
 
 }
