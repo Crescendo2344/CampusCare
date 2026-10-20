@@ -236,7 +236,8 @@ export function renderPeopleCarousel(){
   const el=document.getElementById('msgr-people-carousel');if(!el)return;
   const people=getAllMessagePeople();
 
-  const version=JSON.stringify(people.map(p=>[p.id,p.user.fname,p.user.lname,p.user.role,p.user.specialty,p.user.profilePhoto]));
+  // Rotating signed avatar URLs do not change the visible person or justify a repaint.
+  const version=JSON.stringify(people.map(p=>[p.id,p.user.fname,p.user.lname,p.user.role,p.user.specialty,p.user.profilePhoto?.split('?')[0]]));
   if(el.dataset.version===version)return;el.dataset.version=version;
   const left=el.scrollLeft;
   el.innerHTML=people.length?people.map(p=>`<button class="msgr-person-card" ${bindAction('click',(event,element)=>{openConversation((p.id))})} title="Message ${escapeHtml(docName(p.user))}">
@@ -251,7 +252,7 @@ export function renderContactList(){
   const el=document.getElementById('msgr-contacts');if(!el)return;
   const q=((document.getElementById('msgr-search')||{}).value||'').trim().toLowerCase();
   const contacts=getMessageContacts();
-  const version=JSON.stringify([q,appState.messaging.activeConversationId,contacts.map(c=>[c.id,c.unread,c.last?.id,c.last?.message,c.last?.deleted,c.last?.attachment?.name,c.user.fname,c.user.lname,c.user.profilePhoto]),getAllMessagePeople().map(p=>[p.id,p.user.fname,p.user.lname])]);
+  const version=JSON.stringify([q,appState.messaging.activeConversationId,contacts.map(c=>[c.id,c.unread,c.last?.id,c.last?.message,c.last?.deleted,c.last?.attachment?.name,c.user.fname,c.user.lname,c.user.profilePhoto?.split('?')[0]]),getAllMessagePeople().map(p=>[p.id,p.user.fname,p.user.lname])]);
   if(el.dataset.version===version)return;el.dataset.version=version;
 
   if(!q){
