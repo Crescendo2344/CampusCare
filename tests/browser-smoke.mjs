@@ -718,6 +718,8 @@ try{
     await page.setViewportSize({width:390,height:520});
     await page.evaluate(()=>window.__fixtureApp.features.topbarAndNavigation.toggleSidebar(true));
     await page.locator('#sidebar-nav').evaluate(nav=>nav.scrollTop=nav.scrollHeight);
+    // Wait for the browser to commit the resized visual viewport before measuring fixed controls.
+    await page.waitForFunction(()=>{const r=document.querySelector('.sb-logout').getBoundingClientRect();return r.top>=0&&r.bottom<=visualViewport.height+visualViewport.offsetTop;},null,{timeout:3000});
     assert(await page.locator('.sb-logout').evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=visualViewport.height+visualViewport.offsetTop;}),'Logout must remain above mobile browser controls');
     if(role==='Administrator')assert(await page.locator('#sidebar-nav').evaluate(el=>el.scrollHeight>el.clientHeight),'Long admin menus must scroll internally');
   }
