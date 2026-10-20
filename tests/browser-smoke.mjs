@@ -59,6 +59,7 @@ try{
   await page.addInitScript(()=>{window.Tesseract={recognize:async()=>({data:{confidence:25,text:'Unclear printed document'}})};});
   const profile={user_id:1,auth_user_id:authId,first_name:'Fixture',last_name:role,username:'fixture',email:'fixture@example.test',role,status:'Active',verified:true,person_type:'Staff',work_days:['Mon','Tue','Wed','Thu','Fri'],start_time:'08:00',end_time:'17:00',slot_duration:60,max_patients:20,specialty:'General Medicine'};
   const doctor={...profile,user_id:2,auth_user_id:'00000000-0000-4000-8000-000000000002',role:'Doctor',first_name:'Fixture',last_name:'Doctor'};
+  const managedUsers=[profile,doctor];
   const patient={patient_id:4,user_id:1,birth_date:'2000-01-01',college:'CCICT',person_type:'Student',archived:false};
   await page.route('**/*',async route=>{
    const request=route.request(),url=new URL(request.url());
@@ -74,11 +75,18 @@ try{
    else if(path.endsWith('/user'))response={id:authId,email:profile.email};
    else if(path.includes('/rest/v1/')){
     const table=path.split('/').at(-1),single=request.headers().accept?.includes('object+json');
-    const rows=table==='users'?[profile,doctor]:table==='patients'?[patient]:table==='system_settings'?[{settings_id:1,clinic_name:'Fixture Clinic',session_timeout_minutes:30}]:[];
+    const rows=table==='users'?managedUsers:table==='patients'?[patient]:table==='system_settings'?[{settings_id:1,clinic_name:'Fixture Clinic',session_timeout_minutes:30}]:[];
     response=single?(rows[0]||null):rows;
    }else if(path.endsWith('/resend-verification')||path.endsWith('/request-password-reset')){
     if(request.postDataJSON().identifier==='not-registered@example.test')return route.fulfill({status:404,contentType:'application/json',body:JSON.stringify({error:'No CampusCare account matches that username or email.'})});
     response={ok:true};
+   }else if(path.endsWith('/admin-users')){
+    const body=request.postDataJSON(),target=managedUsers.find(user=>user.user_id===body.user_id);
+    if(body.action==='update'){
+      assert.equal(body.confirmed,true);assert(!('status' in body));assert(['Active','Suspended'].includes(target.status));
+      for(const field of ['first_name','last_name','email','contact_number','specialty'])if(body[field]!==undefined)target[field]=body[field];response={ok:true,user:{...target}};
+    }else if(body.action==='status'){target.status=body.status;response={ok:true,status:target.status};}
+    else if(body.action==='detail')response={ok:true,user:{...target},patient:null};else response={ok:true};
    }else if(path.endsWith('/register-patient')){
     if(request.method()==='GET')response={captcha_required:!mobile,site_key:mobile?null:'0x4-fixture-key'};
     else{
@@ -498,6 +506,7 @@ try{
   if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#msgr-chat').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/voice-recording-${mobile?'mobile':'desktop'}.png`});
   await page.getByRole('button',{name:'Stop voice recording',exact:true}).click();
   await page.locator('#msgr-pending-attach .voice-player').waitFor();
+  assert(await page.locator('#msgr-pending-attach .msgr-pending-attach').evaluate(el=>{const items=[...el.children].filter(item=>getComputedStyle(item).display!=='none');const left=Math.min(...items.map(item=>item.getBoundingClientRect().left)),right=Math.max(...items.map(item=>item.getBoundingClientRect().right)),r=el.getBoundingClientRect();return Math.abs((left+right-r.left-r.right)/2)<3;}),'Pending voice attachment controls must be centered');
   assert(await page.evaluate(()=>window.__fixtureApp.state.messaging.voiceRecorder.stream.getTracks().every(track=>track.readyState==='ended')));
   await page.locator('#msgr-pending-attach').getByRole('button',{name:'Play voice message',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('#msgr-pending-attach audio').currentTime>.1);
@@ -564,6 +573,27 @@ try{
     const downloaded=page.waitForEvent('download');
     await page.getByRole('button',{name:'Export college summary CSV',exact:true}).click();
     assert.equal((await downloaded).suggestedFilename(),'Student_College_Summary.csv');
+  }
+  if(role==='Administrator'){
+    managedUsers.push({...profile,user_id:93,auth_user_id:'pending-auth',first_name:'Pending',last_name:'Applicant',username:'pending.applicant',email:'pending@example.test',role:'Patient',status:'Pending',verified:false});
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('users'));
+    const pending=page.locator('#user-table tbody tr').filter({hasText:'Pending Applicant'}),active=()=>page.locator('#user-table tbody tr').filter({hasText:'Fixture Doctor'});
+    await pending.waitFor();assert.equal(await pending.getByRole('button',{name:'Edit',exact:true}).count(),0);assert.equal(await pending.getByRole('button',{name:'Approve',exact:true}).count(),1);
+    await page.evaluate(()=>window.__fixtureApp.features.userForm.openEditUserModal(100093));assert.equal(await page.locator('#eu-fname').count(),0);
+    await pending.locator('td').first().click();await page.getByRole('heading',{name:'User Information',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Edit User',exact:true}).count(),0);await page.locator('#active-modal .close-btn').click();
+    const updatesBefore=requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').length;
+    await active().getByRole('button',{name:'Edit',exact:true}).click();assert.equal(await page.locator('#eu-status').count(),0);
+    await page.locator('#eu-fname').fill('Updated');await page.locator('#eu-contact').fill('+639987654321');
+    await page.getByRole('button',{name:'Review Changes',exact:true}).click();await page.getByRole('heading',{name:'Confirm user changes',exact:true}).waitFor();
+    assert.equal(requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').length,updatesBefore,'Review must not save before confirmation');
+    await page.getByRole('button',{name:'Back to Editing',exact:true}).click();assert.equal(await page.locator('#eu-fname').inputValue(),'Updated');
+    await page.getByRole('button',{name:'Review Changes',exact:true}).click();
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/user-edit-review-${mobile?'mobile':'desktop'}.png`});
+    await page.getByRole('button',{name:'Confirm Changes',exact:true}).click();
+    const updated=()=>page.locator('#user-table tbody tr').filter({hasText:'Updated Doctor'});await updated().waitFor();
+    assert.equal(managedUsers[1].first_name,'Updated');assert.equal(managedUsers[1].contact_number,'09987654321');assert.equal(managedUsers[1].status,'Active');
+    await updated().getByRole('button',{name:'Suspend',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Reactivate',exact:true}).waitFor();
+    await updated().getByRole('button',{name:'Reactivate',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Suspend',exact:true}).waitFor();
   }
   // Brand navigation works from every role; Patient history returns to the actual previous page.
   await page.locator('.sb-brand').evaluate(element=>element.click());

@@ -98,3 +98,12 @@
 .msgr-messages>.msgr-bubble-row {flex-shrink:0}
 .voice-recording .voice-wave i {transition:height .06s linear}
 @media(prefers-reduced-motion:reduce) {.voice-recording .voice-wave i {transition:none}}
+/* Center the pending draft and the complete microphone-control row at every viewport width. */
+.msgr-pending-attach,.voice-recording {justify-content:center}
+.msgr-pending-attach>.voice-player {flex:0 1 360px}
+.voice-recording .voice-wave {flex:0 1 320px}
+#edituser-fields[hidden],#edituser-review[hidden] {display:none}
+#edituser-review p {margin:.65rem 0}
+#edituser-review td {overflow-wrap:anywhere}
+@media(max-width:640px) {.voice-recording .voice-wave {flex:1;max-width:180px}}
+.msgr-pending-attach {flex-wrap:nowrap}
