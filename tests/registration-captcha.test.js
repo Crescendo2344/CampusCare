@@ -7,13 +7,14 @@ test('an async script renders after its load event without calling the incompati
   const previous={window:globalThis.window,document:globalThis.document,fetch:globalThis.fetch};
   globalThis.window=dom.window;globalThis.document=dom.window.document;
   globalThis.fetch=async()=>Response.json({captcha_required:true,site_key:'0x4-fixture-key'});
-  let scripts=0,renders=0,readyCalls=0,callbacks;
+  let scripts=0,renders=0,readyCalls=0,removes=0,callbacks,onResize;
+  dom.window.ResizeObserver=class {constructor(callback){onResize=callback;}observe(){}};
   const append=dom.window.document.head.appendChild.bind(dom.window.document.head);
   dom.window.document.head.appendChild=script=>{
     scripts++;assert.equal(script.async,true);append(script);
     // Publish the provider API at script.onload, matching dynamic script loading.
     queueMicrotask(()=>{
-      dom.window.turnstile={ready(){readyCalls++;throw new Error('Remove async/defer before using turnstile.ready()');},render(selector,options){renders++;callbacks=options;options.callback('fixture-token');return 'fixture-widget';},reset(){},remove(){}};
+      dom.window.turnstile={ready(){readyCalls++;throw new Error('Remove async/defer before using turnstile.ready()');},render(selector,options){renders++;callbacks=options;options.callback('fixture-token');return 'fixture-widget';},reset(){},remove(){removes++;}};
       script.onload();
     });
     return script;
@@ -21,6 +22,7 @@ test('an async script renders after its load event without calling the incompati
   try{
     const module=await import('../src/verification/registration-captcha.js');
     await module.prepareRegistrationCaptcha('https://fixture.test','fixture-key');
+    assert.equal(callbacks.size,'compact','Narrow cards must use the provider compact layout');
     assert.equal(scripts,1);assert.equal(renders,1);assert.equal(readyCalls,0);
     assert.equal(dom.window.document.getElementById('registration-captcha-section').hidden,false);
     assert.equal(await module.registrationCaptchaToken('https://fixture.test','fixture-key'),'fixture-token');
@@ -37,5 +39,12 @@ test('an async script renders after its load event without calling the incompati
     assert.equal(dom.window.document.getElementById('registration-security-retry').hidden,false);
     callbacks['expired-callback']();
     await assert.rejects(module.registrationCaptchaToken('https://fixture.test','fixture-key'),/Complete the security check/);
+    assert.equal(dom.window.document.getElementById('registration-security-retry').hidden,false,'Refreshing config must preserve an actionable expiry');
+    Object.defineProperty(dom.window.document.getElementById('registration-captcha-widget'),'clientWidth',{value:340});
+    onResize();
+    await module.prepareRegistrationCaptcha('https://fixture.test','fixture-key',{refresh:true});
+    assert.equal(callbacks.size,'flexible');
+    assert.equal(removes,1,'Crossing the size boundary must replace the old widget');
+    assert.equal(renders,2);assert.equal(scripts,1);
   }finally{Object.assign(globalThis,previous);dom.window.close();}
 });

@@ -1,6 +1,8 @@
 // The registration form owns one Turnstile widget. Secrets never enter browser configuration.
-let settings,loading,scriptLoading,widgetId=null,token='',verifiedAt=0;
+let settings,loading,scriptLoading,widgetId=null,widgetSize,resizeObserver,token='',verifiedAt=0;
 const section=()=>document.getElementById('registration-captcha-section');
+// Turnstile's flexible layout needs 300px; its compact variant fits narrow registration cards.
+const preferredSize=()=>document.getElementById('registration-captcha-widget')?.clientWidth>=300?'flexible':'compact';
 // Keep provider errors recoverable without presenting a technical exception as form copy.
 const status=(message,state='waiting')=>{
   const node=document.getElementById('registration-captcha-status');if(node)node.textContent=message;
@@ -32,12 +34,14 @@ export async function prepareRegistrationCaptcha(url,key,{refresh=false}={}){
       if(!config.captcha_required){section().hidden=true;return config;}
       section().hidden=false;if(widgetId===null)status('Loading security check…','loading');
       const turnstile=await loadTurnstile();
-      if(widgetId!==null&&previous!==config.site_key){turnstile.remove(widgetId);widgetId=null;token='';verifiedAt=0;}
+      const size=preferredSize();
+      if(widgetId!==null&&(previous!==config.site_key||widgetSize!==size)){turnstile.remove(widgetId);widgetId=null;token='';verifiedAt=0;}
       if(widgetId===null){
         // loadTurnstile already waits for script.onload; ready() rejects async/defer script tags.
         status('Complete the security check below.');
+        widgetSize=size;
         widgetId=turnstile.render('#registration-captcha-widget',{
-          sitekey:config.site_key,action:'campuscare_register',size:'flexible',theme:'auto',
+          sitekey:config.site_key,action:'campuscare_register',size,theme:'auto',
           callback:value=>{token=value;verifiedAt=Date.now();status('Security check complete.','complete');},
           'expired-callback':()=>{token='';verifiedAt=0;status('Your security check expired. Try again to continue.','expired');},
           'timeout-callback':()=>{token='';verifiedAt=0;status('The security check timed out. Try again to continue.','expired');},
@@ -45,6 +49,13 @@ export async function prepareRegistrationCaptcha(url,key,{refresh=false}={}){
         });
       }else if(token)status('Security check complete.','complete');
       else if(!['error','expired'].includes(section()?.dataset.state))status('Complete the security check below.');
+      // Recreate only across the size boundary, invalidating the old token when the widget changes.
+      if(!resizeObserver&&window.ResizeObserver){
+        resizeObserver=new window.ResizeObserver(()=>{
+          if(widgetId!==null&&widgetSize!==preferredSize())prepareRegistrationCaptcha(url,key,{refresh:true}).catch(()=>{});
+        });
+        resizeObserver.observe(document.getElementById('registration-captcha-widget'));
+      }
       return config;
     }catch(error){settings=null;if(section()){section().hidden=false;status('Security check is unavailable. Check your connection and try again.','error');}throw error;}
   })().finally(()=>{loading=null;});
