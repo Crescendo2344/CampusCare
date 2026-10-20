@@ -127,3 +127,10 @@
 .msgr-pending-attach .pending-attachment-name {display:block;min-width:0;flex:0 1 auto;overflow-wrap:anywhere;line-height:1.45}
 .msgr-pending-attach .voice-discard {flex-shrink:0}
 @media(max-width:640px){.msgr-pending-attach.pending-audio .pending-attachment-name {display:none}}
+
+/* Only the navigation list scrolls; Logout remains inside the usable viewport on mobile browsers. */
+#sidebar {height:100vh;height:100dvh;overflow:hidden;min-height:0;transition:transform .25s}
+#sidebar>.sb-brand,#sidebar>.sb-profile,#sidebar>.sb-bottom {flex-shrink:0}
+#sidebar-nav {flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#sidebar>.sb-bottom {margin-top:0;padding-bottom:max(.6rem,env(safe-area-inset-bottom))}
+#sidebar .sb-logout {min-height:40px}
