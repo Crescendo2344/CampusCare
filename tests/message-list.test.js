@@ -23,7 +23,7 @@ test('refreshes leave readers away from the bottom and follow messages at the bo
   Object.defineProperties(wrap,{scrollHeight:{value:1000},clientHeight:{value:200}});
   const create=()=>dom.window.document.createElement('div');
   reconcileMessages(wrap,[{id:1}],create);assert.equal(wrap.scrollTop,1000);
-  wrap.scrollTop=100;reconcileMessages(wrap,[{id:1},{id:2}],create);assert.equal(wrap.scrollTop,100);
+  wrap.dispatchEvent(new dom.window.Event('wheel'));wrap.scrollTop=100;wrap.dispatchEvent(new dom.window.Event('scroll'));reconcileMessages(wrap,[{id:1},{id:2}],create);assert.equal(wrap.scrollTop,100);
   wrap.scrollTop=800;reconcileMessages(wrap,[{id:1},{id:2},{id:3}],create);assert.equal(wrap.scrollTop,1000);
   assert.equal(voiceTime(75),'1:15');assert.equal(voiceTime(Infinity),'0:00');dom.window.close();
 });

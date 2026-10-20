@@ -25,15 +25,30 @@ export function createVoicePlayer(source,{duration=0}={}){
   const observer=new MutationObserver(()=>{if(!root.isConnected){audio.pause();visibility?.disconnect();observer.disconnect();}});
   observer.observe(document.body,{childList:true,subtree:true});update();return root;
 }
-export function startVoiceMeter(host,stream,{onStop,onDiscard}){
+// Unlock audio analysis during the microphone-button gesture, before the permission promise resolves.
+export function prepareVoiceContext(){
+  try{const Context=window.AudioContext||window.webkitAudioContext;if(!Context)return null;const context=new Context();context.resume().catch(()=>{});return context;}catch{return null;}
+}
+export function startVoiceMeter(host,stream,{onStop,onDiscard,context=prepareVoiceContext()}){
   host.innerHTML=`<div class="voice-recording"><button type="button" class="voice-discard" aria-label="Discard voice recording">${appIcon('trash',18)}</button><span class="voice-recording-dot" aria-hidden="true"></span><strong class="voice-recording-label">Recording</strong>${waveform()}<span class="voice-time" role="timer">0:00</span><button type="button" class="voice-stop" aria-label="Stop voice recording">${appIcon('stop',18)}</button><span class="voice-meter-note">Speak into your microphone, then stop to preview.</span></div>`;
-  const root=host.firstElementChild,bars=[...root.querySelectorAll('i')],time=root.querySelector('[role="timer"]'),started=performance.now();let context,analyser,source,frame,stopped=false;
-  // Read actual microphone levels; do not use a decorative animation as a signal of recorded sound.
-  try{const Context=window.AudioContext||window.webkitAudioContext;if(Context){context=new Context();analyser=context.createAnalyser();analyser.fftSize=256;source=context.createMediaStreamSource(stream);source.connect(analyser);context.resume().catch(()=>{});}}catch{}
-  const data=analyser?new Uint8Array(analyser.frequencyBinCount):null;
-  const tick=()=>{if(stopped)return;time.textContent=voiceTime((performance.now()-started)/1000);if(analyser){analyser.getByteFrequencyData(data);paint(bars,bars.map((_,i)=>data[Math.floor(i*data.length/bars.length)]/255));}frame=requestAnimationFrame(tick);};tick();
+  const root=host.firstElementChild,bars=[...root.querySelectorAll('i')],time=root.querySelector('[role="timer"]'),note=root.querySelector('.voice-meter-note'),started=performance.now();let analyser,source,silent,frame,stopped=false,lastSample=0;
+  const history=Array(bars.length).fill(0);
+  // A silent destination keeps the graph processing on Safari/mobile without feeding the microphone to speakers.
+  try{if(context){analyser=context.createAnalyser();analyser.fftSize=1024;source=context.createMediaStreamSource(stream);silent=context.createGain();silent.gain.value=0;source.connect(analyser);analyser.connect(silent);silent.connect(context.destination);context.resume().catch(()=>{});}}catch{analyser=null;}
+  const data=analyser?new Uint8Array(analyser.fftSize):null;
+  const resume=()=>context?.resume().catch(()=>{});root.addEventListener('pointerdown',resume);
+  const tick=now=>{
+    if(stopped)return;time.textContent=voiceTime((performance.now()-started)/1000);
+    if(analyser&&context.state==='running'&&now-lastSample>=65){
+      // Time-domain RMS measures loudness across the whole microphone signal, rather than isolated frequency bins.
+      analyser.getByteTimeDomainData(data);let energy=0;for(const value of data)energy+=((value-128)/128)**2;
+      const rms=Math.sqrt(energy/data.length);history.shift();history.push(Math.min(1,Math.sqrt(rms)*2.5));paint(bars,history);lastSample=now;
+      note.textContent='Speak into your microphone, then stop to preview.';
+    }else if(!analyser||context?.state!=='running')note.textContent='Recording audio. Tap here to enable the live sound meter.';
+    frame=requestAnimationFrame(tick);
+  };frame=requestAnimationFrame(tick);
   root.querySelector('.voice-stop').addEventListener('click',onStop);root.querySelector('.voice-discard').addEventListener('click',onDiscard);
   const observer=new MutationObserver(()=>{if(!root.isConnected){onDiscard();dispose();}});observer.observe(document.body,{childList:true,subtree:true});
-  function dispose(){if(stopped)return;stopped=true;cancelAnimationFrame(frame);observer.disconnect();source?.disconnect();context?.close().catch(()=>{});}
+  function dispose(){if(stopped)return;stopped=true;cancelAnimationFrame(frame);observer.disconnect();source?.disconnect();analyser?.disconnect();silent?.disconnect();context?.close().catch(()=>{});}
   return {dispose,seconds:()=>Math.max(0,(performance.now()-started)/1000)};
 }
