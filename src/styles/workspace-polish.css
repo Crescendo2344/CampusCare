@@ -185,3 +185,10 @@
   .report-template{font-size:.8rem;padding:.8rem}
 }
 @media print{.report-filter-card,.report-tabs,.report-template-grid,#rpt-custom-controls,#student-report-filters{display:none!important}}
+/* Expand report scroll regions when saving the visible report as a PDF. */
+@media print{
+  body:has(.reports-workspace) #main,body:has(.reports-workspace) #app-content{height:auto!important;max-height:none!important;overflow:visible!important}
+  .reports-workspace .report-table-scroll{max-height:none!important;overflow:visible!important}
+  .reports-workspace .report-table-scroll thead{position:static}
+  #report-panel-builder>.card:first-child,.reports-workspace .btn,.reports-workspace #rpt-export-scope{display:none!important}
+}

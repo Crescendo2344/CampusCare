@@ -58,6 +58,6 @@ export function buildCustomReport(exportToolbar){
     ${reportBars(groups.map(r=>({label:r.group+(split?' · '+r.split:''),value:r.value})))}
     <h4>Summary table</h4><div class="table-wrap report-table-scroll"><table><thead><tr>${columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${summaryRows.map(r=>`<tr>${columns.map(c=>`<td>${esc(r[c])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
     ${!rows.length?'<p>No records match these filters.</p>':`<details class="report-details"><summary>View ${rows.length} matching records</summary><div class="table-wrap report-table-scroll"><table><thead><tr>${detailColumns.map(c=>`<th>${esc(reportLabels[c]||c)}</th>`).join('')}</tr></thead><tbody>${details.map(r=>`<tr>${Object.values(r).map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>`}
-    ${rows.length?reportSelect('rpt-export-scope','Export contents',[['summary','Summary table'],['details','Matching records']],()=>setExport(value('rpt-export-scope')==='details'?details:summaryRows)):''}
+    ${rows.length?reportSelect('rpt-export-scope','CSV / Excel / Word contents',[['summary','Summary table'],['details','Matching records']],()=>setExport(value('rpt-export-scope')==='details'?details:summaryRows)):''}
     </div>${rows.length?exportToolbar():''}`;
 }
