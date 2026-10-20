@@ -250,7 +250,7 @@ try{
       Object.assign(window.__fixtureApp.state.documentScanner,{lastOcrRawText:'Unclear printed document',lastOcrConfidence:25,lastOcrDocumentType:'Document'});
       window.__fixtureApp.features.documentScanner.recheckNameMatch();
     });
-    assert((await page.locator('#id-analyze-status').textContent()).includes('You can continue with registration.'));
+    assert.equal(await page.locator('#id-analyze-status').count(),0,'OCR technical results must not be rendered');
     assert.equal(await page.locator('#r-selfie-file').count(),0,'Selfie file upload must be unavailable');
     await page.locator('#r-privacy-consent').check();
     await page.locator('#registration-submit-button').click();
@@ -264,27 +264,31 @@ try{
     await page.locator('#camera-mirror-preview').check();
     for(const ratio of ['4/3','3/4']){
       await page.locator('#selfie-stage').evaluate((stage,ratio)=>stage.style.aspectRatio=ratio,ratio);
-      const shape=await page.locator('.selfie-guide-oval').evaluate(oval=>{const r=oval.getBoundingClientRect();return r.width/r.height;});
-      assert(Math.abs(shape-.75)<.02,'Selfie oval must keep a 3:4 shape in landscape and portrait');
+      const shape=await page.locator('.selfie-guide-square').evaluate(oval=>{const r=oval.getBoundingClientRect();return r.width/r.height;});
+      assert(Math.abs(shape-1)<.02,'Selfie guide must stay square in landscape and portrait');
     }
     await page.locator('#selfie-stage').evaluate(stage=>stage.style.aspectRatio='4/3');
     if(mobile){
-      await page.getByText('Automatic guidance is unavailable. Use the outline and capture for clinic review.',{exact:true}).waitFor();
+      await page.getByText('Camera checks could not start. Close and retry in Chrome or Safari with camera access.',{exact:true}).waitFor();
       assert(await page.locator('#camera-capture-button').isDisabled());
-      await page.locator('#selfie-manual-button').click();
+      assert(await page.locator('#selfie-manual-button').isHidden(),'Unavailable checks must not allow an unchecked selfie');
+      // Remaining registration scenarios use synthetic approved evidence, not a camera bypass.
+      await page.evaluate(()=>{const canvas=document.getElementById('camera-canvas');canvas.width=320;canvas.height=240;window.__fixtureApp.state.camera.capturedSelfieDataUrl=canvas.toDataURL();document.getElementById('r-selfie-preview-wrap').innerHTML='<img alt="Synthetic test evidence" src="'+canvas.toDataURL()+'">';window.__fixtureApp.features.camera.stopCamera();window.__fixtureApp.features.modals.closeAllModals();});
     }else{
       await page.waitForFunction(()=>document.getElementById('selfie-stage')?.dataset.detector==='ready');
-      await page.getByText('Position your face inside the oval',{exact:true}).waitFor();
+      await page.getByText('Position your face inside the square',{exact:true}).waitFor();
       // Actual fake-device color bars have no face; assert guidance before injecting known geometry.
       assert(await page.locator('#camera-capture-button').isDisabled());
       const geometry={x:234,y:70,width:172,height:196,keypoints:[{x:.45,y:.3},{x:.55,y:.3},{x:.5,y:.35}]};
       const feed=async(changes,expected)=>{
-        await page.evaluate(data=>window.__fixtureGuidance=data,{faces:[geometry],width:640,height:480,brightness:120,sharpness:80,...changes});
+        await page.evaluate(data=>window.__fixtureGuidance=data,{faces:[geometry],width:640,height:480,brightness:120,sharpness:80,documentVisible:true,...changes});
         await page.getByText(expected,{exact:true}).waitFor();
       };
       await feed({faces:[{...geometry,width:70,height:80}]},'Move closer to the camera');
       await feed({faces:[{...geometry,width:330,height:330}]},'Move back a little');
       await feed({brightness:25},'Move to brighter, even lighting');
+      await feed({documentVisible:false},'Hold the front of your ID beside your face, with all corners visible');
+      assert(await page.locator('#camera-capture-button').isDisabled(),'Face without a held document must block capture');
       await feed({},'Good position — keep your document visible');
       assert(await page.locator('#camera-capture-button').isEnabled());
       if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/guided-selfie.png`,fullPage:true});
@@ -354,8 +358,8 @@ try{
     });
     await page.locator('#r-id-camera-button').click();
     await page.getByText('Move the ID closer to the camera',{exact:true}).waitFor();
-    assert(await page.locator('#camera-capture-button').isDisabled());
-    assert(await page.locator('#selfie-manual-button').isVisible(),'Staff-review capture is immediately available for distant or blurry IDs');
+    assert(await page.locator('#camera-capture-button').isEnabled(),'Main ID capture must allow distant or blurry frames');
+    assert.equal(await page.locator('#selfie-manual-button').count(),0,'ID capture must not need a separate review action');
     for(const [pose,prompt]of [['close','Move the ID back a little'],['center','Center the ID inside the rectangle'],['dark','Improve the lighting on the ID'],['good','Good framing — keep the ID still']]){
       await page.evaluate(pose=>window.__fixtureIdPose=pose,pose);await page.getByText(prompt,{exact:true}).waitFor();
     }
@@ -365,7 +369,7 @@ try{
     assert(await page.evaluate(()=>!window.__fixtureApp.state.camera._cameraStream));
     await page.locator('#r-id-camera-button').click();await page.evaluate(()=>window.__fixtureIdPose='far');
     await page.getByText('Move the ID closer to the camera',{exact:true}).waitFor();
-    await page.locator('#selfie-manual-button').click();assert(await page.locator('#r-id-preview img[alt="ID back"]').isVisible());
+    await page.locator('#camera-capture-button').click();assert(await page.locator('#r-id-preview img[alt="ID back"]').isVisible());
     await page.evaluate(()=>window.__fixtureIdPose='good');
     // A front retake advances to the flip step; canceling the back retake keeps the saved back.
     await page.locator('#r-id-show-front').click();
@@ -467,6 +471,18 @@ try{
     await features.messaging.openConversation(partner.id);
   });
   await page.locator('#msgr-bubble-902').waitFor();
+  if(mobile){
+    // A short in-app browser viewport (and keyboard-sized viewport) must retain a usable composer.
+    for(const height of [620,420]){
+      await page.setViewportSize({width:390,height});
+      await page.waitForTimeout(200);
+      assert(await page.locator('#msgr-text-input').evaluate(input=>{const r=input.getBoundingClientRect();return r.top>=0&&r.bottom<=visualViewport.height+visualViewport.offsetTop;}),'Mobile composer must be inside the usable viewport');
+      await page.locator('#msgr-text-input').fill('Mobile typing works');
+    }
+    await page.locator('#msgr-text-input').fill('');
+    await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);
+  }
+
   assert.equal(await page.locator('.msgr-bubble .msgr-bubble-time').count(),0,'Timestamps must sit outside message bubbles');
   for(const label of ['Send a photo','Send a file','Record a voice message','Conversation info','Send message'])assert.equal(await page.getByRole('button',{name:label,exact:true}).locator('svg').count(),1);
   await page.locator('[data-msg-id="902"]').getByRole('button',{name:'More message options',exact:true}).click();

@@ -112,3 +112,13 @@
 .user-table-scroll thead {position:sticky;top:0;z-index:2;background:#e4edf7}
 [data-theme="dark"] .user-table-scroll thead {background:#25333f}
 .user-table-scroll:focus-visible {outline:2px solid var(--primary);outline-offset:2px}
+
+/* The security notice and browser keyboard consume viewport space too. */
+#msgr-shell {min-height:0;flex-shrink:0}
+#msgr-chat,#msgr-messages {min-height:0}
+#msgr-messages {flex:1 1 0;overflow-y:auto}
+#msgr-shell .msgr-input-bar {flex:0 0 auto;padding-bottom:max(8px,env(safe-area-inset-bottom))}
+@media(max-width:1100px){
+  #app-content:has(.msgr-shell.mobile-chat-open)>.alert {display:none}
+  #msgr-shell .msgr-input-bar #msgr-text-input {font-size:16px}
+}

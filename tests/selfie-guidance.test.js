@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {assessSelfieFrame,faceImageQuality} from '../src/domain/selfie-guidance.js';
 const face={x:365,y:130,width:270,height:300,keypoints:[{x:.45,y:.3},{x:.55,y:.3},{x:.5,y:.35}]};
-const check=changes=>assessSelfieFrame({faces:[face],width:1000,height:800,brightness:120,sharpness:80,...changes});
+const check=changes=>assessSelfieFrame({faces:[face],width:1000,height:800,brightness:120,sharpness:80,documentVisible:true,...changes});
 test('distance and frame-relative centering guide the person before capture',()=>{
  assert.equal(check({faces:[]}).code,'no-face');
  assert.equal(check({faces:[{...face,width:100,height:110}]}).code,'far');
@@ -30,6 +30,11 @@ test('brightness and sharpness come from actual face pixels',()=>{
 });
 
 // A physically identical oval must accept a naturally larger frame-relative face on portrait cameras.
-test('portrait selfie framing follows the same physical oval proportions',()=>{
- assert.equal(assessSelfieFrame({faces:[{x:120,y:65,width:240,height:300}],width:480,height:640,brightness:120,sharpness:80}).ready,true);
+test('portrait selfie framing follows the same square guide framing',()=>{
+ assert.equal(assessSelfieFrame({faces:[{x:120,y:65,width:240,height:300}],width:480,height:640,brightness:120,sharpness:80,documentVisible:true}).ready,true);
+});
+
+test('a good face alone cannot pass the document-holding selfie check',()=>{
+ assert.equal(check({documentVisible:false}).code,'document');
+ assert.equal(check({documentVisible:undefined}).ready,false);
 });

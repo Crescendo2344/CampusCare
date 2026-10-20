@@ -13,20 +13,8 @@ import {inventoryRecords} from './inventoryService.js';
 // ================================================================
 
 export function scannerStatus(html='',tone='',progress=null){
-  const el=document.getElementById('id-analyze-status');
-  if(!el)return;
-  if(!html){
-    el.style.display='none';
-    el.innerHTML='';
-    el.className='registration-scanner-status';
-    return;
-  }
-  el.style.display='block';
-  el.className=`registration-scanner-status${tone?' '+tone:''}`;
-  const progressHtml=Number.isFinite(progress)
-    ? `<div class="scanner-progress"><i style="width:${Math.max(0,Math.min(100,progress))}%"></i></div>`
-    : '';
-  el.innerHTML=html+progressHtml;
+  // Recognition remains internal; registration never displays OCR output or technical scores.
+  return;
 }
 
 export function handleIdFileChange(input){
@@ -283,58 +271,8 @@ export function handleOcrResult(){
   recheckNameMatch(autoFilledName||autoFilledId);
 }
 
-export function recheckNameMatch(justAutoFilled=false){
-  const fnameInput=document.getElementById('r-fname');
-  const lnameInput=document.getElementById('r-lname');
-  const idInput=document.getElementById('r-idno');
-  const pt=document.getElementById('r-ptype')?.value||'Student';
-  if(!fnameInput||!lnameInput||!idInput||!appState.documentScanner.lastOcrRawText)return;
-
-  const typedFirst=normalizeOcrText(fnameInput.value);
-  const typedLast=normalizeOcrText(lnameInput.value);
-  const scanned=normalizeOcrText(appState.documentScanner.lastOcrRawText);
-  const typedId=String(idInput.value||'').replace(/\D/g,'');
-
-  const firstMatch=typedFirst?scanned.includes(typedFirst):null;
-  const lastMatch=typedLast?scanned.includes(typedLast):null;
-  const idMatch=appState.documentScanner.lastOcrDetectedId&&typedId?appState.documentScanner.lastOcrDetectedId===typedId:null;
-
-  const expectedDocs=pt==='Student'?['School ID','Student ID']:['Employee ID'];
-  const docOkay=appState.documentScanner.lastOcrDocumentType==='Document'||expectedDocs.includes(appState.documentScanner.lastOcrDocumentType);
-
-  const findings=[];
-  findings.push(`<span><strong>Document:</strong> ${escapeHtml(appState.documentScanner.lastOcrDocumentType||'Document')}</span>`);
-  findings.push(`<span><strong>OCR quality:</strong> ${appState.documentScanner.lastOcrConfidence}%</span>`);
-  if(appState.documentScanner.lastOcrDetectedId)findings.push(`<span><strong>Detected ID:</strong> ${escapeHtml(appState.documentScanner.lastOcrDetectedId)}</span>`);
-
-  let tone='';
-  let headline='Document scanned. Please confirm the detected details.';
-  if(!docOkay){
-    tone='warning';
-    headline=pt==='Student'
-      ? `This looks like ${escapeHtml(appState.documentScanner.lastOcrDocumentType)}, while Student registration expects a Student ID.`
-      : `This looks like ${escapeHtml(appState.documentScanner.lastOcrDocumentType)}, while personnel registration expects an Employee ID.`;
-  }else if(typedFirst&&typedLast&&firstMatch&&lastMatch&&(idMatch!==false)){
-    tone='success';
-    headline=justAutoFilled
-      ? 'Details were detected and filled from the document. Please verify them before submitting.'
-      : 'The typed name and detected document details are consistent.';
-  }else if((typedFirst&&typedLast)&&(!firstMatch||!lastMatch)){
-    tone='warning';
-    // A usable scan can proceed even when OCR misreads a name; staff make the identity decision.
-    headline=appState.documentScanner.lastOcrConfidence>=25
-      ? 'You can continue with registration. Please check your typed name; clinic staff will verify the uploaded document.'
-      : 'The scanner could not read the name reliably. A clearer image is recommended; clinic staff will verify your document.';
-  }else if(idMatch===false){
-    tone='warning';
-    headline='Please check your typed ID number. You can continue; clinic staff will verify it against the uploaded document.';
-  }
-
-  scannerStatus(
-    `<strong>${headline}</strong><div class="scanner-result-grid">${findings.join('')}</div>
-     <div style="margin-top:.42rem">OCR quality of 25% or higher is sufficient to continue. OCR does not approve your account; clinic staff will review your document.</div>`,
-    tone
-  );
+export function recheckNameMatch(){
+  // Staff compare the submitted details and original evidence during account approval.
 }
 
 export function sanitizeRegistrationId(el){
