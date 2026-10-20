@@ -1,3 +1,5 @@
+/* Reserve the scrollbar gutter so content and the fixed navbar keep the same width between pages. */
+html {scrollbar-gutter:stable}
 /* Public-page presentation is scoped here so dashboard and registration themes stay independent.
    Opaque card surfaces preserve the reference design without relying on device blur support. */
 /* Reserve navbar space without a collapsing route margin or a blank footer strip. */
@@ -167,3 +169,25 @@
 /* Inline validation remains close to the field and uses text as well as color. */
 .registration-field-error {font-size:.8rem;line-height:1.5;color:var(--danger);margin-top:6px}
 .form-group input[aria-invalid="true"] {border-color:var(--danger)}
+
+/* Align all advisory headings and keep horizontal scrolling within one full-width slide. */
+#landing-hero .hero-carousel-track {position:relative;gap:0}
+#landing-hero .hero-carousel-viewport {overflow-x:auto;overflow-y:hidden;scroll-behavior:auto;cursor:auto}
+#landing-hero .hero-carousel-slide {flex:0 0 100%;width:100%;min-width:100%;overflow-x:hidden;overflow-y:auto}
+#landing-hero .hero-slide-inner {margin:0;min-width:0}
+#landing-hero .hero-carousel-slide h5 {white-space:normal;overflow-wrap:anywhere}
+/* Keep the Register control's shape identical on every public route. Hover changes paint, not layout. */
+#landing-navbar .landing-get-started {display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:112px;min-width:112px;height:34px;padding:0 18px;border-radius:999px;line-height:1;font-size:.83rem}
+#landing-navbar .landing-get-started,#landing-hero .landing-book-appointment {transition:transform .18s ease,filter .18s ease,box-shadow .18s ease}
+#landing-navbar .landing-get-started:focus-visible,#landing-hero .landing-book-appointment:focus-visible {outline:2px solid #9bddfa;outline-offset:4px}
+@media(hover:hover) and (pointer:fine) {
+  #landing-navbar .landing-get-started:hover,#landing-hero .landing-book-appointment:hover {transform:translateY(-2px);filter:brightness(1.12);box-shadow:0 8px 22px #168bb744,inset 0 1px 0 #ffffff38!important}
+}
+#landing-navbar .landing-get-started:active,#landing-hero .landing-book-appointment:active {transform:translateY(0);filter:brightness(1.03)}
+/* As with the password checklist, guidance is visible only while the contact field has focus. */
+#r-contact-help {display:none}
+#r-contact:focus~#r-contact-help {display:block}
+@media(prefers-reduced-motion:reduce) {
+  #landing-navbar .landing-get-started,#landing-hero .landing-book-appointment {transition:none}
+  #landing-navbar .landing-get-started:hover,#landing-hero .landing-book-appointment:hover {transform:none}
+}

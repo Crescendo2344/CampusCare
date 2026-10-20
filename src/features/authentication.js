@@ -28,105 +28,65 @@ export function pauseLandingCarouselProgress(){
 
 export function landingCarouselSlideWidth(){
   const {viewport}=getLandingCarouselParts();
-  return Math.max(1,viewport?.clientWidth||viewport?.getBoundingClientRect().width||1);
+  // Fractional CSS widths must not accumulate into a partially visible neighbouring slide.
+  return Math.max(1,viewport?.getBoundingClientRect().width||1);
 }
 
 export function landingCarouselRealIndex(){
-  const {viewport}=getLandingCarouselParts();
-  if(!viewport)return 0;
-  const width=landingCarouselSlideWidth();
-  const raw=Math.round(viewport.scrollLeft/width);
-  return ((raw%appState.authentication.LANDING_CAROUSEL_COUNT)+appState.authentication.LANDING_CAROUSEL_COUNT)%appState.authentication.LANDING_CAROUSEL_COUNT;
+  const {viewport,track}=getLandingCarouselParts();
+  if(!viewport||!track)return 0;
+  const left=viewport.getBoundingClientRect().left;
+  const slides=[...track.querySelectorAll('.hero-carousel-slide')];
+  return slides.reduce((nearest,slide,index)=>Math.abs(slide.getBoundingClientRect().left-left)<Math.abs(slides[nearest].getBoundingClientRect().left-left)?index:nearest,0);
+}
+
+export function positionLandingCarousel(index,behavior='instant'){
+  const {carousel,viewport,track}=getLandingCarouselParts();
+  const slides=track?.querySelectorAll('.hero-carousel-slide');
+  if(!carousel||!viewport?.clientWidth||!slides?.length)return;
+  const real=((index%slides.length)+slides.length)%slides.length;
+  const target=viewport.scrollLeft+slides[real].getBoundingClientRect().left-viewport.getBoundingClientRect().left;
+  carousel.dataset.activeIndex=String(real);
+  // Read actual slide positions, rather than multiplying a rounded viewport width.
+  viewport.scrollTo({left:target,behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'instant':behavior});
 }
 
 export function normalizeLandingCarouselScroll(){
   const {viewport}=getLandingCarouselParts();
-  if(!viewport)return;
-
-  const width=landingCarouselSlideWidth();
-  const raw=Math.round(viewport.scrollLeft/width);
-  let target=null;
-
-  // Three identical groups exist: 0–3, 4–7, 8–11.
-  // When the user reaches an outer copy, silently move to the
-  // identical slide in the middle copy. No backwards animation.
-  if(raw<4)target=(raw+appState.authentication.LANDING_CAROUSEL_COUNT)*width;
-  else if(raw>=8)target=(raw-appState.authentication.LANDING_CAROUSEL_COUNT)*width;
-
-  if(target!==null){
-    const previous=viewport.style.scrollBehavior;
-    viewport.style.scrollBehavior='auto';
-    viewport.scrollLeft=target;
-    // Force layout before restoring smooth scrolling so Safari/iOS
-    // cannot animate the hidden normalization jump.
-    void viewport.offsetWidth;
-    viewport.style.scrollBehavior=previous;
-  }
+  if(!viewport?.clientWidth)return;
+  positionLandingCarousel(landingCarouselRealIndex());
 }
 
 export function buildLandingCarouselLoop(){
-  const {viewport,track}=getLandingCarouselParts();
-  if(!viewport||!track)return;
-  if(track.dataset.loopReady==='1')return;
-
-  const originals=[...track.querySelectorAll('.hero-carousel-slide[data-real-index]')];
-  if(originals.length!==appState.authentication.LANDING_CAROUSEL_COUNT)return;
-
-  const before=originals.map(slide=>{
-    const clone=slide.cloneNode(true);
-    clone.removeAttribute('data-real-index');
-    clone.dataset.carouselClone='before';
-    return clone;
-  });
-  const after=originals.map(slide=>{
-    const clone=slide.cloneNode(true);
-    clone.removeAttribute('data-real-index');
-    clone.dataset.carouselClone='after';
-    return clone;
-  });
-
-  const fragment=document.createDocumentFragment();
-  [...before,...originals,...after].forEach(slide=>fragment.appendChild(slide));
-  track.replaceChildren(fragment);
-  track.dataset.loopReady='1';
-
-  requestAnimationFrame(()=>{
-    const width=landingCarouselSlideWidth();
-    const previous=viewport.style.scrollBehavior;
-    viewport.style.scrollBehavior='auto';
-    viewport.scrollLeft=appState.authentication.LANDING_CAROUSEL_COUNT*width;
-    void viewport.offsetWidth;
-    viewport.style.scrollBehavior=previous;
-  });
+  const {carousel,track}=getLandingCarouselParts();
+  if(!carousel||!track||track.dataset.loopReady==='1')return;
+  // Four real slides need no off-screen clone groups or mid-animation normalization jumps.
+  track.querySelectorAll('[data-carousel-clone]').forEach(slide=>slide.remove());
+  const slides=[...track.querySelectorAll('.hero-carousel-slide')];
+  slides.forEach((slide,index)=>{slide.setAttribute('role','group');slide.setAttribute('aria-label',`${index+1} of ${slides.length}`);});
+  track.dataset.loopReady='1';carousel.dataset.activeIndex='0';
 }
 
 export function moveLandingCarousel(step=1){
-  const {viewport}=getLandingCarouselParts();
-  if(!viewport)return;
-
-  normalizeLandingCarouselScroll();
-  const width=landingCarouselSlideWidth();
-  const target=viewport.scrollLeft+(Number(step||1)>=0?width:-width);
-
-  try{
-    viewport.scrollTo({left:target,behavior:'smooth'});
-  }catch(_){
-    viewport.scrollLeft=target;
-  }
-
-  setTimeout(normalizeLandingCarouselScroll,700);
+  const {carousel}=getLandingCarouselParts();
+  const current=Number(carousel?.dataset.activeIndex)||0;
+  const count=appState.authentication.LANDING_CAROUSEL_COUNT;
+  const next=(current+(Number(step)>=0?1:-1)+count)%count;
+  // Wrap directly at the ends instead of scrolling through every intermediate panel.
+  positionLandingCarousel(next,Math.abs(next-current)>1?'instant':'smooth');
 }
 
 export function startLandingCarouselTimer(){
-  if(appState.authentication.landingCarouselTimer)clearInterval(appState.authentication.landingCarouselTimer);
+  pauseLandingCarouselTimer();
+  const {carousel}=getLandingCarouselParts();
+  // Reading, selecting text and keyboard focus all suspend automatic movement.
+  if(!carousel||carousel.matches(':hover')||carousel.contains(document.activeElement)||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
   restartLandingCarouselProgress();
-
   appState.authentication.landingCarouselTimer=setInterval(()=>{
     const landing=document.getElementById('landing-page');
     const home=document.querySelector('[data-landing-route="home"]');
-    if(landing?.style.display==='none'||!home?.classList.contains('active')||appState.authentication.landingCarouselMouseDragging)return;
-    moveLandingCarousel(1);
-    restartLandingCarouselProgress();
+    if(document.hidden||landing?.style.display==='none'||!home?.classList.contains('active'))return;
+    moveLandingCarousel(1);restartLandingCarouselProgress();
   },5500);
 }
 
@@ -139,105 +99,45 @@ export function pauseLandingCarouselTimer(){
 }
 
 export function snapLandingCarouselToNearest(){
-  const {viewport}=getLandingCarouselParts();
-  if(!viewport)return;
-  const width=landingCarouselSlideWidth();
-  const target=Math.round(viewport.scrollLeft/width)*width;
-
-  try{
-    viewport.scrollTo({left:target,behavior:'smooth'});
-  }catch(_){
-    viewport.scrollLeft=target;
-  }
-
-  setTimeout(normalizeLandingCarouselScroll,500);
+  positionLandingCarousel(landingCarouselRealIndex(),'smooth');
 }
 
 export function initializeLandingCarouselInteractions(){
   const {carousel,viewport}=getLandingCarouselParts();
   if(!carousel||!viewport)return;
-
   buildLandingCarouselLoop();
-
   if(carousel.dataset.interactionsReady!=='1'){
     carousel.dataset.interactionsReady='1';
-
-    // Native touch swipe is kept intact. Manual dragging is only added for a mouse.
-    viewport.addEventListener('pointerdown',e=>{
-      pauseLandingCarouselTimer();
-
-      if(e.pointerType==='mouse'&&e.button===0){
-        appState.authentication.landingCarouselMouseDragging=true;
-        appState.authentication.landingCarouselMouseStartX=e.clientX;
-        appState.authentication.landingCarouselMouseStartScroll=viewport.scrollLeft;
-        viewport.classList.add('dragging');
-        try{viewport.setPointerCapture(e.pointerId);}catch(_){}
-      }
-    });
-
-    viewport.addEventListener('pointermove',e=>{
-      if(!appState.authentication.landingCarouselMouseDragging||e.pointerType!=='mouse')return;
-      const delta=e.clientX-appState.authentication.landingCarouselMouseStartX;
-      viewport.scrollLeft=appState.authentication.landingCarouselMouseStartScroll-delta;
-      if(e.cancelable)e.preventDefault();
-    });
-
-    const finishPointer=e=>{
-      if(appState.authentication.landingCarouselMouseDragging){
-        appState.authentication.landingCarouselMouseDragging=false;
-        viewport.classList.remove('dragging');
-        try{viewport.releasePointerCapture?.(e.pointerId);}catch(_){}
-        snapLandingCarouselToNearest();
-      }else{
-        // Native touch/pen swipe settles with scroll-snap; normalize after it finishes.
-        setTimeout(normalizeLandingCarouselScroll,350);
-      }
-      startLandingCarouselTimer();
-    };
-
-    viewport.addEventListener('pointerup',finishPointer);
-    viewport.addEventListener('pointercancel',finishPointer);
-    viewport.addEventListener('lostpointercapture',e=>{
-      if(appState.authentication.landingCarouselMouseDragging)finishPointer(e);
-    });
-
+    carousel.addEventListener('mouseenter',pauseLandingCarouselTimer);
+    carousel.addEventListener('mouseleave',startLandingCarouselTimer);
+    carousel.addEventListener('focusin',pauseLandingCarouselTimer);
+    carousel.addEventListener('focusout',()=>queueMicrotask(startLandingCarouselTimer));
+    viewport.addEventListener('pointerdown',pauseLandingCarouselTimer);
+    // Keep native touch scrolling and ordinary desktop text selection; never drag the track with a mouse.
+    viewport.addEventListener('pointerup',startLandingCarouselTimer);
+    viewport.addEventListener('pointercancel',startLandingCarouselTimer);
     viewport.addEventListener('scroll',()=>{
-      if(appState.authentication.landingCarouselScrollTimer)clearTimeout(appState.authentication.landingCarouselScrollTimer);
-      appState.authentication.landingCarouselScrollTimer=setTimeout(()=>{
-        if(!appState.authentication.landingCarouselMouseDragging)normalizeLandingCarouselScroll();
-      },180);
+      clearTimeout(appState.authentication.landingCarouselScrollTimer);
+      appState.authentication.landingCarouselScrollTimer=setTimeout(normalizeLandingCarouselScroll,220);
     },{passive:true});
-
-    carousel.addEventListener('keydown',e=>{
-      if(e.key==='ArrowLeft'){
-        e.preventDefault();
-        pauseLandingCarouselTimer();
-        moveLandingCarousel(-1);
-        startLandingCarouselTimer();
-      }
-      if(e.key==='ArrowRight'){
-        e.preventDefault();
-        pauseLandingCarouselTimer();
-        moveLandingCarousel(1);
-        startLandingCarouselTimer();
-      }
+    carousel.addEventListener('keydown',event=>{
+      if(!['ArrowLeft','ArrowRight'].includes(event.key))return;
+      event.preventDefault();pauseLandingCarouselTimer();
+      moveLandingCarousel(event.key==='ArrowLeft'?-1:1);
     });
-
-    window.addEventListener('resize',()=>{
-      const real=landingCarouselRealIndex();
-      requestAnimationFrame(()=>{
-        const width=landingCarouselSlideWidth();
-        viewport.scrollLeft=(appState.authentication.LANDING_CAROUSEL_COUNT+real)*width;
-      });
-    });
+    let width=landingCarouselSlideWidth();
+    const reposition=()=>{
+      const nextWidth=landingCarouselSlideWidth();
+      if(!viewport.clientWidth||Math.abs(nextWidth-width)<.1)return;
+      width=nextWidth;
+      // Preserve the settled slide when a scrollbar, browser zoom or screen size changes the layout.
+      clearTimeout(appState.authentication.landingCarouselScrollTimer);
+      requestAnimationFrame(()=>positionLandingCarousel(Number(carousel.dataset.activeIndex)||0));
+    };
+    if(window.ResizeObserver)new window.ResizeObserver(reposition).observe(viewport);
+    else window.addEventListener('resize',reposition);
   }
-
-  // Returning to Home always positions the carousel on a real middle-set slide.
-  requestAnimationFrame(()=>{
-    const width=landingCarouselSlideWidth();
-    const real=landingCarouselRealIndex();
-    viewport.scrollLeft=(appState.authentication.LANDING_CAROUSEL_COUNT+real)*width;
-  });
+  requestAnimationFrame(()=>positionLandingCarousel(Number(carousel.dataset.activeIndex)||0));
 }
 
 export function setPublicNavbarMode(authMode=false){

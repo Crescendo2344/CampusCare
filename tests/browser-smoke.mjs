@@ -98,8 +98,7 @@ try{
       await page.evaluate(theme=>{
         document.documentElement.dataset.theme=theme;
         window.__fixtureApp.features.authentication.pauseLandingCarouselTimer();
-        const viewport=document.getElementById('hero-carousel-viewport');
-        viewport.scrollTo({left:4*viewport.clientWidth,behavior:'instant'});
+        window.__fixtureApp.features.authentication.positionLandingCarousel(0);
       },theme);
       await page.waitForTimeout(250);
       const layout=await page.evaluate(()=>({
@@ -126,6 +125,33 @@ try{
         // Optional screenshots aid local visual review and are never production assets.
         await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/landing-${width}-${theme}.png`,fullPage:true});
       }
+    }
+    // Every step, wrap and resize settles on one whole slide with no duplicated panels.
+    assert.equal(await page.locator('.hero-carousel-slide').count(),4);
+    const aligned=async index=>page.waitForFunction(index=>{
+      const viewport=document.getElementById('hero-carousel-viewport'),slide=document.querySelectorAll('.hero-carousel-slide')[index];
+      return Math.abs(slide.getBoundingClientRect().left-viewport.getBoundingClientRect().left)<1;
+    },index);
+    for(const index of [1,2,3,0]){
+      await page.evaluate(()=>window.__fixtureApp.features.authentication.moveLandingCarousel(1));
+      await aligned(index);
+    }
+    await page.evaluate(()=>window.__fixtureApp.features.authentication.positionLandingCarousel(2));
+    await page.setViewportSize({width:390,height:800});await aligned(2);
+    await page.setViewportSize({width:1366,height:800});await aligned(2);
+    const carousel=page.locator('.hero-info-carousel');
+    await carousel.hover();
+    await page.evaluate(()=>window.__fixtureApp.features.authentication.startLandingCarouselTimer());
+    assert(await page.evaluate(()=>window.__fixtureApp.state.authentication.landingCarouselTimer===null),'Hover must pause autoplay');
+    await carousel.focus();await carousel.press('ArrowRight');await aligned(3);
+    await page.locator('.landing-get-started').focus();
+    // Both button animations must be visible without resizing their layout boxes.
+    for(const selector of ['.landing-get-started','.landing-book-appointment']){
+      await page.mouse.move(5,75);await page.locator(selector).blur();await page.waitForTimeout(200);
+      const before=await page.locator(selector).boundingBox();
+      await page.locator(selector).hover();await page.waitForTimeout(220);
+      const after=await page.locator(selector).boundingBox();
+      assert(Math.abs(after.width-before.width)<.1&&after.y<before.y-1,'Hover should lift the button without changing its width');
     }
     await page.setViewportSize({width:1440,height:1000});
   }
@@ -168,8 +194,12 @@ try{
     for(const email of ['student@ctu.edu.ph','student+clinic@gmail.com','student@school.edu.ph']){
       await page.locator('#r-email').fill(email);await page.locator('#r-email').blur();assert(await page.locator('#r-email-error').isHidden());
     }
+    assert(await page.locator('#r-contact-help').isHidden());
+    assert.equal(await page.locator('#r-contact').getAttribute('placeholder'),'09… or +63…');
+    await page.locator('#r-contact').focus();assert(await page.locator('#r-contact-help').isVisible());
     await page.locator('#r-contact').fill('+639171234567');await page.locator('#r-contact').blur();assert(await page.locator('#r-contact-error').isHidden());
     assert.equal(await page.locator('#r-contact').inputValue(),'+639171234567');
+    assert(await page.locator('#r-contact-help').isHidden(),'Contact guidance hides after blur');
     await page.locator('#r-contact').fill('08171234567');await page.locator('#r-contact').blur();await page.locator('#r-contact-error').waitFor({state:'visible'});
     await page.locator('#r-contact').fill('');await page.locator('#r-contact').blur();
     await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingPage());
