@@ -8,8 +8,10 @@ export function assessSelfieFrame({faces=[],width,height,brightness=null,sharpne
   // Ignore a small printed ID portrait; another similarly sized person still needs to leave the frame.
   if(sorted.slice(1).some(other=>other.width*other.height>area*.4))return result('multiple','Only one person should be in the frame');
   const w=face.width/width,h=face.height/height,x=(face.x+face.width/2)/width,y=(face.y+face.height/2)/height;
-  if(w<.19||h<.24)return result('far','Move closer to the camera');
-  if(w>.43||h>.62)return result('close','Move back a little');
+  // Match the fixed 3:4 oval even when the camera feed switches between landscape and portrait.
+  const guideWidth=.75*.52*height/width;
+  if(w<guideWidth*.6||h<.24)return result('far','Move closer to the camera');
+  if(w>guideWidth*1.45||h>.62)return result('close','Move back a little');
   if(face.x<width*.015||face.y<height*.015||face.x+face.width>width*.985||face.y+face.height>height*.985)return result('cropped','Keep your whole face inside the frame');
   if(Math.abs(x-.5)>.12||Math.abs(y-.35)>.14)return result('center','Center your face inside the oval');
   if(brightness!==null&&brightness<48)return result('dark','Move to brighter, even lighting');

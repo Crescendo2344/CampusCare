@@ -9,6 +9,7 @@ import {syncAdminDirectoryFromSupabase} from './patientService.js';
 import {openPatientModal} from './patientForm.js';
 import {analyzeIdImage} from './documentScanner.js';
 import {bindAction} from '../dependencies.js';
+import {cameraFocus} from '../verification/camera-focus.js';
 import {startIdGuidance} from '../verification/id-controller.js';
 import {saveRegistrationId} from './idVerification.js';
 import {startSelfieGuidance} from '../verification/selfie-controller.js';
@@ -52,8 +53,10 @@ async function startCamera(target){
     openModal(`<div class="modal ${guided?'selfie-modal':'modal-sm'}">
       <div class="modal-header"><h3>${isId?'ID '+(target==='id-front'?'Front — Step 1 of 2':'Back — Step 2 of 2'):target==='selfie'?'Selfie Verification':target==='id'||target==='assisted-id'?'Photograph Your ID / COR':'Take a Photo'}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{stopCamera();closeAllModals()})}>✕</button></div>
       <div class="modal-body" style="text-align:center">
-        ${guided?`<div class="selfie-stage" id="selfie-stage"><video id="camera-video" autoplay playsinline muted></video><div class="${isId?'id-guide-rectangle':'selfie-guide-oval'}" aria-hidden="true"></div><div class="selfie-document-guide">${isId?'Keep all four ID corners visible':'Keep your matching ID visible'}</div></div>
+        ${guided?`<div class="selfie-stage" id="selfie-stage" data-camera="${isId?'id':'selfie'}" data-mirrored="${!isId}"><video id="camera-video" autoplay playsinline muted></video><div class="${isId?'id-guide-rectangle':'selfie-guide-oval'}" aria-hidden="true"></div><div class="selfie-document-guide">${isId?'Keep all four ID corners visible':'Keep your matching ID visible'}</div></div>
         <div class="selfie-feedback"><p id="selfie-status" role="status" aria-live="polite">Preparing camera…</p><div class="selfie-progress" aria-hidden="true"><span id="selfie-progress"></span></div></div>`:`<video id="camera-video" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;transform:${isFrontFacing?'scaleX(-1)':'none'}"></video>`}
+        ${target==='selfie'?`<label class="camera-mirror-control"><input id="camera-mirror-preview" type="checkbox" checked ${bindAction('change',(event,element)=>{document.getElementById('selfie-stage').dataset.mirrored=String(element.checked)})}> Mirror preview</label><p class="selfie-privacy">The saved photo keeps your ID text readable.</p>`:''}
+        ${isId?'<button type="button" id="camera-refocus" class="btn btn-sm" hidden>Refocus camera</button>':''}
         <canvas id="camera-canvas" style="display:none"></canvas>
         <p class="form-note" style="margin-top:.6rem">${isId?'Use the '+(target==='id-front'?'front':'back')+' of your Student or Employee ID. Move the ID to follow the guide.':target==='selfie'?'Hold the front of the same Student or Employee ID beside your face, with its text readable.':`Center your ${target==='id'||target==='assisted-id'?'ID / COR':'face'} in the frame, then capture.`}</p>
       </div>
@@ -62,6 +65,11 @@ async function startCamera(target){
     </div>`);
     const video=document.getElementById('camera-video');
     video.srcObject=stream;
+    if(isId){
+      const focus=cameraFocus(stream.getVideoTracks()[0]),button=document.getElementById('camera-refocus');
+      button.hidden=!focus.supported;button.onclick=async()=>{button.disabled=true;await focus.refocus();button.disabled=false;};
+      focus.refocus();
+    }
     if(guided)appState.camera.selfieGuidance=(isId?startIdGuidance:startSelfieGuidance)({video,root:document.getElementById('selfie-stage'),captureButton:document.getElementById('camera-capture-button'),manualButton:document.getElementById('selfie-manual-button'),status:document.getElementById('selfie-status'),progress:document.getElementById('selfie-progress')});
     // Close buttons, backdrop clicks, and other modal replacements all release the camera.
     const modal=document.getElementById('active-modal');

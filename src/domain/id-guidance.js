@@ -31,13 +31,13 @@ export function assessIdFrame({box,width,height,brightness=null,sharpness=null})
   const result=(code,message,ready=false)=>({code,message,ready});
   if(!box)return result('missing','Place the ID inside the rectangle, with all four corners visible');
   const w=box.width/width,h=box.height/height,cx=(box.x+box.width/2)/width,cy=(box.y+box.height/2)/height;
-  if(Math.max(w,h)<.55)return result('far','Move the ID closer to the camera');
-  if(w>.94||h>.94)return result('close','Move the ID back a little');
-  if(box.x<width*.025||box.y<height*.025||box.x+box.width>width*.975||box.y+box.height>height*.975)return result('cropped','Keep all four ID corners inside the frame');
-  if(Math.abs(cx-.5)>.12||Math.abs(cy-.5)>.12)return result('center','Center the ID inside the rectangle');
-  if(brightness!==null&&brightness<48)return result('dark','Improve the lighting on the ID');
-  if(brightness!==null&&brightness>230)return result('glare','Reduce glare or strong light on the ID');
-  if(sharpness!==null&&sharpness<18)return result('blur','Hold the ID still and clean the camera lens');
+  if(Math.max(w,h)<.36)return result('far','Move the ID closer to the camera');
+  if(w>.97||h>.97)return result('close','Move the ID back a little');
+  if(box.x<width*.015||box.y<height*.015||box.x+box.width>width*.985||box.y+box.height>height*.985)return result('cropped','Keep all four ID corners inside the frame');
+  if(Math.abs(cx-.5)>.2||Math.abs(cy-.5)>.2)return result('center','Center the ID inside the rectangle');
+  if(brightness!==null&&brightness<40)return result('dark','Improve the lighting on the ID');
+  if(brightness!==null&&brightness>240)return result('glare','Reduce glare or strong light on the ID');
+  if(sharpness!==null&&sharpness<10)return result('blur','Hold the ID still and clean the camera lens');
   return result('ready','Good framing — keep the ID still',true);
 }
 

@@ -20,8 +20,13 @@ test('a blank scene does not produce a ready ID, while distance and lighting giv
  const f=image({w:0,h:0});assert.equal(analyzeIdPixels(f.pixels,f.width,f.height).code,'missing');
  const check=changes=>assessIdFrame({box:{x:60,y:56,width:200,height:128},width:320,height:240,brightness:150,sharpness:100,...changes});
  assert.equal(check({box:{x:110,y:90,width:100,height:60}}).code,'far');
- assert.equal(check({box:{x:4,y:10,width:310,height:200}}).code,'close');
+ assert.equal(check({box:{x:4,y:10,width:316,height:200}}).code,'close');
  assert.equal(check({box:{x:0,y:40,width:200,height:128}}).code,'cropped');
- assert.equal(check({box:{x:110,y:56,width:200,height:128}}).code,'center');
+ assert.equal(check({box:{x:165,y:56,width:140,height:90}}).code,'center');
  assert.equal(check({brightness:20}).code,'dark');assert.equal(check({brightness:245}).code,'glare');assert.equal(check({sharpness:3}).code,'blur');
+});
+
+// Modest framing and softness are acceptable; severe defects still produce advice rather than false ready states.
+test('smaller and moderately soft ID images can pass automatic guidance',()=>{
+ assert.equal(assessIdFrame({box:{x:96,y:78,width:128,height:84},width:320,height:240,brightness:110,sharpness:12}).ready,true);
 });
