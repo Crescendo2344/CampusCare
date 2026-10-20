@@ -112,7 +112,7 @@ export function openPatientModal(id=null){
         <div class="form-group"><label>Height (cm)</label><input id="pm-height" type="number" min="40" max="260" step=".1" value="${height}"></div>
         <div class="form-group"><label>Weight (kg)</label><input id="pm-weight" type="number" min="1" max="500" step=".1" value="${weight}"></div>
         <div class="form-group full"><label>Address</label><input id="pm-addr" maxlength="3000" value="${escapeHtml(pt?.address||'')}"></div>
-        <div class="form-group full"><label>Allergies</label><input id="pm-allergy" maxlength="3000" value="${escapeHtml(pt?.allergies||'')}" placeholder="None"></div>
+        <div class="form-group full"><label>Allergies</label><input id="pm-allergy" maxlength="3000" value="${escapeHtml(pt?.allergies||'')}" placeholder="Enter known allergies"></div>
         <div class="form-group full"><label>Medical History</label><textarea id="pm-history" maxlength="5000" rows="3">${escapeHtml(pt?.medHistory||'')}</textarea></div>
         <div class="form-group"><label>Emergency Contact Name</label><input id="pm-ename" maxlength="255" value="${escapeHtml(pt?.emergencyName||'')}"></div>
         <div class="form-group"><label>Emergency Contact No.</label><input id="pm-econtact" maxlength="100" value="${escapeHtml(pt?.emergencyContact||'')}"></div>
@@ -304,8 +304,8 @@ export async function viewPatient(id){
         <div>
           <div class="section-label">Medical Info</div>
           <div class="info-row"><span class="info-label">Height / Weight</span><span class="info-val">${pt.height||'—'} / ${pt.weight||'—'}</span></div>
-          <div class="info-row"><span class="info-label">Allergies</span><span class="info-val ${pt.allergies&&pt.allergies!=='None'?'text-danger':''}">${pt.allergies||'None'}</span></div>
-          <div class="info-row"><span class="info-label">Medical History</span><span class="info-val">${pt.medHistory||'None'}</span></div>
+          <div class="info-row"><span class="info-label">Allergies</span><span class="info-val ${pt.allergies&&pt.allergies!=='None'?'text-danger':''}">${escapeHtml(pt.allergies?.trim()||'—')}</span></div>
+          <div class="info-row"><span class="info-label">Medical History</span><span class="info-val">${escapeHtml(pt.medHistory?.trim()||'—')}</span></div>
           <div class="info-row"><span class="info-label">Emergency Contact</span><span class="info-val">${pt.emergencyName||'—'} (${pt.emergencyContact||'—'})</span></div>
         </div>
       </div>

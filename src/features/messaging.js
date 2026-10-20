@@ -1,3 +1,5 @@
+import {reconcileMessages} from '../ui/message-list.js';
+import {createVoicePlayer,startVoiceMeter} from '../ui/voice-message.js';
 import {appIcon} from '../ui/app-icons.js';
 import {createFeatureSyncService} from '../services/feature-sync.js';
 // messaging: imported feature APIs; state belongs to explicit application namespaces.
@@ -94,21 +96,23 @@ export function isCompactMessenger(){
   return window.innerWidth<=1100 || Boolean(content&&content.clientWidth<760);
 }
 
+// Background sync patches mounted views only; no loading skeletons or conversation resets.
+export function refreshMessageViews(){
+  if(!document.getElementById('msgr-shell'))return;
+  renderContactList();renderPeopleCarousel();
+  if(appState.messaging.activeConversationId)renderChatMessages(appState.messaging.activeConversationId);
+}
 export function startMessagePolling(){
   if(appState.messaging.messagePollTimer)clearInterval(appState.messaging.messagePollTimer);
-
   if(!appState.auth.currentUser?._realSupabase)return;
-
+  let busy=false;
+  const account=appState.auth.currentUser;
   appState.messaging.messagePollTimer=setInterval(async()=>{
-    if(appState.navigationRaceProtection.campusActivePageId!=='messages'||!appState.auth.currentUser?._realSupabase)return;
-    try{
-      await syncRealMessages();
-      renderContactList();
-      renderPeopleCarousel();
-      if(appState.messaging.activeConversationId)renderChatMessages(appState.messaging.activeConversationId);
-    }catch(e){
-      console.error('Secure message refresh:',e);
-    }
+    if(busy||document.hidden||appState.navigationRaceProtection.campusActivePageId!=='messages'||appState.auth.currentUser!==account)return;
+    busy=true;
+    try{await syncRealMessages();if(appState.auth.currentUser===account&&appState.navigationRaceProtection.campusActivePageId==='messages')refreshMessageViews();}
+    catch(e){console.error('Secure message refresh:',e);}
+    finally{busy=false;}
   },7000);
 }
 
@@ -232,17 +236,24 @@ export function renderPeopleCarousel(){
   const el=document.getElementById('msgr-people-carousel');if(!el)return;
   const people=getAllMessagePeople();
 
+  // Rotating signed avatar URLs do not change the visible person or justify a repaint.
+  const version=JSON.stringify(people.map(p=>[p.id,p.user.fname,p.user.lname,p.user.role,p.user.specialty,p.user.profilePhoto?.split('?')[0]]));
+  if(el.dataset.version===version)return;el.dataset.version=version;
+  const left=el.scrollLeft;
   el.innerHTML=people.length?people.map(p=>`<button class="msgr-person-card" ${bindAction('click',(event,element)=>{openConversation((p.id))})} title="Message ${escapeHtml(docName(p.user))}">
     ${msgrAvatarHtml(p.user,46)}
     <span class="msgr-person-name">${escapeHtml(p.user.fname)}</span>
     <span class="msgr-person-role">${escapeHtml(p.user.role==='Doctor'?(p.user.specialty||'Doctor'):p.user.role)}</span>
   </button>`).join(''):'<span class="text-muted">No people available.</span>';
+  el.scrollLeft=left;
 }
 
 export function renderContactList(){
   const el=document.getElementById('msgr-contacts');if(!el)return;
   const q=((document.getElementById('msgr-search')||{}).value||'').trim().toLowerCase();
   const contacts=getMessageContacts();
+  const version=JSON.stringify([q,appState.messaging.activeConversationId,contacts.map(c=>[c.id,c.unread,c.last?.id,c.last?.message,c.last?.deleted,c.last?.attachment?.name,c.user.fname,c.user.lname,c.user.profilePhoto?.split('?')[0]]),getAllMessagePeople().map(p=>[p.id,p.user.fname,p.user.lname])]);
+  if(el.dataset.version===version)return;el.dataset.version=version;
 
   if(!q){
     el.innerHTML=contacts.length
@@ -273,6 +284,8 @@ export function renderContactList(){
 export async function renderMessages(){
   const c=document.getElementById('app-content');if(!c)return;
   const pageToken=captureCampusPageToken();
+  // An explicit refresh of a mounted messenger is quiet as well as the polling refresh.
+  if(document.getElementById('msgr-shell')){await syncRealMessages();if(isCampusPageCurrent('messages',pageToken))refreshMessageViews();return;}
 
   if(appState.auth.currentUser?._realSupabase){
     showDatabaseSkeleton('table');
@@ -337,7 +350,12 @@ export async function renderMessages(){
 }
 
 export async function openConversation(userId){
+  if(appState.messaging.activeConversationId===Number(userId)&&document.getElementById('msgr-messages')){refreshMessageViews();return;}
+  appState.messaging.stopVoiceRecording?.(true);
+  clearPendingAttachment();
+  document.querySelectorAll('.voice-player audio').forEach(audio=>audio.pause());
   appState.messaging.activeConversationId=Number(userId);
+  const conversationId=Number(userId),account=appState.auth.currentUser;
   const shell=document.getElementById('msgr-shell');
   if(shell&&isCompactMessenger()) shell.classList.add('mobile-chat-open');
 
@@ -357,6 +375,7 @@ export async function openConversation(userId){
     });
   }
 
+  if(appState.messaging.activeConversationId!==conversationId||appState.auth.currentUser!==account||!document.getElementById('msgr-shell'))return;
   updateNotifUI&&updateNotifUI();
   renderContactList();
 
@@ -391,6 +410,8 @@ export async function openConversation(userId){
 }
 
 export function backToMessageLobby(){
+  appState.messaging.stopVoiceRecording?.(true);
+  document.querySelectorAll('.voice-player audio').forEach(audio=>audio.pause());
   const shell=document.getElementById('msgr-shell');if(!shell)return;
   shell.classList.remove('mobile-chat-open');
   appState.messaging.activeConversationId=null;
@@ -408,20 +429,21 @@ export function syncMessengerMobileLayout(){
   }
 }
 
-export function renderChatMessages(userId){
+export function renderChatMessages(userId,options={}){
   const wrap=document.getElementById('msgr-messages');if(!wrap)return;
 
   const msgs=messageRecords()
     .filter(m=>(m.fromUserId===appState.auth.currentUser.id&&m.toUserId===userId)||(m.fromUserId===userId&&m.toUserId===appState.auth.currentUser.id))
     .sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
 
-  wrap.innerHTML=msgs.map(m=>{
+  reconcileMessages(wrap,msgs.map(m=>({...m,_timeLabel:`${fmtShortTime(m.createdAt)}${m.edited?' · edited':''}${m.fromUserId===appState.auth.currentUser.id?` · ${m.isRead?'read':'sent'}`:''}`})),m=>{
+    const template=document.createElement('template');
     const sent=m.fromUserId===appState.auth.currentUser.id;
 
     if(m.deleted){
-      return `<div class="msgr-bubble-row ${sent?'sent':'received'}">
+      template.innerHTML=`<div class="msgr-bubble-row ${sent?'sent':'received'}">
         <div class="msgr-bubble deleted">This message was deleted</div>
-      </div>`;
+      </div>`;return template.content.firstElementChild;
     }
 
     let bodyHtml='';
@@ -433,7 +455,7 @@ export function renderChatMessages(userId){
       if(m.attachment.type==='image'){
         bodyHtml+=`<img src="${m.attachment.dataUrl}" ${bindAction('click',(event,element)=>{showFilePreview('Photo',(String(m.attachment.dataUrl)))})} style="cursor:pointer">`;
       }else if(m.attachment.type==='audio'){
-        bodyHtml+=`<audio controls preload="none" src="${m.attachment.dataUrl}"></audio>`;
+        bodyHtml+='<span class="voice-player-slot"></span>';
       }else{
         bodyHtml+=`<a href="${m.attachment.dataUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">
           <div class="msgr-file-chip">${appIcon('paperclip',16)} ${escapeHtml(m.attachment.name)}</div></a>`;
@@ -441,13 +463,14 @@ export function renderChatMessages(userId){
     }
 
     const canEdit=sent&&!m.attachment;
-    return `<div class="msgr-bubble-row ${sent?'sent':'received'}" data-msg-id="${m.id}">
+    template.innerHTML=`<div class="msgr-bubble-row ${sent?'sent':'received'}" data-msg-id="${m.id}">
       <div class="msgr-bubble-group"><div class="msgr-bubble" id="msgr-bubble-${m.id}">${bodyHtml||' '}</div><span class="msgr-bubble-time">${fmtShortTime(m.createdAt)}${m.edited?' · edited':''}${sent?` · ${m.isRead?'read':'sent'}`:''}</span></div>
       <button class="msgr-msg-actions-btn" ${bindAction('click',(event,element)=>{toggleMsgMenu(event,(m.id),(canEdit),true)})} title="More message options" aria-label="More message options">${appIcon('more')}</button>
     </div>`;
-  }).join('');
-
-  wrap.scrollTop=wrap.scrollHeight;
+    const row=template.content.firstElementChild;
+    const slot=row.querySelector('.voice-player-slot');if(slot)slot.replaceWith(createVoicePlayer(m.attachment.dataUrl));
+    return row;
+  },options);
 }
 
 export function openContactInfo(userId){
@@ -551,7 +574,7 @@ export function startEditMessage(msgId){
   document.getElementById(`msgr-edit-input-${msgId}`)?.focus();
 }
 
-export function cancelEditMessage(_msgId){renderChatMessages(appState.messaging.activeConversationId);}
+export function cancelEditMessage(_msgId){renderChatMessages(appState.messaging.activeConversationId,{force:true});}
 
 export async function saveEditedMessage(msgId){
   const m=messageRecords().find(x=>x.id===Number(msgId));
@@ -568,7 +591,7 @@ export async function saveEditedMessage(msgId){
     }else{
       m.message=next;m.edited=true;persistDB();
     }
-    renderChatMessages(appState.messaging.activeConversationId);
+    renderChatMessages(appState.messaging.activeConversationId,{force:true});
     renderContactList();
     toast('Message edited.','success');
   }catch(e){toast(e?.message||'Unable to edit the message.','error');}
@@ -686,7 +709,8 @@ export async function sendChatMessage(toId){
   const recipient=getUserById(Number(toId));
   if(!recipient){toast('Recipient is unavailable.','error');return;}
 
-  const old=btn?.textContent;
+  if(appState.messaging.stopVoiceRecording){toast('Stop recording to preview your voice message first.','info');return;}
+  const old=btn?.innerHTML;
   if(btn){btn.disabled=true;btn.textContent='…';}
 
   try{
@@ -719,14 +743,14 @@ export async function sendChatMessage(toId){
     const file=document.getElementById('msgr-file-input');if(file)file.value='';
 
     toast('Secure message sent.','success');
-    renderChatMessages(Number(toId));
+    if(appState.messaging.activeConversationId===Number(toId))renderChatMessages(Number(toId),{scrollToEnd:true});
     renderContactList();
     if(!appState.auth.currentUser?._realSupabase)simulateReplyTyping(Number(toId));
   }catch(e){
     toast(e?.message||'Unable to send the message.','error');
   }finally{
     if(btn&&document.body.contains(btn)){
-      btn.disabled=false;btn.textContent=old||'➤';
+      btn.disabled=false;btn.innerHTML=old||appIcon('send');
     }
   }
 }
@@ -761,6 +785,7 @@ export function playMsgSendSound(){
 }
 
 export async function attachPhoto(input){
+  if(appState.messaging.stopVoiceRecording)return;
   const file=input.files?.[0];if(!file)return;
   if(file.size>5*1024*1024){toast('Photo is too large. Maximum attachment size is 5 MB.','error');return;}
 
@@ -773,6 +798,7 @@ export async function attachPhoto(input){
 }
 
 export async function attachFileGeneric(input){
+  if(appState.messaging.stopVoiceRecording)return;
   const file=input.files?.[0];if(!file)return;
   if(file.size>5*1024*1024){toast('File is too large. Maximum attachment size is 5 MB.','error');return;}
 
@@ -795,55 +821,67 @@ export async function attachFileGeneric(input){
 }
 
 export function showPendingAttachPreview(){
-  const el=document.getElementById('msgr-pending-attach');
-  if(!el||!appState.messaging.pendingAttachment)return;
-  el.innerHTML=`<div class="msgr-pending-attach">${escapeHtml(attachmentPreviewLabel(appState.messaging.pendingAttachment))}: <strong>${escapeHtml(appState.messaging.pendingAttachment.name)}</strong> <button class="btn btn-xs" ${bindAction('click',(event,element)=>{clearPendingAttachment()})}>${appIcon('close',14)} Remove</button></div>`;
+  const el=document.getElementById('msgr-pending-attach'),attachment=appState.messaging.pendingAttachment;
+  if(!el||!attachment)return;
+  el.innerHTML=`<div class="msgr-pending-attach"><span>${escapeHtml(attachmentPreviewLabel(attachment))}</span><button type="button" class="voice-discard" aria-label="Remove attachment" ${bindAction('click',()=>clearPendingAttachment())}>${appIcon('trash',18)}</button></div>`;
+  if(attachment.type==='audio')el.firstElementChild.prepend(createVoicePlayer(attachment.dataUrl,{duration:attachment.duration}));
 }
-
 export function clearPendingAttachment(){
   appState.messaging.pendingAttachment=null;
-  const el=document.getElementById('msgr-pending-attach');if(el)el.innerHTML='';
+  const el=document.getElementById('msgr-pending-attach');if(el){el.querySelectorAll('audio').forEach(audio=>audio.pause());el.innerHTML='';}
   const photo=document.getElementById('msgr-photo-input');if(photo)photo.value='';
   const file=document.getElementById('msgr-file-input');if(file)file.value='';
 }
-
-export async function toggleVoiceRecording(_toId){
-  const btn=document.getElementById('msgr-voice-btn');
-
-  if(appState.messaging.voiceRecorder&&appState.messaging.voiceRecorder.state==='recording'){
-    appState.messaging.voiceRecorder.stop();
-    return;
-  }
-  if(!navigator.mediaDevices?.getUserMedia){
-    toast('Your browser does not support voice recording.','error');
-    return;
-  }
-
+export async function toggleVoiceRecording(toId){
+  if(appState.messaging.stopVoiceRecording){appState.messaging.stopVoiceRecording(false);return;}
+  const btn=document.getElementById('msgr-voice-btn'),host=document.getElementById('msgr-pending-attach');
+  if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){toast('Your browser does not support voice recording.','error');return;}
+  if(!host||btn?.disabled)return;
+  const account=appState.auth.currentUser;let stream,recorder,meter,limit,discarded=false,stopped=false;
+  if(btn)btn.disabled=true;
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-    appState.messaging.voiceChunks=[];
-    appState.messaging.voiceRecorder=new MediaRecorder(stream);
-
-    appState.messaging.voiceRecorder.ondataavailable=e=>appState.messaging.voiceChunks.push(e.data);
-    appState.messaging.voiceRecorder.onstop=async()=>{
+    stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    if(appState.auth.currentUser!==account||appState.messaging.activeConversationId!==Number(toId)||!host.isConnected){stream.getTracks().forEach(t=>t.stop());return;}
+    clearPendingAttachment();
+    const preferred=['audio/webm;codecs=opus','audio/mp4','audio/webm'].find(type=>MediaRecorder.isTypeSupported(type));
+    recorder=new MediaRecorder(stream,preferred?{mimeType:preferred}:{});
+    const chunks=[];let bytes=0;
+    const stop=(discard=false)=>{
+      discarded=discarded||discard;if(stopped)return;stopped=true;meter?.dispose();clearTimeout(limit);
+      if(appState.messaging.voiceRecorder===recorder)appState.messaging.stopVoiceRecording=null;
+      if(btn?.isConnected)btn.disabled=!discard;
+      document.querySelectorAll('.msgr-input-bar [aria-label="Send a photo"],.msgr-input-bar [aria-label="Send a file"]').forEach(control=>control.disabled=false);
+      if(recorder.state!=='inactive')recorder.stop();
       stream.getTracks().forEach(t=>t.stop());
-      btn?.classList.remove('recording');
-      if(btn){btn.innerHTML=appIcon('mic');btn.setAttribute('aria-label','Record a voice message');btn.setAttribute('aria-pressed','false');}
-      const blob=new Blob(appState.messaging.voiceChunks,{type:'audio/webm'});
+      if(btn?.isConnected){btn.classList.remove('recording');btn.innerHTML=appIcon('mic');btn.setAttribute('aria-label','Record a voice message');btn.setAttribute('aria-pressed','false');}
+      if(discard&&host.isConnected)host.innerHTML='';
+    };
+    appState.messaging.stopVoiceRecording=stop;appState.messaging.voiceRecorder=recorder;
+    recorder.ondataavailable=e=>{if(e.data.size){chunks.push(e.data);bytes+=e.data.size;if(bytes>5*1024*1024)stop(false);}};
+    const token=String(window.performance.now());host.dataset.recordingToken=token;
+    recorder.onstop=async()=>{
+      const duration=meter?.seconds()||0;
+      stop(discarded);
+      if(btn?.isConnected&&appState.messaging.voiceRecorder===recorder)btn.disabled=false;
+      if(discarded||!host.isConnected||appState.auth.currentUser!==account||appState.messaging.activeConversationId!==Number(toId))return;
+      const mime=recorder.mimeType||chunks[0]?.type||'audio/webm',blob=new Blob(chunks,{type:mime});
+      host.innerHTML='';
       if(blob.size<500){toast('Recording was too short.','warning');return;}
       if(blob.size>5*1024*1024){toast('Voice message is too large. Maximum size is 5 MB.','error');return;}
-      appState.messaging.pendingAttachment={type:'audio',name:'Voice message.webm',dataUrl:await readFileAsDataURL(blob),size:blob.size,mime:'audio/webm'};
-      toast('Voice message ready — press send.','success');
+      const dataUrl=await readFileAsDataURL(blob);
+      if(!host.isConnected||host.dataset.recordingToken!==token||appState.auth.currentUser!==account||appState.messaging.activeConversationId!==Number(toId))return;
+      appState.messaging.pendingAttachment={type:'audio',name:'Voice message.'+(mime.includes('mp4')?'m4a':'webm'),dataUrl,size:blob.size,mime,duration};
       showPendingAttachPreview();
     };
-
-    appState.messaging.voiceRecorder.start();
-    btn?.classList.add('recording');
+    recorder.onerror=()=>{stop(true);toast('Recording failed. Please try again.','error');};
+    meter=startVoiceMeter(host,stream,{onStop:()=>stop(false),onDiscard:()=>stop(true)});
+    recorder.start(250);btn?.classList.add('recording');
+    document.querySelectorAll('.msgr-input-bar [aria-label="Send a photo"],.msgr-input-bar [aria-label="Send a file"]').forEach(control=>control.disabled=true);
     if(btn){btn.innerHTML=appIcon('stop');btn.setAttribute('aria-label','Stop recording');btn.setAttribute('aria-pressed','true');}
-    toast('Recording… click the microphone again to stop.','info');
-  }catch(_){
-    toast('Microphone access was denied or unavailable.','error');
-  }
+    // Bound microphone lifetime and file size; stopped recordings remain drafts until Send is pressed.
+    limit=setTimeout(()=>stop(false),5*60*1000);
+  }catch{stream?.getTracks().forEach(t=>t.stop());meter?.dispose();appState.messaging.stopVoiceRecording=null;toast('Microphone access was denied or unavailable.','error');}
+  finally{if(btn?.isConnected)btn.disabled=false;}
 }
 
 export async function openNewMessageModal(){
@@ -875,7 +913,8 @@ export async function startNewConversation(){
   if(!recipient){showAlert(err,'Please choose a recipient.');return;}
   if(!body){showAlert(err,'Message cannot be empty.');return;}
 
-  const old=btn?.textContent;
+  if(appState.messaging.stopVoiceRecording){toast('Stop recording to preview your voice message first.','info');return;}
+  const old=btn?.innerHTML;
   if(btn){btn.disabled=true;btn.textContent='Sending…';}
 
   try{

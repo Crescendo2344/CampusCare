@@ -85,7 +85,7 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
       <div id="trm-msg"></div>
       ${pt?`<div class="alert alert-info show" style="margin-bottom:.7rem;font-size:.8rem">
         Patient: <strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong> · ${escapeHtml(pt.college||'')} ·
-        Allergies: <strong class="text-danger">${escapeHtml(pt.allergies||'None')}</strong>
+        Allergies: <strong class="text-danger">${escapeHtml(pt.allergies?.trim()||'—')}</strong>
         ${appt?`<br>Appointment: ${fmtDate(appt.date)} at ${fmtTime(appt.time)} · ${escapeHtml(appt.service)}`:''}
       </div>`:''}
 

@@ -45,8 +45,8 @@ export async function renderMyRecords(){
         <div class="info-row"><span class="info-label">Blood Type</span><span class="info-val">${escapeHtml(pt.blood||'—')}</span></div>
         <div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
         <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${escapeHtml(pt.idNo||'—')}</span></div>
-        <div class="info-row full"><span class="info-label">Allergies</span><span class="info-val text-danger">${escapeHtml(pt.allergies||'None')}</span></div>
-        <div class="info-row full"><span class="info-label">Medical History</span><span class="info-val">${escapeHtml(pt.medHistory||'None')}</span></div>
+        <div class="info-row full"><span class="info-label">Allergies</span><span class="info-val text-danger">${escapeHtml(pt.allergies?.trim()||'—')}</span></div>
+        <div class="info-row full"><span class="info-label">Medical History</span><span class="info-val">${escapeHtml(pt.medHistory?.trim()||'—')}</span></div>
       </div>
     </div>
     <div class="card">

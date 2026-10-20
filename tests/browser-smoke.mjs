@@ -32,7 +32,7 @@ const now=Math.floor(Date.now()/1000),token=['eyJhbGciOiJIUzI1NiJ9',Buffer.from(
 let cases=0;
 try{
  for(const mobile of [false,true])for(const role of ['Patient','Doctor','Staff','Administrator']){
-  const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1440,height:1000},isMobile:mobile,hasTouch:mobile,permissions:['camera']});
+  const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1440,height:1000},isMobile:mobile,hasTouch:mobile,permissions:['camera','microphone']});
   const page=await context.newPage(),errors=[],requests=[];
   page.on('pageerror',error=>errors.push(error.message));
   page.on('console',message=>{
@@ -447,8 +447,66 @@ try{
   assert(await sheet.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight;}),'Message action sheet must fit the screen');
   if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#msgr-chat').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/workspace-messages-${mobile?'mobile':'desktop'}.png`});
   await sheet.getByRole('button',{name:'Edit',exact:true}).click();await page.locator('#msgr-edit-input-902').waitFor();
+  await page.locator('#msgr-edit-input-902').fill('Draft edit survives refresh');
+  await page.evaluate(()=>window.__fixtureApp.features.messaging.refreshMessageViews());
+  assert.equal(await page.locator('#msgr-edit-input-902').inputValue(),'Draft edit survives refresh');
   await page.locator('#msgr-bubble-902').getByRole('button',{name:'Cancel',exact:true}).click();
   assert.match(await page.locator('#msgr-bubble-902').innerText(),/Thank you/);
+  // In-place refreshes must retain the selected partner, reading position, editor and composer draft.
+  await page.evaluate(()=>{
+    const {state,features}=window.__fixtureApp;
+    const base=state.data.DB.messages[0];
+    state.data.DB.messages.push(...Array.from({length:35},(_,i)=>({...base,id:1000+i,dbMessageId:1000+i,message:'History message '+i,createdAt:new Date(Date.UTC(2026,9,20,8,i)).toISOString()})));
+    features.messaging.renderChatMessages(100090);
+    document.getElementById('msgr-text-input').value='Unsent composer draft';
+    window.__fixtureMessageRow=document.querySelector('[data-msg-id="902"]');
+    document.getElementById('msgr-messages').scrollTop=120;
+    window.__fixtureReadTop=document.getElementById('msgr-messages').scrollTop;
+    state.data.DB.messages.push({...base,id:1099,dbMessageId:1099,message:'New message while reading history',createdAt:'2026-10-20T08:59:00Z'});
+    features.messaging.refreshMessageViews();features.authSession.refreshActivePageAfterSync();
+  });
+  assert(await page.evaluate(()=>document.querySelector('[data-msg-id="902"]')===window.__fixtureMessageRow));
+  assert.equal(await page.locator('#msgr-text-input').inputValue(),'Unsent composer draft');
+  assert(await page.evaluate(()=>Math.abs(document.getElementById('msgr-messages').scrollTop-window.__fixtureReadTop)<2));
+  assert.equal(await page.evaluate(()=>window.__fixtureApp.state.messaging.activeConversationId),100090);
+  // A real oscillator stream exercises MediaRecorder and the live meter without a person's microphone.
+  await page.evaluate(()=>{
+    window.__fixtureAudioContext=new AudioContext();const oscillator=window.__fixtureAudioContext.createOscillator(),gain=window.__fixtureAudioContext.createGain(),destination=window.__fixtureAudioContext.createMediaStreamDestination();
+    gain.gain.value=.2;oscillator.connect(gain);gain.connect(destination);oscillator.start();
+    window.__fixtureOriginalMedia=navigator.mediaDevices.getUserMedia;
+    navigator.mediaDevices.getUserMedia=async constraints=>constraints.audio?destination.stream.clone():window.__fixtureOriginalMedia.call(navigator.mediaDevices,constraints);
+  });
+  await page.getByRole('button',{name:'Record a voice message',exact:true}).click();
+  await page.locator('.voice-recording').waitFor();await page.locator('.voice-recording [role="timer"]').getByText('0:01',{exact:true}).waitFor();
+  assert(await page.locator('.voice-recording .voice-wave i').evaluateAll(bars=>bars.some(bar=>parseFloat(bar.style.height)>2)),'The meter must reflect real microphone levels');
+  await page.evaluate(()=>window.__fixtureApp.features.messaging.refreshMessageViews());
+  assert(await page.locator('.voice-recording').isVisible(),'Background refresh must not replace a recording');
+  if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#msgr-chat').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/voice-recording-${mobile?'mobile':'desktop'}.png`});
+  await page.getByRole('button',{name:'Stop voice recording',exact:true}).click();
+  await page.locator('#msgr-pending-attach .voice-player').waitFor();
+  assert(await page.evaluate(()=>window.__fixtureApp.state.messaging.voiceRecorder.stream.getTracks().every(track=>track.readyState==='ended')));
+  await page.locator('#msgr-pending-attach').getByRole('button',{name:'Play voice message',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('#msgr-pending-attach audio').currentTime>.1);
+  await page.evaluate(()=>{
+    const {state,features}=window.__fixtureApp;const attachment={...state.messaging.pendingAttachment};
+    state.data.DB.messages.push({id:1100,fromUserId:100090,toUserId:state.auth.currentUser.id,message:'',attachment,createdAt:'2026-10-20T09:00:00Z',isRead:true,_realSupabase:true});
+    features.messaging.clearPendingAttachment();features.messaging.renderChatMessages(100090,{scrollToEnd:true});
+    window.__fixtureVoiceAudio=document.querySelector('[data-msg-id="1100"] audio');
+  });
+  await page.locator('[data-msg-id="1100"]').getByRole('button',{name:'Play voice message',exact:true}).click();
+  await page.waitForFunction(()=>window.__fixtureVoiceAudio.currentTime>.1);
+  await page.evaluate(()=>window.__fixtureApp.features.messaging.refreshMessageViews());
+  assert(await page.evaluate(()=>document.querySelector('[data-msg-id="1100"] audio')===window.__fixtureVoiceAudio&&!window.__fixtureVoiceAudio.paused),'Incoming audio survives quiet updates');
+  if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#msgr-chat').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/voice-playback-${mobile?'mobile':'desktop'}.png`});
+  await page.evaluate(()=>window.__fixtureVoiceAudio.pause());
+  await page.getByRole('button',{name:'Record a voice message',exact:true}).click();await page.locator('.voice-recording').waitFor();
+  await page.getByRole('button',{name:'Discard voice recording',exact:true}).click();
+  await page.waitForFunction(()=>window.__fixtureApp.state.messaging.voiceRecorder.stream.getTracks().every(track=>track.readyState==='ended'));
+  assert.equal(await page.locator('.voice-recording').count(),0);assert.equal(await page.evaluate(()=>window.__fixtureApp.state.messaging.pendingAttachment),null);
+  await page.getByRole('button',{name:'Record a voice message',exact:true}).click();await page.locator('.voice-recording').waitFor();
+  await page.evaluate(()=>{window.__fixtureLastVoiceTracks=window.__fixtureApp.state.messaging.voiceRecorder.stream.getTracks();window.__fixtureApp.features.navigationRaceProtection.navTo('dashboard');});
+  await page.waitForFunction(()=>window.__fixtureLastVoiceTracks.every(track=>track.readyState==='ended'));
+  await page.evaluate(async()=>{navigator.mediaDevices.getUserMedia=window.__fixtureOriginalMedia;await window.__fixtureAudioContext.close();});
   if(['Staff','Administrator'].includes(role)){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('patients'));
     await page.locator('#pt-session').waitFor();
@@ -469,6 +527,9 @@ try{
     assert.equal(await page.locator('#pt-session').inputValue(),'');assert.match(await page.locator('#pt-table').innerText(),/Personnel Fixture/);
     await page.locator('#pt-ptype').selectOption('Student');await page.locator('#pt-session').selectOption('Morning');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/workspace-patients-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+    await page.locator('#pt-table').getByRole('button',{name:'View',exact:true}).click();
+    for(const label of ['Allergies','Medical History'])assert.equal(await page.locator('.info-row').filter({has:page.locator('.info-label',{hasText:label})}).locator('.info-val').innerText(),'—');
+    await page.locator('#active-modal .close-btn').click();
     // Combine class/session and no-use filters, then check that the registration denominator survives.
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('reports'));
     await page.locator('#rpt-type').waitFor();await page.locator('#rpt-type').selectOption('students');
