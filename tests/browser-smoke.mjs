@@ -281,7 +281,7 @@ try{
     await page.locator('#selfie-camera-button').click();
     await page.getByRole('button',{name:'Start Camera',exact:true}).click();
     await page.getByText('Camera access is required. Allow camera permission, or open CampusCare in Chrome or Safari and try again.',{exact:true}).waitFor();
-    await page.locator('#active-modal').getByRole('button',{name:'Cancel',exact:true}).click();
+    await page.locator('#active-modal .modal-header .close-btn').click();
     await page.evaluate(()=>{navigator.mediaDevices.getUserMedia=window.__fixtureGetUserMedia;});
 
 
@@ -348,7 +348,7 @@ try{
     await page.getByText('Front saved — flip your ID',{exact:true}).waitFor();
     await page.locator('#active-modal').getByRole('button',{name:'Photograph Back',exact:true}).click();
     await page.waitForFunction(()=>document.getElementById('camera-video')?.readyState>=2);
-    await page.locator('#active-modal').getByRole('button',{name:'Cancel',exact:true}).click();
+    await page.locator('#active-modal .modal-header .close-btn').click();
     assert(await page.locator('#r-id-preview img[alt="ID back"]').isVisible());
     await page.evaluate(()=>{navigator.mediaDevices.getUserMedia=window.__fixtureGetUserMedia;});
 
@@ -402,6 +402,23 @@ try{
   await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).click();
   await page.locator('#app.visible').waitFor();
   await page.waitForFunction(role=>window.__fixtureApp.state.auth.currentUser?.role===role,role);
+  // Date endpoints share one compact control; all app headers remain opaque in both themes.
+  const rangeButton=page.getByRole('button',{name:/Select dashboard date range:/});
+  await rangeButton.waitFor();assert.equal(await rangeButton.locator('.dashboard-range-endpoint').count(),2);
+  for(const theme of ['light','dark']){
+    await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+    assert(await page.locator('.top-bar').evaluate(el=>!getComputedStyle(el).backgroundColor.startsWith('rgba')),'Top bar must be opaque');
+  }
+  await page.evaluate(()=>document.documentElement.dataset.theme='light');
+  if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({fullPage:true,path:`${process.env.CAMPUSCARE_VISUAL_DIR}/workspace-range-${mobile?'mobile':'desktop'}.png`});
+  await rangeButton.click();assert.equal(await page.locator('#active-modal').getByRole('button',{name:'Cancel',exact:true}).count(),0);
+  await page.evaluate(()=>{const f=window.__fixtureApp.features.dashboardChartHelpers;f.chooseDashboardRangeDate('2026-10-14');f.chooseDashboardRangeDate('2026-10-20');});
+  await page.getByRole('button',{name:'Apply Date Range',exact:true}).click();
+  assert.match(await rangeButton.innerText(),/Oct 14, 2026/);
+  await page.evaluate(()=>window.__fixtureApp.features.accountSettings.openProfileDetails());
+  assert.equal(await page.locator('#active-modal .modal-header .close-btn').count(),1);
+  assert.equal(await page.locator('#active-modal .modal-footer').getByRole('button',{name:'Close',exact:true}).count(),0);
+  await page.locator('#active-modal .close-btn').click();
   // Walk every visible role route through its actual generated click callback.
   const navIds=await page.locator('#sidebar nav [id^="nav-"]').evaluateAll(elements=>elements.map(element=>element.id));
   assert(navIds.length>0);assert(!navIds.includes('nav-task-center'));
@@ -410,7 +427,48 @@ try{
     await page.waitForTimeout(120);
     assert(await page.locator('#app-content').innerHTML(),`${role}: empty ${id}`);
   }
+  // Exercise the actual message toolbar and action-sheet callbacks with synthetic conversations.
+  await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('messages'));
+  await page.locator('#msgr-shell').waitFor();
+  await page.evaluate(async()=>{
+    const {state,features}=window.__fixtureApp;
+    clearInterval(state.messaging.messagePollTimer);state.messaging.messagePollTimer=null;
+    const partner={id:100090,dbUserId:90,fname:'Clinic',lname:'Contact',role:'Doctor',status:'Active',_realSupabase:true};
+    state.data.DB.users.push(partner);
+    state.data.DB.messages=[{id:901,dbMessageId:901,fromUserId:partner.id,toUserId:state.auth.currentUser.id,message:'Your clinic update is ready.',createdAt:'2026-10-20T07:00:00Z',isRead:true,_realSupabase:true},{id:902,dbMessageId:902,fromUserId:state.auth.currentUser.id,toUserId:partner.id,message:'Thank you. I will visit the clinic.',createdAt:'2026-10-20T07:01:00Z',isRead:true,_realSupabase:true}];
+    await features.messaging.openConversation(partner.id);
+  });
+  await page.locator('#msgr-bubble-902').waitFor();
+  assert.equal(await page.locator('.msgr-bubble .msgr-bubble-time').count(),0,'Timestamps must sit outside message bubbles');
+  for(const label of ['Send a photo','Send a file','Record a voice message','Conversation info','Send message'])assert.equal(await page.getByRole('button',{name:label,exact:true}).locator('svg').count(),1);
+  await page.locator('[data-msg-id="902"]').getByRole('button',{name:'More message options',exact:true}).click();
+  const sheet=page.getByRole('group',{name:'Message actions'});await sheet.waitFor();
+  assert.equal(await sheet.getByRole('button').count(),4);
+  assert(await sheet.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight;}),'Message action sheet must fit the screen');
+  if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#msgr-chat').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/workspace-messages-${mobile?'mobile':'desktop'}.png`});
+  await sheet.getByRole('button',{name:'Edit',exact:true}).click();await page.locator('#msgr-edit-input-902').waitFor();
+  await page.locator('#msgr-bubble-902').getByRole('button',{name:'Cancel',exact:true}).click();
+  assert.match(await page.locator('#msgr-bubble-902').innerText(),/Thank you/);
   if(['Staff','Administrator'].includes(role)){
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('patients'));
+    await page.locator('#pt-session').waitFor();
+    await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp;
+      state.data.DB.patients=[['Morning','Student','CCICT','Morning',false],['Evening','Student','CCICT','Evening',false],['Archived','Student','COE','Morning',true],['Unknown','Student','CCICT','',false],['Mixed','Student','CCICT','Mixed',false],['Personnel','Teaching Personnel','CCICT','Morning',false]].map(([fname,personType,college,classSession,archived],i)=>({id:200010+i,dbPatientId:10+i,fname,lname:'Fixture',personType,college,classSession,archived,age:20,idNo:'123450'+i,_realSupabase:true}));
+      features.patientManagement.renderPatientTable();
+    });
+    await page.locator('#pt-session').selectOption('Morning');assert.equal(await page.locator('#pt-ptype').inputValue(),'Student');
+    assert.equal(await page.locator('#pt-table tbody tr').count(),1);assert.match(await page.locator('#pt-table').innerText(),/Morning Fixture/);
+    await page.locator('#pt-college').selectOption('COE');assert.equal(await page.locator('#pt-table tbody tr').count(),0);
+    await page.locator('#pt-status').selectOption('archived');assert.equal(await page.locator('#pt-table tbody tr').count(),1);
+    await page.locator('#pt-college').selectOption('');await page.locator('#pt-status').selectOption('active');
+    await page.locator('#pt-session').selectOption('Evening');assert.match(await page.locator('#pt-table').innerText(),/Evening Fixture/);
+    await page.locator('#pt-session').selectOption('unrecorded');assert.match(await page.locator('#pt-table').innerText(),/Unknown Fixture/);
+    await page.locator('#pt-session').selectOption('Mixed');assert.match(await page.locator('#pt-table').innerText(),/Mixed Fixture/);
+    await page.locator('#pt-ptype').selectOption('Teaching Personnel');assert(await page.locator('#pt-session').isDisabled());
+    assert.equal(await page.locator('#pt-session').inputValue(),'');assert.match(await page.locator('#pt-table').innerText(),/Personnel Fixture/);
+    await page.locator('#pt-ptype').selectOption('Student');await page.locator('#pt-session').selectOption('Morning');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/workspace-patients-${mobile?'mobile':'desktop'}.png`,fullPage:true});
     // Combine class/session and no-use filters, then check that the registration denominator survives.
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('reports'));
     await page.locator('#rpt-type').waitFor();await page.locator('#rpt-type').selectOption('students');

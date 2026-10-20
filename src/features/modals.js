@@ -11,8 +11,24 @@ export function openModal(html){
   wrap.className='overlay show';
   wrap.id='active-modal';
   wrap.innerHTML=html;
-  wrap.addEventListener('click',e=>{if(e.target===wrap)closeAllModals();});
-  document.getElementById('modals').appendChild(wrap);
+  // A header close control is the sole dismissal action; substantive Cancel Appointment actions remain.
+  for(const modal of wrap.querySelectorAll('.modal')){
+    const close=modal.querySelector('.modal-header .close-btn');
+    if(!close)continue;
+    close.setAttribute('type','button');
+    if(!close.hasAttribute('aria-label'))close.setAttribute('aria-label','Close '+(modal.querySelector('h3')?.textContent||'dialog'));
+    for(const button of modal.querySelectorAll('.modal-footer button')){
+      if(/^(cancel|close|exit)$/i.test(button.textContent.trim()))button.remove();
+    }
+    const footer=modal.querySelector('.modal-footer');
+    if(footer&&!footer.textContent.trim()&&!footer.querySelector('button,a,input'))footer.remove();
+  }
+  const dismiss=()=>{const close=wrap.querySelector('.modal-header .close-btn');if(close)close.click();else closeAllModals();};
+  // Route backdrop/Escape through the existing close callback, preserving camera and verification cleanup.
+  wrap.addEventListener('click',event=>{if(event.target===wrap)dismiss();});
+  wrap.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();dismiss();}});
+  wrap.setAttribute('role','dialog');wrap.setAttribute('aria-modal','true');wrap.tabIndex=-1;
+  document.getElementById('modals').appendChild(wrap);wrap.focus();
   appState.clinicInformation.activeModal=wrap;
 }
 export function closeAllModals(){

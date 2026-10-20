@@ -1,3 +1,4 @@
+import {appIcon} from '../ui/app-icons.js';
 import {createFeatureSyncService} from '../services/feature-sync.js';
 // messaging: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
@@ -144,9 +145,9 @@ export function fmtShortTime(d){
 
 export function attachmentPreviewLabel(att){
   if(!att)return '';
-  if(att.type==='image')return '📷 Photo';
-  if(att.type==='audio')return '🎤 Voice message';
-  return `📎 ${att.name||'File'}`;
+  if(att.type==='image')return 'Photo';
+  if(att.type==='audio')return 'Voice message';
+  return att.name||'File';
 }
 
 export function getMessageContacts(){
@@ -246,7 +247,7 @@ export function renderContactList(){
   if(!q){
     el.innerHTML=contacts.length
       ?contacts.map(contactItemHtml).join('')
-      :'<div class="empty-state"><p>No conversations yet.<br>Start one with the ✏️ button.</p></div>';
+      :'<div class="empty-state"><p>No conversations yet.<br>Choose New message to start one.</p></div>';
     return;
   }
 
@@ -293,7 +294,7 @@ export async function renderMessages(){
 
   c.innerHTML=`
     <div class="alert alert-info show" style="font-size:.76rem">
-      🔒 <strong>Secure CampusCare messaging.</strong>
+      ${appIcon('shield',16)} <strong>Secure CampusCare messaging.</strong>
       ${appState.auth.currentUser.role==='Patient'
         ? 'Use Messages to contact Doctors, clinic Staff, or Administrators for non-emergency health and clinic-related concerns. For urgent or emergency symptoms, seek immediate in-person or emergency care.'
         : 'Messages may contain health-related information. Use only what is necessary for clinic coordination and patient care.'}
@@ -301,10 +302,10 @@ export async function renderMessages(){
     <div class="msgr-shell" id="msgr-shell">
       <div class="msgr-sidebar">
         <div class="msgr-sidebar-header">
-          <h3>💬 Messages</h3>
+          <h3>${appIcon('message')}<span>Messages</span></h3>
           <div style="display:flex;gap:.35rem">
-            <button class="msgr-icon-btn" ${bindAction('click',(event,element)=>{openMessageSettings()})} title="Message settings">⚙️</button>
-            <button class="msgr-icon-btn" ${bindAction('click',(event,element)=>{openNewMessageModal()})} title="New message">✏️</button>
+            <button class="msgr-icon-btn" ${bindAction('click',(event,element)=>{openMessageSettings()})} title="Message settings" aria-label="Message settings">${appIcon('settings')}</button>
+            <button class="msgr-icon-btn" ${bindAction('click',(event,element)=>{openNewMessageModal()})} title="New message" aria-label="New message">${appIcon('compose')}</button>
           </div>
         </div>
         <div style="padding:.6rem .7rem .7rem">
@@ -315,7 +316,7 @@ export async function renderMessages(){
           <div class="msgr-people-carousel" id="msgr-people-carousel"></div>
         </div>
         <div class="msgr-contacts" id="msgr-contacts">
-          ${contacts.length?contacts.map(contactItemHtml).join(''):'<div class="empty-state"><p>No conversations yet.<br>Start one with the ✏️ button.</p></div>'}
+          ${contacts.length?contacts.map(contactItemHtml).join(''):'<div class="empty-state"><p>No conversations yet.<br>Choose New message to start one.</p></div>'}
         </div>
       </div>
 
@@ -364,7 +365,7 @@ export async function openConversation(userId){
 
   chat.innerHTML=`
     <div class="msgr-chat-header">
-      <button class="msgr-icon-btn msgr-mobile-back" ${bindAction('click',(event,element)=>{backToMessageLobby()})} title="Back to chats">←</button>
+      <button class="msgr-icon-btn msgr-mobile-back" ${bindAction('click',(event,element)=>{backToMessageLobby()})} title="Back to chats" aria-label="Back to chats">${appIcon('back')}</button>
       <div style="cursor:pointer;display:flex;align-items:center;gap:.65rem;min-width:0" ${bindAction('click',(event,element)=>{openContactInfo((appState.messaging.activeConversationId))})} title="View contact info">
         ${msgrAvatarHtml(user,38)}
         <div>
@@ -372,18 +373,18 @@ export async function openConversation(userId){
           <div class="msgr-chat-header-status"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${presenceColor(status)};margin-right:4px"></span>${presenceLabel(status)}</div>
         </div>
       </div>
-      <button class="msgr-icon-btn" style="margin-left:auto" ${bindAction('click',(event,element)=>{openContactInfo((appState.messaging.activeConversationId))})} title="Conversation info">ℹ️</button>
+      <button class="msgr-icon-btn" style="margin-left:auto" ${bindAction('click',(event,element)=>{openContactInfo((appState.messaging.activeConversationId))})} title="Conversation info" aria-label="Conversation info">${appIcon('info')}</button>
     </div>
     <div class="msgr-messages" id="msgr-messages"></div>
     <div id="msgr-pending-attach"></div>
     <div class="msgr-input-bar">
       <input type="file" id="msgr-photo-input" accept="image/jpeg,image/png,image/webp" style="display:none" ${bindAction('change',(event,element)=>{attachPhoto(element)})}>
       <input type="file" id="msgr-file-input" accept=".pdf,.txt,.docx,.xlsx" style="display:none" ${bindAction('change',(event,element)=>{attachFileGeneric(element)})}>
-      <button class="msgr-icon-btn" title="Send a photo" ${bindAction('click',(event,element)=>{document.getElementById('msgr-photo-input').click()})}>📷</button>
-      <button class="msgr-icon-btn" title="Send a file" ${bindAction('click',(event,element)=>{document.getElementById('msgr-file-input').click()})}>📎</button>
-      <button class="msgr-icon-btn" id="msgr-voice-btn" title="Record a voice message" ${bindAction('click',(event,element)=>{toggleVoiceRecording((appState.messaging.activeConversationId))})}>🎤</button>
+      <button class="msgr-icon-btn" title="Send a photo" aria-label="Send a photo" ${bindAction('click',(event,element)=>{document.getElementById('msgr-photo-input').click()})}>${appIcon('photo')}</button>
+      <button class="msgr-icon-btn" title="Send a file" aria-label="Send a file" ${bindAction('click',(event,element)=>{document.getElementById('msgr-file-input').click()})}>${appIcon('paperclip')}</button>
+      <button class="msgr-icon-btn" id="msgr-voice-btn" title="Record a voice message" aria-label="Record a voice message" ${bindAction('click',(event,element)=>{toggleVoiceRecording((appState.messaging.activeConversationId))})}>${appIcon('mic')}</button>
       <input type="text" id="msgr-text-input" maxlength="4000" placeholder="Type a secure message..." ${bindAction('keydown',(event,element)=>{handleMsgrKeydown(event,(appState.messaging.activeConversationId))})}>
-      <button class="msgr-send-btn" id="msgr-send-btn" ${bindAction('click',(event,element)=>{sendChatMessage((appState.messaging.activeConversationId))})} title="Send">➤</button>
+      <button class="msgr-send-btn" id="msgr-send-btn" ${bindAction('click',(event,element)=>{sendChatMessage((appState.messaging.activeConversationId))})} title="Send message" aria-label="Send message">${appIcon('send')}</button>
     </div>`;
 
   renderChatMessages(appState.messaging.activeConversationId);
@@ -419,7 +420,7 @@ export function renderChatMessages(userId){
 
     if(m.deleted){
       return `<div class="msgr-bubble-row ${sent?'sent':'received'}">
-        <div class="msgr-bubble deleted">🚫 This message was deleted</div>
+        <div class="msgr-bubble deleted">This message was deleted</div>
       </div>`;
     }
 
@@ -435,17 +436,14 @@ export function renderChatMessages(userId){
         bodyHtml+=`<audio controls preload="none" src="${m.attachment.dataUrl}"></audio>`;
       }else{
         bodyHtml+=`<a href="${m.attachment.dataUrl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">
-          <div class="msgr-file-chip">📎 ${escapeHtml(m.attachment.name)}</div></a>`;
+          <div class="msgr-file-chip">${appIcon('paperclip',16)} ${escapeHtml(m.attachment.name)}</div></a>`;
       }
     }
 
     const canEdit=sent&&!m.attachment;
     return `<div class="msgr-bubble-row ${sent?'sent':'received'}" data-msg-id="${m.id}">
-      <div class="msgr-bubble" id="msgr-bubble-${m.id}">
-        ${bodyHtml||' '}
-        <span class="msgr-bubble-time">${fmtShortTime(m.createdAt)}${m.edited?' · edited':''}${sent?` · ${m.isRead?'read':'sent'}`:''}</span>
-      </div>
-      <button class="msgr-msg-actions-btn" ${bindAction('click',(event,element)=>{toggleMsgMenu(event,(m.id),(canEdit),true)})} title="More">⋯</button>
+      <div class="msgr-bubble-group"><div class="msgr-bubble" id="msgr-bubble-${m.id}">${bodyHtml||' '}</div><span class="msgr-bubble-time">${fmtShortTime(m.createdAt)}${m.edited?' · edited':''}${sent?` · ${m.isRead?'read':'sent'}`:''}</span></div>
+      <button class="msgr-msg-actions-btn" ${bindAction('click',(event,element)=>{toggleMsgMenu(event,(m.id),(canEdit),true)})} title="More message options" aria-label="More message options">${appIcon('more')}</button>
     </div>`;
   }).join('');
 
@@ -476,7 +474,7 @@ export function openContactInfo(userId){
         ${user.profilePhoto?`<img src="${user.profilePhoto}" style="width:76px;height:76px;border-radius:50%;object-fit:cover">`:`<div class="sb-avatar" style="width:76px;height:76px;font-size:1.6rem">${escapeHtml((user.fname?.[0]||'')+(user.lname?.[0]||''))}</div>`}
         <strong style="font-size:1.05rem">${escapeHtml(docName(user))}</strong>
         <span class="badge badge-info">${escapeHtml(user.role)}</span>
-        <span class="text-muted" style="font-size:.76rem">🔒 Secure CampusCare conversation</span>
+        <span class="text-muted" style="font-size:.76rem">Secure CampusCare conversation</span>
       </div>
       <div class="tabs" style="margin-bottom:.8rem">
         <button class="tab active" ${bindAction('click',(event,element)=>{switchContactInfoTab(element,'ci-media')})}>Media (${photos.length})</button>
@@ -484,7 +482,7 @@ export function openContactInfo(userId){
         <button class="tab" ${bindAction('click',(event,element)=>{switchContactInfoTab(element,'ci-links')})}>Links (${links.length})</button>
       </div>
       <div id="ci-media">${photos.length?`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem">${photos.map(m=>`<img src="${m.attachment.dataUrl}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer" ${bindAction('click',(event,element)=>{showFilePreview('Shared photo',(String(m.attachment.dataUrl)))})}>`).join('')}</div>`:'<p class="text-muted" style="text-align:center;padding:1rem 0">No photos shared.</p>'}</div>
-      <div id="ci-files" style="display:none">${files.length?files.map(m=>`<a href="${m.attachment.dataUrl}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><div class="msgr-file-chip" style="margin-bottom:.4rem">📎 ${escapeHtml(m.attachment.name)}</div></a>`).join(''):'<p class="text-muted" style="text-align:center;padding:1rem 0">No files shared.</p>'}</div>
+      <div id="ci-files" style="display:none">${files.length?files.map(m=>`<a href="${m.attachment.dataUrl}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><div class="msgr-file-chip" style="margin-bottom:.4rem">${appIcon('paperclip',16)} ${escapeHtml(m.attachment.name)}</div></a>`).join(''):'<p class="text-muted" style="text-align:center;padding:1rem 0">No files shared.</p>'}</div>
       <div id="ci-links" style="display:none">${links.length?links.map(l=>`<a href="${l.url}" target="_blank" rel="noopener" style="display:block;font-size:.82rem;color:var(--primary);margin-bottom:.5rem;word-break:break-all">${escapeHtml(l.url)}</a>`).join(''):'<p class="text-muted" style="text-align:center;padding:1rem 0">No links shared.</p>'}</div>
     </div>
     <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button></div>
@@ -517,18 +515,25 @@ export function toggleMsgMenu(evt,msgId,canEdit,canDelete){
   evt.stopPropagation();
   closeMsgMenus();
 
-  const rect=evt.currentTarget.getBoundingClientRect();
+  // Delegated actions receive a document currentTarget; anchor to the actual options button.
+  const anchor=evt.target.closest('button');if(!anchor)return;
+  const rect=anchor.getBoundingClientRect();
   const menu=document.createElement('div');
   menu.className='msgr-msg-menu';
-  menu.style.top=(rect.bottom+window.scrollY+4)+'px';
-  menu.style.left=Math.max(8,rect.left+window.scrollX-100)+'px';
+  menu.setAttribute('role','group');menu.setAttribute('aria-label','Message actions');
   menu.innerHTML=`
-    ${canEdit?`<button ${bindAction('click',(event,element)=>{closeMsgMenus();startEditMessage((msgId))})}>✏️ Edit</button>`:''}
-    <button ${bindAction('click',(event,element)=>{closeMsgMenus();forwardMessage((msgId))})}>↪️ Forward</button>
-    <button ${bindAction('click',(event,element)=>{closeMsgMenus();shareMessage((msgId))})}>📤 Share</button>
-    ${canDelete?`<button class="danger" ${bindAction('click',(event,element)=>{closeMsgMenus();deleteMessage((msgId))})}>🗑️ Delete</button>`:''}
+    ${canEdit?`<button ${bindAction('click',(event,element)=>{closeMsgMenus();startEditMessage((msgId))})}>${appIcon('edit',16)}<span>Edit</span></button>`:''}
+    <button ${bindAction('click',(event,element)=>{closeMsgMenus();forwardMessage((msgId))})}>${appIcon('forward',16)}<span>Forward</span></button>
+    <button ${bindAction('click',(event,element)=>{closeMsgMenus();shareMessage((msgId))})}>${appIcon('share',16)}<span>Share</span></button>
+    ${canDelete?`<button class="danger" ${bindAction('click',(event,element)=>{closeMsgMenus();deleteMessage((msgId))})}>${appIcon('trash',16)}<span>Delete</span></button>`:''}
   `;
   document.body.appendChild(menu);
+  // Clamp the action sheet inside the viewport, including on narrow phones and scrolled pages.
+  const bounds=menu.getBoundingClientRect();
+  menu.style.left=Math.max(8,Math.min(rect.right-bounds.width,window.innerWidth-bounds.width-8))+'px';
+  menu.style.top=Math.max(8,Math.min(rect.bottom+6,window.innerHeight-bounds.height-8))+'px';
+  menu.addEventListener('keydown',event=>{if(event.key==='Escape'){closeMsgMenus();anchor.focus();}});
+  menu.querySelector('button')?.focus();
   setTimeout(()=>document.addEventListener('click',closeMsgMenus),0);
 }
 
@@ -792,7 +797,7 @@ export async function attachFileGeneric(input){
 export function showPendingAttachPreview(){
   const el=document.getElementById('msgr-pending-attach');
   if(!el||!appState.messaging.pendingAttachment)return;
-  el.innerHTML=`<div class="msgr-pending-attach">${escapeHtml(attachmentPreviewLabel(appState.messaging.pendingAttachment))}: <strong>${escapeHtml(appState.messaging.pendingAttachment.name)}</strong> <button class="btn btn-xs" ${bindAction('click',(event,element)=>{clearPendingAttachment()})}>✕ Remove</button></div>`;
+  el.innerHTML=`<div class="msgr-pending-attach">${escapeHtml(attachmentPreviewLabel(appState.messaging.pendingAttachment))}: <strong>${escapeHtml(appState.messaging.pendingAttachment.name)}</strong> <button class="btn btn-xs" ${bindAction('click',(event,element)=>{clearPendingAttachment()})}>${appIcon('close',14)} Remove</button></div>`;
 }
 
 export function clearPendingAttachment(){
@@ -823,6 +828,7 @@ export async function toggleVoiceRecording(_toId){
     appState.messaging.voiceRecorder.onstop=async()=>{
       stream.getTracks().forEach(t=>t.stop());
       btn?.classList.remove('recording');
+      if(btn){btn.innerHTML=appIcon('mic');btn.setAttribute('aria-label','Record a voice message');btn.setAttribute('aria-pressed','false');}
       const blob=new Blob(appState.messaging.voiceChunks,{type:'audio/webm'});
       if(blob.size<500){toast('Recording was too short.','warning');return;}
       if(blob.size>5*1024*1024){toast('Voice message is too large. Maximum size is 5 MB.','error');return;}
@@ -833,6 +839,7 @@ export async function toggleVoiceRecording(_toId){
 
     appState.messaging.voiceRecorder.start();
     btn?.classList.add('recording');
+    if(btn){btn.innerHTML=appIcon('stop');btn.setAttribute('aria-label','Stop recording');btn.setAttribute('aria-pressed','true');}
     toast('Recording… click the microphone again to stop.','info');
   }catch(_){
     toast('Microphone access was denied or unavailable.','error');

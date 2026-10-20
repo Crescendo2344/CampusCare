@@ -96,7 +96,7 @@ export function showConfirmDialog(opts){
   openModal(`<div class="modal modal-sm">
     <div class="modal-header">
       <h3>${danger?'⚠️ ':''}${title}</h3>
-      <button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button>
+      <button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals();if(onCancel)onCancel()})}>✕</button>
     </div>
     <div class="modal-body">
       <p style="font-size:.87rem;line-height:1.55;color:var(--ink)">${message}</p>
@@ -111,7 +111,8 @@ export function showConfirmDialog(opts){
     closeAllModals();
     if(onConfirm) onConfirm();
   };
-  document.getElementById('cc-confirm-cancel-btn').onclick=()=>{
+  const cancelButton=document.getElementById('cc-confirm-cancel-btn');
+  if(cancelButton)cancelButton.onclick=()=>{
     closeAllModals();
     if(onCancel) onCancel();
   };

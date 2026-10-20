@@ -1,3 +1,4 @@
+import {appIcon} from '../ui/app-icons.js';
 // dashboardChartHelpers: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {renderDashboard} from './dashboard.js';
@@ -31,11 +32,11 @@ export function setDashboardChartType(value){
   renderDashboard();
 }
 export function dashboardControlsHtml(){
-  const label=`${fmtDate(appState.dashboardChartHelpers.dashboardDateFrom)} – ${fmtDate(appState.dashboardChartHelpers.dashboardDateTo)}`;
-  return `<div class="dashboard-controls">
-    <div class="dashboard-control"><label>Data range</label><button class="modern-date-btn" ${bindAction('click',(event,element)=>{openDashboardDatePicker()})}><i class="bi bi-calendar3"></i><span>${label}</span></button></div>
-    <div class="dashboard-date-note">From – To</div>
-  </div>`;
+  const from=fmtDate(appState.dashboardChartHelpers.dashboardDateFrom),to=fmtDate(appState.dashboardChartHelpers.dashboardDateTo);
+  // One compact control exposes both endpoints while keeping the existing single-calendar workflow.
+  return `<div class="dashboard-controls"><button type="button" class="dashboard-range-trigger" aria-label="Select dashboard date range: From ${from} to ${to}" ${bindAction('click',()=>openDashboardDatePicker())}>
+    ${appIcon('calendar',18)}<span class="dashboard-range-endpoint"><span>From</span><strong>${from}</strong></span><span class="dashboard-range-separator" aria-hidden="true">${appIcon('arrow',14)}</span><span class="dashboard-range-endpoint"><span>To</span><strong>${to}</strong></span>
+  </button></div>`;
 }
 export function dashboardChartControlHtml(){
   return `<div class="dashboard-chart-picker"><label for="dashboard-chart-type">Graph</label><select id="dashboard-chart-type" ${bindAction('change',(event,element)=>{setDashboardChartType(element.value)})}>

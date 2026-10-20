@@ -35,15 +35,18 @@ export async function renderPatients(){
   }
   const canEdit=appState.auth.currentUser.role==='Administrator'||appState.auth.currentUser.role==='Staff';
   c.innerHTML=`
-    <div class="toolbar">
+    <div class="toolbar patient-records-toolbar">
       <input type="text" placeholder="Search by name, ID..." id="pt-search" ${bindAction('input',(event,element)=>{renderPatientTable()})}>
       <select id="pt-college" ${bindAction('change',(event,element)=>{renderPatientTable()})}>
         <option value="">All Colleges</option>
         ${['CCICT','COE','COED','CME','CAS','COT'].map(col=>`<option value="${col}">${col}</option>`).join('')}
       </select>
-      <select id="pt-ptype" ${bindAction('change',(event,element)=>{renderPatientTable()})}>
+      <select id="pt-ptype" aria-label="Patient type" ${bindAction('change',(event,element)=>{if(element.value&&element.value!=='Student')document.getElementById('pt-session').value='';renderPatientTable()})}>
         <option value="">All Types</option>
         <option>Student</option><option>Teaching Personnel</option><option>Non-Teaching Personnel</option>
+      </select>
+      <select id="pt-session" aria-label="Student class session" ${bindAction('change',(event,element)=>{if(element.value)document.getElementById('pt-ptype').value='Student';renderPatientTable()})}>
+        <option value="">All Class Sessions</option><option value="Morning">Morning Students</option><option value="Evening">Evening Students</option><option value="Mixed">Mixed / Both</option><option value="unrecorded">Session Not Recorded</option>
       </select>
       <select id="pt-status" ${bindAction('change',(event,element)=>{renderPatientTable()})}>
         <option value="active">Active Records</option>
@@ -52,6 +55,7 @@ export async function renderPatients(){
       </select>
       ${canEdit?`<button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{openPatientModal()})}>+ Add Patient</button>`:''}
     </div>
+    <p class="patient-filter-summary" id="pt-filter-summary" role="status" aria-live="polite"></p>
     <div class="card"><div id="pt-table"></div></div>`;
   renderPatientTable();
 }
@@ -78,6 +82,9 @@ export function renderPatientTable(){
   const q=(document.getElementById('pt-search')||{}).value||'';
   const col=(document.getElementById('pt-college')||{}).value||'';
   const ptype=(document.getElementById('pt-ptype')||{}).value||'';
+  const session=document.getElementById('pt-session')?.value||'';
+  const sessionSelect=document.getElementById('pt-session');
+  if(sessionSelect)sessionSelect.disabled=Boolean(ptype&&ptype!=='Student');
   const status=(document.getElementById('pt-status')||{}).value||'active';
   const sourcePatients=appState.auth.currentUser?._realSupabase
     ? appState.data.DB.patients.filter(p=>p._realSupabase)
@@ -85,19 +92,21 @@ export function renderPatientTable(){
   let pts=sourcePatients.filter(p=>{
     const name=`${p.fname} ${p.lname} ${p.idNo}`.toLowerCase();
     const matchStatus=status==='all'||(status==='archived'?!!p.archived:!p.archived);
-    return (!q||name.includes(q.toLowerCase()))&&(!col||p.college===col)&&(!ptype||p.personType===ptype)&&matchStatus;
+    return (!q||name.includes(q.toLowerCase()))&&(!col||p.college===col)&&(!ptype||p.personType===ptype)&&matchStatus&&(!session||(p.personType==='Student'&&(session==='unrecorded'?!['Morning','Evening','Mixed'].includes(p.classSession):p.classSession===session)));
   });
   const el=document.getElementById('pt-table');
   if(!el)return;
+  const summary=document.getElementById('pt-filter-summary');
+  if(summary)summary.textContent=`${pts.length} patient record${pts.length===1?'':'s'}${session?' · '+(session==='unrecorded'?'Students with no recorded class session':session+' students'):''}`;
   const canEdit=appState.auth.currentUser.role==='Administrator'||appState.auth.currentUser.role==='Staff';
   if(!pts.length){el.innerHTML='<div class="empty-state"><p>No patients found.</p></div>';return;}
-  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>ID</th><th>Name</th><th>Age</th><th>College</th><th>Type</th><th>Blood</th><th>Contact</th><th>Actions</th></tr></thead><tbody>${
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>ID</th><th>Name</th><th>Age</th><th>College</th><th>Type</th><th>Class Session</th><th>Blood</th><th>Contact</th><th>Actions</th></tr></thead><tbody>${
     pts.map(p=>`<tr ${p.archived?'style="opacity:.6;cursor:pointer"':'style="cursor:pointer"'} ${bindAction('click',(event,element)=>{viewPatient((p.id))})} title="Click to view patient record">
       <td>${patientAvatarHtml(p,34)}</td>
       <td><strong>P-${patientDisplayId(p)}</strong><br><span class="text-muted">${escapeHtml(p.idNo||'—')}</span></td>
       <td><strong>${p.fname} ${p.lname}</strong>${p.archived?' <span class="badge badge-gray">Archived</span>':''}</td>
       <td>${p.age}</td><td>${collegeBadge(p.college)}</td>
-      <td>${priorityBadge(p.personType)}</td><td>${p.blood||'-'}</td><td>${p.contact||'-'}</td>
+      <td>${priorityBadge(p.personType)}</td><td>${p.personType==='Student'?escapeHtml(p.classSession||'Not recorded'):'—'}</td><td>${p.blood||'-'}</td><td>${p.contact||'-'}</td>
       <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
         <button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewPatient((p.id))})}>View</button>
         ${canEdit&&!p.archived?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openPatientModal((p.id))})}>Edit</button>`:''}
