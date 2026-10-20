@@ -176,6 +176,7 @@ export function realApprovalUiUser(u){
     verificationSelfie:u.selfie_verification_signed_url||u.profile_signed_url||'',
     profilePhoto:u.profile_signed_url||'',
     idFileData:u.verification_signed_url||'',
+    idBackData:u.verification_back_signed_url||'',
     idFile:u.id_file_url?u.id_file_url.split('/').pop():'Verification document',
     createdAt:u.created_at,
     role:'Patient',

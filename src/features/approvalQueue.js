@@ -190,14 +190,16 @@ export function reviewApproval(id){
               </div>
             </div>
             <div class="approval-preview-card">
-              <div class="approval-preview-title">${escapeHtml(u.verificationDocumentType||u.idFile||'Verification Document')}</div>
+              <div class="approval-preview-title">${escapeHtml(u.verificationDocumentType||u.idFile||'Verification Document')} — Front</div>
               ${approvalDocumentPreview(u)}
             </div>
+            <div class="approval-preview-card"><div class="approval-preview-title">ID — Back</div><div class="approval-preview-body">${u.idBackData?`<img src="${escapeHtml(u.idBackData)}" alt="Submitted ID back">`:'<span class="text-muted">Back photo not provided with this older registration.</span>'}</div></div>
           </div>
 
           <div class="approval-doc-actions">
             ${u.verificationSelfie?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{showFilePreview((String(u.fname)+" "+String(u.lname)+" - Selfie"),(String(u.verificationSelfie)))})}><i class="bi bi-arrows-fullscreen"></i> Open Selfie</button>`:''}
-            ${u.idFileData?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{showFilePreview((String(u.idFile)),(String(u.idFileData)))})}><i class="bi bi-arrows-fullscreen"></i> Open Document</button>`:''}
+            ${u.idFileData?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{showFilePreview((String(u.idFile)),(String(u.idFileData)))})}><i class="bi bi-arrows-fullscreen"></i> Open ID Front</button>`:''}
+            ${u.idBackData?`<button class="btn btn-xs btn-info" ${bindAction('click',()=>showFilePreview('ID Back',u.idBackData))}>Open ID Back</button>`:''}
           </div>
 
           <div class="alert alert-info show" style="margin-top:.8rem;font-size:.68rem">
