@@ -150,7 +150,7 @@ export function fmtShortTime(d){
 
 export function attachmentPreviewLabel(att){
   if(!att)return '';
-  if(att.type==='image')return 'Photo';
+  if(att.type==='image')return att.name||'Photo';
   if(att.type==='audio')return 'Voice message';
   return att.name||'File';
 }
@@ -825,7 +825,8 @@ export async function attachFileGeneric(input){
 export function showPendingAttachPreview(){
   const el=document.getElementById('msgr-pending-attach'),attachment=appState.messaging.pendingAttachment;
   if(!el||!attachment)return;
-  el.innerHTML=`<div class="msgr-pending-attach"><span>${escapeHtml(attachmentPreviewLabel(attachment))}</span><button type="button" class="voice-discard" aria-label="Remove attachment" ${bindAction('click',()=>clearPendingAttachment())}>${appIcon('trash',18)}</button></div>`;
+  el.innerHTML=`<div class="msgr-pending-attach"><span class="pending-attachment-name">${escapeHtml(attachmentPreviewLabel(attachment))}</span><button type="button" class="voice-discard" aria-label="Remove attachment" ${bindAction('click',()=>clearPendingAttachment())}>${appIcon('trash',18)}</button></div>`;
+  if(attachment.type==='audio')el.firstElementChild.classList.add('pending-audio');
   if(attachment.type==='audio')el.firstElementChild.prepend(createVoicePlayer(attachment.dataUrl,{duration:attachment.duration}));
 }
 export function clearPendingAttachment(){
@@ -867,7 +868,8 @@ export async function toggleVoiceRecording(toId){
       stop(discarded);
       if(btn?.isConnected&&appState.messaging.voiceRecorder===recorder)btn.disabled=false;
       if(discarded||!host.isConnected||appState.auth.currentUser!==account||appState.messaging.activeConversationId!==Number(toId))return;
-      const mime=recorder.mimeType||chunks[0]?.type||'audio/webm',blob=new Blob(chunks,{type:mime});
+      // Strip codec parameters from the upload header while retaining the original encoded audio bytes.
+      const mime=(recorder.mimeType||chunks[0]?.type||'audio/webm').split(';')[0].trim().toLowerCase(),blob=new Blob(chunks,{type:mime});
       host.innerHTML='';
       if(blob.size<500){toast('Recording was too short.','warning');return;}
       if(blob.size>5*1024*1024){toast('Voice message is too large. Maximum size is 5 MB.','error');return;}

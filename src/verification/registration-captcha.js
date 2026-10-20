@@ -2,7 +2,15 @@
 let settings,loading,scriptLoading,widgetId=null,widgetSize,resizeObserver,token='',verifiedAt=0;
 const section=()=>document.getElementById('registration-captcha-section');
 // Turnstile's flexible layout needs 300px; its compact variant fits narrow registration cards.
-const preferredSize=()=>document.getElementById('registration-captcha-widget')?.clientWidth>=300?'flexible':'compact';
+const preferredSize=()=>document.getElementById('registration-captcha-frame')?.clientWidth>=300?'flexible':'normal';
+// The full provider widget scales as one unit; no provider content or security state is hidden.
+function fitWidget(){
+  const frame=document.getElementById('registration-captcha-frame'),widget=document.getElementById('registration-captcha-widget');
+  if(!frame||!widget)return;
+  const narrow=preferredSize()==='normal',scale=narrow?Math.min(1,(frame.clientWidth||300)/300):1;
+  widget.style.width=narrow?'300px':'100%';widget.style.transform=scale<1?'scale('+scale+')':'none';
+  frame.style.height=narrow?Math.ceil(65*scale)+'px':'';
+}
 // Keep provider errors recoverable without presenting a technical exception as form copy.
 const status=(message,state='waiting')=>{
   const node=document.getElementById('registration-captcha-status');if(node)node.textContent=message;
@@ -34,7 +42,7 @@ export async function prepareRegistrationCaptcha(url,key,{refresh=false}={}){
       if(!config.captcha_required){section().hidden=true;return config;}
       section().hidden=false;if(widgetId===null)status('Loading security check…','loading');
       const turnstile=await loadTurnstile();
-      const size=preferredSize();
+      fitWidget();const size=preferredSize();
       if(widgetId!==null&&(previous!==config.site_key||widgetSize!==size)){turnstile.remove(widgetId);widgetId=null;token='';verifiedAt=0;}
       if(widgetId===null){
         // loadTurnstile already waits for script.onload; ready() rejects async/defer script tags.
@@ -52,9 +60,10 @@ export async function prepareRegistrationCaptcha(url,key,{refresh=false}={}){
       // Recreate only across the size boundary, invalidating the old token when the widget changes.
       if(!resizeObserver&&window.ResizeObserver){
         resizeObserver=new window.ResizeObserver(()=>{
+          fitWidget();
           if(widgetId!==null&&widgetSize!==preferredSize())prepareRegistrationCaptcha(url,key,{refresh:true}).catch(()=>{});
         });
-        resizeObserver.observe(document.getElementById('registration-captcha-widget'));
+        resizeObserver.observe(document.getElementById('registration-captcha-frame'));
       }
       return config;
     }catch(error){settings=null;if(section()){section().hidden=false;status('Security check is unavailable. Check your connection and try again.','error');}throw error;}

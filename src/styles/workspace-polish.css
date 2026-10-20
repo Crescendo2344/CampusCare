@@ -92,7 +92,7 @@
 .voice-stop {background:var(--primary);color:#fff}
 .voice-discard {color:#b73737}
 .voice-meter-note {flex-basis:100%;font-size:.7rem;text-align:center;color:var(--ink-muted)}
-@media(max-width:640px) {.voice-player {width:200px;gap:5px}.voice-recording {padding:8px;gap:5px}.voice-recording-label {font-size:.7rem}.msgr-pending-attach>span {display:none}}
+@media(max-width:640px) {.voice-player {width:200px;gap:5px}.voice-recording {padding:8px;gap:5px}.voice-recording-label {font-size:.7rem}.msgr-pending-attach.pending-audio>span {display:none}}
 /* Keep full message heights and let the chat's own bottom-follow controller handle late media sizing. */
 .msgr-messages {overflow-anchor:none;scroll-behavior:auto}
 .msgr-messages>.msgr-bubble-row {flex-shrink:0}
@@ -122,3 +122,8 @@
   #app-content:has(.msgr-shell.mobile-chat-open)>.alert {display:none}
   #msgr-shell .msgr-input-bar #msgr-text-input {font-size:16px}
 }
+
+/* Filenames remain readable on phones; only the redundant audio label can collapse. */
+.msgr-pending-attach .pending-attachment-name {display:block;min-width:0;flex:0 1 auto;overflow-wrap:anywhere;line-height:1.45}
+.msgr-pending-attach .voice-discard {flex-shrink:0}
+@media(max-width:640px){.msgr-pending-attach.pending-audio .pending-attachment-name {display:none}}

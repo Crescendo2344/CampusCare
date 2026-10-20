@@ -60,3 +60,13 @@
 .camera-mirror-control input {width:auto}
 #camera-refocus {margin:8px auto 0}
 #camera-refocus[hidden] {display:none}
+
+/* Notice paragraphs must flow as text rather than anonymous flex columns. */
+.privacy-notice .alert.show {display:block;overflow-wrap:break-word;line-height:1.65}
+.privacy-notice .alert strong {display:block;margin-bottom:.35rem}
+.privacy-notice .modal-body {min-width:0}
+.privacy-agree label {min-width:0;flex:1;text-align:left}
+@media(max-width:480px){.privacy-notice .modal-body {padding:1rem}.privacy-agree {padding:.8rem;gap:.65rem}}
+/* Preserve Cloudflare's horizontal layout and branding on narrow registration cards. */
+#registration-captcha-frame {width:100%;min-width:0;display:flex;justify-content:center;align-items:flex-start}
+#registration-captcha-widget {flex-shrink:0;max-width:none;transform-origin:top center}

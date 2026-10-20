@@ -30,3 +30,10 @@ test('a blank scene does not produce a ready ID, while distance and lighting giv
 test('smaller and moderately soft ID images can pass automatic guidance',()=>{
  assert.equal(assessIdFrame({box:{x:96,y:78,width:128,height:84},width:320,height:240,brightness:110,sharpness:12}).ready,true);
 });
+
+// Presence is distinct from visual quality: distant/soft cards work, empty camera frames do not.
+test('ID evidence is required independently of quality prompts',()=>{
+ const missing=image({w:0,h:0});assert.equal(analyzeIdPixels(missing.pixels,missing.width,missing.height).documentVisible,false);
+ const far=image({x:110,y:90,w:100,h:60});const result=analyzeIdPixels(far.pixels,far.width,far.height);
+ assert.equal(result.documentVisible,true);assert.equal(result.code,'far');
+});
