@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
-import {reconcileMessages,messageVersion} from '../src/ui/message-list.js';
+import {reconcileMessages,messageVersion,watchMessageScroll} from '../src/ui/message-list.js';
 import {voiceTime} from '../src/ui/voice-message.js';
 test('message updates retain unchanged nodes, active editors and receipt-only changes',()=>{
   const dom=new JSDOM('<div id="messages"></div>'),wrap=dom.window.document.getElementById('messages');
@@ -26,4 +26,15 @@ test('refreshes leave readers away from the bottom and follow messages at the bo
   wrap.dispatchEvent(new dom.window.Event('wheel'));wrap.scrollTop=100;wrap.dispatchEvent(new dom.window.Event('scroll'));reconcileMessages(wrap,[{id:1},{id:2}],create);assert.equal(wrap.scrollTop,100);
   wrap.scrollTop=800;reconcileMessages(wrap,[{id:1},{id:2},{id:3}],create);assert.equal(wrap.scrollTop,1000);
   assert.equal(voiceTime(75),'1:15');assert.equal(voiceTime(Infinity),'0:00');dom.window.close();
+});
+
+// Returning to the latest message cancels prior scroll intent, including delayed scroll events from layout growth.
+test('following latest clears old manual-scroll intent before a delayed layout event',()=>{
+  const dom=new JSDOM('<div></div>'),wrap=dom.window.document.querySelector('div');
+  let height=1000;Object.defineProperties(wrap,{scrollHeight:{get:()=>height},clientHeight:{value:200}});
+  const tracking=watchMessageScroll(wrap);
+  wrap.dispatchEvent(new dom.window.Event('wheel'));wrap.scrollTop=100;wrap.dispatchEvent(new dom.window.Event('scroll'));
+  assert.equal(tracking.following,false);tracking.follow();height=1400;
+  wrap.dispatchEvent(new dom.window.Event('scroll'));assert.equal(tracking.following,true);
+  tracking.follow();assert.equal(wrap.scrollTop,1400);dom.window.close();
 });

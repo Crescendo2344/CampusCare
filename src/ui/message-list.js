@@ -20,7 +20,7 @@ export function watchMessageScroll(wrap){
   const cleanup=()=>{disposed=true;resize?.disconnect();detach?.disconnect();win.cancelAnimationFrame?.(frame);};
   const detach=win.MutationObserver?new win.MutationObserver(()=>{if(!wrap.isConnected)cleanup();}):null;
   detach?.observe(wrap.ownerDocument.body,{childList:true,subtree:true});
-  const controller={get following(){return following;},follow(){following=true;schedule();},observe(){
+  const controller={get following(){return following;},follow(){following=true;intentUntil=0;schedule();},observe(){
     const current=new Set(wrap.children);for(const node of observed)if(!current.has(node)){resize?.unobserve(node);observed.delete(node);}
     for(const node of current)if(!observed.has(node)){resize?.observe(node);observed.add(node);}
   }};

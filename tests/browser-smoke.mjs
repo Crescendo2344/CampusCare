@@ -475,7 +475,7 @@ try{
   });
   await page.waitForTimeout(80);
   await page.evaluate(()=>document.getElementById('fixture-late-media').style.height='300px');
-  await page.waitForTimeout(100);
+  await page.waitForFunction(()=>{const el=document.getElementById('msgr-messages');return el.scrollHeight-el.clientHeight-el.scrollTop<3;},{},{timeout:2500});
   assert(await page.locator('#msgr-messages').evaluate(el=>el.scrollHeight-el.clientHeight-el.scrollTop<3),'Latest message must stay visible after late media/layout growth');
   await page.evaluate(()=>window.__fixtureApp.features.messaging.refreshMessageViews());await page.waitForTimeout(80);
   assert(await page.locator('#msgr-messages').evaluate(el=>el.scrollHeight-el.clientHeight-el.scrollTop<3),'Refresh must remain at the latest message');
