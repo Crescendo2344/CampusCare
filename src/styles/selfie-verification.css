@@ -10,8 +10,8 @@
 .selfie-prep-card span{display:block;font-size:.75rem;line-height:1.5;color:var(--ink-muted);margin-top:.4rem}
 .selfie-stage{position:relative;background:#101f2b;border-radius:18px;overflow:hidden;aspect-ratio:4/3}
 .selfie-stage video{display:block;width:100%;height:100%;object-fit:contain}
-.selfie-guide-oval{position:absolute;width:auto;height:52%;aspect-ratio:3/4;left:50%;top:9%;transform:translateX(-50%);border:3px dashed #8bd9f9;border-radius:50%;box-shadow:0 0 0 999px rgba(4,18,29,.18);pointer-events:none}
-.selfie-stage[data-guidance="ready"] .selfie-guide-oval{border-style:solid;border-color:#77efbd}
+.selfie-guide-square{position:absolute;width:var(--selfie-guide-size,70%);height:auto;aspect-ratio:1;left:50%;top:50%;transform:translate(-50%,-50%);border:3px dashed #8bd9f9;border-radius:12px;box-shadow:0 0 0 999px rgba(4,18,29,.18);pointer-events:none}
+.selfie-stage[data-guidance="ready"] .selfie-guide-square{border-style:solid;border-color:#77efbd}
 .selfie-document-guide{position:absolute;bottom:5%;left:12%;right:12%;padding:.4rem .6rem;background:rgba(5,18,30,.85);color:#fff;font-size:.76rem;text-align:center;border-radius:8px;pointer-events:none}
 .selfie-feedback{padding:1rem .7rem .3rem;text-align:center}
 .selfie-feedback p{min-height:2.8em;margin:0;font-weight:700;line-height:1.4;font-size:.98rem}

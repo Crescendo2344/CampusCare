@@ -1,3 +1,4 @@
+import {fitMessageViewport} from '../ui/message-viewport.js';
 import {reconcileMessages} from '../ui/message-list.js';
 import {createVoicePlayer,startVoiceMeter,prepareVoiceContext} from '../ui/voice-message.js';
 import {appIcon} from '../ui/app-icons.js';
@@ -338,6 +339,7 @@ export async function renderMessages(){
       </div>
     </div>`;
 
+  fitMessageViewport(document.getElementById('msgr-shell'));
   renderPeopleCarousel();
   const hint=document.getElementById('msgr-browse-hint');
   if(hint)hint.textContent=isCompactMessenger()?'Swipe to browse':'Scroll to browse';

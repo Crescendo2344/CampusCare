@@ -9,22 +9,22 @@ export function startSelfieGuidance({video,root,captureButton,manualButton,statu
   };
   const fallback=()=>{
     if(disposed)return;available=false;readyUntil=0;steadySince=0;root.dataset.detector='unavailable';
-    setStatus('manual','Automatic guidance is unavailable. Use the outline and capture for clinic review.');
-    manualButton.hidden=false;progress.style.width='0%';worker?.terminate();worker=null;busy=false;
+    setStatus('unavailable','Camera checks could not start. Close and retry in Chrome or Safari with camera access.');
+    manualButton.hidden=true;progress.style.width='0%';worker?.terminate();worker=null;busy=false;
   };
   // Match the guide to the actual camera aspect ratio, including portrait phone cameras.
-  const fitFrame=()=>{if(video.videoWidth&&video.videoHeight)root.style.aspectRatio=video.videoWidth+'/'+video.videoHeight;};
+  const fitFrame=()=>{if(video.videoWidth&&video.videoHeight){root.style.aspectRatio=video.videoWidth+'/'+video.videoHeight;root.style.setProperty('--selfie-guide-size',Math.min(80,80*video.videoHeight/video.videoWidth)+'%');}};
   video.addEventListener('loadedmetadata',fitFrame);fitFrame();
   setStatus('loading','Preparing on-device camera guidance…');
   const slow=setTimeout(fallback,12000);
-  // Manual clinic review remains available for devices or accessibility needs the guide cannot assess.
-  const help=setTimeout(()=>{if(!disposed)manualButton.hidden=false;},20000);
+  // Do not offer a manual bypass when the required face/document check has not passed.
+  manualButton.hidden=true;
   try{
     worker=new Worker(new URL('./face-detector.worker.js',import.meta.url));
     worker.onerror=event=>{event.preventDefault();fallback();};
     worker.onmessage=({data})=>{
       if(disposed)return;
-      if(data.type==='ready'){clearTimeout(slow);available=true;root.dataset.detector='ready';setStatus('waiting','Position your face inside the oval');return;}
+      if(data.type==='ready'){clearTimeout(slow);available=true;root.dataset.detector='ready';setStatus('waiting','Position your face and ID inside the square');return;}
       if(data.type==='unavailable'){clearTimeout(slow);fallback();return;}
       if(data.type!=='result')return;
       busy=false;const result=assessSelfieFrame(data),now=performance.now();lastResult=now;
@@ -54,7 +54,7 @@ export function startSelfieGuidance({video,root,captureButton,manualButton,statu
   },250);
   return {
     canCapture:()=>!disposed&&available&&performance.now()<readyUntil,
-    canUseManual:()=>!disposed&&!manualButton.hidden,
-    dispose(){disposed=true;video.removeEventListener('loadedmetadata',fitFrame);clearInterval(timer);clearTimeout(slow);clearTimeout(help);worker?.terminate();}
+    canUseManual:()=>false,
+    dispose(){disposed=true;video.removeEventListener('loadedmetadata',fitFrame);clearInterval(timer);clearTimeout(slow);worker?.terminate();}
   };
 }

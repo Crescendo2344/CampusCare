@@ -2,17 +2,16 @@ import {analyzeIdPixels} from '../domain/id-guidance.js';
 // Low-resolution edge/lighting checks stay local; saved photos retain full resolution.
 export function startIdGuidance({video,root,captureButton,manualButton,status,progress}){
   const canvas=document.createElement('canvas'),context=canvas.getContext('2d',{willReadFrequently:true});
-  let disposed=false,steady=0,readyUntil=0,lastTime=-1,anchor=null;
-  const update=(code,message,ready=false)=>{root.dataset.guidance=code;if(status.textContent!==message)status.textContent=message;captureButton.disabled=!ready;captureButton.textContent=ready?'Capture ID':'Follow the guide';};
+  let disposed=false,steady=0,lastTime=-1,anchor=null;
+  const update=(code,message)=>{root.dataset.guidance=code;if(status.textContent!==message)status.textContent=message;captureButton.disabled=video.readyState<2||!video.videoWidth||!video.videoHeight;captureButton.textContent='Capture ID';};
   update('waiting','Place the ID inside the rectangle, with all four corners visible');
   // A visible live frame can always be captured for staff review; quality prompts remain advisory.
-  manualButton.hidden=true;
+  if(manualButton)manualButton.hidden=true;
   const tick=()=>{
     if(disposed)return;
     const now=performance.now();
-    if(now>readyUntil&&captureButton.disabled===false){readyUntil=0;update('waiting','Hold the ID still in the camera preview');}
     if(video.readyState<2||video.currentTime===lastTime)return;lastTime=video.currentTime;
-    manualButton.hidden=false;
+
     try{
       root.style.aspectRatio=video.videoWidth+'/'+video.videoHeight;
       const scale=320/Math.max(video.videoWidth,video.videoHeight);canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
@@ -24,12 +23,12 @@ export function startIdGuidance({video,root,captureButton,manualButton,status,pr
       if(result.ready){
         const box=result.box;
         if(!anchor||Math.max(Math.abs(box.x-anchor.x)/canvas.width,Math.abs(box.y-anchor.y)/canvas.height,Math.abs(box.width-anchor.width)/canvas.width,Math.abs(box.height-anchor.height)/canvas.height)>.04){steady=now;anchor=box;}
-        if(!steady)steady=now;const amount=Math.min(1,(now-steady)/550);progress.style.width=Math.round(amount*100)+'%';readyUntil=amount===1?now+1000:0;update(amount===1?'ready':'steady',amount===1?result.message:'Hold the ID still for a moment…',amount===1);}
-      else{steady=0;anchor=null;readyUntil=0;progress.style.width='0%';update(result.code,result.message);}
-    }catch{update('manual','Automatic ID guidance is unavailable. Capture clearly for clinic review.');manualButton.hidden=false;}
+        if(!steady)steady=now;const amount=Math.min(1,(now-steady)/550);progress.style.width=Math.round(amount*100)+'%';update(amount===1?'ready':'steady',amount===1?result.message:'Hold the ID still for a moment…',amount===1);}
+      else{steady=0;anchor=null;progress.style.width='0%';update(result.code,result.message);}
+    }catch{update('manual','Automatic ID guidance is unavailable. Capture clearly for clinic review.');}
   };
   const timer=setInterval(tick,250);
-  return {canCapture:()=>!disposed&&performance.now()<readyUntil,canUseManual:()=>!disposed&&!manualButton.hidden,dispose(){disposed=true;clearInterval(timer);}};
+  return {canCapture:()=>!disposed&&video.readyState>=2&&video.videoWidth>0&&video.videoHeight>0,canUseManual:()=>false,dispose(){disposed=true;clearInterval(timer);}};
 }
 
 export async function inspectIdPhoto(dataUrl){
