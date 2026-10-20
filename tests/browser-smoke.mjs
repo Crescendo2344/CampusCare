@@ -226,7 +226,7 @@ try{
     await page.locator('.privacy-notice').waitFor();
     assert.equal(await page.locator('.privacy-notice .alert-success').evaluate(el=>getComputedStyle(el).display),'block');
     assert(await page.locator('.privacy-notice .alert-success strong').evaluate(el=>el.getBoundingClientRect().width>150),'Privacy heading must not collapse to a narrow column');
-    await page.locator('.privacy-notice .modal-footer').getByRole('button',{name:'Close',exact:true}).click();
+    await page.locator('.privacy-notice .modal-header .close-btn').click();
     // CAPTCHA appears before consent in both visual and keyboard reading order.
     assert(await page.evaluate(()=>document.getElementById('registration-captcha-section').compareDocumentPosition(document.querySelector('.privacy-agree'))&Node.DOCUMENT_POSITION_FOLLOWING));
     // Unknown identifiers stay on the request form and never show email-sent feedback.

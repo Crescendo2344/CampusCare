@@ -22,6 +22,6 @@ jobs:
       - run: npm test
       # Browser requests are intercepted with fixtures; this never writes to live Supabase.
       - run: npx playwright install --with-deps chromium webkit
-      - run: npm run test:browser
       # WebKit exercises the camera-check compatibility route used by iPhone browsers.
       - run: node tests/webkit-camera.mjs
+      - run: npm run test:browser
