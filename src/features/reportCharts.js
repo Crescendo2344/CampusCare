@@ -1,17 +1,10 @@
+import {buildCustomReport,customReportControls} from '../reports/custom-report.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {generateStudentReport} from '../reports/student-report.js';
 // reportCharts: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {toast} from './theme.js';
-import {appointmentDisplayId,appointmentRecords} from './appointmentService.js';
-import {getLowStock,getPatientById,getUserById} from './documentScanner.js';
-import {collegeBadge,fmtDate,priorityBadge,statusBadge} from './inputValidation.js';
-import {patientAvatarHtml} from './patientManagement.js';
-import {docName} from './messaging.js';
-import {treatmentDisplayId,treatmentRecords} from './treatmentService.js';
-import {inventoryDisplayId,inventoryRecords} from './inventoryService.js';
-import {itemAvatarHtml} from './inventory.js';
 import {bindAction} from '../dependencies.js';
 // ================================================================
 // REPORT DATA VISUALIZATION (Chart.js, loaded on demand) + EXPORT
@@ -23,9 +16,11 @@ export function updateReportMetricOptions(){
   const type=document.getElementById('rpt-type').value;
   const filters=document.getElementById('student-report-filters');
   if(filters)filters.hidden=type!=='students';
-  const sel=document.getElementById('rpt-metric');
-  if(!sel||!appState.reportCharts.REPORT_METRICS[type])return;
-  sel.innerHTML=appState.reportCharts.REPORT_METRICS[type].map(m=>`<option value="${m.value}">${m.label}</option>`).join('');
+  customReportControls();
+  document.querySelector('[data-report-view="builder"]')?.click();
+  document.getElementById('rpt-result').innerHTML='';
+  appState.reportCharts.lastReportRows=[];
+  appState.reportCharts.studentReportToken=(appState.reportCharts.studentReportToken||0)+1;
 }
 
 export function vizCardHtml(type){
@@ -48,6 +43,9 @@ export function vizCardHtml(type){
 }
 
 export function computeMetricData(type,metric,rows){
+  rows=rows.map(row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[key[0].toLowerCase()+key.slice(1),value])));
+  if(type==='patients')rows=rows.map(r=>({...r,personType:r.personType||r.type}));
+
   const count=(arr,keyFn)=>{
     const m={};
     arr.forEach(item=>{const k=keyFn(item)||'Unknown';m[k]=(m[k]||0)+1;});
@@ -228,74 +226,10 @@ export async function generateReport(){
     }
     return;
   }
-  if(type==='appointments'){
-    let data=appointmentRecords().filter(a=>a.date>=from&&a.date<=to&&(!college||a.college===college));
-    appState.reportCharts.lastReportRows=data.map(a=>{const pt=getPatientById(a.patientId);const doc=getUserById(a.doctorId);return{ID:appointmentDisplayId(a),Patient:pt?pt.fname+' '+pt.lname:'?',College:a.college,Clinic:a.clinic,Date:a.date,Time:a.time,Doctor:doc?'Dr. '+doc.fname+' '+doc.lname:'?',Status:a.status};});
-    appState.reportCharts.lastReportTitle=`Appointment Report ${from} to ${to}`;
-    el.innerHTML=`<div class="card"><div class="card-header"><h3>Appointment Report – ${fmtDate(from)} to ${fmtDate(to)}</h3></div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-val">${data.length}</div><div class="stat-lbl">Total</div></div>
-        <div class="stat-card"><div class="stat-val text-primary">${data.filter(a=>a.status==='Scheduled').length}</div><div class="stat-lbl">Scheduled</div></div>
-        <div class="stat-card"><div class="stat-val text-success">${data.filter(a=>a.status==='Completed').length}</div><div class="stat-lbl">Completed</div></div>
-        <div class="stat-card"><div class="stat-val text-danger">${data.filter(a=>a.status==='Cancelled').length}</div><div class="stat-lbl">Cancelled</div></div>
-        <div class="stat-card"><div class="stat-val">${data.filter(a=>a.clinic==='Dental Clinic').length}</div><div class="stat-lbl">Dental</div></div>
-        <div class="stat-card"><div class="stat-val">${data.filter(a=>a.clinic==='Medical Clinic').length}</div><div class="stat-lbl">Medical</div></div>
-      </div>
-      ${data.length?`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>#</th><th>Patient</th><th>College</th><th>Clinic</th><th>Date</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${data.map(a=>{const pt=getPatientById(a.patientId);const doc=getUserById(a.doctorId);return`<tr><td>${pt?patientAvatarHtml(pt,30):'—'}</td><td>#${appointmentDisplayId(a)}</td><td>${pt?pt.fname+' '+pt.lname:'?'}</td><td>${collegeBadge(a.college)}</td><td>${a.clinic}</td><td>${fmtDate(a.date)}</td><td>${doc?docName(doc):'?'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No records found.</p></div>'}
-    </div>
-    ${data.length?vizCardHtml(type)+exportToolbarHtml():''}`;
-  }else if(type==='treatments'){
-    let data=treatmentRecords().filter(t=>!t.archived&&t.date>=from&&t.date<=to);
-    if(college)data=data.filter(t=>{const pt=getPatientById(t.patientId);return pt&&pt.college===college;});
-    appState.reportCharts.lastReportRows=data.map(t=>{const pt=getPatientById(t.patientId);const doc=getUserById(t.doctorId);return{ID:treatmentDisplayId(t),Patient:pt?pt.fname+' '+pt.lname:'?',Diagnosis:t.diagnosis,Doctor:doc?'Dr. '+doc.fname+' '+doc.lname:'?',Date:t.date,FollowUp:t.followupDate||''};});
-    appState.reportCharts.lastReportTitle=`Treatment Report ${from} to ${to}`;
-    el.innerHTML=`<div class="card"><div class="card-header"><h3>Treatment Report</h3></div>
-      <div class="stats-grid"><div class="stat-card"><div class="stat-val">${data.length}</div><div class="stat-lbl">Total Treatments</div></div></div>
-      ${data.length?`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>#</th><th>Patient</th><th>Diagnosis</th><th>Doctor</th><th>Date</th><th>Follow-up</th></tr></thead><tbody>${data.map(t=>{const pt=getPatientById(t.patientId);const doc=getUserById(t.doctorId);return`<tr><td>${pt?patientAvatarHtml(pt,30):'—'}</td><td>#${treatmentDisplayId(t)}</td><td>${pt?pt.fname+' '+pt.lname:'?'}</td><td>${t.diagnosis}</td><td>${doc?docName(doc):'?'}</td><td>${fmtDate(t.date)}</td><td>${fmtDate(t.followupDate)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No records found.</p></div>'}
-    </div>
-    ${data.length?vizCardHtml(type)+exportToolbarHtml():''}`;
-  }else if(type==='inventory'){
-    const inv=inventoryRecords().filter(i=>!i.archived);
-    const low=getLowStock();
-    const total=inv.reduce((s,i)=>s+i.qty,0);
-    const val=inv.reduce((s,i)=>s+i.qty*(i.unitCost||0),0);
-    appState.reportCharts.lastReportRows=inv.map(i=>({ID:inventoryDisplayId(i),Item:i.name,Category:i.category,Qty:i.qty,Threshold:i.threshold,UnitCost:i.unitCost||0,Value:(i.qty*(i.unitCost||0)).toFixed(2),Status:i.qty<=i.threshold?'Low':'OK'}));
-    appState.reportCharts.lastReportTitle=`Inventory Report ${appState.clinicInformation.TODAY}`;
-    el.innerHTML=`<div class="card"><div class="card-header"><h3>Inventory Report</h3></div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-val">${inv.length}</div><div class="stat-lbl">Total Items</div></div>
-        <div class="stat-card"><div class="stat-val text-danger">${low.length}</div><div class="stat-lbl">Low Stock</div></div>
-        <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-lbl">Total Units</div></div>
-        <div class="stat-card"><div class="stat-val text-primary">₱${val.toFixed(2)}</div><div class="stat-lbl">Inventory Value</div></div>
-      </div>
-      <div class="table-wrap"><table><thead><tr><th>Photo</th><th>Item</th><th>Category</th><th>Qty</th><th>Threshold</th><th>Value</th><th>Status</th></tr></thead><tbody>${inv.map(i=>{const bdg=i.qty<=i.threshold?'badge-danger':'badge-success';const lvl=i.qty<=i.threshold?'Low':'OK';return`<tr><td>${itemAvatarHtml(i,30)}</td><td>${escapeHtml(i.name)}</td><td>${escapeHtml(i.category)}</td><td>${i.qty}</td><td>${i.threshold}</td><td>₱${(i.qty*(i.unitCost||0)).toFixed(2)}</td><td><span class="badge ${bdg}">${lvl}</span></td></tr>`;}).join('')}</tbody></table></div>
-    </div>
-    ${inv.length?vizCardHtml(type)+exportToolbarHtml():''}`;
-  }else{
-    let pts=(appState.auth.currentUser?._realSupabase?appState.data.DB.patients.filter(p=>p._realSupabase&&!p.archived):appState.data.DB.patients.filter(p=>!p.archived));
-    if(appState.auth.currentUser.role==='Doctor'){
-      const allowed=new Set(appointmentRecords().filter(a=>a.doctorId===appState.auth.currentUser.id).map(a=>a.patientId));
-      pts=pts.filter(p=>allowed.has(p.id));
-    }
-    if(college)pts=pts.filter(p=>p.college===college);
-    const byCollege={};
-    pts.forEach(p=>{byCollege[p.college||'Unknown']=(byCollege[p.college||'Unknown']||0)+1;});
-    appState.reportCharts.lastReportRows=pts.map(p=>({ID:p.dbPatientId||p.id,Name:p.fname+' '+p.lname,College:p.college||'',Type:p.personType||'',Age:p.age,Blood:p.blood||''}));
-    appState.reportCharts.lastReportTitle=`Patient Report ${appState.clinicInformation.TODAY}`;
-    el.innerHTML=`<div class="card"><div class="card-header"><h3>Patient Report</h3></div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-val">${pts.length}</div><div class="stat-lbl">Total Patients</div></div>
-        <div class="stat-card"><div class="stat-val">${pts.filter(p=>p.personType==='Student').length}</div><div class="stat-lbl">Students</div></div>
-        <div class="stat-card"><div class="stat-val">${pts.filter(p=>p.personType==='Teaching Personnel').length}</div><div class="stat-lbl">Teaching</div></div>
-        <div class="stat-card"><div class="stat-val">${pts.filter(p=>p.personType==='Non-Teaching Personnel').length}</div><div class="stat-lbl">Non-Teaching</div></div>
-      </div>
-      <div style="margin-bottom:.75rem"><strong style="font-size:.83rem">By College:</strong> ${Object.entries(byCollege).map(([k,v])=>`${collegeBadge(k)} ${v}`).join(' &nbsp; ')}</div>
-      ${pts.length?`<div class="table-wrap"><table><thead><tr><th>Photo</th><th>Name</th><th>College</th><th>Type</th><th>Age</th><th>Blood</th></tr></thead><tbody>${pts.map(p=>`<tr><td>${patientAvatarHtml(p,30)}</td><td>${p.fname} ${p.lname}</td><td>${collegeBadge(p.college)}</td><td>${priorityBadge(p.personType)}</td><td>${p.age}</td><td>${p.blood}</td></tr>`).join('')}</tbody></table></div>`:''}
-    </div>
-    ${pts.length?vizCardHtml(type)+exportToolbarHtml():''}`;
+  try{buildCustomReport(exportToolbarHtml);}catch(error){
+    el.innerHTML=`<div class="alert alert-danger show" role="alert">${escapeHtml(error.message||'Unable to generate report.')}</div>`;
+    appState.reportCharts.lastReportRows=[];
   }
-  const dataLen=appState.reportCharts.lastReportRows.length;
-  if(dataLen)setTimeout(renderReportChart,50);
 }
 
 // Run side effects only after every feature's function exports are available.

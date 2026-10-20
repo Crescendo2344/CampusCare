@@ -1,3 +1,4 @@
+import {markReportStale} from '../reports/custom-report.js';
 // predictiveAnalytics: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {appointmentRecords} from './appointmentService.js';
@@ -145,6 +146,10 @@ export async function refreshHealthIntelligence(){
   const college=document.getElementById('rpt-college')?.value||'';
   const el=document.getElementById('health-intelligence-wrap');
   if(!el)return;
+  markReportStale();
+  const account=appState.auth.currentUser;
+  const requestId=appState.reports.refreshRequest=(appState.reports.refreshRequest||0)+1;
+  const stillCurrent=()=>appState.auth.currentUser===account&&appState.reports.refreshRequest===requestId&&document.getElementById('health-intelligence-wrap')===el;
 
   if(!appState.auth.currentUser?._realSupabase){
     el.innerHTML=renderHealthIntelligenceCard(from,to);
@@ -154,10 +159,10 @@ export async function refreshHealthIntelligence(){
   el.innerHTML=databaseSkeletonHtml('cards',4);
   try{
     const summary=await fetchAnalyticsSummary(from,to,college);
-    if(appState.navigationRaceProtection.campusActivePageId!=='reports')return;
+    if(!stillCurrent())return;
     el.innerHTML=renderLiveAnalyticsCard(summary);
   }catch(e){
-    if(appState.navigationRaceProtection.campusActivePageId!=='reports')return;
+    if(!stillCurrent())return;
     el.innerHTML=`<div class="card"><div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to refresh analytics.')}</div>
       <button class="btn btn-sm" ${bindAction('click',(event,element)=>{refreshHealthIntelligence()})}>Retry</button></div>`;
   }

@@ -13,6 +13,7 @@ export function studentFilterMarkup(){
     ${choices('rpt-medical','Medical care',[['','Any medical use'],['used','Availed recorded medical care'],['not','No recorded medical care']])}
     ${choices('rpt-history','Service-use period',[['range','Selected date range'],['all','All history through end date']])}
     ${choices('rpt-registration','Registration cohort',[['snapshot','Registered by end date'],['range','New registrations in date range']])}
+    </div><details class="report-details"><summary>Additional student filters</summary><div class="form-row">
     ${choices('rpt-archive','Record scope',[['current','Non-archived students'],['all','Include archived students'],['archived','Archived students only']])}
     ${choices('rpt-sex','Sex',[['','All'],['Male','Male'],['Female','Female'],['Other','Other'],['Unknown','Not recorded']])}
     ${choices('rpt-status','Account status',[['','All statuses'],['Active','Active'],['Pending','Pending'],['Suspended','Suspended'],['Archived','Archived']])}
@@ -20,7 +21,7 @@ export function studentFilterMarkup(){
     <div class="form-group"><label for="rpt-min-age">Minimum age at end date</label><input type="number" id="rpt-min-age" min="0" max="150"></div>
     <div class="form-group"><label for="rpt-max-age">Maximum age at end date</label><input type="number" id="rpt-max-age" min="0" max="150"></div>
     <div class="form-group"><label for="rpt-student-search">Student name or university ID</label><input id="rpt-student-search" type="search" maxlength="120"></div>
-    </div><p class="form-note">Filters combine with College and Date Range above. Dental/medical use counts completed bookings and recorded treatments, not pending or cancelled appointments. Registration totals are unique CampusCare student accounts, not university enrollment. Missing class sessions are never guessed.</p></fieldset>`;
+    </div></details><p class="form-note">Filters combine with College and Date Range above. Dental/medical use counts completed bookings and recorded treatments, not pending or cancelled appointments. Registration totals are unique CampusCare student accounts, not university enrollment. Missing class sessions are never guessed.</p></fieldset>`;
 }
 export function readStudentFilters(){
   const value=id=>document.getElementById(id)?.value||'';

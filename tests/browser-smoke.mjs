@@ -633,7 +633,37 @@ try{
     await page.locator('#active-modal .close-btn').click();
     // Combine class/session and no-use filters, then check that the registration denominator survives.
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('reports'));
-    await page.locator('#rpt-type').waitFor();await page.locator('#rpt-type').selectOption('students');
+    await page.locator('#rpt-type').waitFor();
+    await page.evaluate(()=>{
+      const {state}=window.__fixtureApp,from=document.getElementById('rpt-from').value;
+      state.reports.snapshot.appointments=[...['2026-01-01','2026-02-15','2026-03-01'].map((date,i)=>({id:300020+i,patientId:200004,doctorId:100002,date,college:'CCICT',clinic:'Medical Clinic',status:'Completed',_realSupabase:true})),{id:300010,patientId:200004,doctorId:100002,date:from,college:'CCICT',clinic:'Medical Clinic',status:'Completed',_realSupabase:true},{id:300011,patientId:200004,doctorId:100002,date:from,college:'CCICT',clinic:'Dental Clinic',status:'Completed',_realSupabase:true}];
+    });
+    await page.getByRole('tab',{name:'Custom Reports',exact:true}).click();
+    await page.locator('#rpt-type').selectOption('appointments');
+    await page.locator('#rpt-group').selectOption('college');await page.locator('#rpt-split').selectOption('clinic');
+    await page.getByRole('button',{name:'Generate Report',exact:true}).click();
+    await page.locator('.report-result').waitFor();
+    assert.match(await page.locator('.report-result').innerText(),/Record count by College and Clinic/);
+    assert.equal(await page.locator('.report-answer>strong').innerText(),'2');
+    assert.equal(await page.locator('.report-result table').first().locator('tbody tr').count(),2);
+    assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['Record count']),1);
+    await page.locator('#rpt-split').selectOption('status');
+    assert(await page.locator('#rpt-stale').isVisible());
+    await page.getByRole('button',{name:'Last 90 days',exact:true}).click();
+    await page.getByRole('tab',{name:'Forecast',exact:true}).click();
+    await page.locator('#forecast-from').fill('2026-01-01');await page.locator('#forecast-to').fill('2026-03-31');
+    await page.locator('#forecast-weeks').selectOption('8');
+    await page.getByRole('button',{name:'Update forecast',exact:true}).click();
+    assert.match(await page.locator('#forecast-result').innerText(),/History: 2026-01-01 to 2026-03-31/);
+    assert.match(await page.locator('#forecast-result').innerText(),/Expected next 8 weeks/i);
+    assert.equal(await page.locator('#forecast-result tbody tr').count(),8);
+    const forecastDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Export forecast CSV',exact:true}).click();
+    assert.equal((await forecastDownload).suggestedFilename(),'Forecast_2026-01-01_2026-03-31.csv');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reports-forecast-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+    await page.locator('#forecast-from').fill('2026-04-01');
+    await page.getByRole('button',{name:'Update forecast',exact:true}).click();
+    assert.match(await page.locator('#forecast-result').innerText(),/valid start date/);
+    await page.locator('#rpt-type').selectOption('students');
     await page.locator('#student-report-filters').waitFor();
     await page.locator('#rpt-session').selectOption('Evening');await page.locator('#rpt-dental').selectOption('not');
     await page.getByRole('button',{name:'Generate Report',exact:true}).click();

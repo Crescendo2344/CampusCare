@@ -82,7 +82,7 @@ export function renderLiveAnalyticsCard(summary){
   return `<div class="card">
     <div class="card-header">
       <div>
-        <h3>Campus Health Intelligence &amp; Data Mining</h3>
+        <h3>Clinic activity overview</h3>
         <div class="tech-note">${escapeHtml(scopeText)} · ${fmtDate(range.from)} – ${fmtDate(range.to)}</div>
       </div>
       <span class="intel-badge">Clinic records</span>
@@ -113,24 +113,8 @@ export function renderLiveAnalyticsCard(summary){
         : `<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No unusual increase detected</strong><span>No clinical trend met the review threshold for this selected range.</span></div></div>`}
     </div>
 
-    <div class="grid-2" style="align-items:start;margin-top:1rem">
-      <div>
-        <div class="section-label">3-Month Clinic Visit Forecast</div>
-        ${analyticsVisitForecastHtml(summary)}
-      </div>
-      <div>
-        <div class="section-label">Medicine Consumption in Selected Range</div>
-        ${(summary.medicineUsage||[]).length
-          ? analyticsMiniBars(summary.medicineUsage.map(x=>({name:`${x.itemName} (${x.unit})`,count:x.used})))
-          : '<div class="tech-note">Medicine consumption analytics are available to Staff and Administrators after inventory disbursements are recorded.</div>'}
-      </div>
-    </div>
-
-    ${['Administrator','Staff'].includes(appState.auth.currentUser.role)?`
-      <div class="section-label" style="margin-top:1rem">3-Month Medicine Consumption Forecast</div>
-      ${analyticsMedicineForecastHtml(summary)}
-    `:''}
-
+    <div class="section-label" style="margin-top:1rem">Medicine usage in selected range</div>
+    ${['Administrator','Staff'].includes(appState.auth.currentUser.role)?analyticsMiniBars((summary.medicineUsage||[]).map(x=>({name:`${x.itemName} (${x.unit})`,count:x.used}))):'<p class="form-note">Inventory analytics are available to Staff and Administrators.</p>'}
     <div class="tech-note" style="margin-top:.75rem">
       Campus Health Intelligence identifies patterns for administrative and clinical review. It does not independently diagnose outbreaks or replace clinician judgment.
     </div>
