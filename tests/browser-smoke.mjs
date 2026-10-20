@@ -39,7 +39,8 @@ try{
     // Unknown-account cases deliberately return HTTP 404; their visible error handling is asserted below.
     const modelInfo=/^INFO: Created TensorFlow Lite XNNPACK delegate for CPU\.$/.test(message.text());
     const expectedRejection=/\/(resend-verification|request-password-reset)$/.test(message.location().url||'')&&message.text().includes('status of 404');
-    if(message.type()==='error'&&!message.text().includes('net::ERR')&&!expectedRejection&&!modelInfo)errors.push(message.text());
+    const expectedThrottle=/\/register-patient$/.test(message.location().url||'')&&message.text().includes('status of 429');
+    if(message.type()==='error'&&!message.text().includes('net::ERR')&&!expectedRejection&&!expectedThrottle&&!modelInfo)errors.push(message.text());
   });
   // Capture the public lifecycle event only inside this test realm, with no production globals added.
   await page.addInitScript(()=>document.addEventListener('campuscare:ready',event=>{window.__fixtureApp=event.detail;},{once:true}));
@@ -62,6 +63,10 @@ try{
   await page.route('**/*',async route=>{
    const request=route.request(),url=new URL(request.url());
    if(url.origin===new URL(baseUrl).origin)return route.continue();
+   if(url.hostname==='challenges.cloudflare.com')return route.fulfill({contentType:'application/javascript',body:`
+     // Simulate only the provider widget; backend token enforcement has separate handler tests.
+     window.turnstile={ready:fn=>fn(),render:(selector,options)=>{window.__fixtureTurnstile=options;const button=document.createElement('button');button.id='fixture-captcha-solve';button.type='button';button.textContent='Verify security check';button.onclick=()=>options.callback('fixture-captcha-'+Date.now());document.querySelector(selector).appendChild(button);return 'fixture-widget';},reset:()=>{window.__fixtureCaptchaResets=(window.__fixtureCaptchaResets||0)+1;},remove:()=>document.getElementById('registration-captcha-widget').replaceChildren()};
+    `});
    if(!url.hostname.endsWith('.supabase.co'))return route.abort();
    const path=url.pathname;requests.push({path,method:request.method(),body:request.headers()['content-type']?.includes('application/json')?request.postDataJSON():null});
    let response={};
@@ -74,7 +79,13 @@ try{
    }else if(path.endsWith('/resend-verification')||path.endsWith('/request-password-reset')){
     if(request.postDataJSON().identifier==='not-registered@example.test')return route.fulfill({status:404,contentType:'application/json',body:JSON.stringify({error:'No CampusCare account matches that username or email.'})});
     response={ok:true};
-   }else if(path.endsWith('/register-patient'))response={ok:true,email_confirmation_required:false};
+   }else if(path.endsWith('/register-patient')){
+    if(request.method()==='GET')response={captcha_required:!mobile,site_key:mobile?null:'0x4-fixture-key'};
+    else{
+      if(!mobile){assert(request.postDataBuffer().toString().includes('fixture-captcha-'),'The CAPTCHA token must reach the API');if(!page.__fixtureLimited){page.__fixtureLimited=true;return route.fulfill({status:429,contentType:'application/json',headers:{'Retry-After':'120'},body:JSON.stringify({error:'Too many registration attempts. Please wait 2 minutes before trying again.',retry_after:120})});}}
+      response={ok:true,email_confirmation_required:false};
+    }
+   }
    else if(path.endsWith('/student-reports'))response={ok:true,report:buildStudentReport({users:[{user_id:10,first_name:'Morning',last_name:'Student',id_number:'ST10',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'},{user_id:11,first_name:'Evening',last_name:'Student',id_number:'ST11',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'}],patients:[{patient_id:10,user_id:10,class_session:'Morning'},{patient_id:11,user_id:11,class_session:'Evening'}],appointments:[{appointment_id:10,patient_id:10,clinic:'Dental Clinic',appointment_date:request.postDataJSON().from,status:'Completed'}]},request.postDataJSON())};
    else if(path.includes('/functions/v1/'))response={ok:true,notifications:[],requests:[],doctor_leaves:[],messages:[],contacts:[doctor],resources:[],surveys:[],users:[],doctors:[doctor],counts:{},items:{}};
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(response)});
@@ -172,7 +183,7 @@ try{
     await page.locator('#r-privacy-consent').check();
     await page.locator('#registration-submit-button').click();
     await page.getByText('Use the camera to take a verification selfie while holding the document you will upload.',{exact:true}).waitFor();
-    assert(!requests.some(request=>request.path.endsWith('/register-patient')),'Missing camera selfie must block submission');
+    assert(!requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'),'Missing camera selfie must block submission');
     await page.locator('#selfie-camera-button').click();
     await page.getByRole('button',{name:'Start Camera',exact:true}).click();
     await page.waitForFunction(()=>document.getElementById('camera-video')?.readyState>=2);
@@ -219,7 +230,7 @@ try{
     // Both ID sides are mandatory even after a successful selfie.
     await page.locator('#registration-submit-button').click();
     await page.getByText('Provide the front and back of your Student or Employee ID.',{exact:true}).waitFor();
-    assert(!requests.some(request=>request.path.endsWith('/register-patient')));
+    assert(!requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'));
     const front=await page.evaluate(()=>{
       const c=document.createElement('canvas');c.width=640;c.height=480;const g=c.getContext('2d');g.fillStyle='#141414';g.fillRect(0,0,640,480);g.fillStyle='#ddd';g.fillRect(120,112,400,256);g.fillStyle='#222';g.font='24px sans-serif';g.fillText('STUDENT ID FRONT',145,190);return c.toDataURL('image/png').split(',')[1];
     });
@@ -236,7 +247,7 @@ try{
     assert(framed,'The single preview must show the whole image without intrinsic-size clipping');
     await page.locator('#r-id-show-back').click();
     await page.locator('#registration-submit-button').click();
-    assert(!requests.some(request=>request.path.endsWith('/register-patient')),'One side must not reach registration');
+    assert(!requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'),'One side must not reach registration');
     // A duplicate upload is rejected without replacing existing evidence.
     await page.locator('#r-id-back-file').setInputFiles({name:'back.png',mimeType:'image/png',buffer:Buffer.from(front,'base64')});
     await page.getByRole('button',{name:'Use Back Photo',exact:true}).click();
@@ -286,8 +297,23 @@ try{
     await page.evaluate(()=>window.scrollTo(0,document.scrollingElement.scrollHeight));
     const submit=await page.locator('#registration-submit-button').boundingBox();assert(submit.y>=0&&submit.y+submit.height<=640+(mobile?0:160),'Registration submit is clipped');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.registration-id-panel').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/compact-id-${mobile?'mobile':'desktop'}.png`});
+    if(!mobile){
+      await page.locator('#registration-submit-button').click();
+      await page.getByText('Complete the security check below before registering.',{exact:true}).waitFor();
+      assert(!requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'));
+      await page.locator('#fixture-captcha-solve').click();
+      await page.evaluate(()=>window.__fixtureTurnstile['expired-callback']());
+      await page.locator('#registration-submit-button').click();
+      assert(!requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'),'Expired tokens must not submit');
+      await page.locator('#fixture-captcha-solve').click();
+      await page.locator('#registration-submit-button').click();
+      await page.getByText('Too many registration attempts. Please wait 2 minutes before trying again.',{exact:true}).waitFor();
+      assert(await page.locator('#reg-section').isVisible());
+      assert(await page.evaluate(()=>window.__fixtureCaptchaResets>0));
+      await page.locator('#fixture-captcha-solve').click();
+    }else assert(await page.locator('#registration-captcha-section').isHidden(),'Unconfigured CAPTCHA must not pretend to be active');
     await page.locator('#registration-submit-button').click();await page.locator('#pending-section').waitFor({state:'visible'});
-    assert(requests.some(request=>request.path.endsWith('/register-patient')),'OCR 25% must reach staff review submission');
+    assert(requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'),'OCR 25% must reach staff review submission');
     // Confirmation links always end at login, even for an already active account.
     await page.goto(baseUrl+'/?auth=confirmed#access_token='+token+'&refresh_token=fixture-refresh&expires_in=3600&token_type=bearer&type=signup');
     await page.waitForFunction(()=>Boolean(window.__fixtureApp));await page.locator('#login-section').waitFor({state:'visible'});

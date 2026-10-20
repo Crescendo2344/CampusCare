@@ -4,23 +4,98 @@ import { createClient } from "jsr:@supabase/supabase-js@2.117.3";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Expose-Headers": "Retry-After",
 };
-const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});
+const json=(body:unknown,status=200,extra:Record<string,string>={})=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json","Cache-Control":"no-store",...extra}});
 // Signup confirmations return to the deployed login flow.
 // Re-enable confirmation for future registrations by setting this server secret to true.
 const REQUIRE_EMAIL_CONFIRMATION=Deno.env.get("CAMPUSCARE_REQUIRE_EMAIL_CONFIRMATION")==="true";
 const APP_CONFIRM_URL="https://campuscare-brown-two.vercel.app/?auth=confirmed";
 
+// Only the public site key is returned to browsers. A half-configured widget fails closed.
+function captchaConfiguration(){
+  const siteKey=(Deno.env.get("TURNSTILE_SITE_KEY")||"").trim();
+  const secret=(Deno.env.get("TURNSTILE_SECRET_KEY")||"").trim();
+  const enabled=Boolean(siteKey||secret);
+  const configured=!enabled||Boolean(siteKey&&secret&&!/^[123]x0/.test(siteKey)&&!/^[123]x0/.test(secret));
+  return {siteKey,secret,enabled,configured};
+}
+
+// Hosted Supabase supplies CF-Connecting-IP at ingress. Never trust client-supplied X-Forwarded-For.
+// Missing ingress metadata uses one shared anonymous bucket rather than disabling the limiter.
+function registrationIp(req:Request){
+  const ip=(req.headers.get("cf-connecting-ip")||"").trim().toLowerCase();
+  return ip.length<=64&&/^[0-9a-f:.]+$/.test(ip)?ip:"unknown";
+}
+async function rateHash(value:string,secret:string){
+  const encoder=new TextEncoder();
+  const key=await crypto.subtle.importKey("raw",encoder.encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
+  const digest=new Uint8Array(await crypto.subtle.sign("HMAC",key,encoder.encode(value)));
+  return Array.from(digest,byte=>byte.toString(16).padStart(2,"0")).join("");
+}
+async function registrationLimit(client:any,scope:string,value:string,secret:string){
+  try{
+    const {data,error}=await client.rpc("consume_registration_limit",{p_scope:scope,p_subject_hash:await rateHash(scope+":"+value,secret)});
+    // Backend failure must not silently bypass the abuse controls.
+    if(error||typeof data?.allowed!=="boolean")throw new Error("Rate store unavailable");
+    if(!data.allowed){const retry=Math.max(1,Math.ceil(Number(data.retry_after)||60));return json({error:`Too many registration attempts. Please wait ${Math.ceil(retry/60)} minute(s) before trying again.`,retry_after:retry},429,{"Retry-After":String(retry)});}
+    return null;
+  }catch{return json({error:"Registration security is temporarily unavailable. Please try again shortly."},503);}
+}
+// Enforce the byte ceiling for streamed bodies too; Content-Length alone is caller-controlled.
+async function registrationForm(req:Request){
+  const reader=req.body?.getReader();
+  if(!reader)return json({error:"Registration form is missing."},400);
+  const parts:Uint8Array[]=[];let total=0;
+  try{
+    while(true){const {done,value}=await reader.read();if(done)break;total+=value.byteLength;
+      if(total>26*1024*1024){await reader.cancel().catch(()=>{});return json({error:"Registration files are too large. Please use smaller photos."},413);}
+      parts.push(value);
+    }
+    return await new Response(new Blob(parts),{headers:{"Content-Type":req.headers.get("content-type")||""}}).formData();
+  }catch{return json({error:"The registration form could not be read. Please try again."},400);}
+  finally{reader.releaseLock();}
+}
+
+async function validateCaptcha(config:ReturnType<typeof captchaConfiguration>,token:FormDataEntryValue|null){
+  if(!config.configured)return json({error:"Registration security is temporarily unavailable. Please try again shortly."},503);
+  if(!config.enabled)return null;
+  if(typeof token!=="string"||!token.trim()||token.length>2048)return json({error:"Complete the security check before submitting your registration."},403);
+  try{
+    // Cloudflare enforces a five-minute lifetime and one-time use; hostname and action bind the token to this form.
+    const response=await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify",{
+      method:"POST",body:new URLSearchParams({secret:config.secret,response:token}),signal:AbortSignal.timeout(10000)
+    });
+    if(!response.ok)throw new Error("Captcha provider unavailable");
+    const result=await response.json();
+    const hosts=(Deno.env.get("TURNSTILE_HOSTNAMES")||"campuscare-brown-two.vercel.app").split(",").map(x=>x.trim()).filter(x=>x&&x!=="localhost"&&x!=="127.0.0.1");
+    if(result["error-codes"]?.some((code:string)=>["missing-input-secret","invalid-input-secret","internal-error"].includes(code)))throw new Error("Captcha configuration unavailable");
+    if(result.success!==true||result.action!=="campuscare_register"||!hosts.includes(result.hostname))return json({error:"The security check expired or was unsuccessful. Please complete it again."},403);
+    return null;
+  }catch{return json({error:"The security check could not be verified. Please try again shortly."},503);}
+}
+
 Deno.serve(async(req:Request)=>{
   if(req.method==="OPTIONS") return new Response("ok",{headers:corsHeaders});
+  const captcha=captchaConfiguration();
+  if(req.method==="GET")return captcha.configured?json({captcha_required:captcha.enabled,site_key:captcha.enabled?captcha.siteKey:null}):json({error:"Registration security is temporarily unavailable. Please try again shortly."},503);
   if(req.method!=="POST") return json({error:"Method not allowed"},405);
 
   let cleanupId:string|null=null;
   let adminClient:any;
   let uploadedPaths:string[]=[];
   try{
-    const form=await req.formData();
+    const url=Deno.env.get("SUPABASE_URL")!;
+    const anonKey=Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    adminClient=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+    const limited=await registrationLimit(adminClient,"ip",registrationIp(req),serviceKey);if(limited)return limited;
+    // Bound request size before parsing large photos. Individual file limits are checked below too.
+    const size=Number(req.headers.get("content-length")||0);
+    if(size>26*1024*1024)return json({error:"Registration files are too large. Please use smaller photos."},413);
+    if(!req.headers.get("content-type")?.includes("multipart/form-data"))return json({error:"Submit registration using the registration form."},400);
+    const form=await registrationForm(req);if(form instanceof Response)return form;
     const email=String(form.get("email")||"").trim().toLowerCase();
     const password=String(form.get("password")||"");
     const metadataRaw=String(form.get("metadata")||"{}");
@@ -40,6 +115,7 @@ Deno.serve(async(req:Request)=>{
     if(!["image/jpeg","image/png","image/webp"].includes(verification.type)||!["image/jpeg","image/png","image/webp"].includes(verificationBack.type))
       return json({error:"Front and back ID photos must be JPG, PNG, or WebP. COR and PDF files are not accepted."},400);
 
+    if(metadataRaw.length>16384)return json({error:"Registration details are too large."},400);
     let metadata:Record<string,unknown>={};
     try{metadata=JSON.parse(metadataRaw)}catch{return json({error:"Invalid registration metadata."},400)}
     if(!metadata||typeof metadata!=="object"||Array.isArray(metadata))return json({error:"Invalid registration metadata."},400);
@@ -57,11 +133,12 @@ Deno.serve(async(req:Request)=>{
     if(!metadata.birth_date && metadata.date_of_birth) metadata.birth_date=metadata.date_of_birth;
     if(!metadata.contact_number && metadata.contact_no) metadata.contact_number=metadata.contact_no;
 
-    const url=Deno.env.get("SUPABASE_URL")!;
-    const anonKey=Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // Apply independent email and ID limits even when callers rotate networks.
+    const schoolId=String(metadata.id_number||"").trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>150||!/^\d{5}(?:\d{2})?$/.test(schoolId))return json({error:"Enter a valid email and Student or Employee ID number."},400);
+    const captchaError=await validateCaptcha(captcha,form.get("captcha_token"));if(captchaError)return captchaError;
+    for(const [scope,value] of [["email",email],["id",schoolId]]){const denied=await registrationLimit(adminClient,scope,value,serviceKey);if(denied)return denied;}
     const publicClient=createClient(url,anonKey,{auth:{persistSession:false}});
-    adminClient=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
 
     const username=String(metadata.username||"").trim();
     const {data:existingEmail}=await adminClient.from("users").select("user_id").ilike("email",email).limit(1);
@@ -111,8 +188,7 @@ Deno.serve(async(req:Request)=>{
     // CampusCare has an auditable consent history for each privacy version.
     if(profileRow?.user_id && metadata.privacy_consent===true){
       const version=String(metadata.privacy_policy_version||"1.0").slice(0,40);
-      const forwarded=req.headers.get("x-forwarded-for")||req.headers.get("cf-connecting-ip")||"";
-      const ip=forwarded.split(",")[0].trim()||null;
+      const ip=registrationIp(req)==="unknown"?null:registrationIp(req);
 
       const {error:consentError}=await adminClient.from("privacy_consents").insert({
         user_id:profileRow.user_id,

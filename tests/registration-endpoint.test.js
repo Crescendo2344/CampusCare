@@ -3,22 +3,33 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
-async function fixture({requireEmail=false,uploadFailure=false}={}){
-  let handler;const creates=[],signups=[],uploads=[],updates=[],deletes=[],removes=[];
-  const client={auth:{signUp:async body=>{signups.push(body);return {data:{user:{id:'fixture',identities:[{}]}}};},admin:{createUser:async body=>{creates.push(body);return {data:{user:{id:'fixture'}}};},deleteUser:async id=>{deletes.push(id);return {};}}},
+async function fixture({requireEmail=false,uploadFailure=false,captcha=false,env={},rateFailure=false,providerFailure=false,verdict={}}={}){
+  let handler;const creates=[],signups=[],uploads=[],updates=[],deletes=[],removes=[],limits=[],verifications=[],buckets=new Map(),usedTokens=new Set();
+  const client={rpc:async(name,args)=>{
+    assert.equal(name,'consume_registration_limit');limits.push(args);if(rateFailure)return {error:new Error('Unavailable')};
+    const key=args.p_scope+args.p_subject_hash,count=(buckets.get(key)||0)+1;buckets.set(key,count);
+    return {data:{allowed:count<=(args.p_scope==='ip'?30:5),retry_after:120}};
+  },auth:{signUp:async body=>{signups.push(body);return {data:{user:{id:'fixture',identities:[{}]}}};},admin:{createUser:async body=>{creates.push(body);return {data:{user:{id:'fixture'}}};},deleteUser:async id=>{deletes.push(id);return {};}}},
     from(table){return {select(){return this;},ilike(){return this;},limit:async()=>({data:[]}),update(body){updates.push(body);return this;},eq(){return this;},maybeSingle:async()=>({data:{user_id:1}}),insert:async()=>({error:null})};},
     storage:{from(bucket){return {upload:async(path,file)=>{uploads.push({bucket,path,size:file.size});return {error:uploadFailure&&uploads.length===2?new Error('Fixture upload failed'):null};},remove:async paths=>{removes.push(paths);return {};}};}}};
   globalThis.__registrationClient=()=>client;
-  globalThis.Deno={env:{get:name=>name==='CAMPUSCARE_REQUIRE_EMAIL_CONFIRMATION'?String(requireEmail):'fixture'},serve:fn=>{handler=fn;}};
-  const source=readFileSync('supabase/functions/register-patient/index.ts','utf8').replace(/^import[^\n]+\n/gm,'');
-  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const createClient=globalThis.__registrationClient;\n'+source)+'\n// '+Math.random()).toString('base64'));
-  const call=async({source='camera',consent=true,back=true,same=false,type='image/png',documentType='Student ID'}={})=>{
-    const form=new FormData();form.set('email','fixture@example.test');form.set('password','Fixture-password1!');form.set('selfie_capture_source',source);
-    form.set('metadata',JSON.stringify({username:'fixture',person_type:'Student',verification_document_type:documentType,privacy_consent:consent,role:'Administrator',registration_context:'internal'}));
-    form.set('selfie',new File(['selfie'],'camera.jpg',{type:'image/jpeg'}));form.set('verification',new File(['document'],'id.png',{type}));if(back)form.set('verification_back',new File([same?'document':'back-document'],'id-back.png',{type:'image/png'}));
-    return handler(new Request('https://fixture.test',{method:'POST',body:form}));
+  const environment={SUPABASE_URL:'https://fixture.test',SUPABASE_ANON_KEY:'fixture',SUPABASE_SERVICE_ROLE_KEY:'fixture-private-key',CAMPUSCARE_REQUIRE_EMAIL_CONFIRMATION:String(requireEmail),...(captcha?{TURNSTILE_SITE_KEY:'0x4-fixture-site-key',TURNSTILE_SECRET_KEY:'fixture-secret'}:{}),...env};
+  globalThis.Deno={env:{get:name=>environment[name]},serve:fn=>{handler=fn;}};
+  globalThis.__registrationFetch=async(url,options)=>{
+    assert.equal(url,'https://challenges.cloudflare.com/turnstile/v0/siteverify');verifications.push(options);
+    if(providerFailure)throw new Error('Provider down');
+    const token=options.body.get('response'),duplicate=usedTokens.has(token);usedTokens.add(token);
+    return Response.json({success:!duplicate,hostname:'campuscare-brown-two.vercel.app',action:'campuscare_register',...verdict});
   };
-  return {call,creates,signups,uploads,updates,deletes,removes};
+  const source=readFileSync('supabase/functions/register-patient/index.ts','utf8').replace(/^import[^\n]+\n/gm,'');
+  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const createClient=globalThis.__registrationClient;const fetch=globalThis.__registrationFetch;\n'+source)+'\n// '+Math.random()).toString('base64'));
+  const call=async({source='camera',consent=true,back=true,same=false,type='image/png',documentType='Student ID',token='fixture-captcha',ip='198.51.100.1',xff='',email='fixture@example.test',id='1234567',size=null}={})=>{
+    const form=new FormData();form.set('email',email);form.set('captcha_token',token);form.set('password','Fixture-password1!');form.set('selfie_capture_source',source);
+    form.set('metadata',JSON.stringify({username:'fixture',id_number:id,person_type:'Student',verification_document_type:documentType,privacy_consent:consent,role:'Administrator',registration_context:'internal'}));
+    form.set('selfie',new File(['selfie'],'camera.jpg',{type:'image/jpeg'}));form.set('verification',new File(['document'],'id.png',{type}));if(back)form.set('verification_back',new File([same?'document':'back-document'],'id-back.png',{type:'image/png'}));
+    return handler(new Request('https://fixture.test',{method:'POST',headers:{'cf-connecting-ip':ip,'x-forwarded-for':xff,...(size?{'content-length':String(size)}:{})},body:form}));
+  };
+  return {call,creates,signups,uploads,updates,deletes,removes,limits,verifications,request:handler,config:()=>handler(new Request('https://fixture.test'))};
 }
 test('temporary registration bypass sends no confirmation email and remains a Pending Patient with private evidence',async()=>{
   const f=await fixture();const r=await f.call();assert.equal(r.status,200);assert.equal((await r.json()).email_confirmation_required,false);
@@ -45,4 +56,37 @@ test('registration rejects missing, duplicate and PDF ID sides and declared COR 
   for(const options of [{back:false},{same:true},{type:'application/pdf'},{documentType:'COR'}]){
     const f=await fixture();assert.equal((await f.call(options)).status,400);assert.equal(f.creates.length,0);assert.equal(f.uploads.length,0);
   }
+});
+
+// These tests run the production handler, including one-time provider verification and shared RPC calls.
+test('registration configuration exposes only a public key and rejects half-configured or dummy production keys',async()=>{
+  let f=await fixture();assert.deepEqual(await(await f.config()).json(),{captcha_required:false,site_key:null});
+  f=await fixture({captcha:true});const result=await(await f.config()).json();assert.deepEqual(result,{captcha_required:true,site_key:'0x4-fixture-site-key'});assert(!JSON.stringify(result).includes('fixture-secret'));
+  for(const env of [{TURNSTILE_SITE_KEY:'0x4-site'},{TURNSTILE_SECRET_KEY:'secret'},{TURNSTILE_SITE_KEY:'1x00000000000000000000AA',TURNSTILE_SECRET_KEY:'1x0000000000000000000000000000000AA'}]){
+    f=await fixture({env});assert.equal((await f.config()).status,503);assert.equal((await f.call()).status,503);assert.equal(f.creates.length,0);
+  }
+});
+test('CAPTCHA rejects missing, reused, wrong-host, wrong-action and failed-provider tokens before Auth or Storage',async()=>{
+  for(const options of [{token:''},{token:'x'.repeat(2049)}]){const f=await fixture({captcha:true});assert.equal((await f.call(options)).status,403);assert.equal(f.verifications.length,0);assert.equal(f.creates.length,0);}
+  for(const verdict of [{success:false},{hostname:'attacker.test'},{hostname:'localhost'},{action:'login'}]){const f=await fixture({captcha:true,verdict});assert.equal((await f.call()).status,403);assert.equal(f.creates.length,0);assert.equal(f.uploads.length,0);assert.equal(f.limits.length,1,'Rejected challenges must not consume someone else’s identity quota');}
+  let f=await fixture({captcha:true,providerFailure:true});assert.equal((await f.call()).status,503);assert.equal(f.creates.length,0);
+  f=await fixture({captcha:true});assert.equal((await f.call()).status,200);assert.equal((await f.call()).status,403);assert.equal(f.creates.length,1);
+  assert.equal(f.verifications[0].body.get('secret'),'fixture-secret');assert(f.verifications[0].signal);
+});
+test('network and identity limits return Retry-After; forged forwarded headers cannot choose a new bucket',async()=>{
+  let f=await fixture();for(let i=0;i<30;i++)assert.equal((await f.call({back:false,xff:'203.0.113.'+i})).status,400);
+  let response=await f.call({back:false});assert.equal(response.status,429);assert.equal(response.headers.get('Retry-After'),'120');assert.equal((await response.json()).retry_after,120);assert.equal(f.creates.length,0);
+  assert.equal(new Set(f.limits.map(x=>x.p_subject_hash)).size,1);assert(f.limits.every(x=>/^[a-f0-9]{64}$/.test(x.p_subject_hash)));
+  for(const scope of ['email','id']){
+    f=await fixture();for(let i=0;i<5;i++)assert.equal((await f.call({ip:'198.51.100.'+(i+1),...(scope==='id'?{email:'fixture'+i+'@example.test'}:{id:'123456'+i})})).status,200);
+    response=await f.call({ip:'198.51.100.99'});assert.equal(response.status,429);assert.equal(f.creates.length,5);
+  }
+});
+test('rate storage failure and oversized requests fail before account creation',async()=>{
+  let f=await fixture({rateFailure:true});assert.equal((await f.call()).status,503);assert.equal(f.creates.length,0);
+  f=await fixture();assert.equal((await f.call({size:27*1024*1024})).status,413);assert.equal(f.creates.length,0);
+  // A raw stream exercises the byte ceiling without relying on a Content-Length header.
+  const body=new ReadableStream({start(controller){controller.enqueue(new Uint8Array(27*1024*1024));controller.close();}});
+  const streamed=new Request('https://fixture.test',{method:'POST',headers:{'content-type':'multipart/form-data; boundary=fixture'},body,duplex:'half'});
+  assert.equal((await f.request(streamed)).status,413,'Missing Content-Length must not bypass the byte ceiling');
 });

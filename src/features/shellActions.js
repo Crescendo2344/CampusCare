@@ -14,6 +14,7 @@ import {markAllRead,toggleNotifPanel} from './assistant.js';
 import {navTo} from './navigationRaceProtection.js';
 import {handleRegistrationIdUpload,selectRegistrationIdSide} from './idVerification.js';
 import {registerNamedAction} from '../dependencies.js';
+import {prepareRegistrationCaptcha,resetRegistrationCaptcha} from '../verification/registration-captcha.js';
 // Shell controls use registered lexical callbacks, never HTML inline JavaScript.
 
 // Run side effects only after every feature's function exports are available.
@@ -55,6 +56,7 @@ export function initializeFeature(){
   registerNamedAction('id-current-camera',()=>openCamera('id-'+(appState.camera.registrationIdSide||'front')));
   registerNamedAction('shell-30',(event,element)=>{openCamera('selfie')});
   registerNamedAction('shell-35',(event,element)=>{event.preventDefault();openPrivacyNotice()});
+  registerNamedAction('registration-security-retry',()=>{resetRegistrationCaptcha();prepareRegistrationCaptcha(appState.supabaseClient.SUPABASE_URL,appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY,{refresh:true}).catch(()=>{});});
   registerNamedAction('shell-36',(event,element)=>{doRegister()});
   registerNamedAction('shell-38',(event,element)=>{closePendingPanel()});
   registerNamedAction('shell-39',(event,element)=>{sendPasswordResetEmail()});

@@ -13,6 +13,7 @@ import {fmtDate} from './inputValidation.js';
 import {updateRegistrationIdentityFields} from './documentScanner.js';
 import {authTab} from './authentication.js';
 import {registrationIdSides,resetRegistrationIds} from './idVerification.js';
+import {registrationCaptchaToken,resetRegistrationCaptcha} from '../verification/registration-captcha.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
 // ================================================================
 // LOGIN ATTEMPT LOCKOUT — basic brute-force protection
@@ -312,6 +313,9 @@ export async function doRegister() {
   }
   if(!idSides.front||!idSides.back){registrationToast('Provide the front and back of your Student or Employee ID.','error');return;}
   if(appState.documentScanner.lastOcrDocumentType==='COR'){registrationToast('COR is not accepted. Use the front and back of your Student or Employee ID.','error');return;}
+  let captchaToken;
+  try{captchaToken=await registrationCaptchaToken(appState.supabaseClient.SUPABASE_URL,appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY);}
+  catch(error){registrationToast(error.message,'error');return;}
   let selfieFile,verificationFile,verificationBackFile;
   try{
     selfieFile=dataUrlToRegistrationFile(appState.camera.capturedSelfieDataUrl,'selfie-verification.jpg');
@@ -340,6 +344,8 @@ export async function doRegister() {
   };
 
   const form=new FormData();
+  // The server verifies this one-time token before creating an account.
+  form.append('captcha_token',captchaToken);
   form.append('email',email);
   form.append('password',pass);
   form.append('metadata',JSON.stringify(metadata));
@@ -392,6 +398,8 @@ export async function doRegister() {
   }catch(e){
     registrationToast(e?.message||'Registration failed. Please try again.','error',6000);
   }finally{
+    // Tokens are one-time use, including failed submissions that reached verification.
+    resetRegistrationCaptcha();
     if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=oldText||'Submit Registration';}
   }
 }

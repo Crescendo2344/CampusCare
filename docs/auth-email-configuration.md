@@ -6,6 +6,8 @@ Selfie verification uses camera capture only in the registration UI. The private
 
 Registration accepts Student ID or Employee ID photos only, not COR or PDF. Both front and back are required and stored privately; clinic reviewers receive temporary signed links for all three verification images. Live ID framing checks guide distance, centering, lighting, and steadiness locally. Uploads receive a photo review step. These checks do not establish document authenticity, which remains a staff decision.
 
+If direct public Auth signups have been disabled as described in `registration-abuse-protection.md`, adapt the confirmation-required registration branch to keep creation server-controlled before restoring confirmations. The current confirmation branch uses public Auth signup and cannot run while that endpoint is disabled.
+
 To restore email confirmation for future registrations, set the `CAMPUSCARE_REQUIRE_EMAIL_CONFIRMATION` Edge Function secret to `true` and redeploy `register-patient`. Restore the confirmation/resend controls and pending-screen instructions at the same time. Already skipped accounts remain marked as skipped; enabling the setting does not retroactively verify email ownership.
 
 Confirmation and password-reset links retain Supabase-managed expiry. No permanent email tokens are created.

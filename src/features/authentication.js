@@ -1,5 +1,6 @@
 // authentication: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
+import {prepareRegistrationCaptcha} from '../verification/registration-captcha.js';
 import {updateRegistrationIdentityFields} from './documentScanner.js';
 // ================================================================
 // AUTH
@@ -323,7 +324,11 @@ export function authTab(t){
   const forgot=document.getElementById('forgot-section');
   if(forgot)forgot.style.display='none';
   document.getElementById('auth-tabs').style.display='flex';
-  if(t==='reg')updateRegistrationIdentityFields();
+  if(t==='reg'){
+    updateRegistrationIdentityFields();
+    // Load the human check while the user completes registration details.
+    prepareRegistrationCaptcha(appState.supabaseClient.SUPABASE_URL,appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY).catch(()=>{});
+  }
 }
 
 // Run side effects only after every feature's function exports are available.
