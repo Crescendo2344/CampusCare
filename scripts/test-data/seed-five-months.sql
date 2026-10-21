@@ -109,11 +109,15 @@ BEGIN
   END LOOP;
   -- Current queues and future booking actions complement the historical trend data.
   FOR i IN 1..12 LOOP
-    d:=today+(i/3);doc:=CASE WHEN mod(i,2)=0 THEN dental ELSE medical END;
+    doc:=CASE WHEN mod(i,2)=0 THEN dental ELSE medical END;
+    -- Use three distinct business days so the queue matches the doctors' weekly rules.
+    IF i>3 THEN
+      SELECT day::date INTO d FROM generate_series((today+1)::timestamp,(today+10)::timestamp,interval '1 day') day WHERE extract(isodow FROM day)<=5 ORDER BY day OFFSET ((i-4)/3) LIMIT 1;
+    ELSE d:=today; END IF;
     status:=CASE WHEN i<=3 THEN 'Completed' ELSE (ARRAY['Pending','Confirmed','Scheduled'])[1+mod(i,3)] END;
     IF status='Completed' THEN d:=today; END IF;
     INSERT INTO public.appointments(patient_id,doctor_id,clinic,service,appointment_date,appointment_time,status,reason,notes,created_by,created_at)
-    VALUES(patient_ids[i],doc,CASE WHEN doc=dental THEN 'Dental Clinic' ELSE 'Medical Clinic' END,'General Checkup',d,(time '08:00'+mod(i,3)*interval '1 hour')::time,status,'SAMPLE current queue',batch,staff_id,now()) RETURNING appointment_id INTO rid;
+    VALUES(patient_ids[i],doc,CASE WHEN doc=dental THEN 'Dental Clinic' ELSE 'Medical Clinic' END,CASE WHEN doc=dental THEN 'Dental Checkup' ELSE 'General Checkup' END,d,(time '08:00'+mod(i,3)*interval '1 hour')::time,status,'SAMPLE current queue',batch,staff_id,now()) RETURNING appointment_id INTO rid;
     PERFORM pg_temp.track_sample('appointments',rid,'current queue');
   END LOOP;
   FOR i IN 1..8 LOOP
