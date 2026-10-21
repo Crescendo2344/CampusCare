@@ -11,23 +11,36 @@ export function initModernCalendar(id,selectedDate=appState.clinicInformation.TO
   appState.calendar.modernCalendarState[id]={selected,minDate:minDate||'',callbackName,viewMonth:base.slice(0,7),...options};
   renderModernCalendar(id);
 }
+// Appointment calendars skip empty months without changing calendars used for birthdays or report ranges.
+function resolveAvailableMonth(st,direction=1){
+  if(!Array.isArray(st.availableDates)||!st.availableDates.length)return;
+  const dates=st.availableDates.slice().sort();
+  if(dates.some(date=>date.startsWith(st.viewMonth))){st.monthNote='';return;}
+  const requested=st.viewMonth;
+  const next=direction<0?(dates.filter(date=>date<requested+'-01').at(-1)||dates[0]):(dates.find(date=>date>=requested+'-01')||dates.at(-1));
+  st.viewMonth=next.slice(0,7);
+  st.monthNote='No openings in that month. Showing the closest available month.';
+}
 export function modernCalendarShift(id,delta){
   const st=appState.calendar.modernCalendarState[id]; if(!st)return;
   const [y,m]=st.viewMonth.split('-').map(Number);
   const d=new Date(y,m-1+delta,1,12);
   st.viewMonth=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  resolveAvailableMonth(st,delta);
   renderModernCalendar(id);
 }
 export function modernCalendarSetMonth(id,month){
   const st=appState.calendar.modernCalendarState[id]; if(!st)return;
   const year=st.viewMonth.slice(0,4);
   st.viewMonth=`${year}-${String(month).padStart(2,'0')}`;
+  resolveAvailableMonth(st);
   renderModernCalendar(id);
 }
 export function modernCalendarSetYear(id,year){
   const st=appState.calendar.modernCalendarState[id]; if(!st)return;
   const month=st.viewMonth.slice(5,7);
   st.viewMonth=`${year}-${month}`;
+  resolveAvailableMonth(st);
   renderModernCalendar(id);
 }
 export function modernCalendarGoToday(id){
@@ -42,6 +55,7 @@ export function modernCalendarSelect(id,date){
   const st=appState.calendar.modernCalendarState[id]; if(!st)return;
   if(st.minDate&&date<st.minDate)return;
   if(st.maxDate&&date>st.maxDate)return;
+  if(Array.isArray(st.availableDates)&&!st.availableDates.includes(date))return;
   st.selected=date;
   st.viewMonth=date.slice(0,7);
   if(st.callbackName&&typeof resolveCallback(st.callbackName)==='function')resolveCallback(st.callbackName)(date);
@@ -62,9 +76,10 @@ export function renderModernCalendar(id){
     const d=new Date(start); d.setDate(start.getDate()+i);
     const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const outside=d.getMonth()!==month-1;
-    const disabled=!!(st.minDate&&date<st.minDate);
+    const disabled=!!(st.minDate&&date<st.minDate||st.maxDate&&date>st.maxDate||Array.isArray(st.availableDates)&&!st.availableDates.includes(date));
     const classes=['modern-calendar-day'];
     if(outside)classes.push('outside');
+    if(Array.isArray(st.availableDates)&&!disabled)classes.push('available');
     if(date===appState.clinicInformation.TODAY)classes.push('today');
     if(st.rangeMode){
       if(st.rangeStart&&date===st.rangeStart)classes.push('range-start');
@@ -93,6 +108,7 @@ export function renderModernCalendar(id){
   }
   host.innerHTML=`<div class="modern-calendar">
     <div class="modern-calendar-head"><button type="button" class="modern-calendar-nav" ${bindAction('click',(event,element)=>{modernCalendarShift((String(id)),-1)})} aria-label="Previous month">‹</button><div class="modern-calendar-title"><select aria-label="Month" ${bindAction('change',(event,element)=>{modernCalendarSetMonth((String(id)),element.value)})}>${monthOptions}</select><select class="modern-calendar-year-select" aria-label="Year" ${bindAction('change',(event,element)=>{modernCalendarSetYear((String(id)),element.value)})}>${yearOptions}</select></div><button type="button" class="modern-calendar-nav" ${bindAction('click',(event,element)=>{modernCalendarShift((String(id)),1)})} aria-label="Next month">›</button></div>
+    ${st.monthNote?'<p class="booking-calendar-note" role="status">'+st.monthNote+'</p>':''}
     <div class="modern-calendar-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<span>${d}</span>`).join('')}</div>
     <div class="modern-calendar-days">${days}</div>
     ${(st.showAppointmentHints===false&&st.showTodayButton===false)?'':`<div class="modern-calendar-footer">${st.showAppointmentHints===false?'':`<span class="modern-calendar-hint"><span style="color:var(--primary)">●</span> Dates with appointments</span>`}${st.showTodayButton===false?'':`<button type="button" class="modern-calendar-today" ${bindAction('click',(event,element)=>{modernCalendarGoToday((String(id)))})}>Today</button>`}</div>`}

@@ -190,10 +190,11 @@ export function unseenTaskCount(id){
 
 export function navBadgeCountFor(id,notificationCounts=null){
   const updates=Number((notificationCounts||navNotificationCounts())[id]||0);
-  const unseenTasks=unseenTaskCount(id);
-  // A workflow task often creates a notification too. Show the larger
-  // attention count instead of counting the same event twice.
-  return Math.max(unseenTasks,updates);
+  // Task badges count unresolved work, independent of whether the page/notification was read.
+  const taskPages=['approvals','cert-requests','fitness','inventory','feedback-issues','users'];
+  const counts=appState.topbarAndNavigation.navTaskCounts||{};
+  if(taskPages.includes(id)&&Object.hasOwn(counts,id))return Math.max(0,Number(counts[id])||0);
+  return Math.max((appState.topbarAndNavigation.navTaskItems[id]||[]).length,updates);
 }
 
 export function applyNavBadges(){
@@ -215,7 +216,7 @@ export function applyNavBadges(){
         btn.appendChild(badge);
       }
       badge.textContent=count>99?'99+':String(count);
-      badge.title=`${count} new item${count===1?'':'s'} requiring attention`;
+      badge.title=`${count} pending item${count===1?'':'s'} requiring attention`;
       badge.setAttribute('aria-label',badge.title);
     }else if(badge){
       badge.remove();
@@ -226,17 +227,7 @@ export function applyNavBadges(){
 export async function acknowledgeNavAttention(id){
   if(!appState.auth.currentUser||!id)return;
 
-  const current=appState.topbarAndNavigation.navTaskItems[id]||[];
-  if(current.length){
-    const seen=new Set(appState.topbarAndNavigation.navTaskSeen[id]||[]);
-    current.forEach(token=>seen.add(token));
-    appState.topbarAndNavigation.navTaskSeen[id]=[...seen].slice(-500);
-    saveTaskBadgeSeen();
-  }
-
-  // Opening a page also acknowledges unread notifications that lead
-  // to that page. Exact unresolved task counts remain visible inside
-  // the page itself (for example on certificate status tabs).
+  // Reading a page acknowledges its notifications; only resolving its tasks clears the task badge.
   const related=notificationRecords().filter(
     n=>n.userId===appState.auth.currentUser.id&&!n.read&&notificationPageFor(n)===id
   );
@@ -269,6 +260,7 @@ export async function acknowledgeNavAttention(id){
 export async function refreshTaskBadges(force=false){
   appState.topbarAndNavigation.campusTaskRefreshError='';
   if(!appState.auth.currentUser)return;
+  const owner=appState.auth.currentUser;
   const now=Date.now();
   if(!force&&now-appState.topbarAndNavigation.navBadgeLastFetch<10000){
     applyNavBadges();
@@ -278,6 +270,7 @@ export async function refreshTaskBadges(force=false){
   try{
     if(appState.auth.currentUser._realSupabase){
       const result=await taskBadgeAction();
+      if(appState.auth.currentUser!==owner)return;
       appState.topbarAndNavigation.navTaskCounts=result.counts||{};
       appState.topbarAndNavigation.navTaskItems=result.items||{};
     }else{
@@ -287,15 +280,7 @@ export async function refreshTaskBadges(force=false){
     }
     appState.topbarAndNavigation.navBadgeLastFetch=Date.now();
 
-    // If the user is already viewing a task page while the first/next
-    // refresh arrives, those current items are considered seen. The
-    // unresolved total remains visible inside the page itself.
-    if(appState.navigationRaceProtection.campusActivePageId&&(appState.topbarAndNavigation.navTaskItems[appState.navigationRaceProtection.campusActivePageId]||[]).length){
-      const seen=new Set(appState.topbarAndNavigation.navTaskSeen[appState.navigationRaceProtection.campusActivePageId]||[]);
-      (appState.topbarAndNavigation.navTaskItems[appState.navigationRaceProtection.campusActivePageId]||[]).forEach(token=>seen.add(token));
-      appState.topbarAndNavigation.navTaskSeen[appState.navigationRaceProtection.campusActivePageId]=[...seen].slice(-500);
-      saveTaskBadgeSeen();
-    }
+
   }catch(e){
     appState.topbarAndNavigation.campusTaskRefreshError=e?.message||'Unable to refresh tasks.';
     console.error('Task badge refresh:',e);

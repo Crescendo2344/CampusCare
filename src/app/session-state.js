@@ -17,6 +17,9 @@ export function clearAccountState(){
   state.messaging.activeConversationId=null;
   state.messaging.pendingAttachment=null;
   state.approvalQueue.realPendingApprovals=[];
+  state.bookingForm.availabilityRequest=(state.bookingForm.availabilityRequest||0)+1;
+  state.bookingForm.availabilityDays=[];
+  state.bookingForm.availabilityDoctorId=null;
   state.topbarAndNavigation.navTaskCounts={};
   state.topbarAndNavigation.navTaskItems={};
   state.topbarAndNavigation.navTaskSeen={};

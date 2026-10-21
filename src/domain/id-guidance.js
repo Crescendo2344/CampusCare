@@ -1,6 +1,6 @@
 import {faceImageQuality as imageQuality} from './selfie-guidance.js';
 // Find a strong rectangular boundary. This estimates framing, not document type or authenticity.
-export function detectIdBoundary(pixels,width,height){
+export function detectIdBoundary(pixels,width,height,{acceptBox=()=>true,minimumSides=4,connect=1}={}){
   const gray=new Float32Array(width*height),edge=new Uint8Array(width*height),mask=new Uint8Array(width*height);
   for(let i=0;i<gray.length;i++)gray[i]=.2126*pixels[i*4]+.7152*pixels[i*4+1]+.0722*pixels[i*4+2];
   let sum=0;
@@ -9,7 +9,7 @@ export function detectIdBoundary(pixels,width,height){
   }
   const threshold=Math.max(14,sum/(width*height)*1.9);
   // Connect nearby edge fragments without joining unrelated text across the whole frame.
-  for(let y=2;y<height-2;y++)for(let x=2;x<width-2;x++)if(edge[y*width+x]>threshold){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)mask[(y+dy)*width+x+dx]=1;}
+  for(let y=2;y<height-2;y++)for(let x=2;x<width-2;x++)if(edge[y*width+x]>threshold){for(let dy=-connect;dy<=connect;dy++)for(let dx=-connect;dx<=connect;dx++)mask[(y+dy)*width+x+dx]=1;}
   const queue=new Int32Array(width*height);let best=null,bestScore=0;
   for(let start=0;start<mask.length;start++){
     if(!mask[start])continue;let head=0,tail=1,minX=width,maxX=0,minY=height,maxY=0;queue[0]=start;mask[start]=0;
@@ -20,7 +20,9 @@ export function detectIdBoundary(pixels,width,height){
     if(w<width*.12||h<height*.12||ratio<.45||ratio>2.2)continue;
     const support=(horizontal,pos,from,to)=>{let hits=0;for(let n=from;n<=to;n++){let found=false;for(let d=-3;d<=3;d++){const x=horizontal?n:pos+d,y=horizontal?pos+d:n;if(x>=0&&y>=0&&x<width&&y<height&&edge[y*width+x]>threshold)found=true;}if(found)hits++;}return hits/Math.max(1,to-from+1);};
     const sides=[support(true,minY,minX,maxX),support(true,maxY,minX,maxX),support(false,minX,minY,maxY),support(false,maxX,minY,maxY)];
-    if(Math.min(...sides)<.17)continue;
+    if(sides.filter(value=>value>=.17).length<minimumSides)continue;
+    // A selfie can reject background rectangles before the strongest candidate is chosen.
+    if(!acceptBox({x:minX,y:minY,width:w,height:h}))continue;
     const coverage=sides.reduce((a,b)=>a+b,0)/4,score=coverage*Math.sqrt(w*h/(width*height));
     if(score>bestScore){bestScore=score;best={x:minX,y:minY,width:w,height:h};}
   }

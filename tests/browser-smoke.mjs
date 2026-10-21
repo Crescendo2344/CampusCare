@@ -1,3 +1,4 @@
+import {buildDoctorAvailability,addBookingDays} from '../src/domain/booking-availability.js';
 import {buildStudentReport} from '../src/domain/student-report.js';
 // Exercise actual Chromium UI events and API contracts using synthetic, intercepted backend responses.
 import assert from 'node:assert/strict';
@@ -93,6 +94,17 @@ try{
       if(!mobile){assert(request.postDataBuffer().toString().includes('fixture-captcha-'),'The CAPTCHA token must reach the API');if(!page.__fixtureLimited){page.__fixtureLimited=true;return route.fulfill({status:429,contentType:'application/json',headers:{'Retry-After':'120'},body:JSON.stringify({error:'Too many registration attempts. Please wait 2 minutes before trying again.',retry_after:120})});}}
       response={ok:true,email_confirmation_required:false};
     }
+   }
+   else if(path.endsWith('/booking-availability')){
+    const body=request.postDataJSON();let date=addBookingDays(body.from,45);
+    while([0,6].includes(new Date(date+'T12:00:00Z').getUTCDay()))date=addBookingDays(date,1);
+    page.__bookingDate=date;
+    const days=buildDoctorAvailability({doctor:{workDays:['Mon','Tue','Wed','Thu','Fri'],startTime:'08:00',endTime:'17:00',slotDuration:60,maxPatients:20},from:date,to:date,today:body.from,appointments:[{date,time:'09:00',status:'Scheduled'}],overrides:[{date,time:'10:00',available:false}]});
+    response={ok:true,days};
+   }else if(path.endsWith('/appointment-actions')){
+    const body=request.postDataJSON();
+    if(body.action==='create'){assert.equal(body.appointment_date,page.__bookingDate);assert.equal(body.appointment_time,'08:00');assert.equal(body.doctor_id,2);assert(!body.appointment_id,'New bookings must not pass a truthy null string as an edit ID');}
+    response={ok:true};
    }
    else if(path.endsWith('/student-reports'))response={ok:true,report:buildStudentReport({users:[{user_id:10,first_name:'Morning',last_name:'Student',id_number:'ST10',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'},{user_id:11,first_name:'Evening',last_name:'Student',id_number:'ST11',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'}],patients:[{patient_id:10,user_id:10,class_session:'Morning'},{patient_id:11,user_id:11,class_session:'Evening'}],appointments:[{appointment_id:10,patient_id:10,clinic:'Dental Clinic',appointment_date:request.postDataJSON().from,status:'Completed'}]},request.postDataJSON())};
    else if(path.includes('/functions/v1/'))response={ok:true,notifications:[],requests:[],doctor_leaves:[],messages:[],contacts:[doctor],resources:[],surveys:[],users:[],doctors:[doctor],counts:{},items:{}};
@@ -461,6 +473,35 @@ try{
   await page.evaluate(()=>{const f=window.__fixtureApp.features.dashboardChartHelpers;f.chooseDashboardRangeDate('2026-10-14');f.chooseDashboardRangeDate('2026-10-20');});
   await page.getByRole('button',{name:'Apply Date Range',exact:true}).click();
   assert.match(await rangeButton.innerText(),/Oct 14, 2026/);
+  if(['Patient','Staff','Administrator'].includes(role)){
+    // Exercise real doctor/date/time clicks and draft restoration, with server requests intercepted.
+    await page.evaluate(async()=>{await window.__fixtureApp.features.appointmentService.syncAppointmentContext();window.__fixtureApp.features.bookingForm.openBookApptModal();});
+    assert.equal(await page.getByText(/Posted Medical Clinic hours/).count(),0);
+    assert(await page.locator('#booking-modern-calendar .modern-calendar-day').first().isDisabled());
+    assert.equal(await page.locator('#b-doc').inputValue(),'');
+    await page.locator('#b-doc').selectOption('100002');
+    await page.waitForFunction(()=>document.getElementById('b-doctor-note')?.textContent.startsWith('Next opening:'));
+    assert.equal(await page.evaluate(()=>window.__fixtureApp.state.calendar.modernCalendarState['booking-modern-calendar'].viewMonth),page.__bookingDate.slice(0,7));
+    assert.equal(await page.locator('#booking-modern-calendar .modern-calendar-day.available').count(),1);
+    // Selecting an empty month redirects to the nearest opening instead of leaving a calendar to hunt through.
+    await page.locator('#booking-modern-calendar select[aria-label="Month"]').selectOption(String(Number(addBookingDays(page.__bookingDate,-45).slice(5,7))));
+    await page.locator('#booking-modern-calendar .modern-calendar-day.available').click();
+    assert.equal(await page.locator('#b-date').inputValue(),page.__bookingDate);
+    await page.locator('#slot-grid button[data-time="08:00"]').click();
+    assert.equal(await page.locator('#b-time').inputValue(),'08:00');
+    assert.equal(await page.locator('#slot-grid button.selected').getAttribute('aria-pressed'),'true');
+    for(const time of ['09:00','10:00','12:00'])assert(await page.locator('#slot-grid button[data-time="'+time+'"]').isDisabled());
+    if(role!=='Patient')await page.locator('#b-pt').evaluate(el=>el.value='200004');
+    await page.locator('#b-reason').fill('Synthetic booking flow verification');
+    await page.getByRole('button',{name:'Save Draft',exact:true}).click();
+    await page.locator('#active-modal .close-btn').click();
+    await page.evaluate(()=>window.__fixtureApp.features.bookingForm.openBookApptModal());
+    await page.getByRole('button',{name:'Restore Draft',exact:true}).click();
+    await page.waitForFunction(()=>document.getElementById('b-time')?.value==='08:00');
+    await page.getByRole('button',{name:'Confirm Booking',exact:true}).click();
+    await page.waitForFunction(()=>!document.getElementById('b-time'));
+    assert(requests.some(request=>request.path.endsWith('/appointment-actions')&&request.body?.action==='create'),'A real slot click must reach the booking API');
+  }
   await page.evaluate(()=>window.__fixtureApp.features.accountSettings.openProfileDetails());
   assert.equal(await page.locator('#active-modal .modal-header .close-btn').count(),1);
   assert.equal(await page.locator('#active-modal .modal-footer').getByRole('button',{name:'Close',exact:true}).count(),0);
@@ -774,6 +815,7 @@ try{
   await page.waitForFunction(()=>window.__fixtureApp.state.auth.currentUser===null);
   await page.getByText('Logged out successfully.',{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.__fixtureApp.state.data.DB.patients.some(row=>row._realSupabase)),false);
+  assert.equal(await page.locator('#landing-navbar [data-landing-link="home"]').evaluate(el=>getComputedStyle(el).color),'rgb(230, 239, 247)');
   assert(requests.some(request=>request.path.endsWith('/token')),`${role}: actual login request missing`);
   assert(requests.some(request=>request.path.includes('/rest/v1/users')),`${role}: profile query missing`);
   assert.deepEqual(errors,[],`${mobile?'mobile':'desktop'} ${role}`);

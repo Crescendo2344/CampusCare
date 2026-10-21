@@ -2,18 +2,19 @@
 import {state as appState} from '../app/state.js';
 import {campusScheduleForDate,clinicToday,discardCampusDraft,validateCampusBooking} from './scheduleAndDrafts.js';
 import {dayOfWeek,fmtDate,fmtTime} from './inputValidation.js';
-import {appointmentAction,appointmentRecords,syncRealAppointments} from './appointmentService.js';
+import {appointmentAction,appointmentRecords,appointmentService,syncRealAppointments} from './appointmentService.js';
 import {checkDentalQuota,getDentalDoctors,getMedDoctors,getPatientById,getUserById} from './documentScanner.js';
 import {escapeHtml} from './issueReports.js';
 import {docName} from './messaging.js';
 import {closeAllModals,openModal} from './modals.js';
 import {filterBookPatients} from './datePicker.js';
-import {initModernCalendar} from './calendar.js';
+import {initModernCalendar,renderModernCalendar} from './calendar.js';
 import {hideAlert,showAlert,toast} from './theme.js';
 import {persistDB} from './persistence.js';
 import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {renderMyAppointments} from './patientAppointments.js';
 import {renderAppointments} from './appointments.js';
+import {addBookingDays,buildDoctorAvailability} from '../domain/booking-availability.js';
 import {bindAction,scheduleRules} from '../dependencies.js';
 // ── Book Appointment ──
 
@@ -45,53 +46,51 @@ export function doctorOpenSlotCount(doc,date){
   }).length);
 }
 
-export function refreshAvailableDoctorsForDate(preferredDoctorId=null){
-  const date=(document.getElementById('b-date')||{}).value||'';
-  const clinic=(document.getElementById('b-clinic')||{}).value||'Medical Clinic';
-  const docSelect=document.getElementById('b-doc');
-  const note=document.getElementById('b-doctor-note');
-  const time=document.getElementById('b-time');
-  if(!docSelect)return;
+// Keep the public adapter name for saved drafts; doctor selection now precedes the date.
+export async function refreshAvailableDoctorsForDate(preferredDoctorId=null){
+  const select=document.getElementById('b-doc');if(!select)return;
+  if(preferredDoctorId)select.value=String(preferredDoctorId);
+  await onBookingDoctorChange();
+}
 
-  if(time)time.value='';
-
-  if(!date){
-    docSelect.innerHTML='<option value="">Select an appointment date first</option>';
-    docSelect.disabled=true;
-    if(note)note.textContent='Choose a date to see doctors who are actually available that day.';
-    loadTimeSlots();
-    return;
+export async function onBookingDoctorChange(){
+  const select=document.getElementById('b-doc'),note=document.getElementById('b-doctor-note'),dateInput=document.getElementById('b-date');
+  if(!select||!dateInput)return;
+  const doctor=getUserById(Number(select.value)),owner=appState.auth.currentUser,requestId=(appState.bookingForm.availabilityRequest||0)+1;
+  appState.bookingForm.availabilityRequest=requestId;
+  appState.bookingForm.availabilityDays=[];appState.bookingForm.availabilityDoctorId=doctor?.id||null;
+  dateInput.value='';document.getElementById('b-time').value='';document.getElementById('b-date-label').textContent='Choose an available date';
+  const from=clinicToday(),to=addBookingDays(from,365);
+  const renderCalendar=(days,selected='')=>{
+    const available=days.filter(day=>day.openSlots>0).map(day=>day.date);
+    initModernCalendar('booking-modern-calendar',selected,from,'chooseBookingDate',{allowEmptySelection:!selected,maxDate:to,availableDates:available,viewMonth:(selected||available[0]||from).slice(0,7),showAppointmentHints:false,showTodayButton:false});
+  };
+  renderCalendar([]);loadTimeSlots();
+  if(!doctor){note.textContent='Choose your doctor first to see available dates.';return;}
+  note.textContent='Checking this doctor’s available dates…';
+  try{
+    let days;
+    if(owner?._realSupabase){
+      const editing=appointmentRecords().find(a=>a.id===appState.bookingForm.activeBookingEditId);
+      const result=await appointmentService().availability({doctor_id:doctor.dbUserId,from,to,...(editing?{appointment_id:editing.dbAppointmentId}:{})});
+      if(!Array.isArray(result.days))throw new Error('Availability could not be loaded. Please retry.');
+      days=result.days;
+    }else{
+      // Local demonstration records use the same slot rules without pretending to query live reservations.
+      const now=new Date(),nowMinutes=(now.getUTCHours()*60+now.getUTCMinutes()+480)%1440;
+      days=buildDoctorAvailability({doctor,from,to,today:from,nowMinutes,appointments:appointmentRecords().filter(a=>a.doctorId===doctor.id&&a.id!==appState.bookingForm.activeBookingEditId),leaves:(appState.data.DB.doctorLeaves||[]).filter(l=>l.doctorId===doctor.id),overrides:(appState.data.DB.settings.slotOverrides||[]).filter(o=>o.doctorId===doctor.id).flatMap(o=>[...(o.blockedTimes||[]).map(time=>({date:o.date,time,available:false})),...(o.availableTimes||[]).map(time=>({date:o.date,time,available:true}))]),settings:{lunchStart:appState.data.DB.settings.lunchBreakStart,lunchEnd:appState.data.DB.settings.lunchBreakEnd}});
+    }
+    // A late request must never overwrite a different doctor, closed form, or signed-out account.
+    if(requestId!==appState.bookingForm.availabilityRequest||select!==document.getElementById('b-doc')||appState.auth.currentUser!==owner)return;
+    appState.bookingForm.availabilityDays=days;
+    const nearest=days.find(day=>day.openSlots>0);
+    note.textContent=nearest?`Next opening: ${fmtDate(nearest.date)} · ${nearest.openSlots} available time${nearest.openSlots===1?'':'s'}. Select a highlighted date below.`:'No openings in the next 12 months. Please choose another doctor.';
+    renderCalendar(days);loadTimeSlots();
+  }catch(error){
+    if(select!==document.getElementById('b-doc')||requestId!==appState.bookingForm.availabilityRequest)return;
+    note.textContent=error?.message||'Availability could not be loaded.';
+    document.getElementById('slot-grid').innerHTML=`<button type="button" class="btn btn-sm" ${bindAction('click',()=>onBookingDoctorChange())}>Retry availability</button>`;
   }
-
-  const baseDoctors=clinic==='Dental Clinic'?getDentalDoctors():getMedDoctors();
-  const available=baseDoctors
-    .map(d=>({doctor:d,slots:doctorOpenSlotCount(d,date)}))
-    .filter(x=>x.slots>0);
-
-  if(!available.length){
-    docSelect.innerHTML='<option value="">No doctors available on this date</option>';
-    docSelect.disabled=true;
-    if(note)note.textContent=`No ${clinic==='Dental Clinic'?'dental':'medical'} doctor has an open appointment slot on ${fmtDate(date)}. Please choose another date.`;
-    loadTimeSlots();
-    return;
-  }
-
-  docSelect.disabled=false;
-  docSelect.innerHTML=available.map(({doctor,slots})=>
-    `<option value="${doctor.id}">${escapeHtml(docName(doctor))} — ${escapeHtml(doctor.specialty||'General Medicine')} · ${slots} open slot${slots===1?'':'s'}</option>`
-  ).join('');
-
-  const preferred=Number(preferredDoctorId||0);
-  if(preferred&&available.some(x=>x.doctor.id===preferred))docSelect.value=String(preferred);
-  else docSelect.value=String(available[0].doctor.id);
-
-  if(note){
-    note.textContent=available.length===1
-      ? `${docName(available[0].doctor)} is available on ${fmtDate(date)}.`
-      : `${available.length} doctors have open slots on ${fmtDate(date)}. Choose the doctor you prefer.`;
-  }
-
-  loadTimeSlots();
 }
 
 export function openBookApptModal(apptId=null){
@@ -106,11 +105,7 @@ export function openBookApptModal(apptId=null){
     <div class="modal-body">
       <div id="book-msg"></div>
       <div id="dental-warn" class="alert alert-warning"></div>
-      <div class="alert alert-info show" style="font-size:.77rem">
-        📍 <strong>Clinic location:</strong> Ground Floor, Education Building, CTU Main Campus.<br>
-        🕗 <strong>Posted Medical Clinic hours:</strong> Mon–Fri 8:00 AM–5:00 PM; extended Mon–Fri 5:00 PM–9:00 PM; Sat 8:00 AM–9:00 PM; Sun 8:00 AM–5:00 PM.<br>
-        Select an appointment date first. CampusCare will then show only doctors with open slots on that day.
-      </div>
+      <p class="booking-steps">Choose a doctor → Pick an available date → Select a time</p>
 
       <div class="form-row">
         <div class="form-group ${isPt?'full':''}">
@@ -145,6 +140,14 @@ export function openBookApptModal(apptId=null){
       </div>
 
       <div class="form-group full">
+        <label>Available Doctor <span class="required">*</span></label>
+        <select id="b-doc" ${bindAction('change',(event,element)=>{onBookingDoctorChange()})}>
+          <option value="">Choose a doctor</option>
+        </select>
+        <div class="booking-doctor-note" id="b-doctor-note">Choose your doctor first to see available dates.</div>
+      </div>
+
+      <div class="form-group full">
         <label>Selected Date <span class="required">*</span></label>
         <input type="hidden" id="b-date" value="${selectedDate}">
         <div class="modern-date-btn" style="cursor:default;justify-content:flex-start">
@@ -158,13 +161,6 @@ export function openBookApptModal(apptId=null){
         <div class="booking-calendar-wrap"><div id="booking-modern-calendar"></div></div>
       </div>
 
-      <div class="form-group full">
-        <label>Available Doctor <span class="required">*</span></label>
-        <select id="b-doc" ${bindAction('change',(event,element)=>{loadTimeSlots()})} disabled>
-          <option value="">Select an appointment date first</option>
-        </select>
-        <div class="booking-doctor-note" id="b-doctor-note">Choose a date to see doctors who are actually available that day.</div>
-      </div>
 
       <div class="form-group">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
@@ -182,47 +178,28 @@ export function openBookApptModal(apptId=null){
     </div>
     <div class="modal-footer">
       <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
-      <button class="btn btn-primary" ${bindAction('click',(event,element)=>{saveAppt((apptId||'null'))})}>Confirm Booking</button>
+      <button class="btn btn-primary" ${bindAction('click',(event,element)=>{saveAppt(apptId)})}>Confirm Booking</button>
     </div>
   </div>`);
 
-  initModernCalendar(
-    'booking-modern-calendar',
-    selectedDate,
-    appState.clinicInformation.TODAY,
-    'chooseBookingDate',
-    {allowEmptySelection:!selectedDate}
-  );
-
-  onClinicChange(editing?.doctorId||null);
-
-  if(editing){
-    const service=document.getElementById('b-service');
-    if(service&&Array.from(service.options).some(o=>o.value===editing.service||o.text===editing.service)){
-      service.value=editing.service;
-    }
-    refreshAvailableDoctorsForDate(editing.doctorId);
-    const time=document.getElementById('b-time');
-    if(time)time.value=editing.time||'';
-    loadTimeSlots();
-  }
+  // Populate the clinician selector before fetching the calendar for an existing reschedule.
+  void onClinicChange(editing?.doctorId||null,editing);
 
   checkDentalWarn();
 }
 
 export function chooseBookingDate(date,preferredDoctorId=null){
-  const input=document.getElementById('b-date');
-  const label=document.getElementById('b-date-label');
-  const time=document.getElementById('b-time');
-
-  if(input)input.value=date;
-  if(label)label.textContent=fmtDate(date);
-  if(time)time.value='';
-
-  refreshAvailableDoctorsForDate(preferredDoctorId);
+  const day=(appState.bookingForm.availabilityDays||[]).find(day=>day.date===date);
+  if(!day?.openSlots)return false;
+  const input=document.getElementById('b-date'),label=document.getElementById('b-date-label');
+  if(!input||!label)return false;
+  input.value=date;label.textContent=fmtDate(date);document.getElementById('b-time').value='';
+  const calendar=appState.calendar.modernCalendarState['booking-modern-calendar'];
+  if(calendar){calendar.selected=date;calendar.viewMonth=date.slice(0,7);renderModernCalendar('booking-modern-calendar');}
+  loadTimeSlots();return true;
 }
 
-export function onClinicChange(preferredDoctorId=null){
+export async function onClinicChange(preferredDoctorId=null,editing=null){
   const clinic=document.getElementById('b-clinic');
   const svc=document.getElementById('b-service');
   const doc=document.getElementById('b-doc');
@@ -238,7 +215,15 @@ export function onClinicChange(preferredDoctorId=null){
   if(svcs.includes(previousService))svc.value=previousService;
 
   checkDentalWarn();
-  refreshAvailableDoctorsForDate(preferredDoctorId);
+  const doctors=isDental?getDentalDoctors():getMedDoctors();
+  doc.innerHTML='<option value="">Choose a doctor</option>'+doctors.map(d=>`<option value="${d.id}">${escapeHtml(docName(d))} — ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('');
+  doc.disabled=!doctors.length;
+  if(preferredDoctorId&&doctors.some(d=>d.id===Number(preferredDoctorId)))doc.value=String(preferredDoctorId);
+  await onBookingDoctorChange();
+  if(editing){
+    if([...svc.options].some(o=>o.value===editing.service))svc.value=editing.service;
+    if(chooseBookingDate(editing.date))selectSlot(editing.time);
+  }
 }
 
 export function checkDentalWarn(){
@@ -319,12 +304,12 @@ export async function saveManagedDateSlots(docId,date){
 
     const draft=appState.bookingForm.bookingDraftForSlotManager;appState.bookingForm.bookingDraftForSlotManager=null;
     openBookApptModal();
-    setTimeout(()=>{
+    setTimeout(async()=>{
       if(!draft)return;
       const pt=document.getElementById('b-pt'),clinic=document.getElementById('b-clinic'),docEl=document.getElementById('b-doc'),reason=document.getElementById('b-reason');
       if(pt&&!pt.disabled)pt.value=draft.patientId;
-      if(clinic){clinic.value=draft.clinic;onClinicChange();}
-      chooseBookingDate(draft.date,Number(draft.doctorId));
+      if(clinic){clinic.value=draft.clinic;await onClinicChange(Number(draft.doctorId));}
+      chooseBookingDate(draft.date);
       const svc=document.getElementById('b-service');
       if(svc&&Array.from(svc.options).some(o=>o.value===draft.service||o.text===draft.service))svc.value=draft.service;
       if(reason)reason.value=draft.reason;
@@ -340,40 +325,25 @@ export function loadTimeSlots(){
   const date=(document.getElementById('b-date')||{}).value;
   const grid=document.getElementById('slot-grid');
   if(!grid)return;
-  if(!date){grid.innerHTML='<span class="text-muted" style="font-size:.78rem">Select an appointment date first.</span>';return;}
+  if(!date){grid.innerHTML='<span class="text-muted" style="font-size:.78rem">'+(docId?'Choose a highlighted date to see times.':'Choose your doctor first.')+'</span>';return;}
   if(!docId){grid.innerHTML='<span class="text-muted" style="font-size:.78rem">No doctor is available for the selected date and clinic.</span>';return;}
-  let doc=getUserById(docId); if(!doc)return;
-  doc=campusScheduleForDate(doc,date);
-  const leave=appState.data.DB.doctorLeaves.find(l=>l.doctorId===docId&&l.date===date);
-  if(leave){grid.innerHTML=`<span class="text-muted" style="font-size:.78rem">Dr. ${doc.lname} is on leave on ${fmtDate(date)}${leave.reason?' ('+escapeHtml(leave.reason)+')':''}. Please pick another date.</span>`;return;}
-  const dayName=dayOfWeek(date),workDays=doc.workDays||['Mon','Tue','Wed','Thu','Fri'];
-  if(!workDays.includes(dayName)){grid.innerHTML=`<span class="text-muted" style="font-size:.78rem">Dr. ${doc.lname} does not work on ${dayName}s.</span>`;return;}
-  const slots=appointmentSlotBaseTimes(doc);
-  const dailyFull=appointmentRecords().filter(a=>a.id!==Number(appState.bookingForm.activeBookingEditId)&&a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').length>=Number(doc.maxPatients||20);
-  const takenSlots=new Set(
-    appointmentRecords()
-      .filter(a=>
-        a.id!==Number(appState.bookingForm.activeBookingEditId) &&
-        a.doctorId===docId &&
-        a.date===date &&
-        a.status!=='Cancelled'
-      )
-      .map(a=>a.time)
-  );
-  const selectedTime=(document.getElementById('b-time')||{}).value;
-  grid.innerHTML=slots.map(t=>{
-    const taken=takenSlots.has(t),state=slotAvailabilityState(doc,date,t),disabled=taken||state.blocked||dailyFull;
-    const cls=taken?'booked':state.kind;
-    const label=taken?'Booked':dailyFull?'Daily limit reached':state.label;
-    return `<div class="slot ${cls} ${!disabled&&selectedTime===t?'selected':''}" ${bindAction('click',(event,element)=>{(disabled?'':'selectSlot(\''+t+'\',event)')})} title="${label}">${fmtTime(t)}<span class="slot-state">${label}</span></div>`;
-  }).join('');
+  const day=(appState.bookingForm.availabilityDays||[]).find(day=>day.date===date);
+  if(!day?.openSlots){grid.innerHTML='<p class="text-muted">No openings remain on this date. Choose another highlighted date.</p>';return;}
+  const selectedTime=document.getElementById('b-time')?.value;
+  // Native buttons provide pointer, keyboard, focus and disabled behavior with one actual function call.
+  grid.innerHTML=day.slots.map(slot=>`<button type="button" data-time="${slot.time}" class="slot ${slot.kind} ${slot.available&&selectedTime===slot.time?'selected':''}" ${slot.available?'':'disabled'} aria-pressed="${slot.available&&selectedTime===slot.time}" ${bindAction('click',()=>selectSlot(slot.time))} title="${escapeHtml(slot.label)}">${fmtTime(slot.time)}<span class="slot-state">${escapeHtml(slot.label)}</span></button>`).join('');
 }
 
-export function selectSlot(t,ev){
-  const input=document.getElementById('b-time');
-  if(input){input.value=t;}
-  document.querySelectorAll('.slot:not(.booked)').forEach(s=>s.classList.remove('selected'));
-  if(ev&&ev.currentTarget)ev.currentTarget.classList.add('selected');
+export function selectSlot(time){
+  const date=document.getElementById('b-date')?.value,day=(appState.bookingForm.availabilityDays||[]).find(day=>day.date===date);
+  const slot=day?.slots.find(slot=>slot.time===time);
+  if(!slot?.available)return false;
+  const doc=getUserById(Number(document.getElementById('b-doc')?.value));
+  if(!doc||slotAvailabilityState({...doc,...day?.schedule},date,time).blocked)return false;
+  document.getElementById('b-time').value=time;
+  // Keep keyboard focus on the chosen button instead of replacing the slot grid.
+  document.querySelectorAll('#slot-grid button.slot').forEach(button=>{const selected=!button.disabled&&button.dataset.time===time;button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));});
+  return true;
 }
 
 export async function saveAppt(editId){
@@ -397,9 +367,10 @@ export async function saveAppt(editId){
     showAlert(msg,'Please select a real CampusCare patient and doctor.');return;
   }
 
-  const bookingError=validateCampusBooking(doc,pt,date,time,editId,clinic);
+  const selectedDay=(appState.bookingForm.availabilityDays||[]).find(day=>day.date===date);
+  const bookingError=validateCampusBooking(doc,pt,date,time,editId,clinic,selectedDay?.schedule);
   if(bookingError){showAlert(msg,bookingError);return;}
-  const slotState=doc?slotAvailabilityState(doc,date,time):null;
+  const slotState=doc?slotAvailabilityState({...doc,...selectedDay?.schedule},date,time):null;
   if(slotState&&slotState.blocked){showAlert(msg,`This slot is unavailable (${slotState.label}). Please choose another time.`);loadTimeSlots();return;}
 
   if(clinic==='Dental Clinic'&&checkDentalQuota(ptId,editId)){

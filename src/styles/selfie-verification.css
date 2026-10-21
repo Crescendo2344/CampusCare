@@ -81,3 +81,7 @@
 .selfie-modal .selfie-stage{width:min(100%,calc(49dvh * var(--camera-aspect,1.333)));max-height:none;margin-inline:auto}
 .selfie-modal .modal-footer{position:sticky;bottom:0;background:var(--glass-surface-strong);z-index:3}
 .selfie-feedback{padding:.6rem .3rem .2rem}
+
+/* Bound the oval by camera height as well as width, particularly for wide desktop webcams. */
+.selfie-guide-square{width:var(--face-guide-width,28%);top:43%;height:auto;aspect-ratio:.76}
+.selfie-modal .modal-footer{position:static;background:var(--glass-surface-strong)}

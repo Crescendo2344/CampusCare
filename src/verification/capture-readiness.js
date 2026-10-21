@@ -1,5 +1,5 @@
 // Smooth noisy camera checks without letting an old good frame remain usable indefinitely.
-export function createCaptureReadiness({settleMs=350,graceMs=1800,messageMs=650}={}){
+export function createCaptureReadiness({settleMs=250,graceMs=2200,messageMs=650}={}){
   let firstGood=null,lastGood=null,pending='',pendingSince=0,shown=null;
   return {
     update(result,now){
