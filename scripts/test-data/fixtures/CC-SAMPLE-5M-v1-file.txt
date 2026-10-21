@@ -1,0 +1,2 @@
+SAMPLE FILE — CC-SAMPLE-5M-v1
+Fictional attachment for testing filenames, downloads and forwarding.
