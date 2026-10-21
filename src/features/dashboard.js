@@ -1,4 +1,5 @@
 // dashboard: imported feature APIs; state belongs to explicit application namespaces.
+import {metricSeries} from '../domain/dashboard-metrics.js';
 import {state as appState} from '../app/state.js';
 import {dashboardAttentionItem,dashboardChartControlHtml,dashboardControlsHtml,dashboardInRange,dashboardMobileQuickLinks,dashboardRangeCounts,dashboardRangeLabel,dashboardStatCard,dashboardTrendSvg} from './dashboardChartHelpers.js';
 import {appointmentRecords} from './appointmentService.js';
@@ -19,8 +20,11 @@ export function renderDashboard(){
   const rangeLabel=dashboardRangeLabel();
   const allToday=appointmentRecords().filter(a=>a.date===today&&a.status!=='Cancelled');
   const allRange=appointmentRecords().filter(a=>dashboardInRange(a.date)&&a.status!=='Cancelled');
-  const globalTrend=dashboardRangeCounts(()=>true);
+  const globalTrend=dashboardRangeCounts(a=>a.status!=='Cancelled');
   const globalVals=globalTrend.map(p=>p.value);
+  const series=(rows,label,date=r=>r.date,extra={})=>metricSeries(globalTrend,rows,{label,date,from:appState.dashboardChartHelpers.dashboardDateFrom,to:today,...extra});
+  // Current queue cohorts have dated intake events, but no invented historical status changes.
+  const snapshot={values:[],label:'Current snapshot · no stock history plotted'};
   const lowStock=getLowStock();
   const pendingUsers=appState.data.DB.users.filter(u=>u.status==='Pending');
   const pendingCerts=(appState.data.DB.certRequests||[]).filter(r=>r.status==='Pending');
@@ -38,7 +42,7 @@ export function renderDashboard(){
     const rangeMine=mine.filter(a=>dashboardInRange(a.date)&&a.status!=='Cancelled');
     const reminders=appState.data.DB.medReminders.filter(r=>r.patientId===pt.id&&r.status==='active'&&r.endDate>=today);
     const dental=mine.filter(a=>a.clinic==='Dental Clinic'&&a.status!=='Cancelled'&&getSemester(a.date)===currentSemester());
-    const myTrend=dashboardRangeCounts(a=>a.patientId===pt.id);
+    const myTrend=dashboardRangeCounts(a=>a.patientId===pt.id&&a.status!=='Cancelled');
     const myVals=myTrend.map(p=>p.value);
     const myCerts=(appState.data.DB.certRequests||[]).filter(r=>r.patientId===pt.id);
     let attention='';
@@ -51,10 +55,10 @@ export function renderDashboard(){
     c.innerHTML=`<div class="dashboard-a">
       <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Here is your personal CampusCare health overview.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap">${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
-        ${dashboardStatCard('Upcoming appointments',upcoming.length,upcoming[0]?`Next: <strong>${fmtDate(upcoming[0].date)}</strong>`:'Nothing scheduled',myVals,'📅')}
+        ${dashboardStatCard('Upcoming appointments',upcoming.length,upcoming[0]?`Next: <strong>${fmtDate(upcoming[0].date)}</strong>`:'Nothing scheduled',series(upcoming,'Upcoming appointment dates in range'),'📅')}
         ${dashboardStatCard('Visits in range',rangeMine.length,`${rangeMine.filter(a=>a.status==='Completed').length} completed · ${rangeLabel}`,myVals,'✓')}
-        ${dashboardStatCard('Dental visits',`${dental.length}/${appState.data.DB.settings.dentalLimitPerSemester}`,'Used this semester',myVals,'🦷',dental.length>=appState.data.DB.settings.dentalLimitPerSemester?'attention':'')}
-        ${dashboardStatCard('Active reminders',reminders.length,unreadMessages?`<strong>${unreadMessages}</strong> unread chat message${unreadMessages>1?'s':''}`:'Medication & follow-up reminders',myVals,'💊',reminders.length?'attention':'')}
+        ${dashboardStatCard('Dental visits',`${dental.length}/${appState.data.DB.settings.dentalLimitPerSemester}`,'Used this semester',series(dental,'Dental appointment dates in range'),'🦷',dental.length>=appState.data.DB.settings.dentalLimitPerSemester?'attention':'')}
+        ${dashboardStatCard('Active reminders',reminders.length,unreadMessages?`<strong>${unreadMessages}</strong> unread chat message${unreadMessages>1?'s':''}`:'Medication & follow-up reminders',series(reminders,'Reminder start dates in range',r=>r.startDate),'💊',reminders.length?'attention':'')}
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
@@ -74,7 +78,7 @@ export function renderDashboard(){
     const completed=mine.filter(a=>a.status==='Completed');
     const scheduled=mine.filter(a=>a.status==='Scheduled'&&a.date>=today);
     const uniquePatients=new Set(mine.map(a=>a.patientId)).size;
-    const trend=dashboardRangeCounts(a=>a.doctorId===appState.auth.currentUser.id);
+    const trend=dashboardRangeCounts(a=>a.doctorId===appState.auth.currentUser.id&&a.status!=='Cancelled');
     const vals=trend.map(p=>p.value);
     const next=todayMine.find(a=>a.status==='Scheduled');
     let attention='';
@@ -87,9 +91,9 @@ export function renderDashboard(){
       <div class="dashboard-a-head"><div><h3>${greeting}, Dr. ${escapeHtml(appState.auth.currentUser.lname)}.</h3><p>Your patient load and clinic activity at a glance.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-sm" ${bindAction('click',(event,element)=>{navTo('schedule')})}>Full Schedule</button>${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
         ${dashboardStatCard('Appointments in range',rangeMine.length,`${rangeMine.filter(a=>a.status==='Completed').length} completed · ${rangeLabel}`,vals,'🩺')}
-        ${dashboardStatCard('Upcoming',scheduled.length,'Scheduled from today onward',vals,'📅',scheduled.length>8?'attention':'')}
-        ${dashboardStatCard('Total patients',uniquePatients,'Unique patients assigned to you',vals,'👥')}
-        ${dashboardStatCard('Completed visits',completed.length,unreadMessages?`<strong>${unreadMessages}</strong> unread messages`:'All recorded consultations',vals,'✓')}
+        ${dashboardStatCard('Upcoming',scheduled.length,'Scheduled from today onward',series(scheduled,'Scheduled appointment dates in range'),'📅',scheduled.length>8?'attention':'')}
+        ${dashboardStatCard('Total patients',uniquePatients,'Unique patients assigned to you',series(mine,'Cumulative patients assigned',r=>r.date,{cumulative:true,unique:r=>r.patientId}),'👥')}
+        ${dashboardStatCard('Completed visits',completed.length,unreadMessages?`<strong>${unreadMessages}</strong> unread messages`:'All recorded consultations',series(completed,'Completed visits by date'),'✓')}
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
@@ -114,9 +118,9 @@ export function renderDashboard(){
       <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Monitor clinic flow and operational tasks for the selected date.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{navTo('appointments')})}>Manage Appointments</button>${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
         ${dashboardStatCard('Appointments in range',allRange.length,`<strong>${todayCompleted}</strong> completed · ${rangeLabel}`,globalVals,'📅')}
-        ${dashboardStatCard('Scheduled',scheduled.length,'Appointments still on the schedule',globalVals,'🕐')}
-        ${dashboardStatCard('Certificate requests',pendingCerts.length,'Pending medical certificates',globalVals,'📄',pendingCerts.length?'attention':'')}
-        ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory needs review':'Inventory levels healthy',globalVals,'⚠',lowStock.length?'critical':'')}
+        ${dashboardStatCard('Scheduled',scheduled.length,'Appointments still on the schedule',series(scheduled,'Scheduled appointment dates in range'),'🕐')}
+        ${dashboardStatCard('Certificate requests',pendingCerts.length,'Pending medical certificates',series(pendingCerts,'Pending requests received in range',r=>r.requestedAt),'📄',pendingCerts.length?'attention':'')}
+        ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory needs review':'Inventory levels healthy',snapshot,'⚠',lowStock.length?'critical':'')}
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
@@ -143,10 +147,10 @@ export function renderDashboard(){
   c.innerHTML=`<div class="dashboard-a">
     <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>CampusCare clinic activity, priorities, and service load.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-sm" ${bindAction('click',(event,element)=>{navTo('reports')})}>Open Reports & Analytics</button>${dashboardControlsHtml()}</div></div>
     <div class="dashboard-a-grid">
-      ${dashboardStatCard('Active patients',activePatients,'Registered non-archived patients',globalVals,'👥')}
+      ${dashboardStatCard('Active patients',activePatients,'Registered non-archived patients',series((appState.auth.currentUser?.role==='Administrator'?appState.data.DB.patients.filter(p=>p._realSupabase):appState.data.DB.patients).filter(p=>!p.archived),'Current patient cohort · registered by date',r=>r.createdAt,{cumulative:true}),'👥')}
       ${dashboardStatCard('Appointments in range',allRange.length,`<strong>${completedToday}</strong> completed · ${rangeLabel}`,globalVals,'📅')}
-      ${dashboardStatCard('Pending approvals',pendingUsers.length,pendingUsers.length?'Registration review required':'No registrations waiting',globalVals,'⏳',pendingUsers.length?'attention':'')}
-      ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory action required':'Inventory levels healthy',globalVals,'⚠',lowStock.length?'critical':'')}
+      ${dashboardStatCard('Pending approvals',pendingUsers.length,pendingUsers.length?'Registration review required':'No registrations waiting',series(pendingUsers,'Pending registrations received in range',r=>r.createdAt),'⏳',pendingUsers.length?'attention':'')}
+      ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory action required':'Inventory levels healthy',snapshot,'⚠',lowStock.length?'critical':'')}
     </div>
     ${dashboardMobileQuickLinks(role)}
     <div class="dashboard-a-main">

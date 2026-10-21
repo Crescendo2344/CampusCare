@@ -1,27 +1,23 @@
 // Position thresholds describe this document-holding frame, not biometric identity or liveness.
-export function assessSelfieFrame({faces=[],width,height,brightness=null,sharpness=null,documentVisible=false}){
+export function assessSelfieFrame({faces=[],width,height,brightness=null,sharpness=null,documentVisible=false,documentSharpness=null}){
   const result=(code,message,ready=false)=>({code,message,ready});
   if(!width||!height)return result('waiting','Starting camera…');
   const sorted=faces.filter(face=>face.width>0&&face.height>0).sort((a,b)=>b.width*b.height-a.width*a.height);
-  if(!sorted.length)return result('no-face','Position your face inside the square');
+  if(!sorted.length)return result('no-face','Position your face inside the face guide');
   const face=sorted[0],area=face.width*face.height;
   // Ignore a small printed ID portrait; another similarly sized person still needs to leave the frame.
   if(sorted.slice(1).some(other=>other.width*other.height>area*.4))return result('multiple','Only one person should be in the frame');
   const w=face.width/width,h=face.height/height,x=(face.x+face.width/2)/width,y=(face.y+face.height/2)/height;
   // Leave room beside the face for the held ID on landscape and portrait cameras.
-  if(w<.16||h<.24)return result('far','Move closer to the camera');
-  if(w>.58||h>.62)return result('close','Move back a little');
+  if(w<.12||h<.18)return result('far','Move closer to the camera');
+  if(w>.72||h>.78)return result('close','Move back a little');
   if(face.x<width*.015||face.y<height*.015||face.x+face.width>width*.985||face.y+face.height>height*.985)return result('cropped','Keep your whole face inside the frame');
-  if(Math.abs(x-.5)>.12||Math.abs(y-.35)>.14)return result('center','Center your face inside the square');
-  if(brightness!==null&&brightness<48)return result('dark','Move to brighter, even lighting');
-  if(brightness!==null&&brightness>225)return result('bright','Reduce strong light on your face');
-  if(sharpness!==null&&sharpness<18)return result('blur','Hold still and clean the camera lens');
-  if(face.keypoints?.length>=3){
-    const [a,b,nose]=face.keypoints,eyeDistance=Math.abs(a.x-b.x);
-    if(eyeDistance&&Math.abs(a.y-b.y)/eyeDistance>.28)return result('tilt','Keep your head upright');
-    if(eyeDistance&&Math.abs(nose.x-(a.x+b.x)/2)/eyeDistance>.32)return result('forward','Look straight at the camera');
-  }
+  if(Math.abs(x-.5)>.32||Math.abs(y-.48)>.32)return result('center','Center your face inside the face guide');
+  if(brightness!==null&&brightness<32)return result('dark','Move to brighter, even lighting');
+  if(brightness!==null&&brightness>240)return result('bright','Reduce strong light on your face');
+  if(sharpness!==null&&sharpness<7)return result('blur','Hold still and clean the camera lens');
   if(!documentVisible)return result('document','Hold the front of your ID beside your face, with all corners visible');
+  if(documentSharpness!==null&&documentSharpness<4)return result('document-blur','Hold your ID still so its details are visible');
   return result('ready','Good position — keep your document visible',true);
 }
 
