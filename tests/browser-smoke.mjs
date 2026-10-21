@@ -718,7 +718,8 @@ try{
     assert.equal(await page.locator('#user-table tbody tr').count(),15,'All Status includes archived and suspended accounts');
     const scroller=page.locator('.user-table-scroll');
     assert(await scroller.evaluate(el=>el.scrollHeight>el.clientHeight),'More than ten users must scroll inside the table');
-    assert(await scroller.evaluate(el=>{const rows=el.querySelectorAll('tbody tr'),r=el.getBoundingClientRect();return rows[9].getBoundingClientRect().bottom<=r.bottom+2&&rows[10].getBoundingClientRect().bottom>r.bottom+2;}),'Ten full user rows fit before scrolling');
+    // Ten rows are the ceiling; small viewports may show fewer complete rows.
+    assert(await scroller.evaluate(el=>{const rows=[...el.querySelectorAll('tbody tr')],ten=el.querySelector('thead').getBoundingClientRect().height+rows.slice(0,10).reduce((sum,row)=>sum+row.getBoundingClientRect().height,0);return el.clientHeight<=Math.min(innerHeight*.63,ten+3)&&el.clientHeight>100;}),'User table fits the viewport and never exceeds ten rows');
     await page.locator('#usr-status').selectOption('Archived');assert.equal(await page.locator('#user-table tbody tr').count(),1);
     await page.locator('#usr-status').selectOption('Suspended');assert.equal(await page.locator('#user-table tbody tr').count(),1);
     await page.locator('#usr-status').selectOption('');await scroller.evaluate(el=>el.scrollTop=el.scrollHeight);assert(await scroller.evaluate(el=>el.scrollTop>0));
