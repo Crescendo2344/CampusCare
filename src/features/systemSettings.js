@@ -16,10 +16,11 @@ export async function syncRealSystemSettings(){
   return createFeatureSyncService({getState:()=>appState,callbacks:{settingsAction}}).syncRealSystemSettings();
 }
 
-export async function saveRealSystemSettings(){
-  const s=appState.data.DB.settings;
+export async function saveRealSystemSettings(s=appState.data.DB.settings,confirmed=false){
   const result=await settingsAction({
     action:'update',
+    critical_confirmation:confirmed,
+    academic_year:s.academicYear,
     clinic_name:s.clinicName,
     address:s.address,
     contact_email:s.contactEmail,

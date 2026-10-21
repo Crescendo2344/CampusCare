@@ -13,8 +13,8 @@ const corsHeaders = {
 };
 const json=(body:unknown,status=200,extra:Record<string,string>={})=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json","Cache-Control":"no-store",...extra}});
 // Signup confirmations return to the deployed login flow.
-// Re-enable confirmation for future registrations by setting this server secret to true.
-const REQUIRE_EMAIL_CONFIRMATION=Deno.env.get("CAMPUSCARE_REQUIRE_EMAIL_CONFIRMATION")==="true";
+// Every public registration must prove ownership of its email before signing in.
+const REQUIRE_EMAIL_CONFIRMATION=true;
 const APP_CONFIRM_URL="https://campuscare-brown-two.vercel.app/?auth=confirmed";
 
 // Only the public site key is returned to browsers. A half-configured widget fails closed.
@@ -158,14 +158,12 @@ Deno.serve(async(req:Request)=>{
       if(existingUsername?.length) return json({error:"This username is already taken."},409);
     }
 
-    // The temporary bypass sends no signup email. Clinic approval is still enforced by the profile status.
-    const {data:signup,error:signupError}=REQUIRE_EMAIL_CONFIRMATION
-      ? await publicClient.auth.signUp({email,password,options:{data:metadata,emailRedirectTo:APP_CONFIRM_URL}})
-      : await adminClient.auth.admin.createUser({email,password,email_confirm:true,user_metadata:metadata,app_metadata:{email_verification_skipped:true}});
+    // Direct Auth signups stay disabled: only this CAPTCHA-checked endpoint can register.
+    // Creating an unconfirmed identity does not grant login access.
+    const {data:signup,error:signupError}=await adminClient.auth.admin.createUser({email,password,email_confirm:false,user_metadata:metadata});
     if(signupError)return json({error:signupError.message},400);
     const uid=signup.user?.id;
     if(!uid)return json({error:"Registration account could not be created."},500);
-    if(REQUIRE_EMAIL_CONFIRMATION&&signup.user?.identities?.length===0)return json({error:"This email address is already registered."},409);
     cleanupId=uid;
 
     const ext=(file:File)=>{
@@ -212,12 +210,21 @@ Deno.serve(async(req:Request)=>{
       if(consentError)throw new Error("Privacy consent could not be saved. Please try again.");
     }
 
+    // The standard resend API sends a confirmation even with public signups disabled.
+    // It retains provider throttling and expiring, single-use verification tokens.
+    const {error:confirmationError}=await publicClient.auth.resend({type:"signup",email,options:{emailRedirectTo:APP_CONFIRM_URL}});
+    if(confirmationError)throw new Error("Verification email could not be sent. Please try registering again shortly.");
     cleanupId=null;
     return json({ok:true,user_id:uid,email_confirmation_required:REQUIRE_EMAIL_CONFIRMATION});
   }catch(e){
     // Do not leave an unusable account or private uploads after a partial registration failure.
     if(cleanupId&&adminClient){
       if(uploadedPaths.length)await adminClient.storage.from("campuscare-verification").remove(uploadedPaths);
+      const {data:failedProfile}=await adminClient.from("users").select("user_id").eq("auth_user_id",cleanupId).maybeSingle();
+      if(failedProfile?.user_id){
+        for(const table of ["notifications","privacy_consents","email_outbox","patients"])await adminClient.from(table).delete().eq("user_id",failedProfile.user_id);
+        await adminClient.from("users").delete().eq("auth_user_id",cleanupId);
+      }
       await adminClient.auth.admin.deleteUser(cleanupId);
     }
     return json({error:e instanceof Error?e.message:"Registration failed."},500);

@@ -57,8 +57,10 @@ export async function doLogin(){
     }
 
     const {data,error}=await appState.supabaseClient.supabaseClient.auth.signInWithPassword({email,password});
-    if(error) throw error;
+    if(error){if(error.code==='email_not_confirmed'||/email not confirmed/i.test(error.message||''))throw new Error('Verify your email before logging in. Check your inbox and spam folder, or use Resend verification email.');throw error;}
 
+    // Also protect the UI if an Auth configuration is accidentally changed to allow unconfirmed sessions.
+    if(!data.user?.email_confirmed_at){await appState.supabaseClient.supabaseClient.auth.signOut();throw new Error('Verify your email before logging in. Use Resend verification email if your link has expired.');}
     const {data:profile,error:profileError}=await appState.supabaseClient.supabaseClient
       .from('users').select('*').eq('auth_user_id',data.user.id).single();
     if(profileError||!profile){

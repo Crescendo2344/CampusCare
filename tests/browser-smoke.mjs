@@ -323,10 +323,10 @@ try{
     await page.evaluate(()=>{window.__fixtureCameraTracks=window.__fixtureApp.state.camera._cameraStream.getTracks();document.getElementById('active-modal').click();});
     await page.waitForFunction(()=>window.__fixtureCameraTracks.every(track=>track.readyState==='ended'));
     // A denied permission offers browser guidance without exposing a selfie upload fallback.
-    await page.evaluate(()=>{window.__fixtureGetUserMedia=navigator.mediaDevices.getUserMedia;navigator.mediaDevices.getUserMedia=async()=>{throw new Error('Permission denied');};});
+    await page.evaluate(()=>{window.__fixtureGetUserMedia=navigator.mediaDevices.getUserMedia;navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException('Permission denied','NotAllowedError');};});
     await page.locator('#selfie-camera-button').click();
     await page.getByRole('button',{name:'Start Camera',exact:true}).click();
-    await page.getByText('Camera access is required. Allow camera permission, or open CampusCare in Chrome or Safari and try again.',{exact:true}).waitFor();
+    await page.getByText('Camera access was blocked. Allow camera access in this site’s settings. If you opened CampusCare inside Messenger or Facebook, open it in Safari or Chrome and retry.',{exact:true}).waitFor();
     await page.locator('#active-modal .modal-header .close-btn').click();
     await page.evaluate(()=>{navigator.mediaDevices.getUserMedia=window.__fixtureGetUserMedia;});
 
@@ -735,6 +735,23 @@ try{
     assert.equal((await downloaded).suggestedFilename(),'Student_College_Summary.csv');
   }
   if(role==='Administrator'){
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('settings'));
+    await page.locator('#set-school-year').waitFor();
+    assert.equal(await page.locator('.settings-danger-notice').count(),2);
+    await page.locator('#set-name').fill('Reviewed Fixture Clinic');
+    const before=requests.filter(r=>r.path.endsWith('/settings-actions')&&r.body?.action==='update').length;
+    await page.getByRole('button',{name:'Save Settings',exact:true}).click();
+    await page.getByRole('heading',{name:'Confirm Critical Clinic Changes',exact:true}).waitFor();
+    assert(await page.locator('#critical-settings-save').isDisabled());
+    assert.equal(requests.filter(r=>r.path.endsWith('/settings-actions')&&r.body?.action==='update').length,before);
+    await page.locator('#critical-settings-phrase').fill('UPDATE CLINIC');
+    await page.locator('#critical-settings-save').click();
+    await page.waitForFunction(()=>!document.getElementById('critical-settings-phrase'));
+    assert.equal(requests.filter(r=>r.path.endsWith('/settings-actions')&&r.body?.action==='update').at(-1).body.critical_confirmation,true);
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.data.DB.realBackupLogs=Array.from({length:6},(_,i)=>({id:i+1,type:'Daily',status:'Completed',startedAt:`2026-10-${String(21-i).padStart(2,'0')}T00:00:00Z`,fileSize:100}));features.serverBackups.renderBackupPanel();});
+    await page.waitForTimeout(100);
+    assert.equal(await page.locator('#backup-list .backup-day').count(),6);
+    assert(await page.locator('#backup-list').evaluate(el=>el.scrollHeight>el.clientHeight&&getComputedStyle(el).overflowY==='auto'));
     managedUsers.push({...profile,user_id:93,auth_user_id:'pending-auth',first_name:'Pending',last_name:'Applicant',username:'pending.applicant',email:'pending@example.test',role:'Patient',status:'Pending',verified:false});
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('users'));
     const pending=page.locator('#user-table tbody tr').filter({hasText:'Pending Applicant'}),active=()=>page.locator('#user-table tbody tr').filter({hasText:'Fixture Doctor'});
