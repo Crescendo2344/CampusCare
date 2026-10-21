@@ -70,3 +70,14 @@
 /* Preserve Cloudflare's horizontal layout and branding on narrow registration cards. */
 #registration-captcha-frame {width:100%;min-width:0;display:flex;justify-content:center;align-items:flex-start}
 #registration-captcha-widget {flex-shrink:0;max-width:none;transform-origin:top center}
+
+/* Separate fixed face and card targets leave room for both subjects on portrait and landscape cameras. */
+.selfie-guide-square{left:61%;top:44%;width:43%;height:auto;aspect-ratio:.76;border-radius:48%;box-shadow:none}
+.selfie-id-guide{position:absolute;left:5%;top:30%;width:24%;height:38%;border:2px dashed #8bd9f9;border-radius:10px;pointer-events:none}
+.selfie-id-guide span{position:absolute;top:-1.5em;left:0;color:#fff;font-size:.7rem;background:#102b3c;padding:2px 6px;border-radius:4px}
+.selfie-stage[data-guidance="ready"] .selfie-id-guide{border-color:#77efbd}
+.id-guide-rectangle{width:76%;height:74%;transition:border-color .3s}
+/* Keep the shutter accessible when browser chrome or the software keyboard reduces usable space. */
+.selfie-modal .selfie-stage{width:min(100%,calc(49dvh * var(--camera-aspect,1.333)));max-height:none;margin-inline:auto}
+.selfie-modal .modal-footer{position:sticky;bottom:0;background:var(--glass-surface-strong);z-index:3}
+.selfie-feedback{padding:.6rem .3rem .2rem}

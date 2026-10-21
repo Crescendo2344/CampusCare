@@ -7,15 +7,15 @@ const check=changes=>assessSelfieFrame({faces:[face],width:1000,height:800,brigh
 test('distance and frame-relative centering guide the person before capture',()=>{
  assert.equal(check({faces:[]}).code,'no-face');
  assert.equal(check({faces:[{...face,width:100,height:110}]}).code,'far');
- assert.equal(check({faces:[{...face,width:500,height:530}]}).code,'close');
+ assert.equal(check({faces:[{...face,width:800,height:630}]}).code,'close');
  assert.equal(check({faces:[{...face,x:0}]}).code,'cropped');
- assert.equal(check({faces:[{...face,x:600}]}).code,'center');
+ assert.equal(check({faces:[{...face,x:700}]}).code,'center');
  assert.equal(check({}).ready,true);
 });
-test('poor light, blur, and head alignment cannot produce ready feedback',()=>{
+test('severe light and blur defects block capture while natural head angles remain usable',()=>{
  assert.equal(check({brightness:25}).code,'dark');assert.equal(check({brightness:245}).code,'bright');assert.equal(check({sharpness:4}).code,'blur');
- assert.equal(check({faces:[{...face,keypoints:[{x:.45,y:.3},{x:.55,y:.4},{x:.5,y:.35}]}]}).code,'tilt');
- assert.equal(check({faces:[{...face,keypoints:[{x:.45,y:.3},{x:.55,y:.3},{x:.55,y:.35}]}]}).code,'forward');
+ assert.equal(check({faces:[{...face,keypoints:[{x:.45,y:.3},{x:.55,y:.4},{x:.5,y:.35}]}]}).ready,true);
+ assert.equal(check({faces:[{...face,keypoints:[{x:.45,y:.3},{x:.55,y:.3},{x:.55,y:.35}]}]}).ready,true);
 });
 test('a printed ID portrait does not count as another person, but two large faces do',()=>{
  assert.equal(check({faces:[{x:50,y:500,width:60,height:75},face]}).ready,true);
@@ -30,11 +30,18 @@ test('brightness and sharpness come from actual face pixels',()=>{
 });
 
 // A physically identical oval must accept a naturally larger frame-relative face on portrait cameras.
-test('portrait selfie framing follows the same square guide framing',()=>{
+test('portrait selfie framing follows the forgiving face guide framing',()=>{
  assert.equal(assessSelfieFrame({faces:[{x:120,y:65,width:240,height:300}],width:480,height:640,brightness:120,sharpness:80,documentVisible:true}).ready,true);
 });
 
 test('a good face alone cannot pass the document-holding selfie check',()=>{
  assert.equal(check({documentVisible:false}).code,'document');
  assert.equal(check({documentVisible:undefined}).ready,false);
+});
+
+// Both subjects need basic clarity, without demanding OCR-grade sharpness.
+test('a softly focused document is accepted but a featureless blur is not',()=>{
+ assert.equal(check({documentSharpness:6,sharpness:9}).ready,true);
+ assert.equal(check({documentSharpness:1}).code,'document-blur');
+ assert.equal(check({faces:[{...face,x:235,y:230,width:400,height:460}]}).ready,true);
 });

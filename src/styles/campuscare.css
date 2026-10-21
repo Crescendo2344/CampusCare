@@ -3046,3 +3046,14 @@ tbody tr:hover td{background:var(--overlay)}
   .public-achievement-card{grid-template-columns:40px 1fr}
   .public-achievement-year{grid-column:2;justify-self:start}
 }
+
+/* Data stays in a bounded, keyboard-accessible viewport; headings remain visible while rows scroll. */
+.data-table-scroll{overflow:auto!important;max-height:62vh;max-height:62dvh;scrollbar-gutter:stable;scrollbar-width:thin;overscroll-behavior:contain;min-width:0;max-width:100%;position:relative}
+.data-table-scroll thead{position:sticky;top:0;z-index:2;background:#e4edf7}
+.data-table-scroll th{background:#e4edf7}
+[data-theme="dark"] .data-table-scroll thead,[data-theme="dark"] .data-table-scroll th{background:#25333f}
+.data-table-scroll:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+@media print{.data-table-scroll{max-height:none!important;overflow:visible!important}.data-table-scroll thead{position:static}}
+
+/* Explain snapshot versus dated activity so similarly sized cards do not imply identical measures. */
+.das-trend-caption{font-size:.64rem;line-height:1.35;color:var(--ink-muted);margin-top:.3rem}

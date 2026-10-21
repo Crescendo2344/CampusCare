@@ -15,6 +15,11 @@ export function createSelfieAnalyzer(makeCanvas){
     const scale=320/width;frame.width=320;frame.height=Math.round(height*scale);frameContext.drawImage(source,0,0,frame.width,frame.height);
     const smallFace=face?{x:face.x*scale,y:face.y*scale,width:face.width*scale,height:face.height*scale}:null;
     const documentBox=findSelfieDocument(frameContext.getImageData(0,0,frame.width,frame.height).data,frame.width,frame.height,smallFace);
-    return {faces,width,height,documentVisible:Boolean(documentBox),...quality};
+    let documentSharpness=null;
+    if(documentBox){
+      const box=documentBox,pixels=frameContext.getImageData(box.x,box.y,box.width,box.height);
+      documentSharpness=faceImageQuality(pixels.data,pixels.width,pixels.height).sharpness;
+    }
+    return {faces,width,height,documentVisible:Boolean(documentBox),documentSharpness,...quality};
   };
 }

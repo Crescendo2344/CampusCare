@@ -15,11 +15,14 @@ import {bindAction} from '../dependencies.js';
 // ================================================================
 // Small inline sparkline used inside the Dashboard A stat cards.
 export function dashboardSparkline(values){
-  const vals=(values||[]).map(Number).filter(Number.isFinite);
-  if(!vals.length)return '';
+  // Each card supplies its own records and a visible explanation of what the mini graph measures.
+  const description=Array.isArray(values)?'Appointments by date':values?.label||'Current snapshot';
+  const vals=(Array.isArray(values)?values:values?.values||[]).map(Number).filter(Number.isFinite);
+  const caption=`<div class="das-trend-caption">${escapeHtml(description)}</div>`;
+  if(!vals.length)return caption;
   const w=180,h=26,p=2,min=Math.min(...vals),max=Math.max(...vals),span=(max-min)||1;
   const pts=vals.map((v,i)=>`${p+(i*(w-2*p)/Math.max(1,vals.length-1))},${h-p-((v-min)/span)*(h-2*p)}`).join(' ');
-  return `<div class="das-spark"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/></svg></div>`;
+  return `<div class="das-spark"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(description)}"><title>${escapeHtml(description)}</title><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/></svg></div>${caption}`;
 }
 
 // Dashboard filter state. A From/To range controls the dashboard and trend card.

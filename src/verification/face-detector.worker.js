@@ -7,7 +7,7 @@ self.onmessage=async({data})=>{
     try{
       analyze=createSelfieAnalyzer(()=>new OffscreenCanvas(1,1));
       const files=await FilesetResolver.forVisionTasks(data.origin+'/vision/1.1.1');
-      detector=await FaceDetector.createFromOptions(files,{baseOptions:{modelAssetPath:data.origin+'/models/blaze-face-short-range.tflite',delegate:'CPU'},runningMode:'VIDEO',minDetectionConfidence:.65});
+      detector=await FaceDetector.createFromOptions(files,{baseOptions:{modelAssetPath:data.origin+'/models/blaze-face-short-range.tflite',delegate:'CPU'},runningMode:'VIDEO',minDetectionConfidence:.5});
       self.postMessage({type:'ready'});
     }catch{self.postMessage({type:'unavailable'});}
     return;

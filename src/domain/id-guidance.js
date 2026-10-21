@@ -7,7 +7,7 @@ export function detectIdBoundary(pixels,width,height){
   for(let y=1;y<height-1;y++)for(let x=1;x<width-1;x++){
     const i=y*width+x,g=Math.min(255,Math.abs(gray[i+1]-gray[i-1])+Math.abs(gray[i+width]-gray[i-width]));edge[i]=g;sum+=g;
   }
-  const threshold=Math.max(22,sum/(width*height)*2.5);
+  const threshold=Math.max(14,sum/(width*height)*1.9);
   // Connect nearby edge fragments without joining unrelated text across the whole frame.
   for(let y=2;y<height-2;y++)for(let x=2;x<width-2;x++)if(edge[y*width+x]>threshold){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)mask[(y+dy)*width+x+dx]=1;}
   const queue=new Int32Array(width*height);let best=null,bestScore=0;
@@ -20,7 +20,7 @@ export function detectIdBoundary(pixels,width,height){
     if(w<width*.12||h<height*.12||ratio<.45||ratio>2.2)continue;
     const support=(horizontal,pos,from,to)=>{let hits=0;for(let n=from;n<=to;n++){let found=false;for(let d=-3;d<=3;d++){const x=horizontal?n:pos+d,y=horizontal?pos+d:n;if(x>=0&&y>=0&&x<width&&y<height&&edge[y*width+x]>threshold)found=true;}if(found)hits++;}return hits/Math.max(1,to-from+1);};
     const sides=[support(true,minY,minX,maxX),support(true,maxY,minX,maxX),support(false,minX,minY,maxY),support(false,maxX,minY,maxY)];
-    if(Math.min(...sides)<.3)continue;
+    if(Math.min(...sides)<.17)continue;
     const coverage=sides.reduce((a,b)=>a+b,0)/4,score=coverage*Math.sqrt(w*h/(width*height));
     if(score>bestScore){bestScore=score;best={x:minX,y:minY,width:w,height:h};}
   }

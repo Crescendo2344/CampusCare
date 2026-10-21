@@ -270,19 +270,20 @@ try{
     for(const ratio of ['4/3','3/4']){
       await page.locator('#selfie-stage').evaluate((stage,ratio)=>stage.style.aspectRatio=ratio,ratio);
       const shape=await page.locator('.selfie-guide-square').evaluate(oval=>{const r=oval.getBoundingClientRect();return r.width/r.height;});
-      assert(Math.abs(shape-1)<.02,'Selfie guide must stay square in landscape and portrait');
+      assert(Math.abs(shape-.76)<.03,'Face guide keeps a comfortable oval in either camera orientation');
+      assert.equal(await page.locator('.selfie-id-guide').count(),1,'ID has a separate fixed guide');
     }
     await page.locator('#selfie-stage').evaluate(stage=>stage.style.aspectRatio='4/3');
     if(mobile){
       await page.waitForFunction(()=>document.getElementById('selfie-stage')?.dataset.inference==='main');
-      await page.getByText('Position your face inside the square',{exact:true}).waitFor();
+      await page.getByText('Position your face inside the face guide',{exact:true}).waitFor();
       assert(await page.locator('#camera-capture-button').isDisabled());
       assert(await page.locator('#selfie-manual-button').isHidden(),'Compatibility checks must not allow an unchecked selfie');
       // Remaining registration scenarios use synthetic approved evidence, not a camera bypass.
       await page.evaluate(()=>{const canvas=document.getElementById('camera-canvas');canvas.width=320;canvas.height=240;window.__fixtureApp.state.camera.capturedSelfieDataUrl=canvas.toDataURL();document.getElementById('r-selfie-preview-wrap').innerHTML='<img alt="Synthetic test evidence" src="'+canvas.toDataURL()+'">';window.__fixtureApp.features.camera.stopCamera();window.__fixtureApp.features.modals.closeAllModals();});
     }else{
       await page.waitForFunction(()=>document.getElementById('selfie-stage')?.dataset.detector==='ready');
-      await page.getByText('Position your face inside the square',{exact:true}).waitFor();
+      await page.getByText('Position your face inside the face guide',{exact:true}).waitFor();
       // Actual fake-device color bars have no face; assert guidance before injecting known geometry.
       assert(await page.locator('#camera-capture-button').isDisabled());
       const geometry={x:234,y:70,width:172,height:196,keypoints:[{x:.45,y:.3},{x:.55,y:.3},{x:.5,y:.35}]};
@@ -291,7 +292,7 @@ try{
         await page.getByText(expected,{exact:true}).waitFor();
       };
       await feed({faces:[{...geometry,width:70,height:80}]},'Move closer to the camera');
-      await feed({faces:[{...geometry,width:330,height:330}]},'Move back a little');
+      await feed({faces:[{...geometry,width:470,height:400}]},'Move back a little');
       await feed({brightness:25},'Move to brighter, even lighting');
       await feed({documentVisible:false},'Hold the front of your ID beside your face, with all corners visible');
       assert(await page.locator('#camera-capture-button').isDisabled(),'Face without a held document must block capture');
@@ -364,21 +365,24 @@ try{
       };
     });
     await page.locator('#r-id-camera-button').click();
-    await page.getByText('Move the ID closer to the camera',{exact:true}).waitFor();
+    await page.getByText('ID visible — ready to capture',{exact:true}).waitFor();
     assert(await page.locator('#camera-capture-button').isEnabled(),'Main ID capture must allow distant or blurry frames');
     assert.equal(await page.locator('#selfie-manual-button').count(),0,'ID capture must not need a separate review action');
     await page.evaluate(()=>window.__fixtureIdPose='missing');
     await page.getByText('Place the ID inside the rectangle, with all four corners visible',{exact:true}).waitFor();
     assert(await page.locator('#camera-capture-button').isDisabled(),'An empty scene must not count as an ID');
-    for(const [pose,prompt]of [['close','Move the ID back a little'],['center','Center the ID inside the rectangle'],['dark','Improve the lighting on the ID'],['good','Good framing — keep the ID still']]){
-      await page.evaluate(pose=>window.__fixtureIdPose=pose,pose);await page.getByText(prompt,{exact:true}).waitFor();
+    // Framing advice must not reduce capture to a one-frame opportunity on a soft mobile camera.
+    for(const pose of ['close','center','good']){
+      await page.evaluate(pose=>window.__fixtureIdPose=pose,pose);
+      await page.getByText('ID visible — ready to capture',{exact:true}).waitFor();
+      assert(await page.locator('#camera-capture-button').isEnabled());
     }
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/guided-id-${mobile?'mobile':'desktop'}.png`,fullPage:true});
     await page.locator('#camera-capture-button').click();
     assert(await page.locator('#r-id-preview img[alt="ID back"]').isVisible());
     assert(await page.evaluate(()=>!window.__fixtureApp.state.camera._cameraStream));
     await page.locator('#r-id-camera-button').click();await page.evaluate(()=>window.__fixtureIdPose='far');
-    await page.getByText('Move the ID closer to the camera',{exact:true}).waitFor();
+    await page.getByText('ID visible — ready to capture',{exact:true}).waitFor();
     await page.locator('#camera-capture-button').click();assert(await page.locator('#r-id-preview img[alt="ID back"]').isVisible());
     await page.evaluate(()=>window.__fixtureIdPose='good');
     // A front retake advances to the flip step; canceling the back retake keeps the saved back.
@@ -616,6 +620,17 @@ try{
       state.data.DB.patients=[['Morning','Student','CCICT','Morning',false],['Evening','Student','CCICT','Evening',false],['Archived','Student','COE','Morning',true],['Unknown','Student','CCICT','',false],['Mixed','Student','CCICT','Mixed',false],['Personnel','Teaching Personnel','CCICT','Morning',false]].map(([fname,personType,college,classSession,archived],i)=>({id:200010+i,dbPatientId:10+i,fname,lname:'Fixture',personType,college,classSession,archived,age:20,idNo:'123450'+i,_realSupabase:true}));
       features.patientManagement.renderPatientTable();
     });
+    // More records must scroll in the patient panel without making a screen-tall page of rows.
+    await page.evaluate(()=>{
+      const body=document.querySelector('#pt-table tbody'),row=body.querySelector('tr');
+      for(let i=0;i<24;i++)body.append(row.cloneNode(true));
+    });
+    await page.waitForFunction(()=>{const wrap=document.querySelector('#pt-table .data-table-scroll');return wrap&&wrap.scrollHeight>wrap.clientHeight&&wrap.clientHeight<=innerHeight*.63;});
+    const patientScroll=page.locator('#pt-table .data-table-scroll');
+    assert.equal(await patientScroll.getAttribute('tabindex'),'0');
+    assert.equal(await patientScroll.locator('thead').evaluate(el=>getComputedStyle(el).position),'sticky');
+    await patientScroll.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+    assert(await patientScroll.evaluate(el=>el.scrollTop>0));
     await page.locator('#pt-session').selectOption('Morning');assert.equal(await page.locator('#pt-ptype').inputValue(),'Student');
     assert.equal(await page.locator('#pt-table tbody tr').count(),1);assert.match(await page.locator('#pt-table').innerText(),/Morning Fixture/);
     await page.locator('#pt-college').selectOption('COE');assert.equal(await page.locator('#pt-table tbody tr').count(),0);
@@ -703,7 +718,8 @@ try{
     assert.equal(await page.locator('#user-table tbody tr').count(),15,'All Status includes archived and suspended accounts');
     const scroller=page.locator('.user-table-scroll');
     assert(await scroller.evaluate(el=>el.scrollHeight>el.clientHeight),'More than ten users must scroll inside the table');
-    assert(await scroller.evaluate(el=>{const rows=el.querySelectorAll('tbody tr'),r=el.getBoundingClientRect();return rows[9].getBoundingClientRect().bottom<=r.bottom+2&&rows[10].getBoundingClientRect().bottom>r.bottom+2;}),'Ten full user rows fit before scrolling');
+    // Ten rows are the ceiling; small viewports may show fewer complete rows.
+    assert(await scroller.evaluate(el=>{const rows=[...el.querySelectorAll('tbody tr')],ten=el.querySelector('thead').getBoundingClientRect().height+rows.slice(0,10).reduce((sum,row)=>sum+row.getBoundingClientRect().height,0);return el.clientHeight<=Math.min(innerHeight*.63,ten+3)&&el.clientHeight>100;}),'User table fits the viewport and never exceeds ten rows');
     await page.locator('#usr-status').selectOption('Archived');assert.equal(await page.locator('#user-table tbody tr').count(),1);
     await page.locator('#usr-status').selectOption('Suspended');assert.equal(await page.locator('#user-table tbody tr').count(),1);
     await page.locator('#usr-status').selectOption('');await scroller.evaluate(el=>el.scrollTop=el.scrollHeight);assert(await scroller.evaluate(el=>el.scrollTop>0));
