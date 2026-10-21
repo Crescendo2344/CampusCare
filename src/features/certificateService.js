@@ -353,7 +353,7 @@ export async function renderCertRequests(filter=null){
 
   c.innerHTML=`<div class="card">
     <div class="card-header"><div><h3>Medical Certificate Requests</h3><div class="text-muted">${appState.auth.currentUser.role==='Doctor'?'Review the prepared document and add your signature.':appState.auth.currentUser.role==='Staff'?'Prepare the certificate document and send it to the assigned doctor.':'Prepare certificates and monitor doctor signatures.'}</div></div></div>
-    <div class="tabs">${tabs.map(t=>{
+    <div class="tabs certificate-status-tabs">${tabs.map(t=>{
       const count=tabCounts[t]||0;
       const badge=count?`<span class="tab-task-count ${t===actionableStatus?'attention':''}">${count>99?'99+':count}</span>`:'';
       return `<button class="tab ${t===filter?'active':''}" ${bindAction('click',(event,element)=>{renderCertRequests((String(t)))})}>${t==='all'?'All':t}${badge}</button>`;

@@ -187,6 +187,9 @@ w.currentUser=w.DB.users.find(u=>u.role==='Doctor');w.buildNav();w.navTo('dashbo
 w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-draft]'));w.captureCampusDraft('schedule');w.closeAllModals();w.openScheduleChangeRequest();await new Promise(r=>setTimeout(r,30));assert(w.document.querySelector('[data-campus-resume]'));w.restoreCampusDraft('schedule');assert.equal(w.document.querySelectorAll('.scr-day:checked').length,5);
 assert.equal(w.appointmentSlotBaseTimes({startTime:'08:00',endTime:'09:15',slotDuration:60}).join(','),'08:00');assert(w.validateSchedule({...w.canonicalSchedule(w.currentUser),slotDuration:0},w.clinicToday(),w.currentUser).includes('Slot duration'));
 w.closeAllModals();w.currentUser=w.DB.users.find(u=>u.role==='Administrator');w.buildNav();w.navTaskCounts={approvals:2};w.navTaskItems={approvals:['one','two']};w.navTaskSeen={};w.applyNavBadges();assert(w.document.querySelector('#nav-approvals .nav-badge'));assert.equal(w.unseenTaskCount('approvals'),2);
+// Viewing or acknowledging a workflow page cannot complete unresolved tasks.
+w.navTaskSeen={approvals:['one','two']};await w.acknowledgeNavAttention('approvals');assert.equal(w.document.querySelector('#nav-approvals .nav-badge').textContent,'2');
+w.navTaskCounts.approvals=0;w.navTaskItems.approvals=[];w.applyNavBadges();assert.equal(w.document.querySelector('#nav-approvals .nav-badge'),null);
 for(const user of w.DB.users.filter(x=>['Patient','Doctor','Staff','Administrator'].includes(x.role)).slice(0,6)){w.currentUser=user;w.currentPatient=w.DB.patients.find(p=>p.userId===user.id)||w.DB.patients[0];w.buildNav();w.navTo('dashboard');}
 assert.deepEqual(errors,[]);
 // Generated markup has callbacks in data attributes, with no HTML JavaScript handlers.

@@ -36,7 +36,7 @@ export function startSelfieGuidance({video,root,captureButton,manualButton,statu
     }catch{unavailable();}
   };
   // Fit the original camera aspect ratio within the visible modal without stretching either guide.
-  const fitFrame=()=>{if(video.videoWidth&&video.videoHeight){root.style.aspectRatio=video.videoWidth+'/'+video.videoHeight;root.style.setProperty('--camera-aspect',video.videoWidth/video.videoHeight);}};
+  const fitFrame=()=>{if(video.videoWidth&&video.videoHeight){root.style.aspectRatio=video.videoWidth+'/'+video.videoHeight;root.style.setProperty('--camera-aspect',video.videoWidth/video.videoHeight);root.style.setProperty('--face-guide-width',Math.min(34,60*video.videoHeight/video.videoWidth*.76)+'%');}};
   video.addEventListener('loadedmetadata',fitFrame);fitFrame();if(manualButton)manualButton.hidden=true;
   setStatus('loading','Preparing on-device camera guidance…');slow=setTimeout(fallback,12000);
   try{

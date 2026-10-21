@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {createCaptureReadiness} from '../src/verification/capture-readiness.js';
 const good={ready:true,code:'ready',message:'Ready'},missing={ready:false,code:'missing',message:'Show ID'};
 test('stable evidence survives brief jitter but expires after sustained absence',()=>{
- const gate=createCaptureReadiness();
+ const gate=createCaptureReadiness({settleMs:350,graceMs:1800});
  assert.equal(gate.update(missing,0).ready,false);
  assert.equal(gate.update(good,100).ready,false);
  assert.equal(gate.update(good,500).ready,true);
@@ -15,7 +15,7 @@ test('stable evidence survives brief jitter but expires after sustained absence'
  assert.equal(gate.update(good,2600).ready,false);
 });
 test('a single isolated positive frame cannot unlock capture',()=>{
- const gate=createCaptureReadiness();gate.update(good,0);gate.update(missing,200);
+ const gate=createCaptureReadiness({settleMs:350,graceMs:1800});gate.update(good,0);gate.update(missing,200);
  assert.equal(gate.canCapture(400),false);
  assert.equal(gate.update(good,500).ready,false);
 });

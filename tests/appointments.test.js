@@ -87,3 +87,13 @@ test('queries preserve both appointment sort keys and reject every table failure
   assert.deepEqual(queries[0].orders,[{column:'appointment_date',ascending:false},{column:'appointment_time',ascending:false}]);
   for(const failureTable of ['appointments','appointment_slot_overrides','doctor_leaves'])await assert.rejects(fixture({failureTable}).service.load(),/Query failed/);
 });
+
+// The availability endpoint uses the same authenticated transport without requesting patient records.
+test('availability carries doctor/range and the signed-in session to its dedicated endpoint',async()=>{
+ let sent;
+ const {service}=fixture({request:async(url,options)=>{sent={url,options};return {ok:true,json:async()=>({ok:true,days:[]})};}});
+ await service.availability({doctor_id:2,from:'2026-10-21',to:'2026-11-21'});
+ assert.equal(sent.url,'https://appointments.test/functions/v1/booking-availability');
+ assert.equal(sent.options.headers.Authorization,'Bearer test-session');
+ assert.equal(JSON.parse(sent.options.body).doctor_id,2);
+});

@@ -2,7 +2,7 @@
 import {state as appState} from '../app/state.js';
 import {appointmentRecords} from './appointmentService.js';
 import {dayOfWeek} from './inputValidation.js';
-import {appointmentSlotBaseTimes,onClinicChange,openBookApptModal,refreshAvailableDoctorsForDate,selectSlot,slotAvailabilityState} from './bookingForm.js';
+import {appointmentSlotBaseTimes,onClinicChange,openBookApptModal,refreshAvailableDoctorsForDate,chooseBookingDate,selectSlot,slotAvailabilityState} from './bookingForm.js';
 import {toast} from './theme.js';
 import {applyDueScheduleChanges,openScheduleChangeRequest} from './workflowRequests.js';
 import {getPatientById,getUserById} from './documentScanner.js';
@@ -20,8 +20,8 @@ export function validateSchedule(proposal,effectiveDate,doc,checkDuplicate=true)
     requests:appState.data.DB.scheduleChangeRequests||[],settings:appState.data.DB.settings
   });
 }
-export function validateCampusBooking(doc,pt,date,time,editId,clinic){
-  if(doc)doc=campusScheduleForDate(doc,date);
+export function validateCampusBooking(doc,pt,date,time,editId,clinic,scheduleOverride=null){
+  if(doc)doc=scheduleOverride?{...doc,...scheduleOverride}:campusScheduleForDate(doc,date);
   if(!doc||doc.status!=='Active'||!pt)return 'Choose an active doctor and valid patient.';
   if(appState.auth.currentUser.role==='Patient'&&pt.id!==appState.auth.currentPatient?.id)return 'You may book only for your own patient record.';
   if(date<clinicToday())return 'Cannot book a past clinic date.';
@@ -77,20 +77,20 @@ export function captureCampusDraft(kind){
 export function discardCampusDraft(kind,notify=true){
   try{const rows=readCampusSession('drafts',{});delete rows[kind];writeCampusSession('drafts',rows);if(notify){toast('Draft discarded.','success');document.querySelectorAll('[data-campus-resume]').forEach(el=>el.remove());}}catch(_){toast('Could not discard this draft.','warning');}
 }
-export function restoreCampusDraft(kind){
+export async function restoreCampusDraft(kind){
   const d=readCampusSession('drafts',{})[kind];if(!d)return;
   if(kind==='schedule'){if(appState.auth.currentUser.role!=='Doctor')return;openScheduleChangeRequest();}
   else openBookApptModal(d.editId);
   // Clinic/date/doctor selectors depend on each other, so restore in their normal order.
   for(const id of ['b-pt','b-clinic','b-date']){const el=document.getElementById(id);if(el&&d.fields[id])el.value=d.fields[id].value;}
-  if(kind==='booking'){onClinicChange();const el=document.getElementById('b-date');if(el&&d.fields['b-date'])el.value=d.fields['b-date'].value;refreshAvailableDoctorsForDate(Number(d.fields['b-doc']?.value));}
+  if(kind==='booking')await onClinicChange(Number(d.fields['b-doc']?.value));
   for(const [id,state] of Object.entries(d.fields)){
-    const el=document.getElementById(id);if(!el||['b-doc','b-time'].includes(id))continue;
+    const el=document.getElementById(id);if(!el||['b-doc','b-time','b-date'].includes(id))continue;
     if(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===state.value))continue;
     el.value=state.value;if(el.type==='checkbox')el.checked=state.checked;
   }
   if(kind==='schedule'){document.querySelectorAll('.scr-day').forEach(el=>el.checked=d.days.includes(el.value));updateSchedulePreview();}
-  else {const time=d.fields['b-time']?.value,doc=getUserById(Number(document.getElementById('b-doc')?.value)),date=document.getElementById('b-date')?.value,pt=getPatientById(Number(document.getElementById('b-pt')?.value));if(time&&!validateCampusBooking(doc,pt,date,time,d.editId,document.getElementById('b-clinic').value)&&!slotAvailabilityState(doc,date,time).blocked)selectSlot(time);}
+  else {chooseBookingDate(d.fields['b-date']?.value);const time=d.fields['b-time']?.value,doc=getUserById(Number(document.getElementById('b-doc')?.value)),date=document.getElementById('b-date')?.value,pt=getPatientById(Number(document.getElementById('b-pt')?.value)),day=(appState.bookingForm.availabilityDays||[]).find(day=>day.date===date);if(time&&!validateCampusBooking(doc,pt,date,time,d.editId,document.getElementById('b-clinic').value,day?.schedule)&&!slotAvailabilityState({...doc,...day?.schedule},date,time).blocked)selectSlot(time);}
   toast('Draft restored. Check availability and details before submitting.','info');
 }
 export function campusDraftControls(root){

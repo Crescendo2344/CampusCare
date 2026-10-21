@@ -1,10 +1,10 @@
 // Client and HTTP dependencies are injected; this module never updates UI or shared state.
 export function createAppointmentService({getClient,request,baseUrl,publishableKey}){
-  async function action(payload){
+  async function action(payload,endpoint='appointment-actions'){
     const {data:{session}}=await getClient().auth.getSession();
     if(!session)throw new Error('Your session has expired. Please log in again.');
 
-    const response=await request(`${baseUrl}/functions/v1/appointment-actions`,{
+    const response=await request(`${baseUrl}/functions/v1/${endpoint}`,{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
@@ -52,5 +52,5 @@ export function createAppointmentService({getClient,request,baseUrl,publishableK
 
     return {appointments:apptRes.data||[],overrides:overrideRes.data||[],leaves:leaveRes.data||[]};
   }
-  return {action,loadDoctorDirectory,load};
+  return {action,loadDoctorDirectory,load,availability:payload=>action(payload,'booking-availability')};
 }

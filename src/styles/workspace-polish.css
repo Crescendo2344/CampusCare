@@ -192,3 +192,22 @@
   .reports-workspace .report-table-scroll thead{position:static}
   #report-panel-builder>.card:first-child,.reports-workspace .btn,.reports-workspace #rpt-export-scope{display:none!important}
 }
+
+/* Status navigation wraps naturally; scrolling belongs to the records below it. */
+.certificate-status-tabs{flex-wrap:wrap;overflow:visible;gap:2px;align-items:center}
+.certificate-status-tabs .tab{margin-bottom:0;min-height:40px;display:inline-flex;align-items:center}
+/* An auth-page active link must keep the public navbar's contrast after sign-out. */
+#landing-navbar.auth-mode .landing-nav-links a,#landing-navbar.auth-mode .landing-nav-links a.active{color:#e6eff7;font-weight:600}
+#landing-navbar.auth-mode .landing-nav-links a:hover,#landing-navbar.auth-mode .landing-nav-links a:focus-visible{color:#fff}
+
+/* Doctor-first booking uses native interactive slots and clear available/unavailable dates. */
+.booking-steps{font-size:.8rem;color:var(--ink-muted);margin:0 0 1rem;line-height:1.5}
+#slot-grid button.slot{font:inherit;font-size:.85rem;color:var(--ink);text-align:center;min-height:52px}
+#slot-grid button.slot:not(:disabled){cursor:pointer}
+#slot-grid button.slot:disabled{cursor:not-allowed;opacity:.6}
+#slot-grid button.slot.selected{border-color:var(--primary);background:var(--info-bg);box-shadow:0 0 0 2px var(--primary)}
+#slot-grid button.slot:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+#booking-modern-calendar .modern-calendar-day.available{background:var(--info-bg);border:1px solid var(--primary);color:var(--primary-dark);font-weight:700}
+#booking-modern-calendar .modern-calendar-day.available.selected{background:var(--primary);color:#fff}
+#booking-modern-calendar .modern-calendar-day:disabled{background:var(--overlay);color:var(--ink-muted);opacity:.38;cursor:not-allowed}
+.booking-calendar-note{font-size:.75rem;color:var(--ink-muted);margin:.3rem 0 .6rem;line-height:1.4}
