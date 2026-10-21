@@ -93,12 +93,12 @@ export function renderBackupListHtml(){
     const bs=appState.data.DB.realBackupLogs||[];
     if(!bs.length)return '<div class="empty-state"><p>No server backup has been created yet.</p></div>';
 
-    return bs.map(b=>{
+    return groupBackupDays(bs.map(b=>{
       const completed=b.completedAt?new Date(b.completedAt).toLocaleString('en-PH'):'—';
       const started=b.startedAt?new Date(b.startedAt).toLocaleString('en-PH'):'—';
       const statusClass=b.status==='Completed'?'badge-success':b.status==='Failed'?'badge-danger':'badge-warning';
 
-      return `<div class="backup-row">
+      const html=`<div class="backup-row">
         <div style="min-width:0">
           <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap">
             <strong style="font-size:.82rem">${escapeHtml(b.type)}</strong>
@@ -112,13 +112,14 @@ export function renderBackupListHtml(){
           ${b.status==='Completed'?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{downloadServerBackup((b.id))})}>Download JSON</button>`:''}
         </div>
       </div>`;
-    }).join('');
+      return {day:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila'}).format(new Date(b.startedAt||b.completedAt)),html};
+    }));
   }
 
   // Demo/local fallback.
   const bs=getDailyBackups();
   if(!bs.length)return '<div class="empty-state"><p>No local backup snapshot yet.</p></div>';
-  return bs.map(b=>`<div class="backup-row">
+  return groupBackupDays(bs.map(b=>({day:b.day,html:`<div class="backup-row">
     <div><strong style="font-size:.8rem">${escapeHtml(b.day)}</strong>
       <div class="text-muted">${new Date(b.createdAt).toLocaleString('en-PH')}</div>
     </div>
@@ -126,12 +127,22 @@ export function renderBackupListHtml(){
       <button class="btn btn-xs" ${bindAction('click',(event,element)=>{downloadBackup((String(b.id)))})}>Download</button>
       <button class="btn btn-xs btn-warning" ${bindAction('click',(event,element)=>{restoreBackup((String(b.id)))})}>Restore</button>
     </div>
-  </div>`).join('');
+  </div>`})));
+}
+
+function groupBackupDays(rows){
+ const groups=new Map();for(const row of rows){if(!groups.has(row.day))groups.set(row.day,[]);groups.get(row.day).push(row.html);}
+ return [...groups].sort(([a],[b])=>b.localeCompare(a)).map(([day,html])=>`<section class="backup-day"><h4>${escapeHtml(day)}</h4>${html.join('')}</section>`).join('');
+}
+export function sizeBackupHistory(){
+ const list=document.getElementById('backup-list');if(!list)return;list.classList.add('backup-history-scroll');list.tabIndex=0;list.setAttribute('aria-label','Backup history — scroll for older days');
+ const days=[...list.querySelectorAll('.backup-day')];if(days.length>3)list.style.setProperty('--backup-limit',Math.ceil(days.slice(0,3).reduce((sum,day)=>sum+day.getBoundingClientRect().height,0))+'px');else list.style.removeProperty('--backup-limit');
 }
 
 export function renderBackupPanel(){
   const list=document.getElementById('backup-list');
   if(list)list.innerHTML=renderBackupListHtml();
+  requestAnimationFrame(sizeBackupHistory);
 
   const schedule=document.getElementById('backup-schedule-text');
   if(schedule){
@@ -148,5 +159,6 @@ export function renderBackupPanel(){
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
+  window.addEventListener('resize',sizeBackupHistory);
 
 }

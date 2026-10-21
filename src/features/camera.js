@@ -1,4 +1,5 @@
 // camera: imported feature APIs; state belongs to explicit application namespaces.
+import {requestCamera,cameraStartupMessage} from '../verification/camera-startup.js';
 import {state as appState} from '../app/state.js';
 import {toast} from './theme.js';
 import {closeAllModals,openModal} from './modals.js';
@@ -36,6 +37,7 @@ export async function openCamera(target){
   </div>`);
 }
 
+let cameraRequest=0;
 async function startCamera(target){
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
     toast(target==='selfie'?'A working camera is required for selfie verification. Open CampusCare in a browser with camera access.':'Your browser does not support camera capture. Please upload a photo instead.','error');
@@ -46,9 +48,10 @@ async function startCamera(target){
   try{
     // Preserve document detail for the verification selfie; ordinary avatar captures keep their own sizing.
     stopCamera();
+    const request=++cameraRequest;
     const requestedFrom=document.getElementById('active-modal');
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:isFrontFacing?'user':'environment',width:{ideal:1280},height:{ideal:960}},audio:false});
-    if(requestedFrom&&!requestedFrom.isConnected){stream.getTracks().forEach(track=>track.stop());return;}
+    const stream=await requestCamera(navigator.mediaDevices,isFrontFacing);
+    if(request!==cameraRequest||(requestedFrom&&!requestedFrom.isConnected)){stream.getTracks().forEach(track=>track.stop());return;}
     appState.camera._cameraStream=stream;
     openModal(`<div class="modal ${guided?'selfie-modal':'modal-sm'}">
       <div class="modal-header"><h3>${isId?'ID '+(target==='id-front'?'Front — Step 1 of 2':'Back — Step 2 of 2'):target==='selfie'?'Selfie Verification':target==='id'||target==='assisted-id'?'Photograph Your ID / COR':'Take a Photo'}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{stopCamera();closeAllModals()})}>✕</button></div>
@@ -65,6 +68,15 @@ async function startCamera(target){
     </div>`);
     const video=document.getElementById('camera-video');
     video.srcObject=stream;
+    // Mobile browsers may require explicit playback despite autoplay and camera permission.
+    video.muted=true;video.setAttribute('playsinline','');
+    try{await video.play();}
+    catch(error){
+      // Camera permission can succeed while mobile autoplay still needs a tap.
+      if(error?.name!=='NotAllowedError')throw error;
+      video.controls=true;
+      toast('Tap Play on the camera preview to start it. Camera permission is already allowed.','info');
+    }
     if(isId){
       const focus=cameraFocus(stream.getVideoTracks()[0]),button=document.getElementById('camera-refocus');
       button.hidden=!focus.supported;button.onclick=async()=>{button.disabled=true;await focus.refocus();button.disabled=false;};
@@ -77,11 +89,12 @@ async function startCamera(target){
     observer.observe(document.getElementById('modals'),{childList:true});
   }catch(e){
     stopCamera();
-    toast(target==='selfie'?'Camera access is required. Allow camera permission, or open CampusCare in Chrome or Safari and try again.':'Camera access was denied or is unavailable. Please upload a photo instead.','error');
+    toast(cameraStartupMessage(e),'error');
   }
 }
 
 export function stopCamera(){
+  cameraRequest++;
   appState.camera.selfieGuidance?.dispose();appState.camera.selfieGuidance=null;
   if(appState.camera._cameraStream){ appState.camera._cameraStream.getTracks().forEach(t=>t.stop()); appState.camera._cameraStream=null; }
 }

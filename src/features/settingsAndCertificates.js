@@ -1,9 +1,11 @@
 // settingsAndCertificates: imported feature APIs; state belongs to explicit application namespaces.
+import {academicYearFor,validateAcademicYear} from '../domain/academic-year.js';
+import {openModal,closeAllModals} from './modals.js';
 import {state as appState} from '../app/state.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {saveRealSystemSettings,syncRealSystemSettings} from './systemSettings.js';
-import {changeBackupRetention,renderBackupListHtml,renderBackupPanel,runRealBackupNow,syncRealBackupStatus} from './serverBackups.js';
+import {changeBackupRetention,renderBackupListHtml,renderBackupPanel,sizeBackupHistory,runRealBackupNow,syncRealBackupStatus} from './serverBackups.js';
 import {dispatchOperationalEmails,renderEmailDeliveryPanel,renderEmailQueueHtml,sendTestOperationalEmail,syncEmailDeliveryStatus} from './emailDelivery.js';
 import {openPrivacyNotice,syncPrivacyAdminSummary} from './loginLockout.js';
 import {escapeHtml} from './issueReports.js';
@@ -46,7 +48,7 @@ export async function renderSettings(){
   c.innerHTML=`
     <div class="grid-2">
       <div class="card">
-        <div class="card-header"><h3>Clinic Settings</h3></div>
+        <div class="card-header"><h3>Clinic Settings</h3></div><p class="settings-danger-notice">Critical settings: changes affect clinic information, visit limits and appointment reminders. Review every change before confirming.</p>
         <div id="set-msg"></div>
         <div class="form-group"><label>Clinic Name</label><input id="set-name" value="${escapeHtml(s.clinicName||'')}"></div>
         <div class="form-group"><label>Address</label><input id="set-addr" value="${escapeHtml(s.address||'')}"></div>
@@ -57,7 +59,7 @@ export async function renderSettings(){
         <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{saveSettings()})}>Save Settings</button>
       </div>
       <div class="card">
-        <div class="card-header"><h3>Semester Configuration</h3></div>
+        <div class="card-header"><h3>Semester Configuration</h3></div><p class="settings-danger-notice">Critical settings: changing semester boundaries changes dental visit quotas and semester reporting. Existing records are retained.</p><div class="form-group"><label for="set-school-year">School Year</label><select id="set-school-year">${Array.from({length:8},(_,i)=>Number(academicYearFor(s).slice(0,4))-2+i).map(year=>`<option value="${year}-${year+1}" ${academicYearFor(s)===`${year}-${year+1}`?'selected':''}>${year}–${year+1}</option>`).join('')}</select><p class="form-note">Use the actual school calendar: Semester 1 begins in the first year; Semester 2 ends in the following year.</p></div>
         <div class="form-group"><label>Semester 1 Start</label>${campusDateFieldHtml('set-s1s',s.semesterStart,'Semester 1 Start')}</div>
         <div class="form-group"><label>Semester 1 End</label>${campusDateFieldHtml('set-s1e',s.semesterEnd,'Semester 1 End')}</div>
         <div class="form-group"><label>Semester 2 Start</label>${campusDateFieldHtml('set-s2s',s.semester2Start,'Semester 2 Start')}</div>
@@ -195,38 +197,29 @@ export async function renderSettings(){
 
       <div id="backup-list">${renderBackupListHtml()}</div>
     </div>`;
+  requestAnimationFrame(sizeBackupHistory);
   if(appState.auth.currentUser?._realSupabase){
     renderEmailDeliveryPanel();
     renderBackupPanel();
   }
 }
 
+// A typed confirmation reviews captured values before any local or server settings are changed.
+export function confirmCriticalSettings(kind,candidate){
+ const phrase=kind==='clinic'?'UPDATE CLINIC':'UPDATE SEMESTER';
+ const keys=kind==='clinic'?['clinicName','address','contactEmail','contactPhone','dentalLimitPerSemester','appointmentReminderDays']:['semesterStart','semesterEnd','semester2Start','semester2End'];
+ const labels={clinicName:'Clinic',address:'Address',contactEmail:'Email',contactPhone:'Phone',dentalLimitPerSemester:'Dental visits per semester',appointmentReminderDays:'Reminder days',semesterStart:'Semester 1 start',semesterEnd:'Semester 1 end',semester2Start:'Semester 2 start',semester2End:'Semester 2 end'};
+ openModal(`<div class="modal"><div class="modal-header"><h3>Confirm Critical ${kind==='clinic'?'Clinic':'Semester'} Changes</h3><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div><div class="modal-body"><p class="settings-danger-notice">These changes apply across CampusCare. Confirm only after checking the values below.</p>${kind==='semester'?`<p><strong>School Year ${escapeHtml(candidate.academicYear)}</strong></p>`:''}<dl class="settings-change-review">${keys.filter(key=>candidate[key]!==appState.data.DB.settings[key]).map(key=>`<div><dt>${labels[key]}</dt><dd>${escapeHtml(String(appState.data.DB.settings[key]??'—'))} → <strong>${escapeHtml(String(candidate[key]))}</strong></dd></div>`).join('')}</dl><label for="critical-settings-phrase">Type <strong>${phrase}</strong> to confirm</label><input id="critical-settings-phrase" autocomplete="off" ${bindAction('input',(event,element)=>{document.getElementById('critical-settings-save').disabled=element.value.trim()!==phrase})}><p id="critical-settings-error" role="alert"></p></div><div class="modal-footer"><button id="critical-settings-save" class="btn btn-danger" disabled ${bindAction('click',async(event,element)=>{
+ if(document.getElementById('critical-settings-phrase')?.value.trim()!==phrase)return;
+ element.disabled=true;
+ try{if(appState.auth.currentUser?._realSupabase)await saveRealSystemSettings(candidate,true);else{Object.assign(appState.data.DB.settings,candidate);persistDB();}closeAllModals();toast('Settings updated.','success');}
+ catch(error){document.getElementById('critical-settings-error').textContent=error?.message||'Settings could not be saved.';element.disabled=false;}
+ })}>Confirm Changes</button></div></div>`);
+}
 export function saveSettings(){
-  showConfirmDialog({
-    title:'Save Clinic Settings',
-    message:'Save these clinic-wide settings and reminder rules?',
-    confirmLabel:'Save Settings',
-    onConfirm:async()=>{
-      const s=appState.data.DB.settings;
-      s.clinicName=document.getElementById('set-name').value.trim();
-      s.address=document.getElementById('set-addr').value.trim();
-      s.contactEmail=document.getElementById('set-email').value.trim();
-      s.contactPhone=document.getElementById('set-phone')?.value.trim()||appState.clinicInformation.CTU_CLINIC_INFO.phone;
-      s.dentalLimitPerSemester=Math.max(1,Math.min(5,parseInt(document.getElementById('set-dental').value,10)||1));
-      s.appointmentReminderDays=Math.max(0,Math.min(14,parseInt(document.getElementById('set-remind').value,10)||0));
-
-      try{
-        if(appState.auth.currentUser?._realSupabase){
-          await saveRealSystemSettings();
-        }else{
-          persistDB();
-        }
-        toast('Settings saved.','success');
-      }catch(e){
-        toast(e?.message||'Unable to save settings.','error');
-      }
-    }
-  });
+ const candidate={...appState.data.DB.settings,clinicName:document.getElementById('set-name').value.trim(),address:document.getElementById('set-addr').value.trim(),contactEmail:document.getElementById('set-email').value.trim(),contactPhone:document.getElementById('set-phone').value.trim(),dentalLimitPerSemester:Number(document.getElementById('set-dental').value),appointmentReminderDays:Number(document.getElementById('set-remind').value)};
+ if(!candidate.clinicName||!document.getElementById('set-email').checkValidity()||!Number.isInteger(candidate.dentalLimitPerSemester)||candidate.dentalLimitPerSemester<1||candidate.dentalLimitPerSemester>5||!Number.isInteger(candidate.appointmentReminderDays)||candidate.appointmentReminderDays<0||candidate.appointmentReminderDays>14){toast('Check the clinic name, email, visit limit and reminder days.','warning');return;}
+ confirmCriticalSettings('clinic',candidate);
 }
 
 export async function savePrivacySettings(){
@@ -258,22 +251,9 @@ export async function savePrivacySettings(){
 }
 
 export async function saveSemSettings(){
-  const s=appState.data.DB.settings;
-  s.semesterStart=document.getElementById('set-s1s').value;
-  s.semesterEnd=document.getElementById('set-s1e').value;
-  s.semester2Start=document.getElementById('set-s2s').value;
-  s.semester2End=document.getElementById('set-s2e').value;
-
-  try{
-    if(appState.auth.currentUser?._realSupabase){
-      await saveRealSystemSettings();
-    }else{
-      persistDB();
-    }
-    toast('Semester settings saved.','success');
-  }catch(e){
-    toast(e?.message||'Unable to save semester settings.','error');
-  }
+ const candidate={...appState.data.DB.settings,academicYear:document.getElementById('set-school-year').value,semesterStart:document.getElementById('set-s1s').value,semesterEnd:document.getElementById('set-s1e').value,semester2Start:document.getElementById('set-s2s').value,semester2End:document.getElementById('set-s2e').value};
+ const error=validateAcademicYear(candidate,candidate.academicYear);if(error){toast(error,'warning');return;}
+ confirmCriticalSettings('semester',candidate);
 }
 
 export function loadJsPDF(){

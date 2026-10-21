@@ -50,6 +50,8 @@ async function restoreAuthenticatedAccount(){
   try{
     const {data:{session}}=await appState.supabaseClient.supabaseClient.auth.getSession();
     if(!session?.user)return false;
+    // Restored sessions must satisfy the same email-ownership gate as a fresh login.
+    if(!session.user.email_confirmed_at){await appState.supabaseClient.supabaseClient.auth.signOut();return false;}
 
     const {data:profile,error}=await appState.supabaseClient.supabaseClient
       .from('users').select('*')

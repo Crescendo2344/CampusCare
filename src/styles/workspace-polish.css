@@ -211,3 +211,13 @@
 #booking-modern-calendar .modern-calendar-day.available.selected{background:var(--primary);color:#fff}
 #booking-modern-calendar .modern-calendar-day:disabled{background:var(--overlay);color:var(--ink-muted);opacity:.38;cursor:not-allowed}
 .booking-calendar-note{font-size:.75rem;color:var(--ink-muted);margin:.3rem 0 .6rem;line-height:1.4}
+
+/* Critical settings require an explicit review, while backup history stays compact. */
+.settings-danger-notice{display:block;padding:.8rem;border:1px solid var(--danger);border-radius:10px;background:var(--danger-bg);color:var(--ink);font-size:.8rem;line-height:1.55;margin-bottom:1rem}
+.settings-change-review div{padding:.5rem 0;border-bottom:1px solid var(--line)}
+.settings-change-review dt{font-weight:700}.settings-change-review dd{margin:.2rem 0;overflow-wrap:anywhere}
+.backup-history-scroll{overflow:auto;max-height:55dvh!important;scrollbar-gutter:stable;overscroll-behavior:contain}
+.backup-history-scroll[style*="--backup-limit"]{max-height:min(55dvh,var(--backup-limit,9999px))!important}
+.backup-day h4{font-size:.8rem;margin:.5rem 0;padding:.3rem 0}
+
+.backup-day{display:flow-root;padding-bottom:.25rem}

@@ -5,14 +5,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
-async function fixture({requireEmail=false,uploadFailure=false,captcha=false,env={},rateFailure=false,providerFailure=false,verdict={},mailResponse={Status:0,Answer:[{type:15,data:'10 mail.example.test.'}]}}={}){
+async function fixture({requireEmail=false,confirmationFailure=false,uploadFailure=false,captcha=false,env={},rateFailure=false,providerFailure=false,verdict={},mailResponse={Status:0,Answer:[{type:15,data:'10 mail.example.test.'}]}}={}){
   let handler;const creates=[],signups=[],uploads=[],updates=[],deletes=[],removes=[],limits=[],verifications=[],buckets=new Map(),usedTokens=new Set();
   const client={rpc:async(name,args)=>{
     assert.equal(name,'consume_registration_limit');limits.push(args);if(rateFailure)return {error:new Error('Unavailable')};
     const key=args.p_scope+args.p_subject_hash,count=(buckets.get(key)||0)+1;buckets.set(key,count);
     return {data:{allowed:count<=(args.p_scope==='ip'?30:5),retry_after:120}};
-  },auth:{signUp:async body=>{signups.push(body);return {data:{user:{id:'fixture',identities:[{}]}}};},admin:{createUser:async body=>{creates.push(body);return {data:{user:{id:'fixture'}}};},deleteUser:async id=>{deletes.push(id);return {};}}},
-    from(table){return {select(){return this;},ilike(){return this;},limit:async()=>({data:[]}),update(body){updates.push(body);return this;},eq(){return this;},maybeSingle:async()=>({data:{user_id:1}}),insert:async()=>({error:null})};},
+  },auth:{resend:async body=>{signups.push(body);return {error:confirmationFailure?new Error("Mail failed"):null};},admin:{createUser:async body=>{creates.push(body);return {data:{user:{id:'fixture'}}};},deleteUser:async id=>{deletes.push(id);return {};}}},
+    from(table){return {select(){return this;},delete(){return this;},ilike(){return this;},limit:async()=>({data:[]}),update(body){updates.push(body);return this;},eq(){return this;},maybeSingle:async()=>({data:{user_id:1}}),insert:async()=>({error:null})};},
     storage:{from(bucket){return {upload:async(path,file)=>{uploads.push({bucket,path,size:file.size});return {error:uploadFailure&&uploads.length===2?new Error('Fixture upload failed'):null};},remove:async paths=>{removes.push(paths);return {};}};}}};
   globalThis.__registrationClient=()=>client;
   globalThis.__registrationContact={emailValidationError,normalizePhilippineMobile,createMailDomainValidator};
@@ -35,9 +35,9 @@ async function fixture({requireEmail=false,uploadFailure=false,captcha=false,env
   };
   return {call,creates,signups,uploads,updates,deletes,removes,limits,verifications,request:handler,config:()=>handler(new Request('https://fixture.test'))};
 }
-test('temporary registration bypass sends no confirmation email and remains a Pending Patient with private evidence',async()=>{
-  const f=await fixture();const r=await f.call();assert.equal(r.status,200);assert.equal((await r.json()).email_confirmation_required,false);
-  assert.equal(f.signups.length,0);assert.equal(f.creates[0].email_confirm,true);assert.equal(f.creates[0].app_metadata.email_verification_skipped,true);
+test('public registration always requires confirmation and remains a Pending Patient with private evidence',async()=>{
+  const f=await fixture();const r=await f.call();assert.equal(r.status,200);assert.equal((await r.json()).email_confirmation_required,true);
+  assert.equal(f.signups.length,1);assert.equal(f.creates.length,1);assert.equal(f.creates[0].email_confirm,false);
   assert.equal(f.creates[0].user_metadata.role,'Patient');assert.equal(f.creates[0].user_metadata.registration_context,'public');
   assert(f.uploads.every(x=>x.bucket==='campuscare-verification'));assert(f.uploads[0].path.includes('selfie-verification'));assert.equal(f.uploads.length,3);assert.equal(f.updates[0].id_back_file_url,'fixture/id-back.png');
   assert.equal(f.updates[0].profile_image_url,null);assert.equal(f.updates[0].status,'Pending');assert.equal(f.updates[0].verified,false);assert.equal(f.updates[0].verification_selfie_url,'fixture/selfie-verification.jpg');
@@ -47,9 +47,9 @@ test('registration rejects missing camera-source evidence and consent before cre
     const f=await fixture();assert.equal((await f.call(options)).status,400);assert.equal(f.creates.length,0);assert.equal(f.uploads.length,0);
   }
 });
-test('future email confirmation switch restores signup flow with an expiring provider-managed link',async()=>{
+test('email confirmation uses a provider-managed link even when the old bypass flag is false',async()=>{
   const f=await fixture({requireEmail:true});const r=await f.call();assert.equal(r.status,200);assert.equal((await r.json()).email_confirmation_required,true);
-  assert.equal(f.creates.length,0);assert.equal(f.signups[0].options.emailRedirectTo,'https://campuscare-brown-two.vercel.app/?auth=confirmed');
+  assert.equal(f.creates.length,1);assert.equal(f.creates[0].email_confirm,false);assert.equal(f.signups[0].options.emailRedirectTo,'https://campuscare-brown-two.vercel.app/?auth=confirmed');
 });
 test('partial verification upload failure removes evidence and the newly created account',async()=>{
   const f=await fixture({uploadFailure:true});assert.equal((await f.call()).status,500);assert.deepEqual(f.deletes,['fixture']);assert.deepEqual(f.removes,[['fixture/selfie-verification.jpg']]);
@@ -74,7 +74,7 @@ test('CAPTCHA rejects missing, reused, wrong-host, wrong-action and failed-provi
   for(const options of [{token:''},{token:'x'.repeat(2049)}]){const f=await fixture({captcha:true});assert.equal((await f.call(options)).status,403);assert.equal(f.verifications.length,0);assert.equal(f.creates.length,0);}
   for(const verdict of [{success:false},{hostname:'attacker.test'},{hostname:'localhost'},{action:'login'}]){const f=await fixture({captcha:true,verdict});assert.equal((await f.call()).status,403);assert.equal(f.creates.length,0);assert.equal(f.uploads.length,0);assert.equal(f.limits.length,1,'Rejected challenges must not consume someone else’s identity quota');}
   let f=await fixture({captcha:true,providerFailure:true});assert.equal((await f.call()).status,503);assert.equal(f.creates.length,0);
-  f=await fixture({captcha:true});assert.equal((await f.call()).status,200);assert.equal((await f.call()).status,403);assert.equal(f.creates.length,1);
+  f=await fixture({captcha:true});assert.equal((await f.call()).status,200);assert.equal((await f.call()).status,403);assert.equal(f.signups.length,1);
   assert.equal(f.verifications[0].body.get('secret'),'fixture-secret');assert(f.verifications[0].signal);
 });
 test('network and identity limits return Retry-After; forged forwarded headers cannot choose a new bucket',async()=>{
@@ -83,7 +83,7 @@ test('network and identity limits return Retry-After; forged forwarded headers c
   assert.equal(new Set(f.limits.map(x=>x.p_subject_hash)).size,1);assert(f.limits.every(x=>/^[a-f0-9]{64}$/.test(x.p_subject_hash)));
   for(const scope of ['email','id']){
     f=await fixture();for(let i=0;i<5;i++)assert.equal((await f.call({ip:'198.51.100.'+(i+1),...(scope==='id'?{email:'fixture'+i+'@example.test'}:{id:'123456'+i})})).status,200);
-    response=await f.call({ip:'198.51.100.99'});assert.equal(response.status,429);assert.equal(f.creates.length,5);
+    response=await f.call({ip:'198.51.100.99'});assert.equal(response.status,429);assert.equal(f.signups.length,5);
   }
 });
 test('rate storage failure and oversized requests fail before account creation',async()=>{
@@ -108,4 +108,9 @@ test('unroutable mail domains and DNS outages cannot create accounts',async()=>{
   for(const [mailResponse,status] of [[{Status:3},400],[{Status:0,Answer:[{type:15,data:'0 .'}]},400],[{Status:2},503]]){
     const f=await fixture({mailResponse});assert.equal((await f.call()).status,status);assert.equal(f.creates.length,0);assert.equal(f.uploads.length,0);
   }
+});
+
+// A delivery failure must not leave an email or username blocked for the next attempt.
+test('failed confirmation delivery rolls back the unconfirmed account and private uploads',async()=>{
+ const f=await fixture({confirmationFailure:true});assert.equal((await f.call()).status,500);assert.deepEqual(f.deletes,['fixture']);assert.equal(f.removes[0].length,3);
 });
