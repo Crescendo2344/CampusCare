@@ -75,7 +75,7 @@ Deno.serve(async(req)=>{
           medical_history:patient?.medical_history||null,
           allergies:patient?.allergies||null,
           verification_document_type:authMeta?.verification_document_type||(
-            r.person_type==="Student"?"School ID or COR":"Employee ID"
+            r.person_type==="Student"?"Student ID":"Employee ID"
           ),
           registration_context:authMeta?.registration_context||"public",
           email_confirmed_at:emailConfirmedAt,
