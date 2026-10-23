@@ -92,7 +92,7 @@ export async function renderFitnessAssessments(){
 
   const actionButton=role==='Patient'
     ? `<button class="btn btn-primary btn-sm" ${bindAction('click',()=>openFitnessRequestModal())}>+ Request Assessment</button>`
-    : (role==='Doctor'||role==='Administrator'
+    : (role==='Doctor'
       ? `<button class="btn btn-primary btn-sm" ${bindAction('click',()=>openFitnessAssessmentModal())}>+ New Assessment</button>`
       : '');
   const clearance=x=>{
@@ -113,7 +113,7 @@ export async function renderFitnessAssessments(){
       <thead><tr><th scope="col">Requested</th><th scope="col">Patient</th><th scope="col">Sport / Event</th><th scope="col">Event date</th><th scope="col">Doctor</th><th scope="col">Status</th><th scope="col">Decision</th><th scope="col">Clearance</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>${list.map(x=>{
         const p=getPatientById(x.patientId),d=getUserById(x.doctorId);
-        const canAssess=(role==='Doctor'&&(!x.doctorId||x.doctorId===appState.auth.currentUser.id)&&x.status!=='Cancelled')||(role==='Administrator'&&x.status!=='Cancelled');
+        const canAssess=role==='Doctor'&&(!x.doctorId||x.doctorId===appState.auth.currentUser.id)&&x.status!=='Cancelled';
         const eventSoon=x.eventDate&&open(x)&&x.eventDate>=today&&x.eventDate<=new Date(Date.parse(today+'T12:00:00Z')+7*864e5).toISOString().slice(0,10);
         return `<tr class="treat-row" ${bindAction('click',()=>viewFitnessAssessment(x.id))}>
           <td data-label="Requested"><strong>${x.requestedDate?fmtDate(String(x.requestedDate).slice(0,10)):'—'}</strong><div class="text-muted">#${fitnessDisplayId(x)}</div></td>
@@ -277,9 +277,7 @@ export function openFitnessAssessmentModal(id=null){
       </div>`;
 
   const saved=screening.decodeScreening(x?.cardioResp||'');
-  const doctorField=appState.auth.currentUser.role==='Administrator'
-    ? `<select id="fit-doctor">${doctors.map(d=>`<option value="${d.id}" ${doctorId===d.id?'selected':''}>${escapeHtml(docName(d))} · ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('')}</select>`
-    : `<input type="hidden" id="fit-doctor" value="${appState.auth.currentUser.id}">
+  const doctorField=`<input type="hidden" id="fit-doctor" value="${appState.auth.currentUser.id}">
        <input value="${escapeHtml(docName(appState.auth.currentUser))} · ${escapeHtml(appState.auth.currentUser.specialty||'General Medicine')}" disabled>`;
 
   openModal(`<div class="modal modal-xl">
@@ -562,8 +560,7 @@ export function viewFitnessAssessment(id){
       ${screening.clearanceState(x,appState.clinicInformation.TODAY)?`<div class="section-label" style="margin-top:.7rem">Clearance</div><p style="font-size:.8rem">${screening.clearanceState(x,appState.clinicInformation.TODAY)==='expired'?'<span class="text-danger">Expired</span>':'Valid'} until ${fmtDate(screening.clearanceValidUntil(x.date))}</p>`:''}
     </div>
     <div class="modal-footer">
-      ${(appState.auth.currentUser.role==='Doctor'&&(!x.doctorId||x.doctorId===appState.auth.currentUser.id)&&x.status!=='Cancelled')||
-         (appState.auth.currentUser.role==='Administrator'&&x.status!=='Cancelled')
+      ${appState.auth.currentUser.role==='Doctor'&&(!x.doctorId||x.doctorId===appState.auth.currentUser.id)&&x.status!=='Cancelled'
         ? `<button class="btn btn-info" ${bindAction('click',(event,element)=>{closeAllModals();openFitnessAssessmentModal((x.id))})}>${x.decision?'Edit Assessment':'Assess Patient'}</button>`
         : ''}
       ${appState.auth.currentUser.role==='Doctor'&&x.doctorId===appState.auth.currentUser.id&&['Fit to Compete','Fit with Restrictions'].includes(x.decision)&&screening.clearanceState(x,appState.clinicInformation.TODAY)==='valid'

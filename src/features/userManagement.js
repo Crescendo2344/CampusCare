@@ -15,7 +15,7 @@ import {collegeBadge,fmtDate,fmtTime,statusBadge} from './inputValidation.js';
 import {approveScheduleChange,rejectScheduleChange} from './workflowRequests.js';
 import {approveLeaveRequest,rejectLeaveRequest,removeDoctorLeave} from './doctorSchedule.js';
 import {approveNameChange,rejectNameChange} from './nameChangeRequests.js';
-import {approveUser,rejectUser} from './approvalQueue.js';
+import {navTo} from './navigationRaceProtection.js';
 import {showConfirmDialog,toast} from './theme.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
 // ================================================================
@@ -51,7 +51,7 @@ export function userDetailField(label,value,wide=false){
 export function userVerificationPreview(detail){
   const u=detail?.user||{};
   const url=u.verification_signed_url||'';
-  if(!url)return '<div class="user-detail-preview-body"><span class="text-muted">No submitted School ID / Employee ID / COR is stored for this account.</span></div>';
+  if(!url)return '<div class="user-detail-preview-body"><span class="text-muted">No Student or Employee ID is stored for this account.</span></div>';
   const clean=String(u.id_file_url||'').split('?')[0].toLowerCase();
   const isPdf=/\.pdf$/i.test(clean);
   return isPdf
@@ -77,7 +77,7 @@ export async function openUserDetails(id){
           first_name:u.fname,last_name:u.lname,username:u.username,email:u.email,contact_number:u.contact,
           role:u.role,status:u.status,verified:u.verified,person_type:u.personType,college:u.college,id_number:u.idNo,
           profile_signed_url:u.profilePhoto||'',verification_signed_url:u.idFileData||'',
-          verification_document_type:u.personType==='Student'?'School ID or COR':u.role==='Patient'?'Employee ID':'Not required',
+          verification_document_type:u.personType==='Student'?'Student ID':u.role==='Patient'?'Employee ID':'Not required',
           specialty:u.specialty,last_sign_in_at:u.lastLogin,created_at:u.createdAt,email_confirmed_at:u.emailConfirmedAt||null,
           work_days:u.workDays,start_time:u.startTime,end_time:u.endTime,max_patients:u.maxPatients
         },
@@ -93,7 +93,7 @@ export async function openUserDetails(id){
     const fullName=`${d.first_name||''} ${d.last_name||''}`.trim();
     const initials=((d.first_name?.[0]||'')+(d.last_name?.[0]||'')).toUpperCase()||'U';
     const documentTitle=d.verification_document_type||(
-      d.person_type==='Student'?'School ID or COR':
+      d.person_type==='Student'?'Student ID':
       d.role==='Patient'?'Employee ID':'Verification Document'
     );
     const emailStatus=d.email_confirmed_at?'Confirmed':'Not confirmed';
@@ -197,35 +197,18 @@ export async function renderUsers(){
     }
     if(!isCampusPageCurrent('users',pageToken))return;
   }
-  c.innerHTML=`
-    <div class="toolbar">
-      <input type="text" placeholder="Search users..." id="usr-search" ${bindAction('input',(event,element)=>{renderUserTable()})}>
-      <select id="usr-role" ${bindAction('change',(event,element)=>{renderUserTable()})}>
-        <option value="">All Roles</option>
-        <option>Administrator</option><option>Doctor</option><option>Staff</option><option>Patient</option>
-      </select>
-      <select id="usr-status" ${bindAction('change',(event,element)=>{renderUserTable()})}>
-        <option value="">All Status</option>
-        <option>Active</option><option>Pending</option><option>Suspended</option>
-        <option value="Archived">Archived</option>
-      </select>
-      <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{openAddUserModal()})}>+ Add User</button>
-    </div>
-    <div class="card"><div id="user-table"></div></div>
+  const ui=appState.userManagement??={};ui.tab??='users';
+  const pendingRequests=(appState.data.DB.nameChangeRequests||[]).filter(r=>r.status==='Pending').length
+    +(appState.data.DB.scheduleChangeRequests||[]).filter(r=>r.status==='Pending').length
+    +(appState.data.DB.leaveRequests||[]).filter(r=>r.status==='Pending').length;
+  const tabs=[['users','Users',null],['requests','Requests',pendingRequests],['schedules','Doctor schedules',null]];
+  const tabBar=`<div class="appt-head"><div class="appt-views" role="tablist" aria-label="User management sections">${tabs.map(([id,label,count])=>`<button type="button" role="tab" class="appt-view ${ui.tab===id?'active':''} ${count?'attention':''}" aria-selected="${ui.tab===id}" ${bindAction('click',()=>{ui.tab=id;renderUsers();})}>${label}${count!==null?`<span class="appt-view-count">${count}</span>`:''}</button>`).join('')}</div>
+    ${ui.tab==='users'?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>openAddUserModal())}>+ Add User</button>`:''}</div>`;
+  if(ui.tab==='requests'){
+    c.innerHTML=tabBar+`
     <div class="card">
-      <div class="card-header"><h3>Name Change Requests</h3></div>
+      <div class="card-header"><h3>Name change requests</h3></div>
       <div id="name-change-table"></div>
-    </div>
-    <div class="card">
-      <div class="card-header"><h3>Doctor Work Schedules</h3></div>
-      <div class="table-wrap"><table><thead><tr><th>Doctor</th><th>Specialty</th><th>Work Days</th><th>Hours</th><th>Max Patients</th><th>Actions</th></tr></thead><tbody>${(appState.auth.currentUser?.role==='Administrator'?getDoctors().filter(d=>d._realSupabase):getDoctors()).map(d=>`<tr>
-          <td>${docName(d)}</td>
-          <td>${d.specialty||'General'}</td>
-          <td>${(d.workDays||[]).join(', ')}</td>
-          <td>${d.startTime||'08:00'} – ${d.endTime||'17:00'}</td>
-          <td>${d.maxPatients||20}</td>
-          <td><button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openDoctorScheduleEdit((d.id))})}>Edit</button></td>
-        </tr>`).join('')}</tbody></table></div>
     </div>
     <div class="card">
       <div class="card-header"><h3>Schedule Change Requests</h3></div>
@@ -266,6 +249,23 @@ export async function renderUsers(){
         }</tbody></table></div>`;
       })()}
     </div>
+`;
+    renderNameChangeTable();
+    return;
+  }
+  if(ui.tab==='schedules'){
+    c.innerHTML=tabBar+`
+    <div class="card">
+      <div class="card-header"><h3>Doctor Work Schedules</h3></div>
+      <div class="table-wrap"><table><thead><tr><th>Doctor</th><th>Specialty</th><th>Work Days</th><th>Hours</th><th>Max Patients</th><th>Actions</th></tr></thead><tbody>${(appState.auth.currentUser?.role==='Administrator'?getDoctors().filter(d=>d._realSupabase):getDoctors()).map(d=>`<tr>
+          <td>${docName(d)}</td>
+          <td>${d.specialty||'General'}</td>
+          <td>${(d.workDays||[]).join(', ')}</td>
+          <td>${d.startTime||'08:00'} – ${d.endTime||'17:00'}</td>
+          <td>${d.maxPatients||20}</td>
+          <td><button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openDoctorScheduleEdit((d.id))})}>Edit</button></td>
+        </tr>`).join('')}</tbody></table></div>
+    </div>
     <div class="card">
       <div class="card-header"><h3>Upcoming Doctor Leave</h3></div>
       ${(()=>{const all=appState.data.DB.doctorLeaves.filter(l=>l.date>=appState.clinicInformation.TODAY).sort((a,b)=>a.date.localeCompare(b.date));
@@ -274,9 +274,29 @@ export async function renderUsers(){
           all.map(l=>{const d=getUserById(l.doctorId);return `<tr><td>${d?docName(d):'—'}</td><td>${fmtDate(l.date)}</td><td>${l.reason?escapeHtml(l.reason):'<span class="text-muted">—</span>'}</td><td><button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{removeDoctorLeave((l.id))})}>Cancel</button></td></tr>`;}).join('')
         }</tbody></table></div>`;
       })()}
-    </div>`;
+    </div>
+`;
+    return;
+  }
+  c.innerHTML=tabBar+`
+    <div class="toolbar usr-toolbar">
+      <input type="search" placeholder="Search name, username, email or ID number" aria-label="Search users" id="usr-search" ${bindAction('input',()=>renderUserTable())}>
+      <select id="usr-role" aria-label="Role" ${bindAction('change',()=>renderUserTable())}>
+        <option value="">All roles</option>
+        <option>Administrator</option><option>Doctor</option><option>Staff</option><option>Patient</option>
+      </select>
+      <select id="usr-status" aria-label="Status" ${bindAction('change',()=>renderUserTable())}>
+        <option value="">All statuses</option>
+        <option>Active</option><option>Pending</option><option>Suspended</option>
+        <option value="Archived">Archived</option>
+      </select>
+      <select id="usr-sort" aria-label="Sort" ${bindAction('change',()=>renderUserTable())}>
+        <option value="name">Name A–Z</option><option value="login">Last login, most recent</option><option value="never">Never signed in first</option>
+      </select>
+    </div>
+    <p class="patient-filter-summary" id="usr-summary" role="status" aria-live="polite"></p>
+    <div class="card"><div id="user-table"></div></div>`;
   renderUserTable();
-  renderNameChangeTable();
 }
 
 export function renderNameChangeTable(){
@@ -299,35 +319,37 @@ export function renderNameChangeTable(){
 }
 
 export function renderUserTable(){
-  const q=(document.getElementById('usr-search')||{}).value||'';
-  const role=(document.getElementById('usr-role')||{}).value||'';
-  const stat=(document.getElementById('usr-status')||{}).value||'';
+  const value=id=>document.getElementById(id)?.value||'';
+  const q=value('usr-search').trim().toLowerCase(),role=value('usr-role'),stat=value('usr-status'),sort=value('usr-sort')||'name';
   const sourceUsers=appState.auth.currentUser?.role==='Administrator'
     ? appState.data.DB.users.filter(u=>u._realSupabase)
     : appState.data.DB.users;
-  let users=sourceUsers.filter(u=>{
-    const name=`${u.fname} ${u.lname} ${u.username} ${u.email}`.toLowerCase();
-    const matchStatus = stat ? (stat==='Archived'?!!u.archived:(u.status===stat&&!u.archived)) : true;
-    return (!q||name.includes(q.toLowerCase()))&&(!role||u.role===role)&&matchStatus;
-  });
+  const users=sourceUsers.filter(u=>{
+    const haystack=`${u.fname} ${u.lname} ${u.lname}, ${u.fname} ${u.username} ${u.email} ${u.idNo||''}`.toLowerCase();
+    const matchStatus=stat?(stat==='Archived'?!!u.archived:(u.status===stat&&!u.archived)):true;
+    return (!q||haystack.includes(q))&&(!role||u.role===role)&&matchStatus;
+  }).sort((a,b)=>sort==='login'?String(b.lastLogin||'').localeCompare(String(a.lastLogin||''))
+    :sort==='never'?Number(Boolean(a.lastLogin))-Number(Boolean(b.lastLogin))||`${a.lname} ${a.fname}`.localeCompare(`${b.lname} ${b.fname}`)
+    :`${a.lname} ${a.fname}`.localeCompare(`${b.lname} ${b.fname}`));
   const el=document.getElementById('user-table');
   if(!el)return;
-  el.innerHTML=`<div class="table-wrap user-table-scroll" tabindex="0" role="region" aria-label="Users table, scroll for more users"><table><thead><tr><th>Photo</th><th>#</th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Type/Dept</th><th>Last Login</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
-    users.map(u=>`<tr class="user-detail-row-click" ${u.archived?'style="opacity:.6"':''} ${bindAction('click',(event,element)=>{openUserDetails((u.id))})} title="Open complete user information">
-      <td>${userAvatarHtml(u,32)}</td>
-      <td>${u._realSupabase?(u.dbUserId??u.id):u.id}</td>
-      <td><strong>${u.fname} ${u.lname}</strong><br><span class="text-muted">${u.idNo||''}</span>${u.archived?' <span class="badge badge-gray">Archived</span>':''}</td>
-      <td>${u.username}</td><td style="font-size:.78rem">${u.email}</td>
-      <td><span class="badge badge-info">${u.role}</span></td>
-      <td>${u.personType||u.specialty||u.department||'-'}<br>${collegeBadge(u.college)}</td>
-      <td class="text-muted">${formatLastLogin(u.lastLogin)}</td>
-      <td>${u.archived?'<span class="badge badge-gray">Archived</span>':statusBadge(u.status)}</td>
-      <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
-        ${canEditApprovedUser(u)?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{openEditUserModal((u.id))})}>Edit</button>`:''}
-        ${!u.archived&&u.status==='Active'&&u.id!==appState.auth.currentUser.id?`<button class="btn btn-xs btn-warning" ${bindAction('click',(event,element)=>{suspendUser((u.id))})}>Suspend</button>`:''}
-        ${!u.archived&&u.status==='Pending'?`<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{approveUser((u.id))})}>Approve</button><button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{rejectUser((u.id))})}>Reject</button>`:''}
-        ${!u.archived&&u.status==='Suspended'?`<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{reactivateUser((u.id))})}>Reactivate</button>`:''}
-        ${u.id!==appState.auth.currentUser.id?(u.archived?`<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{restoreUser((u.id))})}>Restore</button>`:`<button class="btn btn-xs btn-warning" ${bindAction('click',(event,element)=>{archiveUser((u.id))})}>🗄️ Archive</button>`):''}
+  const count=st=>sourceUsers.filter(u=>!u.archived&&u.status===st).length;
+  const summary=document.getElementById('usr-summary');
+  if(summary)summary.textContent=`${users.length} of ${sourceUsers.length} accounts · ${count('Active')} active · ${count('Pending')} pending · ${count('Suspended')} suspended`;
+  if(!users.length){el.innerHTML='<div class="empty-state"><p>No accounts match these filters.</p></div>';return;}
+  el.innerHTML=`<div class="table-wrap user-table-scroll" tabindex="0" role="region" aria-label="Users table, scroll for more users"><table class="treat-table"><thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col">Type / Dept.</th><th scope="col">Last login</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${
+    users.map(u=>`<tr class="user-detail-row-click ${u.archived?'archived':''}" ${bindAction('click',()=>openUserDetails(u.id))} title="Open complete user information">
+      <td data-label="User"><div class="pt-identity">${userAvatarHtml(u,32)}<div><strong>${escapeHtml(u.lname)}, ${escapeHtml(u.fname)}</strong>${u.id===appState.auth.currentUser.id?' <span class="badge badge-info">You</span>':''}<div class="text-muted">@${escapeHtml(u.username||'—')} · ${escapeHtml(u.email||'')}</div>${u.idNo?`<div class="text-muted">ID ${escapeHtml(u.idNo)}</div>`:''}</div></div></td>
+      <td data-label="Role"><span class="badge badge-info">${escapeHtml(u.role)}</span></td>
+      <td data-label="Type / Dept.">${escapeHtml(u.personType||u.specialty||u.department||'—')}${u.college?`<div class="text-muted">${escapeHtml(u.college)}</div>`:''}</td>
+      <td data-label="Last login" class="text-muted">${u.lastLogin?formatLastLogin(u.lastLogin):'Never'}</td>
+      <td data-label="Status">${u.archived?'<span class="badge badge-gray">Archived</span>':statusBadge(u.status)}</td>
+      <td data-label="Actions"><div class="td-actions" ${bindAction('click',(event)=>event.stopPropagation())}>
+        ${!u.archived&&u.status==='Pending'?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>navTo('approvals'))}>Review in Approval Queue</button>`:''}
+        ${canEditApprovedUser(u)?`<button class="btn btn-xs" ${bindAction('click',()=>openEditUserModal(u.id))}>Edit</button>`:''}
+        ${!u.archived&&u.status==='Active'&&u.id!==appState.auth.currentUser.id?`<button class="btn btn-xs btn-warning" ${bindAction('click',()=>suspendUser(u.id))}>Suspend</button>`:''}
+        ${!u.archived&&u.status==='Suspended'?`<button class="btn btn-xs btn-success" ${bindAction('click',()=>reactivateUser(u.id))}>Reactivate</button>`:''}
+        ${u.id!==appState.auth.currentUser.id&&u.status!=='Pending'?(u.archived?`<button class="btn btn-xs btn-success" ${bindAction('click',()=>restoreUser(u.id))}>Restore</button>`:`<button class="btn btn-xs" ${bindAction('click',()=>archiveUser(u.id))}>Archive</button>`):''}
       </div></td>
     </tr>`).join('')
   }</tbody></table></div>`;

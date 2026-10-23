@@ -4,7 +4,8 @@ import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtec
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {getInventoryForecast,inventoryDisplayId,inventoryForecastBadge,inventoryRecords,inventoryTransactionRecords,predictiveInventorySummaryHtml,syncRealInventory} from './inventoryService.js';
 import {escapeHtml} from './issueReports.js';
-import {getLowStock,getUserById} from './documentScanner.js';
+import {getUserById} from './documentScanner.js';
+import * as stockData from '../domain/inventory-status.js';
 import {archiveInv,openDisbursementModal,openInvModal,openUpdateQtyModal,restoreInv} from './inventoryForms.js';
 import {showFilePreview} from './modals.js';
 import {fmtDate} from './inputValidation.js';
@@ -30,45 +31,95 @@ export async function renderInventory(){
     if(!isCampusPageCurrent('inventory',pageToken))return;
   }
 
-  const lowStock=getLowStock();
   const canEdit=appState.auth.currentUser.role==='Staff'||appState.auth.currentUser.role==='Administrator';
+  const today=appState.clinicInformation.TODAY;
+  const sum=stockData.inventorySummary(inventoryRecords(),today);
+  const ui=appState.inventoryList??={};ui.txLimit=20;
+  const stat=(label,value,tone='',filter='')=>`<button type="button" class="approval-stat inv-stat ${tone}" ${filter?bindAction('click',()=>{const el=document.getElementById('inv-stock');if(el){el.value=filter;renderInvTable();}}):'disabled'}><span>${label}</span><strong>${value}</strong></button>`;
 
   c.innerHTML=`
-    ${lowStock.length?`<div class="alert alert-danger show">⚠️ <strong>${lowStock.length} item(s)</strong> are at or below their stock threshold and need attention.</div>`:''}
+    <div class="approval-summary inv-summary">
+      ${stat('Active items',sum.items)}
+      ${stat('Out of stock',sum.out,sum.out?'danger':'','out')}
+      ${stat('At or below reorder level',sum.low,sum.low?'warn':'','low')}
+      ${stat(`Expiring within ${stockData.EXPIRY_WARNING_DAYS} days`,sum.expiringSoon,sum.expiringSoon?'warn':'','soon')}
+      ${stat('Expired',sum.expired,sum.expired?'danger':'','expired')}
+      ${stat('Stock value',`₱${sum.value.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}`)}
+    </div>
     ${predictiveInventorySummaryHtml()}
     <div class="card">
       <div class="card-header">
-        <h3>Inventory Management</h3>
+        <h3>Items</h3>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          ${canEdit?`<button class="btn btn-success btn-sm" ${bindAction('click',(event,element)=>{openDisbursementModal()})}>📦 Disburse Items</button>
-          <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{openInvModal()})}>+ Add Item</button>`:''}
+          <button class="btn btn-sm" ${bindAction('click',()=>exportInventoryCsv())}><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>
+          ${canEdit?`<button class="btn btn-success btn-sm" ${bindAction('click',()=>openDisbursementModal())}><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Disburse Items</button>
+          <button class="btn btn-primary btn-sm" ${bindAction('click',()=>openInvModal())}>+ Add Item</button>`:''}
         </div>
       </div>
-      <div class="toolbar" style="margin-bottom:.75rem">
-        <input type="text" placeholder="Search inventory..." id="inv-search" ${bindAction('input',(event,element)=>{renderInvTable()})}>
-        <select id="inv-cat" ${bindAction('change',(event,element)=>{renderInvTable()})}>
-          <option value="">All Categories</option>
+      <div class="toolbar inv-toolbar" style="margin-bottom:.75rem">
+        <input type="search" placeholder="Search item, supplier or item #" aria-label="Search inventory" id="inv-search" ${bindAction('input',()=>renderInvTable())}>
+        <select id="inv-cat" aria-label="Category" ${bindAction('change',()=>renderInvTable())}>
+          <option value="">All categories</option>
           <option>Medicine</option><option>Dental</option><option>Supplies</option><option>Equipment</option><option>Laboratory</option>
         </select>
-        <select id="inv-stock" ${bindAction('change',(event,element)=>{renderInvTable()})}>
-          <option value="">All Stock Levels</option>
-          <option value="low">Low Stock</option>
-          <option value="ok">Sufficient</option>
+        <select id="inv-stock" aria-label="Stock and expiry" ${bindAction('change',()=>renderInvTable())}>
+          <option value="">Any stock or expiry</option>
+          <option value="out">Out of stock</option>
+          <option value="low">At or below reorder level</option>
+          <option value="soon">Expiring within ${stockData.EXPIRY_WARNING_DAYS} days</option>
+          <option value="expired">Expired</option>
+          <option value="ok">Sufficient stock</option>
         </select>
-        <select id="inv-status" ${bindAction('change',(event,element)=>{renderInvTable()})}>
-          <option value="active">Active Items</option>
-          ${appState.auth.currentUser.role==='Administrator'?'<option value="archived">Archived Items</option><option value="all">All Items</option>':''}
+        <select id="inv-sort" aria-label="Sort" ${bindAction('change',()=>renderInvTable())}>
+          <option value="attention">Needs attention first</option>
+          <option value="name">Name A–Z</option>
+          <option value="expiry">Expiry, soonest first</option>
+          <option value="qty">Quantity, lowest first</option>
+        </select>
+        <select id="inv-status" aria-label="Record status" ${bindAction('change',()=>renderInvTable())}>
+          <option value="active">Active items</option>
+          ${appState.auth.currentUser.role==='Administrator'?'<option value="archived">Archived items</option><option value="all">All items</option>':''}
         </select>
       </div>
+      <p class="patient-filter-summary" id="inv-summary-line" role="status" aria-live="polite"></p>
       <div id="inv-table"></div>
     </div>
     <div class="card">
-      <div class="card-header"><h3>Inventory Transaction History</h3></div>
+      <div class="card-header"><h3>Stock movements</h3>
+        <div class="toolbar" style="margin:0">
+          <input type="search" placeholder="Search item or note" aria-label="Search stock movements" id="tx-search" ${bindAction('input',()=>{ui.txLimit=20;renderDisbTable();})}>
+          <select id="tx-type" aria-label="Movement type" ${bindAction('change',()=>{ui.txLimit=20;renderDisbTable();})}><option value="">All types</option><option>Stock In</option><option>Disbursement</option><option>Adjustment</option><option>Expired</option></select>
+        </div>
+      </div>
       <div id="disb-table"></div>
     </div>`;
 
   renderInvTable();
   renderDisbTable();
+}
+
+function filteredItems(){
+  const value=id=>document.getElementById(id)?.value||'';
+  const q=value('inv-search').trim().toLowerCase(),cat=value('inv-cat'),stock=value('inv-stock'),status=value('inv-status')||'active',sort=value('inv-sort')||'attention';
+  const today=appState.clinicInformation.TODAY;
+  const rank=i=>{const st=stockData.stockState(i),ex=stockData.expiryState(i,today).state;return ex==='expired'||st==='out'?0:st==='low'?1:ex==='soon'?2:st==='medium'?3:4;};
+  return inventoryRecords().filter(i=>{
+    const st=stockData.stockState(i),ex=stockData.expiryState(i,today).state;
+    const mQ=!q||`${i.name} ${i.supplier||''} #${inventoryDisplayId(i)}`.toLowerCase().includes(q);
+    const mS=!stock||(stock==='soon'||stock==='expired'?ex===stock:stock==='ok'?st==='ok'||st==='medium':st===stock);
+    const mA=status==='all'||(status==='archived'?i.archived:!i.archived);
+    return mQ&&(!cat||i.category===cat)&&mS&&mA;
+  }).sort((a,b)=>sort==='name'?String(a.name).localeCompare(String(b.name))
+    :sort==='expiry'?String(a.expiryDate||'9999').localeCompare(String(b.expiryDate||'9999'))
+    :sort==='qty'?Number(a.qty)-Number(b.qty)
+    :rank(a)-rank(b)||String(a.name).localeCompare(String(b.name)));
+}
+
+export function exportInventoryCsv(){
+  const rows=filteredItems().map(i=>({...i,displayId:inventoryDisplayId(i)}));
+  const url=URL.createObjectURL(new Blob(['﻿'+stockData.inventoryCsv(rows,appState.clinicInformation.TODAY)],{type:'text/csv;charset=utf-8'}));
+  const link=Object.assign(document.createElement('a'),{href:url,download:`campuscare-inventory-${appState.clinicInformation.TODAY}.csv`});
+  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
 export function itemAvatarHtml(item,size=36){
@@ -79,55 +130,37 @@ export function itemAvatarHtml(item,size=36){
 }
 
 export function renderInvTable(){
-  const q=((document.getElementById('inv-search')||{}).value||'').toLowerCase();
-  const cat=(document.getElementById('inv-cat')||{}).value||'';
-  const stock=(document.getElementById('inv-stock')||{}).value||'';
-  const status=(document.getElementById('inv-status')||{}).value||'active';
-
-  let items=inventoryRecords().filter(i=>{
-    const mQ=!q||`${i.name} ${i.supplier||''}`.toLowerCase().includes(q);
-    const mC=!cat||i.category===cat;
-    const mS=!stock||(stock==='low'?i.qty<=i.threshold:i.qty>i.threshold);
-    const mA=status==='all'||(status==='archived'?i.archived:!i.archived);
-    return mQ&&mC&&mS&&mA;
-  });
-
   const el=document.getElementById('inv-table');
   if(!el)return;
+  const items=filteredItems(),today=appState.clinicInformation.TODAY;
   const canEdit=appState.auth.currentUser.role==='Staff'||appState.auth.currentUser.role==='Administrator';
-
+  const line=document.getElementById('inv-summary-line');
+  if(line)line.textContent=`${items.length} item${items.length===1?'':'s'}`;
   if(!items.length){
-    el.innerHTML='<div class="empty-state"><p>No inventory items found.</p></div>';
+    el.innerHTML='<div class="empty-state"><i class="bi bi-box-seam" aria-hidden="true" style="font-size:1.6rem"></i><p>No inventory items match these filters.</p></div>';
     return;
   }
-
-  el.innerHTML=`<div class="table-wrap"><table>
-    <thead><tr><th>Photo</th><th>#</th><th>Item</th><th>Category</th><th>Qty</th><th>Threshold</th><th>Unit Cost</th><th>Expiry</th><th>Target Disbursement</th><th>Stock</th><th>Forecast</th><th>Actions</th></tr></thead>
+  const stockBadge={out:['badge-danger','Out of stock'],low:['badge-danger','Reorder'],medium:['badge-warning','Medium'],ok:['badge-success','Sufficient']};
+  el.innerHTML=`<div class="table-wrap"><table class="treat-table inv-table">
+    <thead><tr><th scope="col">Item</th><th scope="col">Category</th><th scope="col">Stock</th><th scope="col">Expiry</th><th scope="col">Forecast</th><th scope="col">Unit cost</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>${items.map(i=>{
+      const st=stockData.stockState(i),exp=stockData.expiryState(i,today);
       const pct=Math.min(100,Math.round(i.qty/Math.max(i.threshold*2,1)*100));
-      const lvl=i.qty<=i.threshold?'Low':i.qty<=i.threshold*1.5?'Medium':'Good';
-      const bdg=i.qty<=i.threshold?'badge-danger':i.qty<=i.threshold*1.5?'badge-warning':'badge-success';
-      const daysToDisb=i.disbursementDate?Math.ceil((new Date(i.disbursementDate+'T12:00:00')-new Date(appState.clinicInformation.TODAY+'T12:00:00'))/86400000):'';
-      const disbWarn=daysToDisb!==''&&daysToDisb<=7&&daysToDisb>=0;
+      const daysToDisb=i.disbursementDate?Math.ceil((new Date(i.disbursementDate+'T12:00:00')-new Date(today+'T12:00:00'))/86400000):'';
       const f=getInventoryForecast(i);
-
-      return `<tr ${i.archived?'style="opacity:.62"':i.qty<=i.threshold?'style="background:var(--warning-bg)"':''}>
-        <td>${itemAvatarHtml(i,34)}</td>
-        <td>#${inventoryDisplayId(i)}${i.archived?'<br><span class="badge badge-gray">Archived</span>':''}</td>
-        <td><strong>${escapeHtml(i.name)}</strong><br><span class="text-muted">${escapeHtml(i.supplier||'')}</span></td>
-        <td><span class="badge badge-gray">${escapeHtml(i.category)}</span></td>
-        <td><strong>${i.qty}</strong> ${escapeHtml(i.unit)}</td>
-        <td>${i.threshold} ${escapeHtml(i.unit)}</td>
-        <td>₱${Number(i.unitCost||0).toFixed(2)}</td>
-        <td class="${i.expiryDate&&i.expiryDate<=appState.clinicInformation.TODAY?'text-danger':''}">${i.expiryDate?fmtDate(i.expiryDate):'—'}</td>
-        <td class="${disbWarn?'text-warning':''}">${i.disbursementDate?`<strong>${fmtDate(i.disbursementDate)}</strong>${disbWarn?` <span class="badge badge-warning">In ${daysToDisb}d</span>`:''}`:'—'}</td>
-        <td><span class="badge ${bdg}">${lvl}</span><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${i.qty<=i.threshold?'var(--danger)':i.qty<=i.threshold*1.5?'var(--warning)':'var(--success)'}"></div></div></td>
-        <td>${inventoryForecastBadge(f)}${f.hasData?`<div class="text-muted" style="margin-top:.2rem">${f.daysRemaining}d remaining<br>Reorder ${f.reorderQty} ${escapeHtml(i.unit)}</div>`:`<div class="text-muted" style="margin-top:.2rem">Record disbursements to forecast</div>`}</td>
-        <td><div class="td-actions">
-          ${canEdit&&!i.archived?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openUpdateQtyModal((i.id))})}>Update Qty</button>
-            <button class="btn btn-xs" ${bindAction('click',(event,element)=>{openInvModal((i.id))})}>Edit</button>`:''}
-          ${appState.auth.currentUser.role==='Administrator'&&!i.archived?`<button class="btn btn-xs btn-warning" ${bindAction('click',(event,element)=>{archiveInv((i.id))})}>Archive</button>`:''}
-          ${appState.auth.currentUser.role==='Administrator'&&i.archived?`<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{restoreInv((i.id))})}>Restore</button>`:''}
+      const [cls,label]=stockBadge[st];
+      return `<tr class="${i.archived?'archived':''}">
+        <td data-label="Item"><div class="pt-identity">${itemAvatarHtml(i,34)}<div><strong>${escapeHtml(i.name)}</strong>${i.archived?' <span class="badge badge-gray">Archived</span>':''}<div class="text-muted">#${inventoryDisplayId(i)}${i.supplier?' · '+escapeHtml(i.supplier):''}</div>${i.disbursementDate?`<div class="text-muted">Disburse by ${fmtDate(i.disbursementDate)}${daysToDisb!==''&&daysToDisb>=0&&daysToDisb<=7?` <span class="tr-due today">in ${daysToDisb}d</span>`:''}</div>`:''}</div></div></td>
+        <td data-label="Category"><span class="badge badge-gray">${escapeHtml(i.category)}</span></td>
+        <td data-label="Stock"><div class="inv-stock-line"><strong>${i.qty}</strong> ${escapeHtml(i.unit)} <span class="badge ${cls}">${label}</span></div><div class="progress-bar" title="Reorder level ${i.threshold} ${escapeHtml(i.unit)}"><div class="progress-fill" style="width:${pct}%;background:${st==='out'||st==='low'?'var(--danger)':st==='medium'?'var(--warning)':'var(--success)'}"></div></div><div class="text-muted">Reorder at ${i.threshold} ${escapeHtml(i.unit)}</div></td>
+        <td data-label="Expiry">${i.expiryDate?`${fmtDate(i.expiryDate)}${exp.state==='expired'?'<span class="tr-due overdue">Expired</span>':exp.state==='soon'?`<span class="tr-due today">${exp.days}d left</span>`:''}`:'<span class="text-muted">—</span>'}</td>
+        <td data-label="Forecast">${inventoryForecastBadge(f)}${f.hasData?`<div class="text-muted">${f.daysRemaining}d remaining · reorder ${f.reorderQty} ${escapeHtml(i.unit)}</div>`:'<div class="text-muted">Needs disbursement history</div>'}</td>
+        <td data-label="Unit cost">₱${Number(i.unitCost||0).toFixed(2)}</td>
+        <td data-label="Actions"><div class="td-actions">
+          ${canEdit&&!i.archived?`<button class="btn btn-xs btn-info" ${bindAction('click',()=>openUpdateQtyModal(i.id))}>Adjust stock</button>
+            <button class="btn btn-xs" ${bindAction('click',()=>openInvModal(i.id))}>Edit</button>`:''}
+          ${appState.auth.currentUser.role==='Administrator'&&!i.archived?`<button class="btn btn-xs btn-warning" ${bindAction('click',()=>archiveInv(i.id))}>Archive</button>`:''}
+          ${appState.auth.currentUser.role==='Administrator'&&i.archived?`<button class="btn btn-xs btn-success" ${bindAction('click',()=>restoreInv(i.id))}>Restore</button>`:''}
         </div></td>
       </tr>`;
     }).join('')}</tbody>
@@ -137,33 +170,37 @@ export function renderInvTable(){
 export function renderDisbTable(){
   const el=document.getElementById('disb-table');
   if(!el)return;
-
-  const rows=inventoryTransactionRecords().slice().sort((a,b)=>String(b.dateTime||b.date).localeCompare(String(a.dateTime||a.date)));
-  if(!rows.length){
-    el.innerHTML='<div class="empty-state"><p>No inventory transactions recorded.</p></div>';
+  const ui=appState.inventoryList??={};ui.txLimit??=20;
+  const q=(document.getElementById('tx-search')?.value||'').trim().toLowerCase(),type=document.getElementById('tx-type')?.value||'';
+  const items=inventoryRecords();
+  const all=inventoryTransactionRecords()
+    .filter(d=>{const it=items.find(i=>i.id===d.itemId);return (!type||d.type===type)&&(!q||`${it?.name||''} ${d.notes||''}`.toLowerCase().includes(q));})
+    .sort((a,b)=>String(b.dateTime||b.date).localeCompare(String(a.dateTime||a.date)));
+  if(!all.length){
+    el.innerHTML='<div class="empty-state"><p>No stock movements match.</p></div>';
     return;
   }
-
+  const rows=all.slice(0,ui.txLimit);
   const badge=t=>{
     const cls=t==='Disbursement'?'badge-info':t==='Stock In'?'badge-success':t==='Expired'?'badge-danger':'badge-warning';
     return `<span class="badge ${cls}">${escapeHtml(t)}</span>`;
   };
-
-  el.innerHTML=`<div class="table-wrap"><table>
-    <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Quantity</th><th>Recorded By</th><th>Notes</th></tr></thead>
+  el.innerHTML=`<div class="table-wrap"><table class="treat-table">
+    <thead><tr><th scope="col">Date</th><th scope="col">Item</th><th scope="col">Type</th><th scope="col">Quantity</th><th scope="col">Recorded by</th><th scope="col">Notes</th></tr></thead>
     <tbody>${rows.map(d=>{
-      const it=inventoryRecords().find(i=>i.id===d.itemId);
+      const it=items.find(i=>i.id===d.itemId);
       const u=getUserById(d.userId);
+      const sign=d.type==='Stock In'?'+':d.type==='Disbursement'||d.type==='Expired'?'−':'';
       return `<tr>
-        <td>${fmtDate(d.date)}</td>
-        <td>${it?escapeHtml(it.name):'Unknown item'}</td>
-        <td>${badge(d.type)}</td>
-        <td>${d.qty} ${it?escapeHtml(it.unit):''}</td>
-        <td>${u?escapeHtml(u.fname+' '+u.lname):'System / Staff'}</td>
-        <td>${escapeHtml(d.notes||'—')}</td>
+        <td data-label="Date">${fmtDate(d.date)}</td>
+        <td data-label="Item">${it?escapeHtml(it.name):'Unknown item'}</td>
+        <td data-label="Type">${badge(d.type)}</td>
+        <td data-label="Quantity"><strong>${sign}${d.qty}</strong> ${it?escapeHtml(it.unit):''}</td>
+        <td data-label="Recorded by">${u?escapeHtml(u.fname+' '+u.lname):'System'}</td>
+        <td data-label="Notes">${escapeHtml(d.notes||'—')}</td>
       </tr>`;
     }).join('')}</tbody>
-  </table></div>`;
+  </table></div>${all.length>rows.length?`<div class="pt-pager"><span>Showing ${rows.length} of ${all.length}</span><div><button class="btn btn-xs" ${bindAction('click',()=>{ui.txLimit+=20;renderDisbTable();})}>Show more</button></div></div>`:''}`;
 }
 
 // Run side effects only after every feature's function exports are available.

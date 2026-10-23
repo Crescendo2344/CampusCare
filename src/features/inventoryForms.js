@@ -168,34 +168,44 @@ export function openUpdateQtyModal(id){
   if(it.archived){toast('Restore this item before updating quantity.','warning');return;}
 
   openModal(`<div class="modal modal-sm">
-    <div class="modal-header"><h3>Update Quantity – ${escapeHtml(it.name)}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+    <div class="modal-header"><h3>Adjust stock – ${escapeHtml(it.name)}</h3><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
       <div id="uq-msg"></div>
-      <div class="alert alert-info show" style="font-size:.8rem">Current: <strong>${it.qty} ${escapeHtml(it.unit)}</strong> · Threshold: ${it.threshold}</div>
-      <div class="form-group"><label>New Quantity <span class="required">*</span></label><input type="number" id="uq-qty" value="${it.qty}" min="0" step="1"></div>
-      <div class="form-group"><label>Reason for Update</label><input id="uq-reason" maxlength="500" placeholder="Restocked, physical count correction, damaged stock, etc."></div>
+      <div class="alert alert-info show" style="font-size:.8rem;display:block">On hand: <strong>${it.qty} ${escapeHtml(it.unit)}</strong> · Reorder at ${it.threshold} ${escapeHtml(it.unit)}</div>
+      <div class="form-group"><label for="uq-qty">Counted / new quantity <span class="required">*</span></label><input type="number" id="uq-qty" value="${it.qty}" min="0" step="1" ${bindAction('input',(event,element)=>{const n=parseInt(element.value,10),d=Number.isNaN(n)?0:n-it.qty,el=document.getElementById('uq-change');if(el)el.textContent=d?`Change: ${d>0?'+':''}${d} ${it.unit}`:'No change';})}><p class="form-note" id="uq-change">No change</p></div>
+      <div class="form-group"><label for="uq-reason-type">Reason <span class="required">*</span></label><select id="uq-reason-type"><option value="">Select a reason</option>${['Received new stock','Physical count correction','Damaged or contaminated','Expired stock removed','Returned to supplier','Other'].map(r=>`<option>${r}</option>`).join('')}</select></div>
+      <div class="form-group"><label for="uq-reason">Note <span class="text-muted">(required for Other)</span></label><input id="uq-reason" maxlength="400" placeholder="e.g. Delivery receipt no., count sheet reference"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
-      <button class="btn btn-primary" id="uq-btn" ${bindAction('click',(event,element)=>{updateQty((id))})}>Update</button>
+      <button class="btn btn-primary" id="uq-btn" ${bindAction('click',()=>updateQty(id))}>Save adjustment</button>
     </div>
   </div>`);
 }
 
 export async function updateQty(id){
   const newQty=parseInt(document.getElementById('uq-qty').value,10);
-  const reason=document.getElementById('uq-reason').value.trim();
+  const reasonType=document.getElementById('uq-reason-type')?.value||'';
+  const note=document.getElementById('uq-reason').value.trim();
+  const reason=[reasonType,note].filter(Boolean).join(': ');
   const msg=document.getElementById('uq-msg');
   const btn=document.getElementById('uq-btn');
   hideAlert(msg);
 
-  if(Number.isNaN(newQty)||newQty<0){
-    showAlert(msg,'Enter a valid non-negative quantity.');
-    return;
-  }
-
   const it=inventoryRecords().find(i=>i.id===Number(id));
   if(!it)return;
+  if(Number.isNaN(newQty)||newQty<0){
+    showAlert(msg,'Enter a whole number of zero or more.');
+    return;
+  }
+  if(newQty===Number(it.qty)){
+    showAlert(msg,'The quantity is unchanged.');
+    return;
+  }
+  // Every stock change needs a reason for the audit trail.
+  if(!reasonType||(reasonType==='Other'&&note.length<3)){
+    showAlert(msg,reasonType?'Describe the reason in the note.':'Choose the reason for this adjustment.');
+    return;
+  }
 
   const old=btn?.textContent;
   if(btn){btn.disabled=true;btn.textContent='Updating…';}

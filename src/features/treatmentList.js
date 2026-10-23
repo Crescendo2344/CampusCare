@@ -34,7 +34,8 @@ export async function renderTreatments(){
   }
 
   const role=appState.auth.currentUser.role;
-  const canAdd=role==='Doctor'||role==='Administrator';
+  // Clinical notes are written only by the treating doctor.
+  const canAdd=role==='Doctor';
   const ui=appState.treatmentList??={};
   ui.page=1;
   const doctors=role==='Doctor'?[]:getDoctors();

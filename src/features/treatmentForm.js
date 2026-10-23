@@ -44,8 +44,8 @@ export function openAddTreatmentModal(apptId){
 }
 
 export function openAddTreatmentModalPt(ptId,apptId=null){
-  if(appState.auth.currentUser.role!=='Doctor'&&appState.auth.currentUser.role!=='Administrator'){
-    toast('Only a Doctor or Administrator can record treatment.','warning');
+  if(appState.auth.currentUser.role!=='Doctor'){
+    toast('Only the treating doctor can record clinical notes.','warning');
     return;
   }
 
@@ -68,11 +68,7 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
     ? patientSource.map(p=>`<option value="${p.id}">${escapeHtml(p.fname+' '+p.lname)} (${escapeHtml(p.college||'')})</option>`).join('')
     : `<option value="${pt.id}">${escapeHtml(pt.fname+' '+pt.lname)}</option>`;
 
-  const doctorSelect=appState.auth.currentUser.role==='Administrator'
-    ? `<div class="form-group"><label>Attending Doctor <span class="required">*</span></label>
-        <select id="tm-doc">${doctorSource.map(d=>`<option value="${d.id}" ${appt&&appt.doctorId===d.id?'selected':''}>${escapeHtml(docName(d))} · ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('')}</select>
-      </div>`
-    : '';
+  const doctorSelect='';
 
   const defaultDate=appt?.date&&appt.date<=appState.clinicInformation.TODAY?appt.date:appState.clinicInformation.TODAY;
   const defaultRecordType=appt?.clinic==='Dental Clinic'?'Dental Clinic':'Medical Clinic';
@@ -359,7 +355,7 @@ export function isDentalTreatment(t){
 
 export function openDentalRecordEditor(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
-  if(!['Doctor','Administrator'].includes(appState.auth.currentUser.role)){
+  if(appState.auth.currentUser.role!=='Doctor'){
     toast('Only a Doctor or Administrator can edit a dental record.','warning');
     return;
   }
@@ -529,7 +525,7 @@ export async function downloadDentalRecordPDF(id){
 export function viewTreatment(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
   const dental=isDentalTreatment(t);
-  const canEditDental=['Doctor','Administrator'].includes(appState.auth.currentUser.role);
+  const canEditDental=appState.auth.currentUser.role==='Doctor'&&t.doctorId===appState.auth.currentUser.id;
   openModal(`<div class="modal modal-xl"><div class="modal-header"><div><h3>Treatment Record #${treatmentDisplayId(t)}</h3><div class="text-muted">Clinical document preview</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div class="treatment-record-shell">${treatmentDocumentHtml(t)}</div></div><div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap"><span class="tech-note">${t.dentalRecord?'This treatment includes a CTU Dental Clinic record.':dental?'A Dental Clinic record can be completed for this treatment.':'PDF uses the same clinical-document layout shown in the preview.'}</span><div style="display:flex;gap:.45rem;flex-wrap:wrap"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>${t.dentalRecord?`<button class="btn btn-success" ${bindAction('click',(event,element)=>{viewDentalRecord((id))})}><i class="bi bi-emoji-smile"></i> Dental Record</button>`:(dental&&canEditDental?`<button class="btn btn-success" ${bindAction('click',(event,element)=>{openDentalRecordEditor((id))})}><i class="bi bi-plus-circle"></i> Add Dental Record</button>`:'')}${t.dentalRecord&&canEditDental?`<button class="btn btn-warning" ${bindAction('click',(event,element)=>{openDentalRecordEditor((id))})}><i class="bi bi-pencil"></i> Edit Dental Record</button>`:''}${appState.auth.currentUser.role==='Doctor'&&t.doctorId===appState.auth.currentUser.id&&!t.archived?`<button class="btn" ${bindAction('click',()=>{closeAllModals();openNewCertificateModal(t.patientId,t.id)})}><i class="bi bi-file-earmark-medical" aria-hidden="true"></i> Issue Certificate</button>`:''}<button class="btn btn-info" ${bindAction('click',(event,element)=>{printTreatmentRecord((id))})}><i class="bi bi-printer"></i> Print</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadTreatmentPDF((id))})}><i class="bi bi-file-earmark-arrow-down"></i> Download PDF</button></div></div></div>`);
 }
 export function printTreatmentRecord(id){

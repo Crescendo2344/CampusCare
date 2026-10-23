@@ -803,8 +803,8 @@ try{
     assert(await page.locator('#backup-list').evaluate(el=>el.scrollHeight>el.clientHeight&&getComputedStyle(el).overflowY==='auto'));
     managedUsers.push({...profile,user_id:93,auth_user_id:'pending-auth',first_name:'Pending',last_name:'Applicant',username:'pending.applicant',email:'pending@example.test',role:'Patient',status:'Pending',verified:false});
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('users'));
-    const pending=page.locator('#user-table tbody tr').filter({hasText:'Pending Applicant'}),active=()=>page.locator('#user-table tbody tr').filter({hasText:'Fixture Doctor'});
-    await pending.waitFor();assert.equal(await pending.getByRole('button',{name:'Edit',exact:true}).count(),0);assert.equal(await pending.getByRole('button',{name:'Approve',exact:true}).count(),1);
+    const pending=page.locator('#user-table tbody tr').filter({hasText:'Applicant, Pending'}),active=()=>page.locator('#user-table tbody tr').filter({hasText:'Doctor, Fixture'});
+    await pending.waitFor();assert.equal(await pending.getByRole('button',{name:'Edit',exact:true}).count(),0);assert.equal(await pending.getByRole('button',{name:'Review in Approval Queue',exact:true}).count(),1);
     await page.evaluate(()=>window.__fixtureApp.features.userForm.openEditUserModal(100093));assert.equal(await page.locator('#eu-fname').count(),0);
     await pending.locator('td').first().click();await page.getByRole('heading',{name:'User Information',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Edit User',exact:true}).count(),0);await page.locator('#active-modal .close-btn').click();
     const updatesBefore=requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').length;
@@ -816,7 +816,7 @@ try{
     await page.getByRole('button',{name:'Review Changes',exact:true}).click();
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/user-edit-review-${mobile?'mobile':'desktop'}.png`});
     await page.getByRole('button',{name:'Confirm Changes',exact:true}).click();
-    const updated=()=>page.locator('#user-table tbody tr').filter({hasText:'Updated Doctor'});await updated().waitFor();
+    const updated=()=>page.locator('#user-table tbody tr').filter({hasText:'Doctor, Updated'});await updated().waitFor();
     assert.equal(managedUsers[1].first_name,'Updated');assert.equal(managedUsers[1].contact_number,'09987654321');assert.equal(managedUsers[1].status,'Active');
     await updated().getByRole('button',{name:'Suspend',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Reactivate',exact:true}).waitFor();
     await updated().getByRole('button',{name:'Reactivate',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Suspend',exact:true}).waitFor();
