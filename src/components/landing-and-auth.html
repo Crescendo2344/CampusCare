@@ -331,14 +331,16 @@
     <!-- Each form has its own heading; the footer link of each form switches to the other. -->
     <div class="auth-mode-heading" id="auth-tabs">
       <div class="auth-mode-art" aria-hidden="true">
-        <!-- Login: a clinic heart with a stethoscope. -->
+        <!-- Login: a stethoscope beside a heart; the two never cross. -->
         <svg class="auth-art-login" viewBox="0 0 120 96" fill="none" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="60" cy="48" r="44" class="art-halo"/>
-          <path d="M60 74S34 58 34 41a13 13 0 0 1 26-3 13 13 0 0 1 26 3c0 17-26 33-26 33Z" class="art-fill"/>
-          <path d="M53 47h14M60 40v14" class="art-mark"/>
-          <path d="M24 22v14a12 12 0 0 0 24 0V22M20 22h8M44 22h8" class="art-line"/>
-          <path d="M36 48v8a16 16 0 0 0 32 0" class="art-line art-tube"/>
-          <circle cx="94" cy="26" r="3" class="art-dot"/><circle cx="102" cy="40" r="2" class="art-dot"/>
+          <path d="M76 76S52 62 52 46a11 11 0 0 1 24-4 11 11 0 0 1 24 4c0 16-24 30-24 30Z" class="art-fill"/>
+          <path d="M70 52h12M76 46v12" class="art-mark"/>
+          <path d="M22 20v12a9 9 0 0 0 18 0V20" class="art-line"/>
+          <path d="M19 20h6M37 20h6" class="art-line"/>
+          <path d="M31 41v15a12 12 0 0 0 12 12" class="art-line art-tube"/>
+          <circle cx="45" cy="68" r="5" class="art-chest"/>
+          <circle cx="102" cy="24" r="3" class="art-dot"/><circle cx="18" cy="74" r="2" class="art-dot"/>
         </svg>
         <!-- Registration: a new ID card with a plus badge. -->
         <svg class="auth-art-reg" viewBox="0 0 120 96" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -371,7 +373,6 @@
     <form id="reg-section" style="display:none" novalidate data-action-submit="registration-submit">
       <div class="alert alert-danger" id="reg-err"></div>
       <div class="alert alert-success" id="reg-ok"></div>
-      <p class="registration-required-note"><span class="required">*</span> Required field</p>
 
       <fieldset class="registration-group">
         <legend>Personal information</legend>
@@ -382,7 +383,8 @@
         <div class="form-row">
           <div class="form-group"><label>Date of Birth <span class="required">*</span></label>
             <input type="hidden" id="r-dob" value="" data-action-change="registration-field-blur">
-            <div class="campus-date-field"><button type="button" class="modern-date-btn" id="r-dob-button" aria-describedby="r-dob-error" data-action-click="shell-28"><i class="bi bi-calendar3"></i><span id="r-dob-label">Select date</span></button></div>
+            <div class="campus-date-field"><button type="button" class="modern-date-btn" id="r-dob-button" aria-describedby="r-dob-help r-dob-error" data-action-click="shell-28"><i class="bi bi-calendar3"></i><span id="r-dob-label">Select date</span></button></div>
+            <p class="form-note field-hint" id="r-dob-help">Must match the birth date on your ID. It is also used for your medical record.</p>
             <p class="registration-field-error" id="r-dob-error" aria-live="polite" hidden></p>
           </div>
           <div class="form-group"><label for="r-sex">Sex <span class="required">*</span></label>
@@ -394,13 +396,12 @@
             <p class="registration-field-error" id="r-sex-error" aria-live="polite" hidden></p>
           </div>
         </div>
-        <p class="form-note registration-group-note">Your date of birth helps us match you to your ID and is used for your medical record.</p>
       </fieldset>
 
       <fieldset class="registration-group">
         <legend>Account details</legend>
         <div class="form-row">
-          <div class="form-group"><label for="r-user">Username <span class="required">*</span></label><input id="r-user" type="text" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" data-action-input="shell-20" data-action-blur="registration-field-blur" aria-describedby="r-user-help r-user-error"><p class="form-note" id="r-user-help">4–20 letters, numbers, . _ or -</p><p class="registration-field-error" id="r-user-error" aria-live="polite" hidden></p></div>
+          <div class="form-group"><label for="r-user">Username <span class="required">*</span></label><input id="r-user" type="text" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" data-action-input="shell-20" data-action-blur="registration-field-blur" aria-describedby="r-user-help r-user-error"><p class="form-note field-hint" id="r-user-help">Use 4–20 letters or numbers. You may also use a period (.), underscore (_) or hyphen (-), for example juan.cruz.</p><p class="registration-field-error" id="r-user-error" aria-live="polite" hidden></p></div>
           <div class="form-group"><label for="r-email">Email <span class="required">*</span></label><input id="r-email" type="email" maxlength="150" autocomplete="email" autocapitalize="none" spellcheck="false" data-action-input="shell-21" data-action-blur="registration-contact-blur" aria-describedby="r-email-error"><p class="registration-field-error" id="r-email-error" aria-live="polite" hidden></p></div>
         </div>
         <div class="form-row">
@@ -416,7 +417,7 @@
           <div class="password-check" data-check="number"><span class="pw-check-icon"></span><span>One number</span></div>
           <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
         </div>
-        <div class="form-group"><label for="r-contact">Contact No. <span class="text-muted registration-optional">(optional)</span></label><input id="r-contact" type="tel" inputmode="tel" maxlength="24" autocomplete="tel" placeholder="09… or +63…" data-action-input="shell-25" data-action-blur="registration-contact-blur" aria-describedby="r-contact-help r-contact-error"><p class="form-note" id="r-contact-help">Use 09XXXXXXXXX or +639XXXXXXXXX.</p><p class="registration-field-error" id="r-contact-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label for="r-contact">Contact No. <span class="text-muted registration-optional">(optional)</span></label><input id="r-contact" type="tel" inputmode="tel" maxlength="24" autocomplete="tel" placeholder="09… or +63…" data-action-input="shell-25" data-action-blur="registration-contact-blur" aria-describedby="r-contact-help r-contact-error"><p class="form-note field-hint" id="r-contact-help">Use 09XXXXXXXXX or +639XXXXXXXXX.</p><p class="registration-field-error" id="r-contact-error" aria-live="polite" hidden></p></div>
       </fieldset>
 
       <fieldset class="registration-group">
@@ -439,7 +440,7 @@
         <div class="form-group">
           <label for="r-idno" id="r-idno-label">Student ID No. <span class="required">*</span></label>
           <input id="r-idno" type="text" inputmode="numeric" maxlength="7" placeholder="e.g. 1350098" data-action-input="shell-27" data-action-blur="registration-field-blur" aria-describedby="r-idno-note r-idno-error">
-          <p class="form-note" id="r-idno-note">Student ID must contain exactly 7 digits.</p>
+          <p class="form-note field-hint" id="r-idno-note">Student ID must contain exactly 7 digits.</p>
           <p class="registration-field-error" id="r-idno-error" aria-live="polite" hidden></p>
         </div>
       </fieldset>

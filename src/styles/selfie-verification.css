@@ -97,6 +97,7 @@
 .auth-mode-art .art-fill{fill:color-mix(in srgb,var(--primary) 22%,var(--glass-surface-strong));stroke:var(--primary);stroke-width:2.4}
 .auth-mode-art .art-line{stroke:var(--ink);stroke-width:2.4}
 .auth-mode-art .art-tube{stroke:var(--primary)}
+.auth-mode-art .art-chest{fill:var(--glass-surface-strong);stroke:var(--primary);stroke-width:2.6}
 .auth-mode-art .art-cross{stroke:#fff;stroke-width:3.2}
 .auth-mode-art .art-mark{stroke:var(--primary);stroke-width:3.4}
 .auth-mode-art .art-badge{fill:var(--success)}
@@ -133,7 +134,6 @@
 .auth-switch a:hover,.auth-switch a:focus-visible{text-decoration:underline}
 
 /* Registration is grouped into short, labelled sections. */
-.registration-required-note{font-size:.72rem;color:var(--ink-muted);margin:0 0 .6rem;text-align:right}
 .registration-group{border:0;padding:0;margin:0 0 1.1rem;min-width:0}
 .registration-group legend{display:block;width:100%;padding:0 0 .4rem;margin-bottom:.75rem;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--primary-dark);border-bottom:1px solid var(--line-soft,var(--line))}
 .registration-group-note{margin:-.3rem 0 .8rem;line-height:1.5}
@@ -205,3 +205,12 @@ ol.selfie-prep-grid{list-style:none;padding:0}
 .capture-light-controls{display:flex;justify-content:center;gap:.5rem;flex-wrap:wrap;margin-top:.5rem}
 .capture-light-controls:empty{display:none}
 .capture-light-toggle[aria-pressed="true"]{border-color:var(--primary);color:var(--primary)}
+
+/* Field hints appear as a small popover while a field is focused or hovered, never shifting the form. */
+#reg-section .form-group{position:relative}
+#reg-section .field-hint{position:absolute;left:0;right:0;top:100%;z-index:6;margin:4px 0 0;padding:.5rem .7rem;border-radius:10px;background:var(--glass-surface-strong);border:1px solid var(--line);box-shadow:var(--glass-shadow-sm);color:var(--ink-muted);font-size:.74rem;line-height:1.45;opacity:0;visibility:hidden;transform:translateY(-3px);transition:none;pointer-events:none}
+#reg-section .form-group:is(:focus-within,:hover)>.field-hint{opacity:1;visibility:visible;transform:none;transition:opacity .15s ease,transform .15s ease,visibility 0s}
+#reg-section .form-group.has-error>.field-hint{display:none}
+@media(hover:none){#reg-section .form-group:hover:not(:focus-within)>.field-hint{opacity:0;visibility:hidden}}
+#reg-section .field-hint{background:#fff;color:#3d5265;border-color:#d5dee6;box-shadow:0 8px 24px rgba(10,30,50,.16)}
+[data-theme="dark"] #reg-section .field-hint{background:#22303c;color:#c9d6e0;border-color:#3a4c5c;box-shadow:0 8px 24px rgba(0,0,0,.45)}

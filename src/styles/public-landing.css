@@ -185,8 +185,6 @@ html {scrollbar-gutter:stable}
 }
 #landing-navbar .landing-get-started:active,#landing-hero .landing-book-appointment:active {transform:translateY(0);filter:brightness(1.03)}
 /* As with the password checklist, guidance is visible only while the contact field has focus. */
-#r-contact-help {display:none}
-#r-contact:focus~#r-contact-help {display:block}
 @media(prefers-reduced-motion:reduce) {
   #landing-navbar .landing-get-started,#landing-hero .landing-book-appointment {transition:none}
   #landing-navbar .landing-get-started:hover,#landing-hero .landing-book-appointment:hover {transform:none}
