@@ -215,16 +215,10 @@ export function initializeLandingRouting(){
   });
 }
 
-// Login and registration share one card; each form links to the other instead of showing tabs.
-const AUTH_MODE_COPY={
-  login:['Welcome back','Log in to book visits and view your clinic records.'],
-  reg:['Create your account','Register once to book clinic visits and access your health records.']
-};
+// Login and registration share one card; its single tab names the form currently shown.
 export function authTab(t){
-  const [title,subtitle]=AUTH_MODE_COPY[t==='reg'?'reg':'login'];
-  const titleEl=document.getElementById('auth-mode-title'),subtitleEl=document.getElementById('auth-mode-subtitle');
-  if(titleEl)titleEl.textContent=title;
-  if(subtitleEl)subtitleEl.textContent=subtitle;
+  const title=document.getElementById('auth-mode-title');
+  if(title)title.textContent=t==='reg'?'Register':'Login';
   document.getElementById('login-section').style.display=t==='login'?'':'none';
   document.getElementById('reg-section').style.display=t==='reg'?'':'none';
   const pending=document.getElementById('pending-section');

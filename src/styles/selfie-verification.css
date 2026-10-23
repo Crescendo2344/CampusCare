@@ -86,10 +86,8 @@
 .selfie-guide-square{width:var(--face-guide-width,28%);top:43%;height:auto;aspect-ratio:.76}
 .selfie-modal .modal-footer{position:static;background:var(--glass-surface-strong)}
 
-/* Login and registration share one card: a mode heading replaces tabs, and a footer link switches modes. */
-.auth-mode-heading{text-align:center;margin-bottom:1.2rem}
-.auth-mode-heading h2{font-size:1.25rem;font-weight:700;letter-spacing:-.2px;margin:0;color:var(--ink)}
-.auth-mode-heading p{font-size:.8rem;color:var(--ink-muted);margin:.3rem 0 0;line-height:1.5}
+/* Login and registration share one card: a single tab names the form, and a footer link switches forms. */
+.auth-tab{display:block;text-align:center;cursor:default}
 .auth-switch{text-align:center;font-size:.82rem;color:var(--ink-muted);margin:1.1rem 0 0;padding-top:1rem;border-top:1px solid var(--line-soft,var(--line))}
 .auth-switch a{color:var(--primary);font-weight:600;text-decoration:none;margin-left:.2rem}
 .auth-switch a:hover,.auth-switch a:focus-visible{text-decoration:underline}
@@ -154,7 +152,7 @@
 ol.selfie-prep-grid{list-style:none;padding:0}
 .selfie-prep-card{position:relative}
 .selfie-prep-card .selfie-prep-num{position:absolute;top:.45rem;left:.5rem;width:1.25rem;height:1.25rem;margin:0;border-radius:50%;display:grid;place-items:center;background:var(--primary);color:#fff;font-size:.66rem;font-weight:700;line-height:1}
-.selfie-prep-card:last-child{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 8%,var(--overlay))}
+.selfie-prep-card{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 8%,var(--overlay))}
 .selfie-privacy .bi{color:var(--primary);margin-right:.2rem}
 .id-flip-art{display:grid;place-items:center;width:56px;height:56px;margin:0 auto .6rem;border-radius:50%;background:var(--info-bg);color:var(--primary);font-size:1.6rem}
 @media(max-width:480px){.selfie-prep-grid{grid-template-columns:1fr}.selfie-prep-card{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:.7rem;text-align:left;padding:.7rem .8rem .7rem 2.2rem}.selfie-prep-card .bi{grid-row:span 2;margin:0;font-size:1.5rem;align-self:center}.selfie-prep-card span:not(.selfie-prep-num){margin-top:.1rem}.selfie-prep-card .selfie-prep-num{top:50%;transform:translateY(-50%)}}

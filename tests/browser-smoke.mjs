@@ -214,6 +214,9 @@ try{
     await page.locator('.landing-get-started').click();
     await page.locator('#reg-section').waitFor({state:'visible'});
     assert.equal(await page.locator('.landing-get-started').innerText(),'Register');
+    // Visiting and leaving an empty field is not an error; skipped fields are reported on submit.
+    await page.locator('#r-fname').focus();await page.locator('#r-lname').focus();await page.locator('#r-lname').blur();
+    assert(await page.locator('#r-fname-error').isHidden()&&await page.locator('#r-lname-error').isHidden(),'Empty fields must not error on blur');
     // Typo feedback appears beside the email field; legitimate school and company domains stay valid.
     await page.locator('#r-email').fill('student@gmal.com');await page.locator('#r-email').blur();
     await page.locator('#r-email-error').getByText('Check the email domain. Did you mean @gmail.com?',{exact:true}).waitFor();
@@ -252,8 +255,8 @@ try{
     assert(await page.locator('#forgot-step1').isVisible());assert(!await page.locator('#forgot-step2').isVisible());
     await page.evaluate(()=>window.__fixtureApp.features.passwordRecovery.closeForgotPassword());
     await page.locator('#login-section').getByRole('link',{name:'Create an account',exact:true}).click();
-    assert.equal(await page.locator('#auth-mode-title').innerText(),'Create your account');
-    assert.equal(await page.locator('.auth-tab').count(),0,'Login and registration must not use tabs');
+    assert.equal(await page.locator('#auth-mode-title').innerText(),'Register');
+    assert.equal(await page.locator('.auth-tab').count(),1,'Only the current form has a tab');
     await scrollDown();
     await page.locator('#r-ptype').selectOption('Teaching Personnel');
     await page.waitForFunction(()=>document.getElementById('r-verification-label').textContent.includes('Employee ID — Front and Back'));

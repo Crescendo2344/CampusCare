@@ -62,21 +62,25 @@ const registrationFieldRules={
 };
 const touchedFields=new Set();
 
-// While typing, only correct an error already shown; a fresh field is checked when the person leaves it.
-export function validateRegistrationField(id,showError=true){
+// Fields left empty are only flagged when the form is submitted; leaving a filled-in field checks its format.
+// Once an error is visible it updates live while the person corrects it.
+const isEmptyField=id=>{
+  const el=document.getElementById(id);
+  if(!el)return false;
+  return el.type==='checkbox'?!el.checked:!String(el.value||'').trim();
+};
+export function validateRegistrationField(id,showError=true,{submit=false}={}){
   const rule=registrationFieldRules[id];
   if(!rule)return '';
-  // An empty optional or untouched field should not turn red mid-typing.
-  if(showError)touchedFields.add(id);
+  if(submit||(showError&&!isEmptyField(id)))touchedFields.add(id);
   const message=rule();
-  setRegistrationFieldError(id,message,showError||touchedFields.has(id));
+  setRegistrationFieldError(id,message,touchedFields.has(id));
   return message;
 }
 
-// Check every field at once, show all problems and return the first invalid control for focus.
+// Check every field at once, show all problems and return the invalid controls in page order.
 export function validateRegistrationForm(){
-  const invalid=Object.keys(registrationFieldRules).filter(id=>validateRegistrationField(id));
-  return invalid;
+  return Object.keys(registrationFieldRules).filter(id=>validateRegistrationField(id,true,{submit:true}));
 }
 
 export function resetRegistrationFieldErrors(){
