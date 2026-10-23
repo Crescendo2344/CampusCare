@@ -10,6 +10,8 @@ import {checkDentalQuota,getUserById} from './documentScanner.js';
 import {openBookApptModal,openRescheduleModal} from './bookingForm.js';
 import {viewAppt} from './appointmentDetails.js';
 import {cancelAppt} from './appointments.js';
+import {appointmentHasStarted} from '../domain/appointment-list.js';
+import {clinicToday} from './scheduleAndDrafts.js';
 import {viewTreatmentForAppt} from './treatmentForm.js';
 import {bindAction} from '../dependencies.js';
 // ================================================================
@@ -80,7 +82,7 @@ export function renderMyApptsList(appts,filter){
   el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Clinic</th><th>Service</th><th>Date</th><th>Time</th><th>Doctor</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
     list.map(a=>{
       const doc=getUserById(a.doctorId);
-      const canCancel=a.status==='Scheduled'&&a.date>=appState.clinicInformation.TODAY;
+      const canCancel=a.status==='Scheduled'&&!appointmentHasStarted(a,{today:clinicToday(),now:new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date())});
       const canReschedule=a.status==='Scheduled'&&a.date>appState.clinicInformation.TODAY;
       return`<tr style="cursor:pointer" ${bindAction('click',(event,element)=>{viewAppt((a.id))})} title="Click to open appointment">
         <td>#${appointmentDisplayId(a)}</td><td>${a.clinic}</td><td>${a.service}</td>

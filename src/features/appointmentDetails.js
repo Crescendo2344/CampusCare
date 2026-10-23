@@ -5,48 +5,65 @@ import {getPatientById,getUserById} from './documentScanner.js';
 import {closeAllModals,openModal} from './modals.js';
 import {viewPatient} from './patientForm.js';
 import {escapeHtml} from './issueReports.js';
-import {collegeBadge,fmtDate,fmtTime,priorityBadge,statusBadge} from './inputValidation.js';
+import {fmtDate,fmtTime,priorityBadge,statusBadge} from './inputValidation.js';
+import {appointmentAllowedActions,cancelAppt,noShowAppt,sendApptNotif} from './appointments.js';
+import {patientAvatarHtml} from './patientManagement.js';
+import {patientDisplayId} from './patientService.js';
+import {clinicToday} from './scheduleAndDrafts.js';
+import * as listData from '../domain/appointment-list.js';
 import {openAddTreatmentModal} from './treatmentForm.js';
 import {openRescheduleModal} from './bookingForm.js';
 import {bindAction} from '../dependencies.js';
 // ── View Appointment ──
+// Summary first (who, when, where), then the visit details and its history, with the same actions as the list.
 export function viewAppt(id){
   const a=appointmentRecords().find(x=>x.id===Number(id));if(!a)return;
   const pt=getPatientById(a.patientId);
   const doc=getUserById(a.doctorId);
-  const clinicalUser=['Doctor','Staff','Administrator'].includes(appState.auth.currentUser.role);
-  const canTreat=appState.auth.currentUser.role==='Doctor'&&a.doctorId===appState.auth.currentUser.id&&a.status==='Scheduled'&&a.date<=appState.clinicInformation.TODAY;
-  const canManage=['Staff','Administrator'].includes(appState.auth.currentUser.role)&&a.status==='Scheduled';
+  const role=appState.auth.currentUser.role;
+  const clinicalUser=['Doctor','Staff','Administrator'].includes(role);
+  const allowed=appointmentAllowedActions(a);
+  const today=clinicToday();
+  const overdue=a.status==='Scheduled'&&a.date<today;
+  const createdBy=a.createdBy?getUserById(a.createdBy):null;
+  const row=(label,value)=>`<div class="info-row"><span class="info-label">${label}</span><span class="info-val">${value}</span></div>`;
+  const name=pt?escapeHtml(pt.fname+' '+pt.lname):'Unknown patient';
+  const history=[
+    a.createdAt&&`Booked ${fmtDate(String(a.createdAt).slice(0,10))}${createdBy?` by ${escapeHtml(createdBy.fname+' '+createdBy.lname)}`:''}`,
+    a.status==='Cancelled'&&`Cancelled${a.cancelledAt?' '+fmtDate(String(a.cancelledAt).slice(0,10)):''}${a.cancellationReason?` — ${escapeHtml(a.cancellationReason)}`:''}`,
+    a.status==='Completed'&&'Visit completed and documented',
+    a.status==='No-show'&&'Patient did not arrive (no-show)'
+  ].filter(Boolean);
 
-  openModal(`<div class="modal">
+  openModal(`<div class="modal appt-detail">
     <div class="modal-header">
-      <h3>Appointment #${appointmentDisplayId(a)}</h3>
-      <button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button>
+      <div><h3>Appointment #${appointmentDisplayId(a)}</h3><div class="copilot-subtitle">${listData.appointmentDayHeading(a.date,today)} · ${fmtDate(a.date)} at ${fmtTime(a.time)}</div></div>
+      <button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button>
     </div>
     <div class="modal-body">
-      <div class="info-row">
-        <span class="info-label">Patient</span>
-        <span class="info-val">${pt
-          ? (clinicalUser
-              ? `<button class="link-btn" ${bindAction('click',(event,element)=>{closeAllModals();viewPatient((pt.id))})}>${escapeHtml(pt.fname+' '+pt.lname)}</button>`
-              : escapeHtml(pt.fname+' '+pt.lname))
-          : 'Unknown'}</span>
+      <div class="appt-detail-head">
+        ${pt?patientAvatarHtml(pt,44):''}
+        <div class="appt-detail-who">
+          ${pt&&clinicalUser?`<button class="link-btn" ${bindAction('click',()=>{closeAllModals();viewPatient(pt.id)})}><strong>${name}</strong></button>`:`<strong>${name}</strong>`}
+          <span class="text-muted">${pt?`P-${patientDisplayId(pt)} · `:''}${escapeHtml(a.college||pt?.college||'—')}</span>
+        </div>
+        <div class="appt-detail-status">${statusBadge(a.status)}</div>
       </div>
-      <div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(a.college||pt?.college||'')}</span></div>
-      <div class="info-row"><span class="info-label">Priority</span><span class="info-val">${priorityBadge(a.priority||pt?.personType||'')}</span></div>
-      <div class="info-row"><span class="info-label">Clinic</span><span class="info-val">${escapeHtml(a.clinic||'—')}</span></div>
-      <div class="info-row"><span class="info-label">Service</span><span class="info-val">${escapeHtml(a.service||'—')}</span></div>
-      <div class="info-row"><span class="info-label">Doctor</span><span class="info-val">${doc?`Dr. ${escapeHtml(doc.fname+' '+doc.lname)}${doc.specialty?` · ${escapeHtml(doc.specialty)}`:''}`:'Unknown'}</span></div>
-      <div class="info-row"><span class="info-label">Date & Time</span><span class="info-val">${fmtDate(a.date)} at ${fmtTime(a.time)}</span></div>
-      <div class="info-row"><span class="info-label">Reason</span><span class="info-val">${escapeHtml(a.reason||'—')}</span></div>
-      <div class="info-row"><span class="info-label">Status</span><span class="info-val">${statusBadge(a.status)}</span></div>
-      ${a.notes?`<div class="info-row"><span class="info-label">Notes</span><span class="info-val">${escapeHtml(a.notes)}</span></div>`:''}
+      ${overdue?'<div class="alert alert-warning show" style="display:block">This appointment date has passed but it is still marked Scheduled. Record the outcome: the doctor adds visit notes, or mark it as a no-show.</div>':''}
+      ${row('Clinic',escapeHtml(a.clinic||'—'))}
+      ${row('Service',escapeHtml(a.service||'—'))}
+      ${row('Doctor',doc?`Dr. ${escapeHtml(doc.fname+' '+doc.lname)}${doc.specialty?` · ${escapeHtml(doc.specialty)}`:''}`:'Unassigned')}
+      ${row('Priority',priorityBadge(a.priority||pt?.personType||''))}
+      ${row('Reason for visit',escapeHtml(a.reason||'—'))}
+      ${a.notes?row('Notes',escapeHtml(a.notes)):''}
+      ${history.length?`<h4 class="appt-detail-section">History</h4><ul class="appt-history">${history.map(item=>`<li>${item}</li>`).join('')}</ul>`:''}
     </div>
-    <div class="modal-footer">
-      ${clinicalUser&&pt?`<button class="btn" ${bindAction('click',(event,element)=>{closeAllModals();viewPatient((pt.id))})}>View Patient</button>`:''}
-      ${canTreat?`<button class="btn btn-primary" ${bindAction('click',(event,element)=>{closeAllModals();openAddTreatmentModal((a.id))})}>📝 Add Notes & Complete</button>`:''}
-      ${canManage?`<button class="btn btn-warning" ${bindAction('click',(event,element)=>{closeAllModals();openRescheduleModal((a.id))})}>Reschedule</button>`:''}
-      <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
+    <div class="modal-footer appt-detail-actions">
+      ${allowed.cancel?`<button class="btn btn-danger" ${bindAction('click',()=>cancelAppt(a.id))}>Cancel appointment</button>`:''}
+      ${allowed.noShow?`<button class="btn" ${bindAction('click',()=>noShowAppt(a.id))}>Mark no-show</button>`:''}
+      ${allowed.remind?`<button class="btn" ${bindAction('click',()=>sendApptNotif(a.id))}><i class="bi bi-bell" aria-hidden="true"></i> Send reminder</button>`:''}
+      ${allowed.reschedule?`<button class="btn btn-warning" ${bindAction('click',()=>{closeAllModals();openRescheduleModal(a.id)})}>Reschedule</button>`:''}
+      ${allowed.document?`<button class="btn btn-primary" ${bindAction('click',()=>{closeAllModals();openAddTreatmentModal(a.id)})}>Add notes &amp; complete</button>`:''}
     </div>
   </div>`);
 }

@@ -39,11 +39,8 @@ export async function renderPatients(){
   c.innerHTML=`
     <div class="toolbar patient-records-toolbar">
       <input type="search" placeholder="Search name, ID, contact or email" aria-label="Search patients" id="pt-search" ${bindAction('input',(event,element)=>{appState.patientForm.patientPage=1;renderPatientTable()})}>
-      <select id="pt-college" ${bindAction('change',(event,element)=>{renderPatientTable()})}>
-        <option value="">All Colleges</option>
-        ${['CCICT','COE','COED','CME','CAS','COT'].map(col=>`<option value="${col}">${col}</option>`).join('')}
-      </select>
-      <select id="pt-ptype" aria-label="Patient type" ${bindAction('change',(event,element)=>{if(element.value&&element.value!=='Student')document.getElementById('pt-session').value='';renderPatientTable()})}>
+      <select id="pt-college" aria-label="College or department" ${bindAction('change',(event,element)=>{renderPatientTable()})}>${unitFilterOptionsHtml('')}</select>
+      <select id="pt-ptype" aria-label="Patient type" ${bindAction('change',(event,element)=>{if(element.value&&element.value!=='Student')document.getElementById('pt-session').value='';syncUnitFilter(document.getElementById('pt-college'),element.value);renderPatientTable()})}>
         <option value="">All Types</option>
         <option>Student</option><option>Teaching Personnel</option><option>Non-Teaching Personnel</option>
       </select>
@@ -63,6 +60,23 @@ export async function renderPatients(){
   appState.patientForm.patientSort??={key:'name',direction:'asc'};
   appState.patientForm.patientPage=1;
   renderPatientTable();
+}
+
+// College/department filter options follow the person type, as on the registration form:
+// students and teaching personnel belong to a college, non-teaching personnel to a department.
+export function unitFilterOptionsHtml(personType,selected=''){
+  const colleges=appState.documentScanner.REGISTRATION_ACADEMIC_UNITS||[];
+  const departments=appState.documentScanner.REGISTRATION_NONTEACHING_DEPARTMENTS||[];
+  const options=list=>list.map(([value,label])=>`<option value="${escapeHtml(value)}" ${value===selected?'selected':''}>${escapeHtml(label)}</option>`).join('');
+  if(personType==='Non-Teaching Personnel')return `<option value="">All Departments</option>${options(departments)}`;
+  if(personType)return `<option value="">All Colleges</option>${options(colleges)}`;
+  return `<option value="">All Colleges &amp; Departments</option><optgroup label="Colleges">${options(colleges)}</optgroup><optgroup label="Departments">${options(departments)}</optgroup>`;
+}
+export function syncUnitFilter(select,personType){
+  if(!select)return;
+  const previous=select.value;
+  select.innerHTML=unitFilterOptionsHtml(personType,previous);
+  if(select.value!==previous)select.value='';
 }
 
 export function patientAvatarHtml(pt,size=36){
@@ -147,14 +161,14 @@ export function renderPatientTable(){
   const pager=pages>1?`<div class="pt-pager"><span>Showing ${(page-1)*PATIENT_PAGE_SIZE+1}–${(page-1)*PATIENT_PAGE_SIZE+pts.length} of ${all.length}</span>
     <div><button class="btn btn-xs" ${page===1?'disabled':''} ${bindAction('click',()=>{appState.patientForm.patientPage=page-1;renderPatientTable();})}>‹ Previous</button>
     <button class="btn btn-xs" ${page===pages?'disabled':''} ${bindAction('click',()=>{appState.patientForm.patientPage=page+1;renderPatientTable();})}>Next ›</button></div></div>`:'';
-  el.innerHTML=`<div class="table-wrap"><table class="patient-records-table"><thead><tr>${header('name','Patient')}${header('age','Age / Sex')}${header('college','College')}<th>Type</th><th>Class Session</th><th>Blood</th>${header('lastVisit','Last Visit')}<th>Contact</th><th>Actions</th></tr></thead><tbody>${
+  el.innerHTML=`<div class="table-wrap"><table class="patient-records-table"><thead><tr>${header('name','Patient')}${header('age','Age / Sex')}${header('college','College / Dept.')}<th>Type</th><th>Class Session</th><th>Blood</th>${header('lastVisit','Last Visit')}<th>Contact</th><th>Actions</th></tr></thead><tbody>${
     pts.map(p=>{
       const last=patientLastVisit(p);
       const allergy=patientData.hasAllergyAlert(p.allergies);
       return `<tr ${p.archived?'style="opacity:.6;cursor:pointer"':'style="cursor:pointer"'} ${bindAction('click',(event,element)=>{viewPatient((p.id))})} title="Click to view patient record">
       <td><div class="pt-identity">${patientAvatarHtml(p,34)}<div><strong>${escapeHtml(p.lname)}, ${escapeHtml(p.fname)}</strong>${allergy?' <span class="badge badge-danger pt-allergy-flag" title="Allergies: '+escapeHtml(p.allergies)+'">Allergy</span>':''}${p.archived?' <span class="badge badge-gray">Archived</span>':''}<div class="text-muted">P-${patientDisplayId(p)} · ${escapeHtml(p.idNo||'No ID no.')}</div></div></div></td>
       <td>${p.age===''||p.age==null?'—':escapeHtml(String(p.age))}${p.gender?' · '+escapeHtml(p.gender.charAt(0)):''}</td><td>${collegeBadge(p.college)}</td>
-      <td>${priorityBadge(p.personType)}</td><td>${p.personType==='Student'?escapeHtml(p.classSession||'Not recorded'):'—'}</td><td>${escapeHtml(p.blood||'—')}</td>
+      <td>${priorityBadge(p.personType)}</td><td>${p.personType==='Student'?escapeHtml(p.classSession||'—'):'—'}</td><td>${escapeHtml(p.blood||'—')}</td>
       <td>${last?fmtDate(last):'<span class="text-muted">No visits</span>'}</td><td>${escapeHtml(p.contact||'—')}</td>
       <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
         <button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewPatient((p.id))})}>View</button>

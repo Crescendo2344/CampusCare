@@ -1,4 +1,3 @@
-import {maskEmail,maskPhone} from '../shared/privacy-formatting.js';
 // appointments: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
@@ -9,9 +8,12 @@ import {openApptRangePicker} from './datePicker.js';
 import {openBookApptModal,openRescheduleModal} from './bookingForm.js';
 import {getPatientById,getUserById} from './documentScanner.js';
 import {viewAppt} from './appointmentDetails.js';
-import {patientAvatarHtml} from './patientManagement.js';
+import {patientAvatarHtml,unitFilterOptionsHtml} from './patientManagement.js';
+import {patientDisplayId} from './patientService.js';
+import {clinicToday} from './scheduleAndDrafts.js';
+import * as listData from '../domain/appointment-list.js';
 import {viewPatient} from './patientForm.js';
-import {collegeBadge,fmtDate,fmtTime,priorityBadge,statusBadge} from './inputValidation.js';
+import {fmtDate,fmtTime,priorityBadge,statusBadge} from './inputValidation.js';
 import {openAddTreatmentModal} from './treatmentForm.js';
 import {showConfirmDialog,toast} from './theme.js';
 import {persistDB} from './persistence.js';
@@ -19,6 +21,7 @@ import {renderMyAppointments} from './patientAppointments.js';
 import {closeAllModals,openModal} from './modals.js';
 import {addNotif} from './notifications.js';
 import {bindAction} from '../dependencies.js';
+import {refreshTaskBadges} from './topbarAndNavigation.js';
 // ================================================================
 // APPOINTMENTS PAGE (Staff/Admin/Doctor)
 // ================================================================
@@ -37,79 +40,135 @@ export async function renderAppointments(){
     if(!isCampusPageCurrent('appointments',pageToken))return;
   }
   const role=appState.auth.currentUser.role;
+  const ui=appState.appointments??={};
+  ui.view=ui.view||'upcoming';ui.page=1;
+  const doctors=role==='Doctor'?[]:(appState.data.DB.users||[]).filter(u=>u.role==='Doctor'&&(!appState.auth.currentUser._realSupabase||u._realSupabase));
   c.innerHTML=`
-    <div class="toolbar">
-      <input type="text" placeholder="Search patient, clinic..." id="appt-search" ${bindAction('input',(event,element)=>{renderApptTable()})}>
-      <select id="appt-status" ${bindAction('change',(event,element)=>{renderApptTable()})}>
-        <option value="">All Status</option>
+    <div class="appt-head"><div class="appt-views" role="tablist" aria-label="Appointment lists" id="appt-views"></div>
+      ${role!=='Doctor'?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>{openBookApptModal()})}>+ Book Appointment</button>`:''}</div>
+    <div class="toolbar appt-toolbar">
+      <input type="search" placeholder="Search patient, ID, appointment #, doctor or service" aria-label="Search appointments" id="appt-search" ${bindAction('input',()=>{ui.page=1;renderApptTable()})}>
+      <select id="appt-status" aria-label="Status" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>
+        <option value="">All statuses</option>
         <option>Scheduled</option><option>Completed</option><option>Cancelled</option><option>No-show</option>
       </select>
-      <select id="appt-college" ${bindAction('change',(event,element)=>{renderApptTable()})}>
-        <option value="">All Colleges</option>
-        ${['CCICT','COE','COED','CME','CAS','COT'].map(col=>`<option value="${col}">${col}</option>`).join('')}
-      </select>
-      <select id="appt-clinic" ${bindAction('change',(event,element)=>{renderApptTable()})}>
-        <option value="">All Clinics</option>
+      <select id="appt-college" aria-label="College or department" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>${unitFilterOptionsHtml('')}</select>
+      <select id="appt-clinic" aria-label="Clinic" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>
+        <option value="">All clinics</option>
         <option>Medical Clinic</option><option>Dental Clinic</option>
       </select>
-      <div class="appt-range-filter"><input type="hidden" id="appt-date-from"><input type="hidden" id="appt-date-to"><button type="button" class="modern-date-btn" ${bindAction('click',(event,element)=>{openApptRangePicker()})}><i class="bi bi-calendar3"></i><span id="appt-range-label">All dates</span></button></div>
-      ${role!=='Doctor'?`<button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{openBookApptModal()})}>+ Book Appointment</button>`:''}
+      ${doctors.length?`<select id="appt-doctor" aria-label="Doctor" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}><option value="">All doctors</option>${doctors.map(d=>`<option value="${d.id}">Dr. ${escapeHtml(d.fname+' '+d.lname)}</option>`).join('')}</select>`:''}
+      <div class="appt-range-filter"><input type="hidden" id="appt-date-from"><input type="hidden" id="appt-date-to"><button type="button" class="modern-date-btn" aria-label="Filter by date range" ${bindAction('click',()=>{openApptRangePicker()})}><i class="bi bi-calendar3" aria-hidden="true"></i><span id="appt-range-label">All dates</span></button></div>
+      <button class="btn btn-sm" ${bindAction('click',()=>exportAppointmentsCsv())}><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>
     </div>
+    <p class="patient-filter-summary" id="appt-summary" role="status" aria-live="polite"></p>
     <div class="card"><div id="appt-table"></div></div>`;
   renderApptTable();
 }
 
-export function renderApptTable(){
-  const q=(document.getElementById('appt-search')||{}).value||'';
-  const stat=(document.getElementById('appt-status')||{}).value||'';
-  const col=(document.getElementById('appt-college')||{}).value||'';
-  const clinic=(document.getElementById('appt-clinic')||{}).value||'';
-  const dateFrom=(document.getElementById('appt-date-from')||{}).value||'';
-  const dateTo=(document.getElementById('appt-date-to')||{}).value||'';
-  const role=appState.auth.currentUser.role;
-  let appts=appointmentRecords().filter(a=>{
-    const pt=getPatientById(a.patientId);
-    const name=pt?`${pt.fname} ${pt.lname}`.toLowerCase():'';
-    const matchQ=!q||name.includes(q.toLowerCase())||a.clinic.toLowerCase().includes(q.toLowerCase());
-    const matchS=!stat||a.status===stat;
-    const matchC=!col||(a.college||pt?.college||'')===col;
-    const matchCl=!clinic||a.clinic===clinic;
-    const matchD=(!dateFrom||a.date>=dateFrom)&&(!dateTo||a.date<=dateTo);
-    const matchDoc=role!=='Doctor'||a.doctorId===appState.auth.currentUser.id;
-    return matchQ&&matchS&&matchC&&matchCl&&matchD&&matchDoc;
+const APPT_VIEWS=[
+  ['upcoming','Upcoming','Scheduled for today or later'],
+  ['outcome','Needs outcome','Past appointments still marked Scheduled'],
+  ['history','History','Completed, cancelled and no-show'],
+  ['all','All','Every appointment']
+];
+const APPT_PAGE_SIZE=25;
+const clinicNow=()=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());
+
+// Every filter except the tab, so tab counts show what each list would contain.
+function filteredAppointments(){
+  const value=id=>document.getElementById(id)?.value||'';
+  const q=value('appt-search').trim().toLowerCase(),stat=value('appt-status'),unit=value('appt-college'),clinic=value('appt-clinic');
+  const doctor=Number(value('appt-doctor'))||0,dateFrom=value('appt-date-from'),dateTo=value('appt-date-to');
+  const account=appState.auth.currentUser;
+  return appointmentRecords().filter(a=>{
+    if(account.role==='Doctor'&&a.doctorId!==account.id)return false;
+    const pt=getPatientById(a.patientId),doc=getUserById(a.doctorId);
+    const haystack=[pt?`${pt.fname} ${pt.lname} ${pt.lname}, ${pt.fname} P-${patientDisplayId(pt)} ${pt.idNo||''}`:'',`#${appointmentDisplayId(a)} ${a.dbAppointmentId||a.id}`,doc?`Dr. ${doc.fname} ${doc.lname}`:'',a.clinic,a.service,a.reason].join(' ').toLowerCase();
+    return (!q||haystack.includes(q))&&(!stat||a.status===stat)&&(!unit||(a.college||pt?.college||'')===unit)
+      &&(!clinic||a.clinic===clinic)&&(!doctor||a.doctorId===doctor)&&(!dateFrom||a.date>=dateFrom)&&(!dateTo||a.date<=dateTo);
   });
-  appts=appts.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+}
+
+function describeAppointment(a){
+  const pt=getPatientById(a.patientId),doc=getUserById(a.doctorId);
+  return [appointmentDisplayId(a),a.date,a.time,pt?`${pt.lname}, ${pt.fname}`:'Unknown',pt?`P-${patientDisplayId(pt)}`:'',a.college||pt?.college||'',a.clinic,a.service||'',doc?`Dr. ${doc.fname} ${doc.lname}`:'',a.priority||pt?.personType||'',a.status,a.reason||''];
+}
+export function exportAppointmentsCsv(){
+  const view=appState.appointments?.view||'upcoming',today=clinicToday();
+  const rows=listData.sortAppointments(filteredAppointments().filter(a=>view==='all'||listData.appointmentView(a,today)===view),view);
+  const url=URL.createObjectURL(new Blob(['﻿'+listData.appointmentsCsv(rows,describeAppointment)],{type:'text/csv;charset=utf-8'}));
+  const link=Object.assign(document.createElement('a'),{href:url,download:`campuscare-appointments-${view}-${today}.csv`});
+  document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function apptActionButtons(a,allowed,{compact=true}={}){
+  const size=compact?'btn-xs':'btn-sm';
+  const primary=allowed.document
+    ?`<button class="btn ${size} btn-primary" ${bindAction('click',()=>{closeAllModals();openAddTreatmentModal(a.id)})}><i class="bi bi-journal-medical" aria-hidden="true"></i> Add notes &amp; complete</button>`
+    :`<button class="btn ${size}" ${bindAction('click',()=>viewAppt(a.id))}>View</button>`;
+  const more=[
+    allowed.reschedule&&`<button type="button" role="menuitem" ${bindAction('click',()=>{closeAllModals();openRescheduleModal(a.id)})}><i class="bi bi-calendar2-week" aria-hidden="true"></i> Reschedule</button>`,
+    allowed.remind&&`<button type="button" role="menuitem" ${bindAction('click',()=>sendApptNotif(a.id))}><i class="bi bi-bell" aria-hidden="true"></i> Send reminder</button>`,
+    allowed.noShow&&`<button type="button" role="menuitem" ${bindAction('click',()=>noShowAppt(a.id))}><i class="bi bi-person-x" aria-hidden="true"></i> Mark no-show</button>`,
+    allowed.cancel&&`<button type="button" role="menuitem" class="danger" ${bindAction('click',()=>cancelAppt(a.id))}><i class="bi bi-x-circle" aria-hidden="true"></i> Cancel appointment</button>`
+  ].filter(Boolean);
+  return {primary,more};
+}
+export function apptMenuHtml(more,label){
+  if(!more.length)return '';
+  return `<details class="row-menu" ${bindAction('toggle',(event,element)=>{if(element.open)for(const other of document.querySelectorAll('.row-menu[open]'))if(other!==element)other.open=false;})}>
+    <summary class="btn btn-xs" aria-label="More actions for ${escapeHtml(label)}"><i class="bi bi-three-dots" aria-hidden="true"></i></summary>
+    <div class="row-menu-list" role="menu" ${bindAction('click',(event,element)=>{if(event.target.closest('button'))element.closest('details').open=false;})}>${more.join('')}</div>
+  </details>`;
+}
+export function appointmentAllowedActions(a){
+  return listData.appointmentActions(a,{role:appState.auth.currentUser.role,userId:appState.auth.currentUser.id,today:clinicToday(),now:clinicNow()});
+}
+
+export function renderApptTable(){
   const el=document.getElementById('appt-table');
   if(!el)return;
-  const canManage=role==='Staff'||role==='Administrator';
-  const isDoc=role==='Doctor';
-  if(!appts.length){el.innerHTML='<div class="empty-state"><p>No appointments found.</p></div>';return;}
-  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Photo</th><th>Patient</th><th>College</th><th>Priority</th><th>Clinic</th><th>Date & Time</th><th>Doctor</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
-    appts.map(a=>{
-      const pt=getPatientById(a.patientId);
-      const doc=getUserById(a.doctorId);
-      const canCancel=a.status==='Scheduled';
-      return`<tr style="cursor:pointer" ${bindAction('click',(event,element)=>{viewAppt((a.id))})} title="Click to open appointment">
-        <td>#${appointmentDisplayId(a)}</td>
-        <td>${pt?patientAvatarHtml(pt,30):'—'}</td>
-        <td>${pt?`<button type="button" class="link-btn" ${bindAction('click',(event,element)=>{event.stopPropagation();viewPatient((pt.id))})} title="Open patient record"><strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong></button>`:'<strong>Unknown</strong>'}</td>
-        <td>${collegeBadge(a.college)}</td><td>${priorityBadge(a.priority)}</td>
-        <td>${a.clinic}</td>
-        <td>${fmtDate(a.date)}<br><span class="text-muted">${fmtTime(a.time)}</span></td>
-        <td>Dr. ${doc?doc.lname:'?'}</td>
-        <td>${statusBadge(a.status)}</td>
-        <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
-          <button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewAppt((a.id))})}>View</button>
-          ${canManage&&canCancel?`<button class="btn btn-xs btn-warning" ${bindAction('click',(event,element)=>{openRescheduleModal((a.id))})}>Reschedule</button>`:''}
-
-          ${isDoc&&a.status==='Scheduled'&&a.date<=appState.clinicInformation.TODAY?`<button class="btn btn-xs btn-primary" ${bindAction('click',(event,element)=>{openAddTreatmentModal((a.id))})}>📝 Add Notes &amp; Complete</button>`:''}
-          ${canManage&&canCancel?`<button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{cancelAppt((a.id))})}>Cancel</button>`:''}
-          ${appState.auth.currentUser.role==='Administrator'&&a.status==='Scheduled'?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{noShowAppt((a.id))})}>No-show</button>`:''}
-          ${(canManage||isDoc)&&a.status==='Scheduled'?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{sendApptNotif((a.id))})}>🔔 Notify</button>`:''}
-        </div></td>
-      </tr>`;
-    }).join('')
-  }</tbody></table></div>`;
+  const ui=appState.appointments??={view:'upcoming',page:1};
+  const today=clinicToday();
+  const filtered=filteredAppointments();
+  const counts=listData.appointmentViewCounts(filtered,today);
+  const tabs=document.getElementById('appt-views');
+  if(tabs)tabs.innerHTML=APPT_VIEWS.map(([id,label,hint])=>`<button type="button" role="tab" class="appt-view ${ui.view===id?'active':''} ${id==='outcome'&&counts.outcome?'attention':''}" aria-selected="${ui.view===id}" title="${hint}" ${bindAction('click',()=>{ui.view=id;ui.page=1;renderApptTable();})}>${label}<span class="appt-view-count">${counts[id]}</span></button>`).join('');
+  const all=listData.sortAppointments(filtered.filter(a=>ui.view==='all'||listData.appointmentView(a,today)===ui.view),ui.view);
+  const pages=Math.max(1,Math.ceil(all.length/APPT_PAGE_SIZE));
+  const page=Math.min(Math.max(1,ui.page||1),pages);ui.page=page;
+  const rows=all.slice((page-1)*APPT_PAGE_SIZE,page*APPT_PAGE_SIZE);
+  const summary=document.getElementById('appt-summary');
+  if(summary)summary.textContent=`${all.length} appointment${all.length===1?'':'s'} · ${APPT_VIEWS.find(([id])=>id===ui.view)[1]}`;
+  if(!all.length){
+    const empty={upcoming:'No upcoming appointments match these filters.',outcome:'Nothing to close out. Every past appointment has an outcome.',history:'No completed, cancelled or no-show appointments match these filters.',all:'No appointments match these filters.'}[ui.view];
+    el.innerHTML=`<div class="empty-state"><i class="bi bi-calendar2-check" aria-hidden="true" style="font-size:1.6rem"></i><p>${empty}</p></div>`;
+    return;
+  }
+  let lastDay='';
+  const body=rows.map(a=>{
+    const pt=getPatientById(a.patientId),doc=getUserById(a.doctorId);
+    const name=pt?`${pt.lname}, ${pt.fname}`:'Unknown patient';
+    const {primary,more}=apptActionButtons(a,appointmentAllowedActions(a));
+    const heading=a.date!==lastDay?`<tr class="appt-day-row"><th colspan="7" scope="rowgroup">${escapeHtml(listData.appointmentDayHeading(a.date,today))}<span>${fmtDate(a.date)}</span></th></tr>`:'';
+    lastDay=a.date;
+    const overdue=listData.appointmentView(a,today)==='outcome';
+    return `${heading}<tr class="appt-row" ${bindAction('click',()=>viewAppt(a.id))}>
+      <td data-label="Time"><strong class="appt-time">${fmtTime(a.time)}</strong><div class="text-muted">#${appointmentDisplayId(a)}</div></td>
+      <td data-label="Patient"><div class="pt-identity">${pt?patientAvatarHtml(pt,32):''}<div>${pt?`<button type="button" class="link-btn" ${bindAction('click',(event)=>{event.stopPropagation();viewPatient(pt.id)})}><strong>${escapeHtml(name)}</strong></button>`:`<strong>${escapeHtml(name)}</strong>`}<div class="text-muted">${pt?`P-${patientDisplayId(pt)} · `:''}${escapeHtml(a.college||pt?.college||'—')}</div></div></div></td>
+      <td data-label="Service"><strong>${escapeHtml(a.service||a.clinic||'—')}</strong><div class="text-muted">${escapeHtml(a.clinic||'')}</div></td>
+      <td data-label="Doctor">${doc?`Dr. ${escapeHtml(doc.fname+' '+doc.lname)}`:'<span class="text-muted">Unassigned</span>'}</td>
+      <td data-label="Priority">${priorityBadge(a.priority||pt?.personType||'')}</td>
+      <td data-label="Status">${statusBadge(a.status)}${overdue?'<div class="appt-overdue">Outcome needed</div>':''}</td>
+      <td data-label="Actions"><div class="td-actions" ${bindAction('click',(event)=>{event.stopPropagation()})}>${primary}${apptMenuHtml(more,`appointment #${appointmentDisplayId(a)}`)}</div></td>
+    </tr>`;
+  }).join('');
+  const pager=pages>1?`<div class="pt-pager"><span>Showing ${(page-1)*APPT_PAGE_SIZE+1}–${(page-1)*APPT_PAGE_SIZE+rows.length} of ${all.length}</span>
+    <div><button class="btn btn-xs" ${page===1?'disabled':''} ${bindAction('click',()=>{ui.page=page-1;renderApptTable();})}>‹ Previous</button>
+    <button class="btn btn-xs" ${page===pages?'disabled':''} ${bindAction('click',()=>{ui.page=page+1;renderApptTable();})}>Next ›</button></div></div>`:'';
+  el.innerHTML=`<div class="table-wrap"><table class="appt-table"><thead><tr><th scope="col">Time</th><th scope="col">Patient</th><th scope="col">Service</th><th scope="col">Doctor</th><th scope="col">Priority</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${body}</tbody></table></div>${pager}`;
 }
 
 export function completeAppt(id){
@@ -126,7 +185,7 @@ export function completeAppt(id){
         }else{
           a.status='Completed';persistDB();
         }
-        toast('Appointment marked as completed.','success');
+        toast('Appointment marked as completed.','success');refreshTaskBadges(true);
         if(appState.auth.currentUser.role==='Patient')await renderMyAppointments();else await renderAppointments();
       }catch(e){toast(e?.message||'Unable to complete appointment.','error');}
     }
@@ -145,7 +204,8 @@ export function noShowAppt(id){
           await appointmentAction({action:'status',appointment_id:a.dbAppointmentId,status:'No-show'});
           await syncRealAppointments();
         }else{a.status='No-show';persistDB();}
-        toast('Marked as no-show.','warning');
+        toast('Marked as no-show.','warning');refreshTaskBadges(true);
+        closeAllModals();
         await renderAppointments();
       }catch(e){toast(e?.message||'Unable to update appointment.','error');}
     }
@@ -178,29 +238,40 @@ export async function confirmCancelAppt(id,patient=false){
     }else{
       a.status='Cancelled';a.cancellationReason=reason;persistDB();
     }
-    toast('Appointment cancelled.','warning');
+    toast('Appointment cancelled.','warning');refreshTaskBadges(true);
     if(patient||appState.auth.currentUser.role==='Patient')await renderMyAppointments();else await renderAppointments();
   }catch(e){toast(e?.message||'Unable to cancel appointment.','error');}
 }
 
-export function sendApptNotif(id){
-  const a=appointmentRecords().find(x=>x.id===id);
+// Reminders are in-app notifications on the patient's account; the server allows one per appointment
+// every 12 hours so a patient is not flooded.
+export async function sendApptNotif(id){
+  const a=appointmentRecords().find(x=>x.id===Number(id));
   if(!a)return;
   const pt=getPatientById(a.patientId);
   if(!pt)return;
-  const u=appState.data.DB.users.find(x=>x.id===pt.userId);
-  if(u){addNotif(u.id,'Appointment Reminder',`Reminder: You have a ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}. Please bring your COR (Certificate of Registration) when you arrive at the clinic.`,'warning');}
-  const channels=[];
-  if(u&&u.email)channels.push(`email (${maskEmail(u.email)})`);
-  if(u&&u.contact)channels.push(`SMS (${maskPhone(u.contact)})`);
-  if(!channels.length){
-    toast(`${pt.fname} ${pt.lname} has no email or phone number on file to notify.`,'warning');
-    return;
-  }
-  toast(`Reminder sent to ${pt.fname} ${pt.lname} via ${channels.join(' and ')}.`,'success');
+  const name=`${pt.fname} ${pt.lname}`;
+  try{
+    if(a._realSupabase){
+      await appointmentAction({action:'remind',appointment_id:a.dbAppointmentId});
+    }else{
+      const u=appState.data.DB.users.find(x=>x.id===pt.userId);
+      if(!u){toast(`${name} has no CampusCare account to notify.`,'warning');return;}
+      addNotif(u.id,'Appointment reminder',`Reminder: ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}. Please bring your COR (Certificate of Registration) when you arrive at the clinic.`,'warning');
+    }
+    toast(`Reminder sent to ${name}. They will see it in their CampusCare notifications.`,'success');
+  }catch(e){toast(e?.message||'Unable to send the reminder.','error');}
 }
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
-
+  // Row action menus close on an outside click or Escape, like other menus.
+  document.addEventListener('click',event=>{
+    for(const menu of document.querySelectorAll('.row-menu[open]'))if(!menu.contains(event.target))menu.open=false;
+  });
+  document.addEventListener('keydown',event=>{
+    if(event.key!=='Escape')return;
+    const menu=document.querySelector('.row-menu[open]');
+    if(menu){menu.open=false;menu.querySelector('summary')?.focus();}
+  });
 }

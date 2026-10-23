@@ -7,6 +7,7 @@ import {certificateRecords} from './certificateService.js';
 import {fitnessRecords} from './fitnessAssessments.js';
 import {inventoryRecords} from './inventoryService.js';
 import {workflowRequestRecords} from './workflowRequests.js';
+import {appointmentRecords} from './appointmentService.js';
 import {renderNotifList} from './assistant.js';
 import {shouldShowNavItem} from './dentalSurvey.js';
 import {bindAction,createOperationalService,notificationData} from '../dependencies.js';
@@ -158,6 +159,15 @@ export function demoTaskBadgeSnapshot(){
     );
   }
 
+  // Appointments still marked Scheduled after their date need an outcome; a doctor also documents today's visits.
+  const today=appState.clinicInformation.TODAY;
+  if(role==='Administrator'||role==='Staff'){
+    set('appointments',appointmentRecords().filter(a=>a.status==='Scheduled'&&a.date<today),a=>`appointment:${a.id}:${a.date}`);
+  }
+  if(role==='Doctor'){
+    set('appointments',appointmentRecords().filter(a=>a.status==='Scheduled'&&a.doctorId===appState.auth.currentUser.id&&a.date<=today),a=>`appointment:${a.id}:${a.date}`);
+  }
+
   if(role==='Administrator'){
     set('feedback-issues',
       issueReportRecords().filter(r=>['Open','In Review'].includes(r.status)),
@@ -182,14 +192,36 @@ export function unseenTaskCount(id){
   return total;
 }
 
-export function navBadgeCountFor(id,notificationCounts=null){
-  const updates=Number((notificationCounts||navNotificationCounts())[id]||0);
-  // Task badges count unresolved work, independent of whether the page/notification was read.
-  const taskPages=['approvals','cert-requests','fitness','inventory','feedback-issues','users'];
-  const counts=appState.topbarAndNavigation.navTaskCounts||{};
-  if(taskPages.includes(id)&&Object.hasOwn(counts,id))return Math.max(0,Number(counts[id])||0);
-  return Math.max((appState.topbarAndNavigation.navTaskItems[id]||[]).length,updates);
+// Two kinds of sidebar badge:
+//  - work: items someone has to act on (approvals, low stock…). It clears only when the work is done.
+//  - updates: unread notifications for that page. It clears when the page is opened.
+// When a page has outstanding work, that count is shown; otherwise unread updates are.
+const TASK_PAGES=['approvals','cert-requests','fitness','inventory','feedback-issues','users','appointments'];
+const plural=(n,one,many=one+'s')=>`${n} ${n===1?one:many}`;
+function taskBadgeLabel(id,n,role){
+  switch(id){
+    case 'approvals':return plural(n,'registration')+' awaiting approval';
+    case 'cert-requests':return role==='Doctor'?plural(n,'certificate')+' awaiting your signature':plural(n,'certificate request')+' to prepare';
+    case 'fitness':return role==='Doctor'?plural(n,'fitness assessment')+' to claim or finish':plural(n,'fitness assessment request')+' waiting';
+    case 'inventory':return plural(n,'item')+' at or below reorder level';
+    case 'feedback-issues':return plural(n,'open issue report');
+    case 'users':return plural(n,'account request')+' pending review';
+    case 'appointments':return role==='Doctor'?plural(n,'appointment')+' to document':plural(n,'past appointment')+' awaiting an outcome';
+    default:return plural(n,'item')+' needing attention';
+  }
 }
+export function navBadgeState(id,notificationCounts=null){
+  const updates=Math.max(0,Number((notificationCounts||navNotificationCounts())[id]||0));
+  const counts=appState.topbarAndNavigation.navTaskCounts||{};
+  const tasks=TASK_PAGES.includes(id)&&Object.hasOwn(counts,id)
+    ? Math.max(0,Number(counts[id])||0)
+    : (appState.topbarAndNavigation.navTaskItems?.[id]||[]).length;
+  const role=appState.auth.currentUser?.role;
+  if(tasks>0)return {count:tasks,kind:id==='inventory'?'urgent':'task',label:taskBadgeLabel(id,tasks,role)+(updates?` and ${plural(updates,'new update')}`:''),updates};
+  if(updates>0)return {count:updates,kind:'update',label:plural(updates,'new update'),updates};
+  return {count:0,kind:'',label:'',updates:0};
+}
+export function navBadgeCountFor(id,notificationCounts=null){return navBadgeState(id,notificationCounts).count;}
 
 export function applyNavBadges(){
   if(!appState.auth.currentUser)return;
@@ -200,20 +232,32 @@ export function applyNavBadges(){
     const btn=document.getElementById(`nav-${item.id}`);
     if(!btn)continue;
 
-    const count=navBadgeCountFor(item.id,updates);
+    const state=navBadgeState(item.id,updates);
     let badge=btn.querySelector('.nav-badge');
+    let hidden=btn.querySelector('.nav-badge-label');
 
-    if(count>0){
+    if(state.count>0){
       if(!badge){
         badge=document.createElement('span');
-        badge.className='nav-badge nav-badge-new';
+        badge.className='nav-badge';
+        badge.setAttribute('aria-hidden','true');
         btn.appendChild(badge);
+        hidden=document.createElement('span');
+        hidden.className='nav-badge-label sr-only';
+        btn.appendChild(hidden);
       }
-      badge.textContent=count>99?'99+':String(count);
-      badge.title=`${count} pending item${count===1?'':'s'} requiring attention`;
-      badge.setAttribute('aria-label',badge.title);
-    }else if(badge){
-      badge.remove();
+      const previous=Number(badge.dataset.count||0);
+      badge.textContent=state.count>99?'99+':String(state.count);
+      badge.dataset.count=String(state.count);
+      badge.dataset.kind=state.kind;
+      badge.classList.toggle('has-updates',state.kind!=='update'&&state.updates>0);
+      // Animate only when the number goes up, so a periodic refresh does not keep flashing.
+      if(state.count>previous){badge.classList.remove('nav-badge-new');void badge.offsetWidth;badge.classList.add('nav-badge-new');}
+      hidden.textContent=`, ${state.label}`;
+      btn.title=`${item.label.replace(/&amp;/g,'&')}: ${state.label}`;
+    }else{
+      badge?.remove();hidden?.remove();
+      btn.removeAttribute('title');
     }
   }
 }

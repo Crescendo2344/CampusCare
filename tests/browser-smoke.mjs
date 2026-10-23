@@ -617,7 +617,13 @@ try{
     await page.locator('#pt-session').selectOption('Evening');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Evening/);
     // Class sessions are Morning or Evening only.
     assert.deepEqual(await page.locator('#pt-session option').evaluateAll(options=>options.map(o=>o.value)),['','Morning','Evening']);
+    // The college filter becomes a department filter for non-teaching personnel, as on the registration form.
+    await page.locator('#pt-ptype').selectOption('Non-Teaching Personnel');
+    assert.equal(await page.locator('#pt-college option').first().innerText(),'All Departments');
+    assert(await page.locator('#pt-college option',{hasText:'Registrar'}).count());
+    await page.locator('#pt-ptype').selectOption('');assert.equal(await page.locator('#pt-college optgroup').count(),2);
     await page.locator('#pt-ptype').selectOption('Teaching Personnel');assert(await page.locator('#pt-session').isDisabled());
+    assert.equal(await page.locator('#pt-college option').first().innerText(),'All Colleges');
     assert.equal(await page.locator('#pt-session').inputValue(),'');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Personnel/);
     await page.locator('#pt-ptype').selectOption('Student');await page.locator('#pt-session').selectOption('Morning');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/workspace-patients-${mobile?'mobile':'desktop'}.png`,fullPage:true});
@@ -653,6 +659,22 @@ try{
       await page.locator('#pt-table').getByRole('button',{name:'View',exact:true}).click();
     }
     await page.locator('#active-modal .close-btn').click();
+    // Appointments: list tabs with counts, agenda day headings and a row action menu.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('appointments'));
+    await page.locator('#appt-views [role="tab"]').first().waitFor();
+    assert.deepEqual(await page.locator('#appt-views [role="tab"]').evaluateAll(tabs=>tabs.map(t=>t.firstChild.textContent)),['Upcoming','Needs outcome','History','All']);
+    await page.getByRole('tab',{name:/^All/}).click();
+    assert.match(await page.locator('#appt-summary').innerText(),/appointments? · All/);
+    if(await page.locator('.appt-table .row-menu summary').count()){await page.locator('.appt-table .row-menu summary').first().click();assert(await page.locator('.row-menu[open] .row-menu-list').isVisible());await page.keyboard.press('Escape');}
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp,pt=state.data.DB.patients.find(p=>p._realSupabase)||state.data.DB.patients[0],doc=state.data.DB.users.find(u=>u.role==='Doctor'&&u._realSupabase)||state.data.DB.users.find(u=>u.role==='Doctor');
+      const today=state.clinicInformation.TODAY,shift=d=>{const x=new Date(today+'T12:00:00Z');x.setUTCDate(x.getUTCDate()+d);return x.toISOString().slice(0,10);};
+      state.data.DB.appointments=[[0,'16:00','Scheduled'],[1,'09:00','Scheduled'],[1,'10:00','Scheduled'],[-2,'09:00','Scheduled'],[-5,'13:00','Completed'],[-6,'08:00','Cancelled']].map(([d,time,status],i)=>({id:300500+i,dbAppointmentId:500+i,patientId:pt.id,doctorId:doc?.id,clinic:i%2?'Dental Clinic':'Medical Clinic',service:i%2?'Dental check-up':'General consultation',date:shift(d),time,status,priority:'Student',college:pt.college,reason:'Follow-up',_realSupabase:true}));
+      state.topbarAndNavigation.navTaskCounts={approvals:3,inventory:2,appointments:1};features.topbarAndNavigation.applyNavBadges();
+      state.appointments.view='upcoming';features.appointments.renderApptTable();
+    });
+    if(process.env.CAMPUSCARE_VISUAL_DIR){await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/appointments-${mobile?'mobile':'desktop'}.png`,fullPage:true});await page.locator('#sidebar').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/sidebar-${mobile?'mobile':'desktop'}.png`}).catch(()=>{});}
+    if(await page.locator('.appt-table .appt-row').count()){await page.locator('.appt-table .appt-row').first().click();await page.locator('#active-modal .appt-detail').waitFor();if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/appointment-detail-${mobile?'mobile':'desktop'}.png`});await page.locator('#active-modal .close-btn').click();}
     // Combine class/session and no-use filters, then check that the registration denominator survives.
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('reports'));
     await page.locator('#rpt-type').waitFor();

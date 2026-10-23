@@ -33,4 +33,5 @@ export const state={
   patientForm:{},
   inventoryForms:{},
   scheduleAndDrafts:{},
+  appointments:{},
 };
