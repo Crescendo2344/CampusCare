@@ -477,6 +477,40 @@ try{
     await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
     assert(await page.locator('.top-bar').evaluate(el=>!getComputedStyle(el).backgroundColor.startsWith('rgba')),'Top bar must be opaque');
   }
+  // Stat cards are read-only summaries with a written trend instead of an unlabeled sparkline.
+  assert.equal(await page.locator('.dashboard-a-stat').count(),4);
+  assert.equal(await page.locator('.dashboard-a-stat[role="button"], .dashboard-a-stat .das-spark').count(),0,'Stat cards are not clickable and have no sparkline');
+  assert.equal(await page.locator('.dashboard-a-stat .das-trend').count(),4);
+  // Notification centre: solid panel, day sections, grouped repeats, Unread filter, click-through and Escape.
+  for(const theme of ['light','dark']){
+    await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+    await page.locator('#notif-btn').click();await page.locator('#notif-panel.show').waitFor();
+    await page.waitForTimeout(150);
+    await page.evaluate(()=>{
+      const app=window.__fixtureApp,me=app.state.auth.currentUser,now=Date.now(),hour=36e5;
+      const make=(id,title,body,ago,read,ref=null)=>({id,dbNotificationId:id,userId:me.id,title,body,type:'info',read,createdAt:new Date(now-ago*hour).toISOString(),referenceType:ref?'issue_reports':'',referenceId:ref,actionPage:'',_realSupabase:Boolean(me._realSupabase)});
+      app.state.data.DB.notifications=[
+        make(1,'New Reply on a CampusCare Report','A reporter replied to an existing issue thread.',1,false,7),
+        make(2,'New Reply on a CampusCare Report','A reporter replied to an existing issue thread.',2,false,7),
+        make(3,'Appointment Confirmed','Your appointment was confirmed.',3,true),
+        make(4,'Low Stock Alert','Paracetamol is below its threshold.',30,false),
+        make(5,'Certificate Issued','Your medical certificate is ready.',100,true)
+      ];
+      app.features.assistant.renderNotifList();
+    });
+    const panel=page.locator('#notif-panel');
+    assert(!(await panel.evaluate(el=>getComputedStyle(el).backgroundColor)).startsWith('rgba'),'Notification panel must be opaque');
+    assert((await panel.locator('.notif-section').allInnerTexts()).map(t=>t.toUpperCase()).join(',').startsWith('TODAY'));
+    await panel.getByText('+1 more',{exact:false}).waitFor();
+    assert.equal(await panel.locator('.notif-item').count(),4,'Two replies on one report collapse into one entry');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await panel.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/notifications-${theme}-${mobile?'mobile':'desktop'}.png`});
+    await panel.getByRole('tab',{name:/Unread/}).click();
+    assert(await panel.isVisible(),'Filtering keeps the panel open');
+    assert.equal(await panel.locator('.notif-item').count(),2);
+    await page.keyboard.press('Escape');
+    assert(await panel.isHidden(),'Escape closes the panel');
+    await page.evaluate(()=>window.__fixtureApp.features.assistant.setNotificationFilter('all'));
+  }
   await page.evaluate(()=>document.documentElement.dataset.theme='light');
   if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({fullPage:true,path:`${process.env.CAMPUSCARE_VISUAL_DIR}/workspace-range-${mobile?'mobile':'desktop'}.png`});
   await rangeButton.click();assert.equal(await page.locator('#active-modal').getByRole('button',{name:'Cancel',exact:true}).count(),0);

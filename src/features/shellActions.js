@@ -10,7 +10,7 @@ import {openCampusDatePicker} from './datePicker.js';
 import {openCamera} from '../app/optional-features.js';
 import {handleTopSearchKey,renderTopSearch,toggleSidebar} from './topbarAndNavigation.js';
 import {openProfileDetails} from './accountSettings.js';
-import {markAllRead,toggleNotifPanel} from './assistant.js';
+import {markAllRead,setNotificationFilter,toggleNotifPanel} from './assistant.js';
 import {navTo} from './navigationRaceProtection.js';
 import {handleRegistrationIdUpload,selectRegistrationIdSide} from './idVerification.js';
 import {registerNamedAction} from '../dependencies.js';
@@ -84,4 +84,6 @@ export function initializeFeature(){
   registerNamedAction('shell-55',(event,element)=>{renderTopSearch(element.value)});
   registerNamedAction('shell-56',(event,element)=>{toggleNotifPanel()});
   registerNamedAction('shell-57',(event,element)=>{markAllRead()});
+  registerNamedAction('notif-filter-all',()=>setNotificationFilter('all'));
+  registerNamedAction('notif-filter-unread',()=>setNotificationFilter('unread'));
 }

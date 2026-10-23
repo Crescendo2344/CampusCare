@@ -13,18 +13,6 @@ import {bindAction} from '../dependencies.js';
 // ================================================================
 // DASHBOARD
 // ================================================================
-// Small inline sparkline used inside the Dashboard A stat cards.
-export function dashboardSparkline(values){
-  // Each card supplies its own records and a visible explanation of what the mini graph measures.
-  const description=Array.isArray(values)?'Appointments by date':values?.label||'Current snapshot';
-  const vals=(Array.isArray(values)?values:values?.values||[]).map(Number).filter(Number.isFinite);
-  const caption=`<div class="das-trend-caption">${escapeHtml(description)}</div>`;
-  if(!vals.length)return caption;
-  const w=180,h=26,p=2,min=Math.min(...vals),max=Math.max(...vals),span=(max-min)||1;
-  const pts=vals.map((v,i)=>`${p+(i*(w-2*p)/Math.max(1,vals.length-1))},${h-p-((v-min)/span)*(h-2*p)}`).join(' ');
-  return `<div class="das-spark"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(description)}"><title>${escapeHtml(description)}</title><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/></svg></div>${caption}`;
-}
-
 // Dashboard filter state. A From/To range controls the dashboard and trend card.
 export function isoDateOffset(base,days){const d=new Date(base+'T12:00:00');d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
 
@@ -166,8 +154,11 @@ export function dashboardTarget(text=''){
   if(s.includes('reminder'))return r==='Patient'?'my-records':'treatments';
   return '';
 }
-export function dashboardStatCard(label,value,meta,values,icon='•',tone=''){
-  const target=dashboardTarget(label+' '+(meta||''));return `<div class="dashboard-a-stat ${tone} ${target?'clickable':''}" ${target?`role="button" tabindex="0" ${bindAction('click',(event,element)=>{navTo((String(target)))})} ${bindAction('keydown',(event,element)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();navTo((String(target)))}})}`:''}><div class="das-top"><div class="das-label">${label}</div><div class="das-icon">${icon}</div></div><div class="das-value">${value}</div><div class="das-meta">${meta||'&nbsp;'}</div>${dashboardSparkline(values)}</div>`;
+// Stat cards are read-only summaries: a number, what it covers, and how it moved.
+export function dashboardStatCard(label,value,meta,trend,icon='•',tone=''){
+  const arrow={up:'▲',down:'▼',flat:'–'}[trend?.direction]||'';
+  const trendHtml=trend?`<div class="das-trend ${trend.direction||'info'} ${trend.sentiment||'neutral'}">${arrow?`<span class="das-trend-arrow" aria-hidden="true">${arrow}</span>`:''}<span>${escapeHtml(trend.text)}</span></div>`:'';
+  return `<div class="dashboard-a-stat ${tone}"><div class="das-top"><div class="das-label">${label}</div><div class="das-icon" aria-hidden="true">${icon}</div></div><div class="das-value">${value}</div><div class="das-meta">${meta||'&nbsp;'}</div>${trendHtml}</div>`;
 }
 export function dashboardAttentionItem(title,detail,tone=''){
   const target=dashboardTarget(title+' '+detail);return `<div class="dashboard-attn-item ${target?'clickable':''}" ${target?`role="button" tabindex="0" ${bindAction('click',(event,element)=>{navTo((String(target)))})} ${bindAction('keydown',(event,element)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();navTo((String(target)))}})}`:''}><span class="dashboard-attn-dot ${tone}"></span><div class="dashboard-attn-copy"><strong>${title}</strong><span>${detail}</span></div></div>`;

@@ -4,7 +4,7 @@ import {applyDueScheduleChanges} from './workflowRequests.js';
 import {configureSessionGuard} from './sessionSecurity.js';
 import {escapeHtml} from './issueReports.js';
 import {buildNav,startTaskBadgeRefresh,updateTopDate} from './topbarAndNavigation.js';
-import {updateNotifUI} from './notifications.js';
+import {startNotificationRefresh,updateNotifUI} from './notifications.js';
 import {navTo} from './navigationRaceProtection.js';
 import {bindAction} from '../dependencies.js';
 // ================================================================
@@ -39,6 +39,7 @@ export function initApp(){
   window.addEventListener('resize',updateTopDate);
   buildNav();
   updateNotifUI();
+  startNotificationRefresh();
   startTaskBadgeRefresh();
   const firstNav = appState.topbarAndNavigation.NAV_CONFIG[appState.auth.currentUser.role]?.find(item => item.id);
   if(firstNav) navTo(firstNav.id);

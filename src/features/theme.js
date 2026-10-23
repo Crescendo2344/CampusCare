@@ -68,8 +68,11 @@ export function startAutomaticThemeClock(){
 export function toast(msg, type='info', dur=3000){
   persistDB();
   const w=document.getElementById('toast-wrap');
+  // The same message already on screen is not stacked again.
+  if([...w.children].some(existing=>existing.dataset.message===String(msg)&&existing.style.opacity!=='0'))return;
   const t=document.createElement('div');
   t.className=`toast ${type}`;
+  t.dataset.message=String(msg);
   t.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="${type==='success'?'M5 13l4 4L19 7':type==='error'?'M6 18L18 6M6 6l12 12':'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'}"/></svg>${msg}`;
   w.appendChild(t);
   setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300)},dur);

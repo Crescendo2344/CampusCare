@@ -59,6 +59,14 @@ export async function updateNotifUI(){
   applyNavBadges();
 }
 
+// Keep the bell count current while the page stays open; hidden tabs skip the request.
+export function startNotificationRefresh(){
+  clearInterval(appState.assistant.notificationRefreshTimer);
+  appState.assistant.notificationRefreshTimer=setInterval(()=>{
+    if(appState.auth.currentUser&&!document.hidden)updateNotifUI();
+  },60000);
+}
+
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
 

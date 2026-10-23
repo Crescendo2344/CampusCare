@@ -1,7 +1,11 @@
-<div class="notif-panel" id="notif-panel">
+<div class="notif-panel" id="notif-panel" role="dialog" aria-label="Notifications">
   <div class="notif-panel-header">
-    Notifications
-    <button class="btn btn-xs" data-action-click="shell-57">Mark all read</button>
+    <h3>Notifications</h3>
+    <button class="notif-mark-all" id="notif-mark-all" data-action-click="shell-57">Mark all as read</button>
+  </div>
+  <div class="notif-tabs" role="tablist" aria-label="Filter notifications">
+    <button class="notif-tab active" role="tab" aria-selected="true" data-action-click="notif-filter-all" id="notif-tab-all">All</button>
+    <button class="notif-tab" role="tab" aria-selected="false" data-action-click="notif-filter-unread" id="notif-tab-unread">Unread</button>
   </div>
   <div id="notif-list"></div>
 </div>

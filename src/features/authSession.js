@@ -79,11 +79,20 @@ async function restoreAuthenticatedAccount(){
     // Do not keep the whole page blocked while secondary directory data loads.
     initApp();
 
+    // Background work belongs to this signed-in account. If the person logs out or another
+    // restore takes over, its late results and failures are ignored instead of reported.
+    const syncOwner=appState.auth.currentUser,syncRun=(appState.auth.backgroundSyncRun||0)+1;
+    appState.auth.backgroundSyncRun=syncRun;
+    const stillCurrent=()=>appState.auth.currentUser===syncOwner&&appState.auth.backgroundSyncRun===syncRun;
+    const cancelled=new Error('Background sync superseded');
+    const guard=()=>{if(!stillCurrent())throw cancelled;};
+
     if(['Administrator','Staff','Doctor'].includes(appState.auth.currentUser.role)){
       // Keep the already-rendered page visible while clinical directory and
       // certificate data synchronize in the background.
       syncAdminDirectoryFromSupabase()
         .then(async()=>{
+          guard();
           if(typeof syncPublicSystemSettings==='function'){
             try{await syncPublicSystemSettings();}catch(err){console.error('Settings sync:',err);}
           }
@@ -108,15 +117,18 @@ async function restoreAuthenticatedAccount(){
           if(typeof syncRealFitnessAssessments==='function'){
             try{await syncRealFitnessAssessments();}catch(err){console.error('Fitness sync:',err);}
           }
-          if(['Staff','Administrator'].includes(appState.auth.currentUser.role)&&typeof syncRealInventory==='function'){
+          guard();
+          if(['Staff','Administrator'].includes(syncOwner.role)&&typeof syncRealInventory==='function'){
             try{await syncRealInventory(true);}catch(err){console.error('Inventory sync:',err);}
           }
-          if(appState.auth.currentUser.role==='Administrator'&&typeof refreshRealApprovalQueue==='function'){
+          if(syncOwner.role==='Administrator'&&typeof refreshRealApprovalQueue==='function'){
             try{await refreshRealApprovalQueue(false);}catch(err){console.error('Approval sync:',err);}
           }
+          guard();
           refreshActivePageAfterSync();
         })
         .catch(err=>{
+          if(err===cancelled||!stillCurrent())return;
           console.error('Clinical directory background sync:',err);
           toast('Some database data could not be refreshed. Open the page again to retry.','warning');
         });
@@ -134,8 +146,8 @@ async function restoreAuthenticatedAccount(){
         .then(()=>syncRealMedicationReminders())
         .then(()=>syncRealCertificates())
         .then(()=>syncRealFitnessAssessments())
-        .then(()=>refreshActivePageAfterSync())
-        .catch(err=>console.error('Patient background sync:',err));
+        .then(()=>{guard();refreshActivePageAfterSync();})
+        .catch(err=>{if(err!==cancelled&&stillCurrent())console.error('Patient background sync:',err);});
     }
 
     return true;

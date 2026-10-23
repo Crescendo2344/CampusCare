@@ -1,6 +1,6 @@
 // assistant: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
-import {escapeHtml,jsAttrSafe} from './issueReports.js';
+import {escapeHtml} from './issueReports.js';
 import {navTo} from './navigationRaceProtection.js';
 import {getInventoryForecast,inventoryRecords} from './inventoryService.js';
 import {computeCampusHealthAnalytics} from './predictiveAnalytics.js';
@@ -11,7 +11,7 @@ import {docName,messageRecords} from './messaging.js';
 import {getDoctorLeaves} from './doctorSchedule.js';
 import {addNotif,notificationCenterAction,notificationPageFor,notificationRecords,notificationTone,updateNotifUI} from './notifications.js';
 import {toast} from './theme.js';
-import {bindAction} from '../dependencies.js';
+import {bindAction,notificationData} from '../dependencies.js';
 // ================================================================
 // AI ASSISTANT — a built-in helper that answers from your live app
 // data and can jump you to the right page. It's a rule-based/pattern-
@@ -229,59 +229,78 @@ export function getAssistantReply(raw){
   return "I'm not totally sure about that one yet. Try asking about appointments, approvals, inventory, messages, or how to do something — or use \"Report an Issue\" if something seems broken.";
 }
 
+// Notification panel: All/Unread tabs, Today/Yesterday/Earlier sections, grouped repeats,
+// relative times and a "show older" step, following common notification-centre behaviour.
+const NOTIFICATION_PAGE_SIZE=15;
+export function setNotificationFilter(filter){
+  appState.assistant.notificationFilter=filter==='unread'?'unread':'all';
+  appState.assistant.notificationLimit=NOTIFICATION_PAGE_SIZE;
+  renderNotifList();
+}
+
 export function renderNotifList(){
   const list=document.getElementById('notif-list');
   if(!list||!appState.auth.currentUser)return;
+  const filter=appState.assistant.notificationFilter||'all';
+  const limit=appState.assistant.notificationLimit||NOTIFICATION_PAGE_SIZE;
+  const mine=notificationRecords().filter(n=>n.userId===appState.auth.currentUser.id);
+  const unreadCount=mine.filter(n=>!n.read).length;
 
-  const notifs=notificationRecords()
-    .filter(n=>n.userId===appState.auth.currentUser.id)
-    .slice()
-    .sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  for(const [id,active] of [['notif-tab-all',filter==='all'],['notif-tab-unread',filter==='unread']]){
+    const tab=document.getElementById(id);
+    if(!tab)continue;
+    tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));
+  }
+  const unreadTab=document.getElementById('notif-tab-unread');
+  if(unreadTab)unreadTab.textContent=unreadCount?`Unread (${unreadCount>99?'99+':unreadCount})`:'Unread';
+  const markAll=document.getElementById('notif-mark-all');
+  if(markAll)markAll.disabled=!unreadCount;
 
-  if(!notifs.length){
-    list.innerHTML='<div class="empty-state" style="padding:1rem"><p>No notifications</p></div>';
+  const sections=notificationData.groupNotifications(filter==='unread'?mine.filter(n=>!n.read):mine);
+  if(!sections.length){
+    list.innerHTML=`<div class="notif-empty"><i class="bi ${filter==='unread'?'bi-check2-circle':'bi-bell-slash'}" aria-hidden="true"></i><strong>${filter==='unread'?'You are all caught up':'No notifications yet'}</strong><span>${filter==='unread'?'New updates will appear here.':'Updates about your clinic activity will appear here.'}</span></div>`;
     return;
   }
 
-  list.innerHTML=notifs.map(n=>{
-    const tone=notificationTone(n);
-    const color=tone==='danger'?'var(--danger)':tone==='success'?'#639922':tone==='warning'?'#EF9F27':'var(--primary)';
-    const when=n.createdAt?new Date(n.createdAt).toLocaleString('en-PH'):'';
-    const page=notificationPageFor(n);
-
-    return `<div class="notif-item ${n.read?'':'unread'}" ${bindAction('click',(event,element)=>{readNotif((n.id),(page?`'${jsAttrSafe(page)}'`:'null'))})}>
-      <div style="display:flex;gap:.5rem;align-items:flex-start">
-        <div class="notif-type-dot" style="background:${color}"></div>
-        <div style="flex:1;min-width:0">
-          <div class="notif-item-title">${escapeHtml(n.title)}</div>
-          <div style="color:var(--ink-muted);margin-bottom:2px;line-height:1.4">${escapeHtml(n.body)}</div>
-          <div class="notif-item-time">${escapeHtml(when)}</div>
-        </div>
-      </div>
-    </div>`;
+  let shown=0,total=0;
+  const html=sections.map(section=>{
+    total+=section.groups.length;
+    const groups=section.groups.slice(0,Math.max(0,limit-shown));
+    shown+=groups.length;
+    if(!groups.length)return '';
+    return `<div class="notif-section">${section.name}</div>`+groups.map(group=>{
+      const n=group.lead,extra=group.members.length-1;
+      const tone=notificationTone(n),page=notificationPageFor(n);
+      const ids=group.members.map(member=>member.id);
+      const exact=n.createdAt?new Date(n.createdAt).toLocaleString('en-PH'):'';
+      return `<button type="button" class="notif-item ${group.unread?'unread':''}" ${bindAction('click',()=>{readNotif(ids,page||null)})}>
+        <span class="notif-icon ${tone}" aria-hidden="true"><i class="bi ${notificationData.notificationIcon(n)}"></i></span>
+        <span class="notif-content">
+          <span class="notif-item-title">${escapeHtml(n.title)}</span>
+          <span class="notif-item-text">${escapeHtml(n.body)}</span>
+          <span class="notif-item-time" title="${escapeHtml(exact)}">${escapeHtml(notificationData.relativeNotificationTime(n.createdAt))}${extra?` · +${extra} more`:''}</span>
+        </span>
+        ${group.unread?'<span class="notif-unread-dot" aria-label="Unread"></span>':''}
+      </button>`;
+    }).join('');
   }).join('');
+  const more=total>shown?`<button type="button" class="notif-more" ${bindAction('click',()=>{appState.assistant.notificationLimit=limit+NOTIFICATION_PAGE_SIZE;renderNotifList();})}>Show older notifications</button>`:'';
+  list.innerHTML=html+more;
 }
 
-export async function readNotif(id,page=null){
-  const n=notificationRecords().find(x=>x.id===Number(id));
-  if(!n)return;
+// Opening a notification marks it (and any grouped repeats) read, then goes to its page.
+export async function readNotif(ids,page=null){
+  const wanted=new Set((Array.isArray(ids)?ids:[ids]).map(Number));
+  const targets=notificationRecords().filter(x=>wanted.has(x.id)&&!x.read);
+  await Promise.all(targets.map(async n=>{
+    if(!n._realSupabase){n.read=true;return;}
+    try{await notificationCenterAction({action:'read',notification_id:n.dbNotificationId});n.read=true;}
+    catch(e){console.error('Read notification:',e);}
+  }));
 
-  if(n._realSupabase&&!n.read){
-    try{
-      await notificationCenterAction({action:'read',notification_id:n.dbNotificationId});
-      n.read=true;
-    }catch(e){
-      console.error('Read notification:',e);
-    }
-  }else{
-    n.read=true;
-  }
-
+  document.getElementById('notif-panel')?.classList.remove('show');
+  document.getElementById('notif-btn')?.setAttribute('aria-expanded','false');
   await updateNotifUI();
-
-  const panel=document.getElementById('notif-panel');
-  if(panel)panel.classList.remove('show');
-
   if(page&&typeof navTo==='function')navTo(page);
 }
 
@@ -306,8 +325,9 @@ export async function markAllRead(){
 export function toggleNotifPanel(){
   const p=document.getElementById('notif-panel');
   if(!p)return;
-  p.classList.toggle('show');
-  if(p.classList.contains('show'))updateNotifUI();
+  const open=p.classList.toggle('show');
+  document.getElementById('notif-btn')?.setAttribute('aria-expanded',String(open));
+  if(open){appState.assistant.notificationLimit=NOTIFICATION_PAGE_SIZE;renderNotifList();updateNotifUI();}
 }
 
 // Appointment reminders are generated on the server and deduplicated by
@@ -346,9 +366,21 @@ export async function checkReminders(){
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
   appState.assistant.assistantHistory=[];
+  appState.assistant.notificationFilter='all';
+  appState.assistant.notificationLimit=NOTIFICATION_PAGE_SIZE;
+  const closePanel=()=>{
+    const p=document.getElementById('notif-panel');
+    if(!p?.classList.contains('show'))return;
+    p.classList.remove('show');
+    document.getElementById('notif-btn')?.setAttribute('aria-expanded','false');
+  };
+  // Clicking elsewhere or pressing Escape closes the panel, as in other apps.
   document.addEventListener('click',e=>{
-  const p=document.getElementById('notif-panel');
-  const btn=document.getElementById('notif-btn');
-  if(p&&btn&&!p.contains(e.target)&&!btn.contains(e.target))p.classList.remove('show');
-});
+    const p=document.getElementById('notif-panel');
+    const btn=document.getElementById('notif-btn');
+    // The click path still includes the panel when a tab or "show older" re-renders its target.
+    const path=e.composedPath?.()||[e.target];
+    if(p&&btn&&!path.includes(p)&&!path.includes(btn))closePanel();
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closePanel();});
 }
