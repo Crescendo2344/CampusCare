@@ -464,6 +464,9 @@ nav svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
 input[type="file"]{padding:.35rem .5rem;font-size:.82rem;cursor:pointer;color:var(--ink)}
 select option{background:#1c2128;color:#e9edf0}
 [data-theme="light"] select option,:root:not([data-theme]) select option{background:#fff;color:#16262f}
+/* Group headings inside native dropdowns (e.g. Colleges / Departments) match the option list. */
+select optgroup{background:#1c2128;color:#9fb3c0;font-style:normal;font-weight:700}
+[data-theme="light"] select optgroup,:root:not([data-theme]) select optgroup{background:#fff;color:#5b6b75}
 
 /* ===BTNS=== */
 .btn{padding:.42rem .9rem;border-radius:10px;border:1px solid var(--line);background:var(--overlay);backdrop-filter:blur(10px);cursor:pointer;font-size:.82rem;font-family:inherit;transition:transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .2s ease,background .18s ease,filter .18s ease;display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap;color:var(--ink);box-shadow:0 1px 0 rgba(255,255,255,.4) inset;position:relative}

@@ -575,7 +575,45 @@ try{
       assert(await page.evaluate(()=>document.getElementById('active-modal')===window.__reviewNode),'Preview must return to the original review dialog');
       assert(await page.getByRole('button',{name:'Approve Registration',exact:true}).isVisible());
     }
+    // Approval needs every checklist point confirmed first.
+    const approveButton=page.getByRole('button',{name:'Approve Registration',exact:true});
+    assert(await approveButton.isDisabled());
+    for(const box of await page.locator('#ap-checklist input[type=checkbox]').all())await box.check();
+    assert(await approveButton.isEnabled());
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/approval-review-${mobile?'mobile':'desktop'}.png`});
+    // Rejecting needs a reason; the confirm button stays disabled until one is chosen.
+    await page.getByRole('button',{name:'Reject…',exact:true}).click();
+    const rejectConfirm=page.getByRole('button',{name:'Reject registration',exact:true});
+    assert(await rejectConfirm.isDisabled());
+    await page.getByLabel('Other reason').check();assert(await rejectConfirm.isDisabled());
+    await page.locator('#reject-reason-text').fill('Please retake the back photo.');assert(await rejectConfirm.isEnabled());
+    await page.getByRole('button',{name:'Back to review',exact:true}).click();
+    await page.locator('.approval-review-modal').waitFor();
     await page.locator('#active-modal .close-btn').click();
+    await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp,base=state.approvalQueue.realPendingApprovals[0];
+      const day=d=>new Date(Date.now()-d*864e5).toISOString();
+      state.approvalQueue.realPendingApprovals=[{...base,user_id:77,email:'review@gmail.com',id_number:'1350098',college:'CCICT',email_confirmed_at:day(1),created_at:day(3)},{...base,user_id:78,first_name:'Ana',last_name:'Reyes',email:'ana@gmail.com',person_type:'Non-Teaching Personnel',college:'Registrar',id_number:'123',verification_back_signed_url:null,created_at:day(0.2)}];
+      features.approvalQueue.renderApprovals(false);
+    });
+    await page.locator('.approval-table').waitFor();
+    assert.equal(await page.locator('.approval-table .approval-row').count(),2);
+    assert.match(await page.locator('.approval-table .approval-row').first().innerText(),/Fixture, Review/);
+    assert(await page.locator('.approval-flag',{hasText:'Email not confirmed'}).count());
+    await page.locator('#ap-ptype').selectOption('Non-Teaching Personnel');assert.equal(await page.locator('#ap-unit option').first().innerText(),'All Departments');
+    assert.equal(await page.locator('.approval-table .approval-row').count(),1);
+    await page.locator('#ap-ptype').selectOption('');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/approvals-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+    // A theme picked with the toggle survives a reload.
+    if(!mobile){
+      const before=await page.evaluate(()=>document.documentElement.dataset.theme||'light');
+      await page.locator('#theme-toggle-btn').click();
+      const chosen=before==='dark'?'light':'dark';
+      assert.equal(await page.evaluate(()=>localStorage.getItem('campuscare-theme')),chosen);
+      await page.reload();await page.waitForFunction(()=>Boolean(window.__fixtureApp));
+      assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme||'light'),chosen);
+      await page.evaluate(()=>localStorage.removeItem('campuscare-theme'));
+    }
   }
   // Walk every visible role route through its actual generated click callback.
   const navIds=await page.locator('#sidebar nav [id^="nav-"]').evaluateAll(elements=>elements.map(element=>element.id));

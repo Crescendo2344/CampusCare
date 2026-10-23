@@ -35,17 +35,29 @@ export function applyThemeIcons(){
   const auto=!currentThemeOverride();
   ['theme-toggle-btn','auth-theme-toggle-btn'].forEach(id=>{
     const el=document.getElementById(id);
-    if(el)el.title=auto
-      ? `Appearance follows local time (${dark?'Dark':'Light'} now). Click to temporarily override.`
-      : `Temporary ${dark?'Dark':'Light'} override. Reload CampusCare to return to automatic appearance.`;
+    if(!el)return;
+    el.title=auto
+      ? `Appearance follows local time (${dark?'Dark':'Light'} now). Click to switch to ${dark?'light':'dark'} mode.`
+      : `${dark?'Dark':'Light'} mode is saved on this device. Click to switch to ${dark?'light':'dark'} mode.`;
+    el.setAttribute('aria-label',`Switch to ${dark?'light':'dark'} mode`);
   });
+}
+
+// A theme chosen with the toggle is remembered on this device and survives reloads and sign-outs.
+const THEME_KEY='campuscare-theme';
+export function savedTheme(){
+  try{const value=localStorage.getItem(THEME_KEY);return value==='dark'||value==='light'?value:null;}
+  catch(_){return null;}
+}
+function saveTheme(value){
+  try{localStorage.setItem(THEME_KEY,value);}catch(_){}
 }
 
 export function setTheme(mode,{manual=false}={}){
   const next=mode==='dark'?'dark':'light';
   if(next==='dark')document.documentElement.setAttribute('data-theme','dark');
   else document.documentElement.removeAttribute('data-theme');
-  if(manual)appState.theme.campusThemeManualOverride=next;
+  if(manual){appState.theme.campusThemeManualOverride=next;saveTheme(next);}
   applyThemeIcons();
 }
 
@@ -193,7 +205,8 @@ export function hideAlert(el){
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
-  appState.theme.campusThemeManualOverride=null;
+  appState.theme.campusThemeManualOverride=savedTheme();
   appState.theme.campusThemeClockTimer=null;
+  if(appState.theme.campusThemeManualOverride)setTheme(appState.theme.campusThemeManualOverride);
   startAutomaticThemeClock();
 }

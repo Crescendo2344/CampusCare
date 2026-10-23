@@ -167,7 +167,7 @@ export function realApprovalUiUser(u){
     medicalHistory:u.medical_history||'',
     allergies:u.allergies||'',
     verificationDocumentType:u.verification_document_type||(
-      u.person_type==='Student'?'School ID or COR':'Employee ID'
+      u.person_type==='Student'?'Student ID':'Employee ID'
     ),
     registrationContext:u.registration_context||'public',
     emailConfirmedAt:u.email_confirmed_at||'',

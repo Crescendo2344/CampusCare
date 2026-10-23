@@ -33,7 +33,7 @@ Deno.serve(async(req)=>{
         .select("user_id,auth_user_id,first_name,last_name,username,email,contact_number,person_type,college,id_number,status,verified,profile_image_url,id_file_url,id_back_file_url,verification_selfie_url,created_at,patients(patient_id,birth_date,sex,blood_type,address,emergency_contact_name,emergency_contact_number,medical_history,allergies)")
         .eq("role","Patient")
         .eq("status","Pending")
-        .order("created_at",{ascending:false});
+        .order("created_at",{ascending:true});
       if(error) throw error;
 
       const rows=[];
@@ -94,41 +94,81 @@ Deno.serve(async(req)=>{
       const body=await req.json();
       const targetId=Number(body.user_id);
       const action=String(body.action||"").toLowerCase();
-      const reason=String(body.reason||"").trim();
+      const reason=String(body.reason||"").trim().slice(0,500);
+      const checks=Array.isArray(body.checks)?body.checks.map((c:unknown)=>String(c).slice(0,20)).slice(0,10):[];
       if(!targetId||!["approve","reject"].includes(action)) return json({error:"Invalid approval request."},400);
+      // The applicant is told why, so a rejection always needs a reason they can act on.
+      if(action==="reject"&&reason.length<10) return json({error:"Give the applicant a reason for the rejection (at least 10 characters)."},400);
 
       const {data:target,error:tErr}=await admin.from("users")
-        .select("user_id,auth_user_id,status,role")
+        .select("user_id,auth_user_id,status,role,email,first_name,last_name,id_number,person_type,profile_image_url,id_file_url,id_back_file_url,verification_selfie_url")
         .eq("user_id",targetId).maybeSingle();
       if(tErr||!target||target.role!=="Patient"||target.status!=="Pending"){
-        return json({error:"Pending patient account not found."},404);
+        return json({error:"This registration was already reviewed or no longer exists. Refresh the queue."},404);
       }
 
-      const nextStatus=action==="approve"?"Active":"Archived";
-      const {error:uErr}=await admin.from("users")
-        .update({status:nextStatus,verified:action==="approve"})
-        .eq("user_id",targetId);
-      if(uErr) throw uErr;
+      if(action==="approve"){
+        const {error:uErr}=await admin.from("users")
+          .update({status:"Active",verified:true})
+          .eq("user_id",targetId).eq("status","Pending");
+        if(uErr) throw uErr;
+        await admin.from("audit_logs").insert({
+          user_id:actor.user_id,action:"USER_APPROVED",entity_type:"users",entity_id:targetId,
+          details:{previous_status:"Pending",new_status:"Active",reviewer_checks:checks}
+        });
+        // The account is Active now, so the notification is also queued as an email.
+        await admin.from("notifications").insert({
+          user_id:targetId,
+          title:"Account approved",
+          message:"Your CampusCare account has been approved. You may now sign in.",
+          type:"Account",channel:"In-app",delivery_status:"Created"
+        });
+        return json({ok:true,status:"Active"});
+      }
+
+      // Rejection: email the reason, then remove the pending account and its identity photos so the
+      // applicant can register again with the same email and ID number. The audit log keeps the decision.
+      const fullName=`${target.first_name||""} ${target.last_name||""}`.trim()||"CampusCare applicant";
+      const esc=(v:string)=>v.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      const text=`Hello ${fullName},\n\nYour CampusCare registration was not approved.\n\nReason: ${reason}\n\nYou may register again at CampusCare with clear photos of your selfie and the front and back of your Student or Employee ID. Contact the clinic if you need help.\n\nCTU Main Medical & Dental Clinic\nGround Floor, Education Building, CTU Main Campus\nPhone: (032) 402 4060 loc. 1142`;
+      const html=`<!doctype html><html><body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937"><div style="max-width:620px;margin:0 auto;padding:28px 16px"><div style="background:#fff;border-radius:16px;border:1px solid #e5e7eb;padding:26px"><p style="margin-top:0">Hello ${esc(fullName)},</p><h2 style="font-size:20px;margin:0 0 12px;color:#0b6b3a">Your CampusCare registration was not approved</h2><p style="font-size:15px;line-height:1.65"><strong>Reason:</strong> ${esc(reason)}</p><p style="font-size:15px;line-height:1.65">You may register again with clear photos of your selfie and the front and back of your Student or Employee ID. Contact the clinic if you need help.</p><div style="margin-top:24px;padding:16px;background:#f8fafc;border-radius:12px;font-size:13px;line-height:1.6;color:#475569"><strong>CTU Main Medical &amp; Dental Clinic</strong><br>Ground Floor, Education Building, CTU Main Campus<br>Phone: (032) 402 4060 loc. 1142</div></div></div></body></html>`;
+      let emailQueued=false;
+      if(target.email){
+        const {error:mailErr}=await admin.from("email_outbox").insert({
+          user_id:null,recipient_email:target.email,subject:"CampusCare — Registration not approved",
+          html_body:html,text_body:text,template_key:"account",status:"Pending",scheduled_at:new Date().toISOString()
+        });
+        emailQueued=!mailErr;
+      }
 
       await admin.from("audit_logs").insert({
-        user_id:actor.user_id,
-        action:action==="approve"?"USER_APPROVED":"USER_REJECTED",
-        entity_type:"users",
-        entity_id:targetId,
-        details:{previous_status:"Pending",new_status:nextStatus,reason:reason||null}
+        user_id:actor.user_id,action:"USER_REJECTED",entity_type:"users",entity_id:targetId,
+        details:{previous_status:"Pending",reason,name:fullName,id_number:target.id_number||null,person_type:target.person_type||null,email_queued:emailQueued}
       });
 
-      await admin.from("notifications").insert({
-        user_id:targetId,
-        title:action==="approve"?"Account approved":"Registration not approved",
-        message:action==="approve"
-          ?"Your CampusCare account has been approved. You may now sign in."
-          :`Your CampusCare registration was not approved.${reason?" Reason: "+reason:" Please contact the clinic if you need assistance."}`,
-        type:"Account",
-        channel:"In-app",
-        delivery_status:"Created"
-      });
-      return json({ok:true,status:nextStatus});
+      let removed=false;
+      try{
+        const verification=[target.verification_selfie_url,target.id_file_url,target.id_back_file_url].filter(Boolean);
+        if(verification.length)await admin.storage.from("campuscare-verification").remove(verification);
+        if(target.profile_image_url)await admin.storage.from("campuscare-profiles").remove([target.profile_image_url]);
+        for(const table of ["notifications","privacy_consents"]){
+          const {error}=await admin.from(table).delete().eq("user_id",targetId);
+          if(error)throw error;
+        }
+        const {error:pErr}=await admin.from("patients").delete().eq("user_id",targetId);
+        if(pErr)throw pErr;
+        const {error:dErr}=await admin.from("users").delete().eq("user_id",targetId);
+        if(dErr)throw dErr;
+        if(target.auth_user_id){
+          const {error:aErr}=await admin.auth.admin.deleteUser(target.auth_user_id);
+          if(aErr)throw aErr;
+        }
+        removed=true;
+      }catch(_){
+        // If linked records prevent removal, keep the account closed instead.
+        await admin.from("users").update({status:"Archived",verified:false}).eq("user_id",targetId);
+      }
+      return json({ok:true,status:removed?"Removed":"Archived",removed,email_queued:emailQueued});
     }
 
     return json({error:"Method not allowed."},405);

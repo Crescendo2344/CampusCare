@@ -11,7 +11,7 @@ async function fixture(role='Staff'){
   const source=readFileSync('supabase/functions/admin-approvals/index.ts','utf8').replace(/^import[^\n]+\n/gm,'');
   await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const createClient=globalThis.__approvalClient;\n'+source)+'\n// '+Math.random()).toString('base64'));
   const call=auth=>handler(new Request('https://fixture.test',{headers:auth?{Authorization:'Bearer fixture'}:{}}));
-  return {call,signed};
+  return {call,signed,handler:request=>handler(request)};
 }
 test('clinic reviewers can compare private verification selfies and documents without promoting selfies to avatars',async()=>{
   const f=await fixture();const r=await f.call(true);assert.equal(r.status,200);const {users}=await r.json();
@@ -21,4 +21,15 @@ test('clinic reviewers can compare private verification selfies and documents wi
 });
 test('unauthenticated users and patients cannot request signed verification images',async()=>{
   const f=await fixture('Patient');assert.equal((await f.call(false)).status,401);assert.equal((await f.call(true)).status,403);assert.equal(f.signed.length,0);
+});
+test('rejections need a reason the applicant can act on',async()=>{
+  const f=await fixture();
+  const handlerCall=async body=>{
+    const source=new Request('https://fixture.test',{method:'POST',headers:{Authorization:'Bearer fixture','Content-Type':'application/json'},body:JSON.stringify(body)});
+    return f.handler(source);
+  };
+  const short=await handlerCall({user_id:5,action:'reject',reason:'bad'});
+  assert.equal(short.status,400);assert.match((await short.json()).error,/reason/);
+  const invalid=await handlerCall({user_id:5,action:'delete'});
+  assert.equal(invalid.status,400);
 });
