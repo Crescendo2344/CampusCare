@@ -50,15 +50,11 @@ Deno.serve(async(req)=>{
     };
 
     if(["Administrator","Staff"].includes(actor.role)){
-      const [approvalRes,certRes,fitnessRes,inventoryRes,appointmentRes]=await Promise.all([
+      const [approvalRes,fitnessRes,inventoryRes,appointmentRes]=await Promise.all([
         admin.from("users")
           .select("user_id,created_at")
           .eq("role","Patient").eq("status","Pending")
           .order("created_at",{ascending:true}),
-        admin.from("medical_certificates")
-          .select("certificate_id,updated_at")
-          .eq("status","Pending")
-          .order("updated_at",{ascending:true}),
         admin.from("fitness_assessments")
           .select("assessment_id,updated_at")
           .eq("status","Requested")
@@ -75,20 +71,17 @@ Deno.serve(async(req)=>{
           .order("appointment_date",{ascending:true})
       ]);
       if(approvalRes.error)throw approvalRes.error;
-      if(certRes.error)throw certRes.error;
       if(fitnessRes.error)throw fitnessRes.error;
       if(inventoryRes.error)throw inventoryRes.error;
       if(appointmentRes.error)throw appointmentRes.error;
 
       set("approvals",approvalRes.data||[],r=>`approval:${r.user_id}:${r.created_at||""}`);
-      set("cert-requests",certRes.data||[],r=>`certificate:${r.certificate_id}:${r.updated_at||""}`);
       set("fitness",fitnessRes.data||[],r=>`fitness:${r.assessment_id}:${r.updated_at||""}`);
       const low=(inventoryRes.data||[]).filter((r:any)=>Number(r.quantity)<=Number(r.threshold));
       set("inventory",low,r=>`inventory:${r.item_id}:${r.updated_at||r.quantity}`);
       set("appointments",appointmentRes.data||[],r=>`appointment:${r.appointment_id}:${r.appointment_date}`);
 
       addCenter("approvals",counts.approvals||0,"Registration approvals","Review newly registered patients and their verification documents.","warning");
-      addCenter("cert-requests",counts["cert-requests"]||0,"Medical certificate requests","Prepare pending certificate requests for clinician review.","warning");
       addCenter("fitness",counts.fitness||0,"Fitness assessment requests","Review patients waiting for a fitness assessment.","warning");
       addCenter("inventory",counts.inventory||0,"Low-stock inventory","Restock or review items at or below their threshold.","danger");
       addCenter("appointments",counts.appointments||0,"Appointments awaiting an outcome","Past appointments are still marked Scheduled. Record a no-show or ask the doctor to complete the visit.","warning");
@@ -132,7 +125,7 @@ Deno.serve(async(req)=>{
       );
       set("appointments",appointmentRes.data||[],r=>`appointment:${r.appointment_id}:${r.appointment_date}`);
 
-      addCenter("cert-requests",counts["cert-requests"]||0,"Certificates awaiting signature","Review prepared certificates and sign those that are clinically appropriate.","warning");
+      addCenter("cert-requests",counts["cert-requests"]||0,"Certificate drafts","Finish, sign and issue, or discard your certificate drafts.","warning");
       addCenter("fitness",counts.fitness||0,"Fitness assessments","Claim or continue fitness-to-compete assessments.","warning");
       addCenter("appointments",counts.appointments||0,"Appointments to document","Add visit notes for today's and earlier appointments to complete them.","warning");
     }
@@ -186,7 +179,7 @@ Deno.serve(async(req)=>{
     const pageForEntity=(entity:string)=>{
       if(entity==="appointments")return actor.role==="Patient"?"my-appointments":"appointments";
       if(entity==="treatments"||entity==="dental_records")return actor.role==="Patient"?"my-records":"treatments";
-      if(entity==="medical_certificates")return actor.role==="Patient"?"my-certificates":"cert-requests";
+      if(entity==="medical_certificates")return actor.role==="Patient"?"my-certificates":actor.role==="Doctor"?"cert-requests":"";
       if(entity==="fitness_assessments")return "fitness";
       if(entity==="inventory_items"||entity==="inventory_transactions")return "inventory";
       if(entity==="workflow_requests")return actor.role==="Administrator"?"users":actor.role==="Doctor"?"schedule":"my-account";

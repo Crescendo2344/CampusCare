@@ -37,7 +37,7 @@ export function viewAppt(id){
 
   openModal(`<div class="modal appt-detail">
     <div class="modal-header">
-      <div><h3>Appointment #${appointmentDisplayId(a)}</h3><div class="copilot-subtitle">${listData.appointmentDayHeading(a.date,today)} · ${fmtDate(a.date)} at ${fmtTime(a.time)}</div></div>
+      <div><h3>Appointment #${appointmentDisplayId(a)}</h3><div class="copilot-subtitle">${listData.appointmentDayHeading(a.date,today)} at ${fmtTime(a.time)}</div></div>
       <button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button>
     </div>
     <div class="modal-body">

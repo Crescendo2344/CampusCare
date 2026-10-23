@@ -40,13 +40,17 @@ export function appointmentViewCounts(rows,today){
 }
 
 const addDays=(date,days)=>{const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);};
-// Agenda-style day headings, as in calendar apps.
-export function appointmentDayHeading(date,today){
+// One date label, as in calendar apps: "Today, Oct 24, 2026" or "Wednesday, Dec 16, 2026".
+export function appointmentRelativeDay(date,today){
   if(date===today)return 'Today';
   if(date===addDays(today,1))return 'Tomorrow';
   if(date===addDays(today,-1))return 'Yesterday';
+  return '';
+}
+export function appointmentDayHeading(date,today){
   const d=new Date(date+'T12:00:00Z');
-  return d.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',...(date.slice(0,4)!==today.slice(0,4)?{year:'numeric'}:{}),timeZone:'UTC'});
+  const day=d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'});
+  return `${appointmentRelativeDay(date,today)||d.toLocaleDateString('en-US',{weekday:'long',timeZone:'UTC'})}, ${day}`;
 }
 
 const csvCell=value=>{const text=String(value??'');return /[",\n\r]/.test(text)||/^[=+\-@]/.test(text)?`"${(/^[=+\-@]/.test(text)?"'":'')+text.replace(/"/g,'""')}"`:text;};

@@ -557,6 +557,29 @@ try{
   assert.equal(await page.locator('#active-modal .modal-header .close-btn').count(),1);
   assert.equal(await page.locator('#active-modal .modal-footer').getByRole('button',{name:'Close',exact:true}).count(),0);
   await page.locator('#active-modal .close-btn').click();
+  if(role==='Doctor'){
+    // Certificates: doctors write, sign and issue them; only the three purposes are offered.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('cert-requests'));
+    await page.getByRole('button',{name:'+ New Certificate'}).click();
+    assert.deepEqual(await page.locator('#nc-purpose option').evaluateAll(o=>o.map(x=>x.value)),['OJT / Internship Requirement','Excused Absence','Sports / Athletics Participation']);
+    await page.getByRole('button',{name:'Continue to document'}).click();
+    assert(await page.locator('#nc-pt-error').isVisible());
+    await page.locator('#nc-purpose').selectOption('Excused Absence');
+    assert.equal(await page.locator('#nc-absentFrom').count(),1);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/certificate-new-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#active-modal .close-btn').click();
+    // Fitness assessment: screening questions gate the decision.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('fitness'));
+    await page.getByRole('button',{name:'+ New Assessment'}).click();
+    assert.equal(await page.locator('#fit-screening .fit-screen-row').count(),9);
+    await page.locator('input[name="fit-q-syncope"][value="yes"]').check();
+    assert(await page.locator('#fit-screen-warning').isVisible());
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/fitness-form-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#active-modal .close-btn').click();
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('treatments'));
+    await page.locator('#tr-summary').waitFor();
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/treatments-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+  }
   if(role==='Administrator'){
     // Use synthetic registration images to exercise the real review/preview controls without patient data.
     await page.evaluate(()=>{
@@ -673,7 +696,7 @@ try{
     for(const label of ['Allergies','Medical History'])assert.equal(await page.locator('.info-row').filter({has:page.locator('.info-label',{hasText:label})}).locator('.info-val').innerText(),'—');
     // Chart layout: identity banner, no allergy alert without allergies, and five keyboard-navigable tabs.
     assert.equal(await page.locator('#pt-chart .pt-allergy-alert').count(),0);
-    assert.equal(await page.locator('#pt-chart [role="tab"]').count(),5);
+    assert.equal(await page.locator('#pt-chart [role="tab"]').count(),4);
     await page.locator('#pt-chart [role="tab"]').first().focus();await page.keyboard.press('ArrowRight');
     assert.equal(await page.locator('#pt-chart [role="tab"][aria-selected="true"]').innerText(),'Treatments (0)');
     assert(await page.locator('#pt-chart [data-pt-panel="treatments"]').isVisible());

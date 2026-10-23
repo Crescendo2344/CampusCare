@@ -17,8 +17,9 @@ import {renderTreatTable,renderTreatments} from './treatmentList.js';
 import {renderAppointments} from './appointments.js';
 import {renderDoctorSchedule} from './doctorSchedule.js';
 import {loadJsPDF} from './settingsAndCertificates.js';
-import {loadHtml2Canvas} from './certificateService.js';
-import {bindAction} from '../dependencies.js';
+import {loadHtml2Canvas,openNewCertificateModal} from './certificateService.js';
+import * as clinicalChecks from '../domain/clinical-validation.js';
+import {bindAction,patientData} from '../dependencies.js';
 // ── Treatment Modal ──
 export function openAddTreatmentModal(apptId){
   const a=appointmentRecords().find(x=>x.id===Number(apptId));
@@ -83,15 +84,17 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
     </div>
     <div class="modal-body">
       <div id="trm-msg"></div>
-      ${pt?`<div class="alert alert-info show" style="margin-bottom:.7rem;font-size:.8rem">
-        Patient: <strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong> · ${escapeHtml(pt.college||'')} ·
-        Allergies: <strong class="text-danger">${escapeHtml(pt.allergies?.trim()||'—')}</strong>
+      ${pt?`<div class="alert alert-info show" style="margin-bottom:.5rem;font-size:.8rem">
+        Patient: <strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong> · ${escapeHtml(pt.college||'')}
         ${appt?`<br>Appointment: ${fmtDate(appt.date)} at ${fmtTime(appt.time)} · ${escapeHtml(appt.service)}`:''}
-      </div>`:''}
+      </div>
+      ${patientData.hasAllergyAlert(pt.allergies)
+        ?`<div class="pt-allergy-alert" role="alert" style="margin-bottom:.7rem"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> <strong>Allergies:</strong> ${escapeHtml(pt.allergies)}</div>`
+        :`<p class="form-note" style="margin:0 0 .7rem">No known allergies recorded. Confirm with the patient before prescribing.</p>`}`:''}
 
       <div class="form-row">
         <div class="form-group"><label>Patient <span class="required">*</span></label>
-          <select id="tm-pt" ${ptId?'disabled':''}>${patientOpts}</select>
+          <select id="tm-pt" ${ptId?'disabled':''}>${patientOpts}</select><p class="registration-field-error" id="tm-pt-error" aria-live="polite" hidden></p>
         </div>
         ${doctorSelect}
       </div>
@@ -104,33 +107,33 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
         </div>
       </div>
 
-      <div class="section-label">Vital Signs</div>
+      <div class="section-label">Vital signs <span class="text-muted" style="font-weight:500;text-transform:none;letter-spacing:0">(optional, checked for typing slips)</span></div>
       <div class="form-row">
-        <div class="form-group"><label>Blood Pressure</label><input id="tm-bp" placeholder="e.g. 120/80"></div>
-        <div class="form-group"><label>Temperature (°C)</label><input id="tm-temp" inputmode="decimal" placeholder="e.g. 36.8"></div>
-        <div class="form-group"><label>Pulse Rate</label><input id="tm-pulse" inputmode="numeric" placeholder="bpm"></div>
-        <div class="form-group"><label>SpO₂</label><input id="tm-spo2" placeholder="e.g. 98%"></div>
-        <div class="form-group"><label>Weight (kg)</label><input id="tm-weight" inputmode="decimal"></div>
-        <div class="form-group"><label>Height (cm)</label><input id="tm-height" inputmode="decimal"></div>
+        <div class="form-group"><label>Blood Pressure</label><input id="tm-bp" placeholder="e.g. 120/80"><p class="registration-field-error" id="tm-bp-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label>Temperature (°C)</label><input id="tm-temp" inputmode="decimal" placeholder="e.g. 36.8"><p class="registration-field-error" id="tm-temp-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label>Pulse (bpm)</label><input id="tm-pulse" inputmode="numeric" placeholder="bpm"><p class="registration-field-error" id="tm-pulse-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label>SpO₂ (%)</label><input id="tm-spo2" inputmode="decimal" placeholder="e.g. 98"><p class="registration-field-error" id="tm-spo2-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label>Weight (kg)</label><input id="tm-weight" inputmode="decimal"><p class="registration-field-error" id="tm-weight-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label>Height (cm)</label><input id="tm-height" inputmode="decimal"><p class="registration-field-error" id="tm-height-error" aria-live="polite" hidden></p></div>
       </div>
 
-      <div class="section-label">Findings & Diagnosis</div>
+      <div class="section-label">Assessment &amp; plan</div>
       <div class="form-group"><label>Clinical Findings / Chief Complaint <span class="required">*</span></label>
-        <textarea id="tm-findings" rows="2" placeholder="Describe findings and observations..."></textarea>
+        <textarea id="tm-findings" rows="2" placeholder="Chief complaint, history and examination findings"></textarea><p class="registration-field-error" id="tm-findings-error" aria-live="polite" hidden></p>
       </div>
       <div class="form-group"><label>Diagnosis <span class="required">*</span></label>
-        <textarea id="tm-diag" rows="2" placeholder="Enter the clinician's diagnosis or clinical impression"></textarea>
+        <textarea id="tm-diag" rows="2" placeholder="Enter the clinician's diagnosis or clinical impression"></textarea><p class="registration-field-error" id="tm-diag-error" aria-live="polite" hidden></p>
       </div>
       <div class="form-group"><label>Prescription / Treatment Given</label>
-        <textarea id="tm-presc" rows="2" maxlength="600" placeholder="Medications, treatment given, dosage, instructions..."></textarea>
+        <textarea id="tm-presc" rows="2" maxlength="600" placeholder="Medicines given or prescribed, with dose and duration"></textarea><p class="registration-field-error" id="tm-presc-error" aria-live="polite" hidden></p>
       </div>
       <div class="form-group"><label>Clinical Notes / Instructions</label>
         <textarea id="tm-notes" rows="2" placeholder="Advice, special instructions, restrictions..."></textarea>
       </div>
 
       <div class="form-row">
-        <div class="form-group"><label>Treatment Date <span class="required">*</span></label>${campusDateFieldHtml('tm-date',defaultDate,'Treatment Date','',appState.clinicInformation.TODAY)}</div>
-        <div class="form-group"><label>Follow-up Date</label>${campusDateFieldHtml('tm-followup','','Follow-up Date',defaultDate)}</div>
+        <div class="form-group"><label>Treatment Date <span class="required">*</span></label>${campusDateFieldHtml('tm-date',defaultDate,'Treatment Date','',appState.clinicInformation.TODAY)}<p class="registration-field-error" id="tm-date-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label>Follow-up Date</label>${campusDateFieldHtml('tm-followup','','Follow-up Date',defaultDate)}<p class="registration-field-error" id="tm-followup-error" aria-live="polite" hidden></p></div>
         <div class="form-group full"><label>Imaging / X-ray</label>
           <select id="tm-xray">
             <option value="">None</option>
@@ -147,9 +150,9 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
       <p class="form-note" style="margin-bottom:.65rem">If completed, CampusCare creates a medication reminder for the patient.</p>
       <div class="form-row">
         <div class="form-group"><label>Medication Name</label><input id="tm-medname" placeholder="e.g. Amoxicillin"></div>
-        <div class="form-group"><label>Dosage</label><input id="tm-dosage" placeholder="e.g. 500 mg"></div>
-        <div class="form-group"><label>Frequency</label><input id="tm-frequency" placeholder="e.g. 3 times a day"></div>
-        <div class="form-group"><label>End Date</label>${campusDateFieldHtml('tm-enddate',new Date(Date.now()+7*86400000).toISOString().slice(0,10),'Medication End Date',defaultDate)}</div>
+        <div class="form-group"><label>Dosage</label><input id="tm-dosage" placeholder="e.g. 500 mg"><p class="registration-field-error" id="tm-dosage-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label>Frequency</label><input id="tm-frequency" placeholder="e.g. 3 times a day"><p class="registration-field-error" id="tm-frequency-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label>End Date</label>${campusDateFieldHtml('tm-enddate',new Date(Date.now()+7*86400000).toISOString().slice(0,10),'Medication End Date',defaultDate)}<p class="registration-field-error" id="tm-enddate-error" aria-live="polite" hidden></p></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -184,20 +187,20 @@ export async function saveTreatment(ptId,apptId){
 
   hideAlert(msg);
 
-  if(!ptIdVal||!findings||!diag||!date){
-    showAlert(msg,'Patient, clinical findings, diagnosis, and treatment date are required.');
-    return;
-  }
-  if(date>appState.clinicInformation.TODAY){
-    showAlert(msg,'Treatment date cannot be in the future.');
-    return;
-  }
-  if(followup&&followup<date){
-    showAlert(msg,'Follow-up date cannot be earlier than the treatment date.');
-    return;
-  }
-  if(presc.length>600){
-    showAlert(msg,'Prescription exceeds 600 characters.');
+  const vitalsInput={
+    bp:document.getElementById('tm-bp').value.trim(),
+    temp:document.getElementById('tm-temp').value.trim(),
+    pulse:document.getElementById('tm-pulse').value.trim(),
+    spo2:document.getElementById('tm-spo2').value.trim(),
+    weight:document.getElementById('tm-weight').value.trim(),
+    height:document.getElementById('tm-height').value.trim()
+  };
+  const errors=clinicalChecks.treatmentFormErrors({patientId:ptIdVal,findings,diagnosis:diag,prescription:presc,date,followup,vitals:vitalsInput,medName,dosage,frequency,endDate},appState.clinicInformation.TODAY);
+  const fieldIds={bp:'tm-bp',temp:'tm-temp',pulse:'tm-pulse',spo2:'tm-spo2',weight:'tm-weight',height:'tm-height',patient:'tm-pt',findings:'tm-findings',diagnosis:'tm-diag',prescription:'tm-presc',date:'tm-date',followup:'tm-followup',dosage:'tm-dosage',frequency:'tm-frequency',endDate:'tm-enddate'};
+  for(const id of Object.values(fieldIds)){const el=document.getElementById(id+'-error');if(el){el.hidden=true;el.textContent='';}document.getElementById(id)?.removeAttribute('aria-invalid');}
+  if(Object.keys(errors).length){
+    for(const [key,message] of Object.entries(errors)){const id=fieldIds[key],el=document.getElementById(id+'-error');if(el){el.textContent=message;el.hidden=false;}document.getElementById(id)?.setAttribute('aria-invalid','true');}
+    document.querySelector('.modal .registration-field-error:not([hidden])')?.scrollIntoView({block:'center',behavior:'smooth'});
     return;
   }
 
@@ -207,14 +210,7 @@ export async function saveTreatment(ptId,apptId){
     return;
   }
 
-  const vitals={
-    bp:document.getElementById('tm-bp').value.trim(),
-    temp:document.getElementById('tm-temp').value.trim(),
-    pulse:document.getElementById('tm-pulse').value.trim(),
-    spo2:document.getElementById('tm-spo2').value.trim(),
-    weight:document.getElementById('tm-weight').value.trim(),
-    height:document.getElementById('tm-height').value.trim()
-  };
+  const vitals=vitalsInput;
 
   const appt=apptId?appointmentRecords().find(a=>a.id===Number(apptId)):null;
   let doc=appState.auth.currentUser.role==='Doctor'
@@ -534,7 +530,7 @@ export function viewTreatment(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
   const dental=isDentalTreatment(t);
   const canEditDental=['Doctor','Administrator'].includes(appState.auth.currentUser.role);
-  openModal(`<div class="modal modal-xl"><div class="modal-header"><div><h3>Treatment Record #${treatmentDisplayId(t)}</h3><div class="text-muted">Clinical document preview</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div class="treatment-record-shell">${treatmentDocumentHtml(t)}</div></div><div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap"><span class="tech-note">${t.dentalRecord?'This treatment includes a CTU Dental Clinic record.':dental?'A Dental Clinic record can be completed for this treatment.':'PDF uses the same clinical-document layout shown in the preview.'}</span><div style="display:flex;gap:.45rem;flex-wrap:wrap"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>${t.dentalRecord?`<button class="btn btn-success" ${bindAction('click',(event,element)=>{viewDentalRecord((id))})}><i class="bi bi-emoji-smile"></i> Dental Record</button>`:(dental&&canEditDental?`<button class="btn btn-success" ${bindAction('click',(event,element)=>{openDentalRecordEditor((id))})}><i class="bi bi-plus-circle"></i> Add Dental Record</button>`:'')}${t.dentalRecord&&canEditDental?`<button class="btn btn-warning" ${bindAction('click',(event,element)=>{openDentalRecordEditor((id))})}><i class="bi bi-pencil"></i> Edit Dental Record</button>`:''}<button class="btn btn-info" ${bindAction('click',(event,element)=>{printTreatmentRecord((id))})}><i class="bi bi-printer"></i> Print</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadTreatmentPDF((id))})}><i class="bi bi-file-earmark-arrow-down"></i> Download PDF</button></div></div></div>`);
+  openModal(`<div class="modal modal-xl"><div class="modal-header"><div><h3>Treatment Record #${treatmentDisplayId(t)}</h3><div class="text-muted">Clinical document preview</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div class="treatment-record-shell">${treatmentDocumentHtml(t)}</div></div><div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap"><span class="tech-note">${t.dentalRecord?'This treatment includes a CTU Dental Clinic record.':dental?'A Dental Clinic record can be completed for this treatment.':'PDF uses the same clinical-document layout shown in the preview.'}</span><div style="display:flex;gap:.45rem;flex-wrap:wrap"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>${t.dentalRecord?`<button class="btn btn-success" ${bindAction('click',(event,element)=>{viewDentalRecord((id))})}><i class="bi bi-emoji-smile"></i> Dental Record</button>`:(dental&&canEditDental?`<button class="btn btn-success" ${bindAction('click',(event,element)=>{openDentalRecordEditor((id))})}><i class="bi bi-plus-circle"></i> Add Dental Record</button>`:'')}${t.dentalRecord&&canEditDental?`<button class="btn btn-warning" ${bindAction('click',(event,element)=>{openDentalRecordEditor((id))})}><i class="bi bi-pencil"></i> Edit Dental Record</button>`:''}${appState.auth.currentUser.role==='Doctor'&&t.doctorId===appState.auth.currentUser.id&&!t.archived?`<button class="btn" ${bindAction('click',()=>{closeAllModals();openNewCertificateModal(t.patientId,t.id)})}><i class="bi bi-file-earmark-medical" aria-hidden="true"></i> Issue Certificate</button>`:''}<button class="btn btn-info" ${bindAction('click',(event,element)=>{printTreatmentRecord((id))})}><i class="bi bi-printer"></i> Print</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadTreatmentPDF((id))})}><i class="bi bi-file-earmark-arrow-down"></i> Download PDF</button></div></div></div>`);
 }
 export function printTreatmentRecord(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;

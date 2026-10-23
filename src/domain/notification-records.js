@@ -41,7 +41,7 @@ export function notificationPageFor(n,account){
   const type=String(n.type||'').toLowerCase();
   if(type.includes('appointment'))return account.role==='Patient'?'my-appointments':'appointments';
   if(type.includes('treatment'))return account.role==='Patient'?'my-records':'treatments';
-  if(type.includes('certificate'))return account.role==='Patient'?'my-certificates':'cert-requests';
+  if(type.includes('certificate'))return account.role==='Patient'?'my-certificates':account.role==='Doctor'?'cert-requests':'';
   if(type.includes('fitness'))return 'fitness';
   if(type.includes('inventory'))return 'inventory';
   return '';

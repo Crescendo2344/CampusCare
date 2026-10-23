@@ -152,7 +152,7 @@ export function renderApptTable(){
     const pt=getPatientById(a.patientId),doc=getUserById(a.doctorId);
     const name=pt?`${pt.lname}, ${pt.fname}`:'Unknown patient';
     const {primary,more}=apptActionButtons(a,appointmentAllowedActions(a));
-    const heading=a.date!==lastDay?`<tr class="appt-day-row"><th colspan="7" scope="rowgroup">${escapeHtml(listData.appointmentDayHeading(a.date,today))}<span>${fmtDate(a.date)}</span></th></tr>`:'';
+    const heading=a.date!==lastDay?`<tr class="appt-day-row"><th colspan="7" scope="rowgroup">${escapeHtml(listData.appointmentDayHeading(a.date,today))}</th></tr>`:'';
     lastDay=a.date;
     const overdue=listData.appointmentView(a,today)==='outcome';
     return `${heading}<tr class="appt-row" ${bindAction('click',()=>viewAppt(a.id))}>

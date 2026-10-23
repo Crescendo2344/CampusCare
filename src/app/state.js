@@ -34,4 +34,6 @@ export const state={
   inventoryForms:{},
   scheduleAndDrafts:{},
   appointments:{},
+  treatmentList:{},
+  fitnessList:{},
 };

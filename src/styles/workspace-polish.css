@@ -421,8 +421,7 @@
 .appt-table .text-muted{font-size:.72rem;margin-top:.1rem}
 .appt-table .appt-time{font-variant-numeric:tabular-nums;white-space:nowrap}
 .appt-row{cursor:pointer}
-.appt-day-row th{position:static;background:var(--glass-surface-soft);text-align:left;font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--primary-dark);padding:.5rem .9rem}
-.appt-day-row th span{margin-left:.6rem;font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink-muted)}
+.appt-day-row th{position:static;background:var(--glass-surface-soft);text-align:left;font-size:.8rem;font-weight:700;color:var(--primary-dark);padding:.5rem .9rem}
 .appt-overdue{font-size:.7rem;color:var(--warning);font-weight:600;margin-top:.2rem;white-space:nowrap}
 .row-menu{position:relative;display:inline-block}
 .row-menu>summary{list-style:none;cursor:pointer}
@@ -507,3 +506,28 @@
   .approval-table td{border:0;padding:.15rem 0}
   .approval-table td[data-label="Type"],.approval-table td[data-label="College / Dept."],.approval-table td[data-label="ID No."],.approval-table td[data-label="Waiting"]{display:inline-block;width:auto;margin-right:.6rem;font-size:.8rem}
 }
+
+/* Treatments list and certificates. */
+.tr-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.tr-toolbar input[type=search]{flex:1 1 240px;min-width:0}
+.treat-row{cursor:pointer}
+.treat-row.archived{opacity:.65}
+.treat-table .text-muted,.cert-list-table .text-muted{font-size:.72rem;margin-top:.1rem}
+.tr-due{display:inline-block;margin-left:.4rem;font-size:.66rem;font-weight:700;padding:.08rem .45rem;border-radius:999px;border:1px solid}
+.tr-due.overdue{color:var(--danger);background:var(--danger-bg);border-color:var(--danger-border)}
+.tr-due.today{color:var(--warning);background:var(--warning-bg);border-color:var(--warning-border)}
+.cert-new-modal .patient-combobox{position:relative}
+@media(max-width:720px){
+  .tr-toolbar input[type=search]{flex-basis:100%}
+  .tr-toolbar select{flex:1 1 140px;min-width:0}
+  .treat-table thead,.cert-list-table thead{display:none}
+  .treat-table,.treat-table tbody,.treat-table tr,.treat-table td,.cert-list-table,.cert-list-table tbody,.cert-list-table tr,.cert-list-table td{display:block;width:100%}
+  .treat-table tr,.cert-list-table tr{padding:.75rem .9rem;border-bottom:1px solid var(--line-soft,var(--line))}
+  .treat-table td,.cert-list-table td{border:0;padding:.15rem 0}
+}
+.fit-screening{display:grid;gap:.25rem;margin-bottom:.6rem}
+.fit-screen-row{display:grid;grid-template-columns:1fr auto auto;gap:.8rem;align-items:center;padding:.4rem .6rem;border-radius:10px;font-size:.84rem}
+.fit-screen-row:nth-child(odd){background:var(--glass-surface-soft)}
+.fit-screen-row label{display:inline-flex;gap:.3rem;align-items:center;cursor:pointer;font-size:.82rem}
+.fit-screen-row:has(input[value="yes"]:checked){background:var(--danger-bg)}
+@media(max-width:560px){.fit-screen-row{grid-template-columns:1fr auto auto;gap:.5rem}}

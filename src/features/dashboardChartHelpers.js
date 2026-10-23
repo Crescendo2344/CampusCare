@@ -145,7 +145,7 @@ export function dashboardTrendSvg(points,label='Visits',chartType=appState.dashb
 
 export function dashboardTarget(text=''){
   const s=String(text).toLowerCase(),r=appState.auth.currentUser?.role;
-  if(s.includes('certificate'))return r==='Patient'?'my-certificates':'cert-requests';
+  if(s.includes('certificate'))return r==='Patient'?'my-certificates':r==='Doctor'?'cert-requests':'';
   if(s.includes('approval')||s.includes('registration'))return 'approvals';
   if(s.includes('stock')||s.includes('inventory'))return 'inventory';
   if(s.includes('patient'))return r==='Doctor'?'my-patients':'patients';
@@ -185,7 +185,7 @@ export function dashboardMobileQuickLinks(role){
     Staff:[
       ['patients','fa-hospital-user','Patients'],
       ['appointments','fa-calendar-check','Appointments'],
-      ['cert-requests','fa-file-medical','Certificates'],
+      ['approvals','fa-user-check','Approvals'],
       ['inventory','fa-boxes-stacked','Inventory'],
       ['health_education','fa-book-medical','Health Education'],
       ['my-account','fa-user-gear','Account']

@@ -7,13 +7,14 @@ import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtec
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {fmtDate,fmtDateTime} from './inputValidation.js';
 import {closeAllModals,openModal} from './modals.js';
-import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
+import {showConfirmDialog,toast} from './theme.js';
 import {persistDB} from './persistence.js';
-import {getDoctors,getPatientById,getUserById} from './documentScanner.js';
+import {getPatientById,getUserById} from './documentScanner.js';
 import {viewPatient} from './patientForm.js';
 import {docName} from './messaging.js';
 import {loadJsPDF} from './settingsAndCertificates.js';
 import {bindAction,certificateData,createCertificateService} from '../dependencies.js';
+import * as purposeData from '../domain/certificate-purpose.js';
 // Preserve legacy handlers while certificate data access lives in independent modules.
 export function certificateRecords(){return certificateData.certificateRecords(appState.data.DB,appState.auth.currentUser);}
 export function certificateDisplayId(r){return certificateData.certificateDisplayId(r);}
@@ -46,11 +47,15 @@ export async function syncCertificateContext(){
   await syncRealCertificates();
 }
 
+// Draft = "Awaiting Signature", Voided = "Cancelled"; older request statuses keep their names.
+const STATUS_LABELS={'Awaiting Signature':'Draft',Cancelled:'Voided'};
+export const certStatusLabel=s=>STATUS_LABELS[s]||s||'';
 export function certStatusBadge(s){
   const m={Pending:'badge-warning','Awaiting Signature':'badge-purple',Issued:'badge-success',Declined:'badge-danger',Cancelled:'badge-gray'};
-  return `<span class="badge ${m[s]||'badge-gray'}">${escapeHtml(s||'')}</span>`;
+  return `<span class="badge ${m[s]||'badge-gray'}">${escapeHtml(certStatusLabel(s))}</span>`;
 }
 
+// Patients receive certificates their doctor issued; they cannot request or change them.
 export async function renderMyCertificates(){
   const c=document.getElementById('app-content');
   if(!c)return;
@@ -63,7 +68,7 @@ export async function renderMyCertificates(){
       if(!isCampusPageCurrent('my-certificates',pageToken))return;
       console.error('Certificate sync:',e);
       c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load medical certificates.')}</div>
-        <button class="btn btn-sm" ${bindAction('click',(event,element)=>{renderMyCertificates()})}>Retry</button>`;
+        <button class="btn btn-sm" ${bindAction('click',()=>renderMyCertificates())}>Retry</button>`;
       return;
     }
     if(!isCampusPageCurrent('my-certificates',pageToken))return;
@@ -75,151 +80,28 @@ export async function renderMyCertificates(){
     return;
   }
 
-  const reqs=certificateRecords()
-    .filter(r=>r.patientId===pt.id)
-    .slice()
-    .sort((a,b)=>String(b.requestedAt).localeCompare(String(a.requestedAt))||b.id-a.id);
+  const certs=certificateRecords()
+    .filter(r=>r.patientId===pt.id&&(r.status==='Issued'||(r.status==='Cancelled'&&r.issuedAt)))
+    .sort((a,b)=>String(b.issuedAt).localeCompare(String(a.issuedAt))||b.id-a.id);
 
   c.innerHTML=`<div class="card">
-    <div class="card-header">
-      <h3>Medical Certificates</h3>
-      <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{openCertRequestModal()})}>+ Request Certificate</button>
-    </div>
-    <p class="text-muted" style="font-size:.82rem;margin-bottom:.8rem">Staff prepares the certificate details, then the assigned doctor reviews and signs it before it becomes downloadable.</p>
-    ${reqs.length?`<div class="cert-swipe-hint"><i class="fa-solid fa-arrows-left-right"></i> Swipe horizontally to view certificate status and actions.</div>
-      <div class="table-wrap cert-table-wrap"><table>
-        <thead><tr><th>#</th><th>Purpose</th><th>Requested</th><th>Status</th><th>Certificate No.</th><th>Actions</th></tr></thead>
-        <tbody>${reqs.map(r=>`<tr>
-          <td>#${certificateDisplayId(r)}</td>
-          <td>${escapeHtml(r.purpose)}</td>
-          <td>${fmtDateTime(r.requestedAt)}</td>
-          <td>${certStatusBadge(r.status)}</td>
-          <td>${escapeHtml(r.certNo||'—')}</td>
-          <td><div class="td-actions">
-            ${r.status==='Issued'?`<button class="btn btn-xs btn-primary" ${bindAction('click',(event,element)=>{downloadCertPdf((r.id))})}>⬇ Download PDF</button>`:''}
-            ${r.status==='Pending'?`<button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{cancelCertRequest((r.id))})}>Cancel</button>`:''}
-            ${r.status==='Declined'&&r.declineReason?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewCertDecline((r.id))})}>Reason</button>`:''}
-          </div></td>
-        </tr>`).join('')}</tbody>
-      </table></div>`:'<div class="empty-state"><p>No certificate requests yet.</p></div>'}
+    <div class="card-header"><div><h3>Medical Certificates</h3><div class="text-muted">Certificates your clinic doctor issued to you. If you need one, ask the doctor during your consultation.</div></div></div>
+    ${certs.length?`<div class="table-wrap"><table class="cert-list-table">
+        <thead><tr><th scope="col">Certificate No.</th><th scope="col">Purpose</th><th scope="col">Issued</th><th scope="col">Doctor</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody>${certs.map(r=>{const doctor=getUserById(r.doctorId);return `<tr>
+          <td data-label="Certificate No."><strong>${escapeHtml(r.certNo||'—')}</strong></td>
+          <td data-label="Purpose">${escapeHtml(r.purpose)}${r.details?`<div class="text-muted">${escapeHtml(r.details)}</div>`:''}</td>
+          <td data-label="Issued">${r.issuedAt?fmtDate(String(r.issuedAt).slice(0,10)):'—'}</td>
+          <td data-label="Doctor">${doctor?escapeHtml(docName(doctor)):'—'}</td>
+          <td data-label="Status">${certStatusBadge(r.status)}${r.status==='Cancelled'&&r.declineReason?`<div class="text-muted">${escapeHtml(r.declineReason)}</div>`:''}</td>
+          <td data-label="Actions">${r.status==='Issued'?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>downloadCertPdf(r.id))}><i class="bi bi-download" aria-hidden="true"></i> Download PDF</button>`:''}</td>
+        </tr>`;}).join('')}</tbody>
+      </table></div>`:'<div class="empty-state"><i class="bi bi-file-earmark-medical" aria-hidden="true" style="font-size:1.6rem"></i><p>No medical certificates yet.</p></div>'}
   </div>`;
 }
 
-export function openCertRequestModal(){
-  openModal(`<div class="modal">
-    <div class="modal-header">
-      <h3>Request Medical Certificate</h3>
-      <button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button>
-    </div>
-    <div class="modal-body">
-      <div id="cert-request-msg"></div>
-      <div class="form-group"><label>Purpose</label>
-        <select id="cert-purpose" ${bindAction('change',(event,element)=>{updateCertificatePurposeGuidance()})}>${appState.certificateService.CERT_PURPOSES.map(p=>`<option>${escapeHtml(p)}</option>`).join('')}</select>
-      </div>
-      <div class="form-group"><label>Details (optional)</label>
-        <textarea id="cert-details" rows="3" maxlength="1000" placeholder="e.g. dates of absence, requesting office"></textarea>
-      </div>
-      <div id="cert-purpose-guidance" class="alert alert-info" style="font-size:.77rem"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
-      <button class="btn btn-primary" id="cert-request-btn" ${bindAction('click',(event,element)=>{submitCertRequest()})}>Submit Request</button>
-    </div>
-  </div>`);
-  updateCertificatePurposeGuidance();
-}
-
-export function updateCertificatePurposeGuidance(){
-  const select=document.getElementById('cert-purpose');
-  const box=document.getElementById('cert-purpose-guidance');
-  if(!select||!box)return;
-
-  const sports=select.value==='Sports / Athletics Participation';
-  box.classList.toggle('show',sports);
-  if(sports){
-    box.innerHTML=`🏅 <strong>Intramurals 2026–2027:</strong> Secure the Eligibility Form from your coach, complete your personal information and sports event, sign the Participant's Waiver and Release Agreement, obtain the required parent/guardian and coach signatures, and bring the completed form to the clinic at the <strong>Ground Floor, Education Building</strong>.`;
-  }else{
-    box.innerHTML='';
-  }
-}
-
-export async function submitCertRequest(){
-  if(!appState.auth.currentPatient){toast('No patient record linked.','error');return;}
-  const purpose=document.getElementById('cert-purpose').value;
-  const details=document.getElementById('cert-details').value.trim().slice(0,1000);
-  const msg=document.getElementById('cert-request-msg');
-  const btn=document.getElementById('cert-request-btn');
-  hideAlert(msg);
-
-  const old=btn?.textContent;
-  if(btn){btn.disabled=true;btn.textContent='Submitting…';}
-
-  try{
-    if(appState.auth.currentUser?._realSupabase){
-      await certificateAction({
-        action:'create',
-        patient_id:appState.auth.currentPatient.dbPatientId,
-        purpose,
-        request_details:details
-      });
-      await syncRealCertificates();
-    }else{
-      appState.data.DB.certRequests.push({
-        id:appState.data.DB.nextCertId++,
-        patientId:appState.auth.currentPatient.id,
-        purpose,details,status:'Pending',requestedAt:appState.clinicInformation.TODAY,
-        certNo:'',issuedAt:'',issuedById:null,doctorId:null,
-        findings:'',recommendations:'',declineReason:'',
-        preparedById:null,preparedAt:'',signedById:null,signedAt:''
-      });
-      persistDB();
-    }
-
-    closeAllModals();
-    toast('Certificate request submitted.','success');
-    await renderMyCertificates();
-  }catch(e){
-    showAlert(msg,e?.message||'Unable to submit certificate request.');
-  }finally{
-    if(btn&&document.body.contains(btn)){
-      btn.disabled=false;btn.textContent=old||'Submit Request';
-    }
-  }
-}
-
-export function cancelCertRequest(id){
-  const r=certificateRecords().find(x=>x.id===Number(id));
-  if(!r||r.status!=='Pending')return;
-
-  showConfirmDialog({
-    title:'Cancel Certificate Request',
-    message:`Cancel medical certificate request <strong>#${certificateDisplayId(r)}</strong>?`,
-    confirmLabel:'Cancel Request',
-    danger:true,
-    onConfirm:async()=>{
-      try{
-        if(r._realSupabase){
-          await certificateAction({action:'cancel',certificate_id:r.dbCertificateId});
-          await syncRealCertificates();
-        }else{
-          appState.data.DB.certRequests=appState.data.DB.certRequests.filter(x=>x.id!==r.id);
-          persistDB();
-        }
-        toast('Certificate request cancelled.','info');
-        await renderMyCertificates();
-      }catch(e){toast(e?.message||'Unable to cancel the request.','error');}
-    }
-  });
-}
-
-export function viewCertDecline(id){
-  const r=certificateRecords().find(x=>x.id===Number(id)); if(!r)return;
-  openModal(`<div class="modal"><div class="modal-header"><h3>Request Declined</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-    <div class="modal-body"><p style="font-size:.85rem">${escapeHtml(r.declineReason||'No reason provided.')}</p></div></div>`);
-}
-
-// ---- STAFF / DOCTOR / ADMIN WORKFLOW ----
-// Staff/Admin prepare the editable document. The assigned doctor reviews and signs it.
+// ---- DOCTOR WORKFLOW ----
+// The examining doctor decides whether to issue a certificate, writes it from the visit notes and signs it.
 
 // Return the newest clinical record for this patient, preferring the selected doctor's own record.
 export function getLatestTreatmentForCertificate(patientId,doctorId=null){
@@ -293,7 +175,8 @@ export function buildCertificateDocument(r,doctorId,findings,remarks,signature='
     <p>&nbsp;&nbsp;&nbsp;&nbsp;This is to certify that <strong>${escapeHtml(fullName)}</strong>${escapeHtml(age+gender+college+idNo)}, was seen and examined at the University Medical Clinic, Cebu Technological University – Main Campus.</p>
     <p><strong>FINDINGS / DIAGNOSIS:</strong> <span id="cert-findings-edit" data-cert-field="findings">${escapeHtml(findings||'')}</span></p>
     <p><strong>REMARKS / RECOMMENDATIONS:</strong> <span id="cert-remarks-edit" data-cert-field="remarks">${escapeHtml(remarks||'')}</span></p>
-    <p>&nbsp;&nbsp;&nbsp;&nbsp;This certification is issued upon the request of the above-named patient for <span data-cert-field="purpose">${escapeHtml((r.purpose||'').toLowerCase())}</span> purposes.</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;The above-named patient <span data-cert-field="statement">${escapeHtml(r.statement||'')}</span></p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;This certification is issued for <span data-cert-field="purpose">${escapeHtml((r.purpose||'').toLowerCase())}</span> purposes.</p>
     <div class="cert-signature-area" contenteditable="false">
       <img id="cert-signature-img" src="${signature||''}" style="${signature?'':'display:none'}" alt="Physician signature">
       <div class="cert-sign-line"><strong id="cert-doctor-name">${escapeHtml(doctorName)}</strong><br><span>Attending Physician</span><br><span style="font-size:13px">License No. _______________</span></div>
@@ -317,99 +200,271 @@ export function certEditorToolbarHtml(){
   </div>`;
 }
 
+const isDoctor=()=>appState.auth.currentUser?.role==='Doctor';
+const CERT_TABS=[['Awaiting Signature','Drafts'],['Issued','Issued'],['Cancelled','Voided'],['all','All']];
+
 export async function renderCertRequests(filter=null){
   const c=document.getElementById('app-content');
   if(!c)return;
+  if(!isDoctor()){
+    c.innerHTML='<div class="alert alert-warning show" style="display:block">Medical certificates are issued by clinic doctors only.</div>';
+    return;
+  }
   const pageToken=captureCampusPageToken();
-
   if(appState.auth.currentUser?._realSupabase){
     showDatabaseSkeleton('table');
     try{await syncCertificateContext();}
     catch(e){
       if(!isCampusPageCurrent('cert-requests',pageToken))return;
-      console.error('Certificate requests sync:',e);
-      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load certificate requests.')}</div>
-        <button class="btn btn-sm" ${bindAction('click',(event,element)=>{renderCertRequests((String(filter)))})}>Retry</button>`;
+      console.error('Certificate sync:',e);
+      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load medical certificates.')}</div>
+        <button class="btn btn-sm" ${bindAction('click',()=>renderCertRequests(filter))}>Retry</button>`;
       return;
     }
     if(!isCampusPageCurrent('cert-requests',pageToken))return;
   }
+  const ui=appState.certificateService;
+  const mine=certificateRecords().filter(r=>r.doctorId===appState.auth.currentUser.id);
+  if(!filter)filter=ui.certTab||(mine.some(r=>r.status==='Awaiting Signature')?'Awaiting Signature':'Issued');
+  ui.certTab=filter;
+  const q=String(ui.certQuery||'').trim().toLowerCase();
+  const patientName=r=>{const pt=getPatientById(r.patientId);return pt?`${pt.lname}, ${pt.fname}`:'Unknown patient';};
+  const counts=Object.fromEntries(CERT_TABS.map(([id])=>[id,id==='all'?mine.length:mine.filter(r=>r.status===id).length]));
+  const list=mine
+    .filter(r=>filter==='all'||r.status===filter)
+    .filter(r=>!q||`${patientName(r)} ${r.certNo} ${r.purpose} ${r.details}`.toLowerCase().includes(q))
+    .sort((a,b)=>String(b.issuedAt||b.preparedAt||b.requestedAt).localeCompare(String(a.issuedAt||a.preparedAt||a.requestedAt))||b.id-a.id);
 
-  const canPrepare=appState.auth.currentUser.role==='Staff'||appState.auth.currentUser.role==='Administrator';
-  const canSign=appState.auth.currentUser.role==='Doctor';
-
-  if(!filter)filter=appState.auth.currentUser.role==='Doctor'?'Awaiting Signature':'Pending';
-
-  let all=certificateRecords().slice().sort((a,b)=>String(b.requestedAt).localeCompare(String(a.requestedAt))||b.id-a.id);
-  if(appState.auth.currentUser.role==='Doctor')all=all.filter(r=>r.doctorId===appState.auth.currentUser.id);
-
-  const list=filter==='all'?all:all.filter(r=>r.status===filter);
-  const tabs=['Pending','Awaiting Signature','Issued','Declined','Cancelled','all'];
-  const tabCounts={};
-  for(const t of tabs){
-    tabCounts[t]=t==='all'?all.length:all.filter(r=>r.status===t).length;
-  }
-  const actionableStatus=appState.auth.currentUser.role==='Doctor'?'Awaiting Signature':'Pending';
-
-  c.innerHTML=`<div class="card">
-    <div class="card-header"><div><h3>Medical Certificate Requests</h3><div class="text-muted">${appState.auth.currentUser.role==='Doctor'?'Review the prepared document and add your signature.':appState.auth.currentUser.role==='Staff'?'Prepare the certificate document and send it to the assigned doctor.':'Prepare certificates and monitor doctor signatures.'}</div></div></div>
-    <div class="tabs certificate-status-tabs">${tabs.map(t=>{
-      const count=tabCounts[t]||0;
-      const badge=count?`<span class="tab-task-count ${t===actionableStatus?'attention':''}">${count>99?'99+':count}</span>`:'';
-      return `<button class="tab ${t===filter?'active':''}" ${bindAction('click',(event,element)=>{renderCertRequests((String(t)))})}>${t==='all'?'All':t}${badge}</button>`;
-    }).join('')}</div>
-    ${list.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Patient</th><th>Purpose</th><th>Physician</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead><tbody>${list.map(r=>{
-      const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null,physician=getUserById(r.doctorId);
-      const prepareBtn=canPrepare&&(r.status==='Pending'||r.status==='Awaiting Signature'||r.status==='Issued')?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openEditCertModal((r.id))})}>${r.status==='Issued'?'Edit / Re-sign':'✎ Prepare / Edit'}</button>`:'';
-      const signBtn=canSign&&r.status==='Awaiting Signature'&&r.doctorId===appState.auth.currentUser.id?`<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{openSignCertModal((r.id))})}>✍ Review & Sign</button>`:'';
-      const declineBtn=canPrepare&&r.status!=='Issued'&&r.status!=='Declined'&&r.status!=='Cancelled'?`<button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{openDeclineCertModal((r.id))})}>Decline</button>`:'';
+  c.innerHTML=`<div class="appt-head"><div class="appt-views" role="tablist" aria-label="Certificate lists">${CERT_TABS.map(([id,label])=>`<button type="button" role="tab" class="appt-view ${filter===id?'active':''} ${id==='Awaiting Signature'&&counts[id]?'attention':''}" aria-selected="${filter===id}" ${bindAction('click',()=>renderCertRequests(id))}>${label}<span class="appt-view-count">${counts[id]}</span></button>`).join('')}</div>
+      <button class="btn btn-primary btn-sm" ${bindAction('click',()=>openNewCertificateModal())}>+ New Certificate</button></div>
+    <div class="toolbar"><input type="search" id="cert-search" placeholder="Search patient, certificate no. or purpose" aria-label="Search certificates" value="${escapeHtml(ui.certQuery||'')}" ${bindAction('input',(event,element)=>{ui.certQuery=element.value;clearTimeout(ui.certSearchTimer);ui.certSearchTimer=setTimeout(()=>renderCertRequests(filter).then(()=>{const input=document.getElementById('cert-search');if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length);}}),250);})}></div>
+    <p class="patient-filter-summary">Only you can see and change the certificates you write. Patients can download a certificate once you sign and issue it.</p>
+    <div class="card">${list.length?`<div class="table-wrap"><table class="cert-list-table"><thead><tr><th scope="col">Certificate</th><th scope="col">Patient</th><th scope="col">Purpose</th><th scope="col">Date</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${list.map(r=>{
+      const pt=getPatientById(r.patientId);
+      const date=r.status==='Issued'||r.issuedAt?r.issuedAt:r.preparedAt||r.requestedAt;
       return `<tr>
-        <td>#${certificateDisplayId(r)}</td>
-        <td>${u?`<button class="link-btn" ${bindAction('click',(event,element)=>{viewPatient((pt.id))})}>${escapeHtml(u.fname+' '+u.lname)}</button>`:'Unknown'}</td>
-        <td>${escapeHtml(r.purpose)}${r.details?`<div class="text-muted" style="font-size:.72rem">${escapeHtml(r.details)}</div>`:''}</td>
-        <td>${physician?escapeHtml(docName(physician)):'Not assigned'}</td>
-        <td>${fmtDateTime(r.requestedAt)}</td>
-        <td>${certStatusBadge(r.status)}</td>
-        <td><div class="td-actions">${prepareBtn}${signBtn}${declineBtn}${r.status==='Issued'?`<button class="btn btn-xs btn-primary" ${bindAction('click',(event,element)=>{downloadCertPdf((r.id))})}>⬇ PDF</button>`:''}</div></td>
-      </tr>`;
-    }).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No requests found.</p></div>'}
-  </div>`;
+        <td data-label="Certificate"><strong>${escapeHtml(r.certNo||'Draft #'+certificateDisplayId(r))}</strong></td>
+        <td data-label="Patient">${pt?`<button class="link-btn" ${bindAction('click',()=>viewPatient(pt.id))}>${escapeHtml(patientName(r))}</button>`:'Unknown patient'}</td>
+        <td data-label="Purpose">${escapeHtml(r.purpose)}${r.details?`<div class="text-muted">${escapeHtml(r.details)}</div>`:''}</td>
+        <td data-label="Date">${date?fmtDate(String(date).slice(0,10)):'—'}</td>
+        <td data-label="Status">${certStatusBadge(r.status)}${r.status==='Cancelled'&&r.declineReason?`<div class="text-muted">${escapeHtml(r.declineReason)}</div>`:''}</td>
+        <td data-label="Actions"><div class="td-actions">
+          ${r.status==='Awaiting Signature'?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>openCertificateEditor(r.id))}>Continue</button><button class="btn btn-xs" ${bindAction('click',()=>discardCertificateDraft(r.id))}>Discard</button>`:''}
+          ${r.status==='Issued'?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>downloadCertPdf(r.id))}><i class="bi bi-download" aria-hidden="true"></i> PDF</button><button class="btn btn-xs btn-danger" ${bindAction('click',()=>openVoidCertificateModal(r.id))}>Void</button>`:''}
+        </div></td>
+      </tr>`;}).join('')}</tbody></table></div>`
+      :`<div class="empty-state"><i class="bi bi-file-earmark-medical" aria-hidden="true" style="font-size:1.6rem"></i><p>${q?'No certificates match your search.':filter==='Awaiting Signature'?'No drafts. Start a new certificate after a consultation.':'No certificates here yet.'}</p></div>`}</div>`;
 }
 
-// Staff/Admin use this Word-like screen to prepare or revise the document before doctor signing.
-export function openEditCertModal(id){
-  if(!(appState.auth.currentUser.role==='Staff'||appState.auth.currentUser.role==='Administrator')){toast('Only staff or administrators can prepare certificates.','error');return;}
-  const r=certificateRecords().find(x=>x.id===Number(id));if(!r||r.status==='Declined')return;
-  const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null;
-  const latest=getLatestTreatmentForCertificate(r.patientId,r.doctorId||null);
-  const defaultDoctor=r.doctorId||(latest&&latest.doctorId)||(getDoctors()[0]||{}).id;
-  const autofill=certificateAutofillFromTreatment(r.patientId,defaultDoctor);
-  const findings=r.findings||autofill.findings;
-  const remarks=r.recommendations||autofill.remarks;
-  const documentHtml=normalizeCertificateDocumentMetadata(
-    r,
-    r.documentHtml||buildCertificateDocument(r,defaultDoctor,findings,remarks,'')
-  );
-  openModal(`<div class="modal modal-xl" style="max-width:1180px">
-    <div class="modal-header"><div><h3>${r.status==='Issued'?'Edit Medical Certificate':'Prepare Medical Certificate'}</h3><div class="text-muted">Request #${certificateDisplayId(r)} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+// Step 1: who, which visit and why. The certificate must rest on an examination by this doctor.
+export function openNewCertificateModal(patientId=null,treatmentId=null,prefill={}){
+  if(!isDoctor()){toast('Only doctors can issue medical certificates.','error');return;}
+  const pt=patientId?getPatientById(patientId):null;
+  appState.certificateService.certPrefill=prefill;
+  openModal(`<div class="modal cert-new-modal">
+    <div class="modal-header"><div><h3>New medical certificate</h3><div class="text-muted">Step 1 of 2 · Patient, visit and purpose</div></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
-      <div class="alert alert-info show" style="font-size:.78rem">Edit the certificate like a document. Findings and remarks are automatically filled from the selected doctor's latest clinical notes when available.</div>
+      <div class="form-group"><label for="nc-pt-search">Patient <span class="required">*</span></label>
+        <input type="hidden" id="nc-pt" value="${pt?pt.id:''}">
+        <div class="patient-combobox"><input type="search" id="nc-pt-search" autocomplete="off" placeholder="Search by name or ID number" value="${pt?escapeHtml(pt.fname+' '+pt.lname):''}" ${bindAction('input',(event,element)=>filterCertificatePatients(element.value))}><div class="patient-combobox-list" id="nc-pt-results"></div></div>
+        <p class="registration-field-error" id="nc-pt-error" hidden></p>
+      </div>
+      <div class="form-group"><label for="nc-visit">Based on visit</label>
+        <select id="nc-visit" ${bindAction('change',()=>{})}></select>
+        <p class="form-note" id="nc-visit-note">Choose the consultation where you examined the patient. Its findings fill in the certificate.</p>
+        <p class="registration-field-error" id="nc-visit-error" hidden></p>
+      </div>
+      <div class="form-group"><label for="nc-purpose">Purpose <span class="required">*</span></label>
+        <select id="nc-purpose" ${bindAction('change',()=>syncCertificatePurposeFields())}>${purposeData.CERTIFICATE_PURPOSES.map(p=>`<option ${p===prefill.purpose?'selected':''}>${escapeHtml(p)}</option>`).join('')}</select>
+      </div>
+      <div id="nc-purpose-fields"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" ${bindAction('click',()=>continueNewCertificate())}>Continue to document</button></div>
+  </div>`);
+  syncCertificatePurposeFields();
+  for(const key of ['event','fitness','restrictions']){const el=document.getElementById('nc-'+key);if(el&&prefill[key])el.value=prefill[key];}
+  const restrictionsGroup=document.getElementById('nc-restrictions-group');if(restrictionsGroup)restrictionsGroup.hidden=document.getElementById('nc-fitness')?.value!=='Fit with restrictions';
+  if(pt)selectCertificatePatient(pt.id,treatmentId);else syncCertificateVisits(null);
+}
+
+export function filterCertificatePatients(q=''){
+  const box=document.getElementById('nc-pt-results');if(!box)return;
+  document.getElementById('nc-pt').value='';syncCertificateVisits(null);
+  const s=q.trim().toLowerCase();
+  if(!s){box.innerHTML='';box.classList.remove('show');return;}
+  const pts=appState.data.DB.patients.filter(p=>!p.archived&&(!appState.auth.currentUser._realSupabase||p._realSupabase)&&`${p.fname} ${p.lname} ${p.lname}, ${p.fname} ${p.idNo||''}`.toLowerCase().includes(s)).slice(0,12);
+  box.innerHTML=pts.length?pts.map(p=>`<button type="button" class="patient-combobox-option" ${bindAction('click',()=>selectCertificatePatient(p.id))}><strong>${escapeHtml(p.lname+', '+p.fname)}</strong><span class="text-muted" style="display:block">${escapeHtml(p.idNo||'No ID')} · ${escapeHtml(p.college||'')}</span></button>`).join(''):'<div class="text-muted" style="padding:.65rem">No matching patient.</div>';
+  box.classList.add('show');
+}
+export function selectCertificatePatient(id,treatmentId=null){
+  const p=getPatientById(id);if(!p)return;
+  document.getElementById('nc-pt').value=id;
+  document.getElementById('nc-pt-search').value=`${p.fname} ${p.lname}`;
+  document.getElementById('nc-pt-results')?.classList.remove('show');
+  syncCertificateVisits(p.id,treatmentId);
+}
+function doctorVisits(patientId){
+  return treatmentRecords().filter(t=>t.patientId===patientId&&!t.archived&&t.doctorId===appState.auth.currentUser.id)
+    .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||b.id-a.id);
+}
+function syncCertificateVisits(patientId,selected=null){
+  const select=document.getElementById('nc-visit');if(!select)return;
+  if(!patientId){select.innerHTML='<option value="">Choose a patient first</option>';select.disabled=true;return;}
+  const visits=doctorVisits(patientId);
+  // Without a recorded visit (e.g. a fitness assessment), the doctor writes the findings directly.
+  const none=appState.certificateService.certPrefill?.findings?'Not linked to a visit (uses the assessment findings)':'Not linked to a visit (write the findings yourself)';
+  select.disabled=false;
+  select.innerHTML=visits.map(t=>`<option value="${t.id}" ${t.id===Number(selected)?'selected':''}>${escapeHtml(fmtDate(t.date))} · ${escapeHtml(t.diagnosis||'No diagnosis recorded')}</option>`).join('')+`<option value="" ${!visits.length||appState.certificateService.certPrefill?.findings?'selected':''}>${none}</option>`;
+}
+export function syncCertificatePurposeFields(){
+  const box=document.getElementById('nc-purpose-fields');if(!box)return;
+  const purpose=document.getElementById('nc-purpose').value;
+  const today=appState.clinicInformation.TODAY;
+  const err=id=>`<p class="registration-field-error" id="nc-${id}-error" hidden></p>`;
+  const fitness=`<div class="form-group"><label for="nc-fitness">Result <span class="required">*</span></label><select id="nc-fitness" ${bindAction('change',()=>{document.getElementById('nc-restrictions-group').hidden=document.getElementById('nc-fitness').value!=='Fit with restrictions';})}><option value="">Select</option>${purposeData.FITNESS_OPTIONS.map(o=>`<option>${o}</option>`).join('')}</select>${err('fitness')}<p class="form-note">If the patient is not fit, do not issue a certificate. Record the advice in the visit notes instead.</p></div>
+    <div class="form-group" id="nc-restrictions-group" hidden><label for="nc-restrictions">Restrictions <span class="required">*</span></label><input id="nc-restrictions" maxlength="200" placeholder="e.g. No heavy lifting for 2 weeks">${err('restrictions')}</div>`;
+  box.innerHTML=purpose==='Excused Absence'
+    ?`<div class="form-row"><div class="form-group"><label for="nc-absentFrom">First day of absence <span class="required">*</span></label><input type="date" id="nc-absentFrom" max="${new Date(Date.parse(today+'T12:00:00Z')+7*864e5).toISOString().slice(0,10)}" value="${today}">${err('absentFrom')}</div>
+      <div class="form-group"><label for="nc-absentTo">Last day of absence <span class="required">*</span></label><input type="date" id="nc-absentTo" value="${today}">${err('absentTo')}</div></div>`
+    :purpose==='Sports / Athletics Participation'
+      ?`<div class="form-group"><label for="nc-event">Sport or event <span class="required">*</span></label><input id="nc-event" maxlength="120" placeholder="e.g. Intramurals 2026 – Basketball">${err('event')}</div>${fitness}`
+      :fitness;
+}
+function readCertificateFields(){
+  const value=id=>document.getElementById('nc-'+id)?.value?.trim()||'';
+  return {absentFrom:value('absentFrom'),absentTo:value('absentTo'),fitness:value('fitness'),restrictions:value('restrictions'),event:value('event')};
+}
+export function continueNewCertificate(){
+  const patientId=Number(document.getElementById('nc-pt').value)||0;
+  const treatmentId=Number(document.getElementById('nc-visit').value)||0;
+  const purpose=document.getElementById('nc-purpose').value;
+  const fields=readCertificateFields();
+  const errors=purposeData.certificateDetailErrors(purpose,fields,appState.clinicInformation.TODAY);
+  if(!patientId)errors.pt='Choose the patient from the list.';
+  for(const el of document.querySelectorAll('.cert-new-modal .registration-field-error')){el.hidden=true;el.textContent='';}
+  for(const [key,message] of Object.entries(errors)){const el=document.getElementById(`nc-${key}-error`);if(el){el.textContent=message;el.hidden=false;}}
+  if(Object.keys(errors).length){document.querySelector('.cert-new-modal .registration-field-error:not([hidden])')?.scrollIntoView({block:'center'});return;}
+  const {statement,summary}=purposeData.certificateStatement(purpose,fields);
+  closeAllModals();
+  openCertificateEditor(null,{patientId,treatmentId,purpose,statement,details:summary});
+}
+
+// Step 2: the certificate document, editable like a page, with the doctor's signature.
+export function openCertificateEditor(id,draft=null){
+  if(!isDoctor())return;
+  if(id)appState.certificateService.certPrefill={};
+  const r=id?certificateRecords().find(x=>x.id===Number(id)):{id:null,status:'Awaiting Signature',doctorId:appState.auth.currentUser.id,...draft};
+  if(!r||r.status!=='Awaiting Signature')return;
+  if(id&&r.doctorId!==appState.auth.currentUser.id){toast('Only the doctor who wrote this draft can open it.','error');return;}
+  const pt=getPatientById(r.patientId),doctor=appState.auth.currentUser;
+  const visit=treatmentRecords().find(t=>t.id===r.treatmentId)||null;
+  const prefill=appState.certificateService.certPrefill||{};
+  const autofill=visit?certificateFromVisit(visit):{findings:prefill.findings||'',remarks:prefill.restrictions?`Restrictions: ${prefill.restrictions}`:'',treatment:null};
+  const documentHtml=normalizeCertificateDocumentMetadata(r,r.documentHtml||buildCertificateDocument(r,doctor.id,r.findings||autofill.findings,r.recommendations||autofill.remarks,''));
+  appState.certificateService.certEditing={id:r.id,patientId:r.patientId,treatmentId:r.treatmentId||null,purpose:r.purpose,details:r.details||''};
+  appState.certificateService.certDraftSignature=doctor.savedSignature||'';
+  openModal(`<div class="modal modal-xl" style="max-width:1180px">
+    <div class="modal-header"><div><h3>${r.id?'Medical certificate draft':'New medical certificate'}</h3><div class="text-muted">Step 2 of 2 · ${pt?escapeHtml(pt.fname+' '+pt.lname):'Unknown patient'} · ${escapeHtml(r.purpose)}${visit?` · visit of ${escapeHtml(fmtDate(visit.date))}`:''}</div></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body">
+      <div class="alert alert-info show" style="font-size:.78rem">Check the wording, then sign and issue. The patient is notified and can download the PDF. Issued certificates cannot be edited; void and reissue if something is wrong.</div>
+      <input id="ic-doctor" type="hidden" value="${doctor.id}">
       <div class="cert-editor-shell">
         <div>${certEditorToolbarHtml()}<div class="cert-page-wrap"><div class="cert-paper" id="cert-editor" contenteditable="true" spellcheck="true">${documentHtml}</div></div></div>
         <div class="cert-side-panel">
-          <div class="card" style="margin:0"><div class="card-header"><h3>Certificate Details</h3></div>
-            <div class="form-group"><label>Purpose</label><select id="ec-purpose" ${bindAction('change',(event,element)=>{updateCertPurposeText()})}>${appState.certificateService.CERT_PURPOSES.map(p=>`<option ${p===r.purpose?'selected':''}>${p}</option>`).join('')}</select></div>
-            <div class="form-group"><label>Attending Physician <span class="required">*</span></label><select id="ec-doctor" ${bindAction('change',(event,element)=>{onCertPrepareDoctorChange((id))})}><option value="">Select physician</option>${getDoctors().map(d=>`<option value="${d.id}" ${d.id===defaultDoctor?'selected':''}>${escapeHtml(docName(d))} — ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('')}</select></div>
-            <div class="form-group"><label>Request Details</label><textarea id="ec-details" rows="2">${escapeHtml(r.details||'')}</textarea></div>
-            <p class="cert-autofill-note" id="cert-autofill-note">${autofill.treatment?`Autofilled from clinical notes dated ${fmtDate(autofill.treatment.date)}.`:'No clinical notes were found. The document can be completed manually.'}</p>
-            <button class="btn btn-sm" type="button" ${bindAction('click',(event,element)=>{refreshCertAutofill((id))})}>↻ Refill from Clinical Notes</button>
+          <div class="card" style="margin:0"><div class="card-header"><h3>Physician signature</h3></div>
+            <div class="cert-sign-pad"><canvas id="cert-sign-canvas" width="900" height="280" aria-label="Draw physician signature"></canvas></div>
+            <div class="cert-sign-actions">
+              <button class="btn btn-xs" type="button" ${bindAction('click',()=>clearCertSignature())}>Clear</button>
+              <button class="btn btn-xs" type="button" ${bindAction('click',()=>document.getElementById('cert-sign-upload').click())}>Upload</button>
+              <button class="btn btn-xs" type="button" ${bindAction('click',()=>pasteCertSignatureFromClipboard())}>Paste</button>
+              <button class="btn btn-xs btn-info" type="button" ${bindAction('click',()=>useSavedDoctorSignature())} ${doctor.savedSignature?'':'disabled'}>Use saved</button>
+              <input id="cert-sign-upload" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" ${bindAction('change',(event,element)=>uploadCertSignature(element))}>
+            </div>
+            <div class="cert-sign-preview" style="margin-top:.55rem"><img id="cert-sign-preview-img" src="${appState.certificateService.certDraftSignature||''}" style="${appState.certificateService.certDraftSignature?'':'display:none'}" alt="Signature preview"><span id="cert-sign-empty" class="text-muted" style="${appState.certificateService.certDraftSignature?'display:none':''}">Draw, upload, paste, or use your saved signature.</span></div>
+            <label style="display:flex;gap:.45rem;align-items:flex-start;margin-top:.6rem;font-size:.76rem;color:var(--ink-muted)"><input type="checkbox" id="cert-save-signature"> <span>Save this signature to my profile for future certificates.</span></label>
           </div>
-          <div class="card" style="margin:0"><div class="card-header"><h3>Workflow</h3></div><p class="cert-autofill-note">Saving sends this prepared document to the assigned doctor. Only the assigned doctor can add the final signature and issue it.</p></div>
+          <div class="card" style="margin:0"><div class="card-header"><h3>Clinical source</h3></div><p class="cert-autofill-note" id="cert-autofill-note">${visit?`Findings come from your visit notes of ${fmtDate(visit.date)}.`:autofill.findings?'Findings come from the fitness-to-compete assessment.':'Not linked to a visit. Write the findings in the document.'}</p></div>
         </div>
       </div>
     </div>
-    <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{saveCertDraft((id))})}>Save &amp; Send for Signature</button></div>
+    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>saveCertificateDraft())}>Save draft</button><button class="btn btn-success" ${bindAction('click',()=>signCert())}>Sign &amp; issue</button></div>
   </div>`);
+  setTimeout(()=>{initCertSignaturePad();setCertSignaturePreview(appState.certificateService.certDraftSignature);},0);
+}
+
+function certificateFromVisit(t){
+  const findings=[t.findings,t.diagnosis?`Diagnosis: ${t.diagnosis}`:''].filter(Boolean).join(' — ');
+  const remarks=[t.notes,t.prescription?`Prescription / Treatment: ${t.prescription}`:'',t.followupDate?`Follow-up: ${fmtDate(t.followupDate)}`:''].filter(Boolean).join(' ');
+  return {findings,remarks,treatment:t};
+}
+
+// Creates or updates the doctor's draft and returns its record.
+async function persistCertificateDraft(){
+  const editing=appState.certificateService.certEditing;
+  const editor=document.getElementById('cert-editor');
+  const findings=readCertificateDocumentField('findings');
+  const recommendations=readCertificateDocumentField('remarks');
+  const documentHtml=ensureCertificateLogo(sanitizeCertHtml(editor.innerHTML));
+  const pt=getPatientById(editing.patientId),visit=treatmentRecords().find(t=>t.id===editing.treatmentId)||null;
+  if(appState.auth.currentUser._realSupabase){
+    const result=await certificateAction({
+      action:'draft',certificate_id:editing.id?certificateRecords().find(x=>x.id===editing.id)?.dbCertificateId:null,
+      patient_id:pt?.dbPatientId,treatment_id:visit?.dbTreatmentId||null,purpose:editing.purpose,request_details:editing.details,
+      examination_findings:findings,remarks:recommendations,document_content:documentHtml
+    });
+    await syncRealCertificates();
+    const saved=certificateRecords().find(x=>x.dbCertificateId===Number(result.certificate_id));
+    if(saved)editing.id=saved.id;
+    return saved;
+  }
+  let r=editing.id?certificateRecords().find(x=>x.id===editing.id):null;
+  if(!r){
+    r={id:appState.data.DB.nextCertId++,patientId:editing.patientId,doctorId:appState.auth.currentUser.id,treatmentId:editing.treatmentId,purpose:editing.purpose,details:editing.details,status:'Awaiting Signature',requestedAt:new Date().toISOString(),certNo:'',issuedAt:'',declineReason:''};
+    appState.data.DB.certRequests.push(r);editing.id=r.id;
+  }
+  Object.assign(r,{findings,recommendations,documentHtml,preparedById:appState.auth.currentUser.id,preparedAt:new Date().toISOString()});
+  persistDB();
+  return r;
+}
+
+export async function saveCertificateDraft(){
+  if(!readCertificateDocumentField('findings')){toast('Write the findings or diagnosis before saving.','error');return;}
+  try{
+    await persistCertificateDraft();
+    closeAllModals();
+    toast('Certificate draft saved.','success');
+    await renderCertRequests('Awaiting Signature');
+  }catch(e){toast(e?.message||'Unable to save the draft.','error');}
+}
+
+export function discardCertificateDraft(id){
+  const r=certificateRecords().find(x=>x.id===Number(id));if(!r||r.status!=='Awaiting Signature')return;
+  showConfirmDialog({title:'Discard draft',message:'Delete this certificate draft? This cannot be undone.',confirmLabel:'Discard',danger:true,onConfirm:async()=>{
+    try{
+      if(r._realSupabase){await certificateAction({action:'discard',certificate_id:r.dbCertificateId});await syncRealCertificates();}
+      else{appState.data.DB.certRequests=appState.data.DB.certRequests.filter(x=>x.id!==r.id);persistDB();}
+      toast('Draft discarded.','info');await renderCertRequests('Awaiting Signature');
+    }catch(e){toast(e?.message||'Unable to discard the draft.','error');}
+  }});
+}
+
+// Voiding keeps the record and tells the patient why; a corrected certificate can then be issued.
+export function openVoidCertificateModal(id){
+  const r=certificateRecords().find(x=>x.id===Number(id));if(!r||r.status!=='Issued')return;
+  openModal(`<div class="modal modal-sm"><div class="modal-header"><h3>Void certificate ${escapeHtml(r.certNo)}</h3><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body"><p style="font-size:.85rem;margin:0 0 .6rem">The certificate stops being valid and the patient can no longer download it. They are told the reason.</p>
+      <div class="form-group"><label for="void-reason">Reason <span class="required">*</span></label><textarea id="void-reason" rows="3" maxlength="500" placeholder="e.g. Wrong dates of absence; a corrected certificate will be issued."></textarea></div></div>
+    <div class="modal-footer"><button class="btn btn-danger" ${bindAction('click',()=>voidCertificate(r.id))}>Void certificate</button></div></div>`);
+}
+export async function voidCertificate(id){
+  const r=certificateRecords().find(x=>x.id===Number(id));if(!r)return;
+  const reason=(document.getElementById('void-reason')?.value||'').trim();
+  if(reason.length<5){toast('Give a reason for voiding (at least 5 characters).','error');return;}
+  try{
+    if(r._realSupabase){await certificateAction({action:'void',certificate_id:r.dbCertificateId,reason});await syncRealCertificates();}
+    else{r.status='Cancelled';r.declineReason=reason;persistDB();}
+    closeAllModals();toast(`Certificate ${r.certNo} voided.`,'warning');await renderCertRequests('Cancelled');
+  }catch(e){toast(e?.message||'Unable to void the certificate.','error');}
 }
 
 // Read certificate fields robustly from the visible editable document.
@@ -452,127 +507,10 @@ export function readCertificateDocumentField(field){
   return '';
 }
 
-// Save the editable document exactly as prepared and route it to the assigned doctor.
-export async function saveCertDraft(id){
-  const r=certificateRecords().find(x=>x.id===Number(id));if(!r)return;
-  if(!(appState.auth.currentUser.role==='Staff'||appState.auth.currentUser.role==='Administrator'))return;
-
-  const doctorId=parseInt(document.getElementById('ec-doctor').value);
-  const doctor=getUserById(doctorId);
-  const editor=document.getElementById('cert-editor');
-  const findings=readCertificateDocumentField('findings');
-  const recommendations=readCertificateDocumentField('remarks');
-
-  if(!doctorId||!doctor){toast('Please select the attending physician.','error');return;}
-  if(!findings){toast('Please enter findings or a diagnosis in the FINDINGS / DIAGNOSIS line before sending for signature.','error');return;}
-
-  const purpose=document.getElementById('ec-purpose').value;
-  const details=document.getElementById('ec-details').value.trim().slice(0,1000);
-  const documentHtml=ensureCertificateLogo(sanitizeCertHtml(editor.innerHTML));
-  const source=certificateAutofillFromTreatment(r.patientId,doctorId).treatment;
-
-  try{
-    if(r._realSupabase){
-      if(!doctor._realSupabase)throw new Error('Select a real CampusCare doctor.');
-      await certificateAction({
-        action:'prepare',
-        certificate_id:r.dbCertificateId,
-        doctor_id:doctor.dbUserId,
-        treatment_id:source?.dbTreatmentId||null,
-        purpose,
-        request_details:details,
-        examination_findings:findings,
-        remarks:recommendations,
-        document_content:documentHtml
-      });
-      await syncRealCertificates();
-    }else{
-      r.purpose=purpose;
-      r.details=details;
-      r.doctorId=doctorId;
-      r.findings=findings;
-      r.recommendations=recommendations;
-      r.documentHtml=documentHtml;
-      r.signatureData='';
-      r.status='Awaiting Signature';
-      r.preparedById=appState.auth.currentUser.id;
-      r.preparedAt=new Date().toISOString();
-      persistDB();
-    }
-
-    closeAllModals();
-    toast('Certificate saved and sent for doctor signature.','success');
-    await renderCertRequests('Awaiting Signature');
-  }catch(e){
-    toast(e?.message||'Unable to prepare certificate.','error');
-  }
-}
-
-// The assigned doctor reviews the same Word-like document and can make final wording edits before signing.
-export function openSignCertModal(id){
-  const r=certificateRecords().find(x=>x.id===Number(id));if(!r||r.status!=='Awaiting Signature')return;
-  if(appState.auth.currentUser.role!=='Doctor'||r.doctorId!==appState.auth.currentUser.id){toast('Only the assigned doctor can sign this certificate.','error');return;}
-  const pt=getPatientById(r.patientId),u=pt?getUserById(pt.userId):null,doctor=appState.auth.currentUser;
-  const autofill=certificateAutofillFromTreatment(r.patientId,doctor.id);
-  const documentHtml=normalizeCertificateDocumentMetadata(
-    r,
-    r.documentHtml||buildCertificateDocument(r,doctor.id,r.findings||autofill.findings,r.recommendations||autofill.remarks,'')
-  );
-  appState.certificateService.certDraftSignature=r.signatureData||doctor.savedSignature||'';
-  openModal(`<div class="modal modal-xl" style="max-width:1180px">
-    <div class="modal-header"><div><h3>Review &amp; Sign Medical Certificate</h3><div class="text-muted">Request #${certificateDisplayId(r)} · ${u?escapeHtml(u.fname+' '+u.lname):'Unknown patient'}</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-    <div class="modal-body">
-      <div class="alert alert-info show" style="font-size:.78rem">Review the document, make any final wording changes, then sign using your mouse, trackpad, touchscreen, uploaded image, pasted image, or saved signature.</div>
-      <input id="ic-doctor" type="hidden" value="${doctor.id}">
-      <div class="cert-editor-shell">
-        <div>${certEditorToolbarHtml()}<div class="cert-page-wrap"><div class="cert-paper" id="cert-editor" contenteditable="true" spellcheck="true">${documentHtml}</div></div></div>
-        <div class="cert-side-panel">
-          <div class="card" style="margin:0"><div class="card-header"><h3>Physician Signature</h3></div>
-            <div class="cert-sign-pad"><canvas id="cert-sign-canvas" width="900" height="280" aria-label="Draw physician signature"></canvas></div>
-            <div class="cert-sign-actions">
-              <button class="btn btn-xs" type="button" ${bindAction('click',(event,element)=>{clearCertSignature()})}>Clear</button>
-              <button class="btn btn-xs" type="button" ${bindAction('click',(event,element)=>{document.getElementById('cert-sign-upload').click()})}>Upload</button>
-              <button class="btn btn-xs" type="button" ${bindAction('click',(event,element)=>{pasteCertSignatureFromClipboard()})}>Paste</button>
-              <button class="btn btn-xs btn-info" type="button" ${bindAction('click',(event,element)=>{useSavedDoctorSignature()})} ${doctor.savedSignature?'':'disabled'}>Use Saved</button>
-              <input id="cert-sign-upload" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" ${bindAction('change',(event,element)=>{uploadCertSignature(element)})}>
-            </div>
-            <div class="cert-sign-preview" style="margin-top:.55rem"><img id="cert-sign-preview-img" src="${appState.certificateService.certDraftSignature||''}" style="${appState.certificateService.certDraftSignature?'':'display:none'}" alt="Signature preview"><span id="cert-sign-empty" class="text-muted" style="${appState.certificateService.certDraftSignature?'display:none':''}">Draw, upload, paste, or use your saved signature.</span></div>
-            <label style="display:flex;gap:.45rem;align-items:flex-start;margin-top:.6rem;font-size:.76rem;color:var(--ink-muted)"><input type="checkbox" id="cert-save-signature"> <span>Save this signature to my doctor profile for future document signing.</span></label>
-          </div>
-          <div class="card" style="margin:0"><div class="card-header"><h3>Clinical Source</h3></div><p class="cert-autofill-note">${autofill.treatment?`Latest matching clinical note: ${fmtDate(autofill.treatment.date)}.`:'No matching clinical note found.'}</p><button class="btn btn-sm" type="button" ${bindAction('click',(event,element)=>{refreshCertAutofill((id))})}>↻ Refill from My Clinical Notes</button></div>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button><button class="btn btn-success" ${bindAction('click',(event,element)=>{signCert((id))})}>✍ Sign &amp; Issue</button></div>
-  </div>`);
-  setTimeout(()=>{initCertSignaturePad();setCertSignaturePreview(appState.certificateService.certDraftSignature);},0);
-}
-
 // Lightweight document formatting commands for the editable certificate page.
 export function formatCertDocument(command,value=null){
   const editor=document.getElementById('cert-editor');if(editor)editor.focus();
   document.execCommand(command,false,value);
-}
-
-export function updateCertPurposeText(){
-  const purpose=document.getElementById('ec-purpose')?.value||'';
-  const el=document.querySelector('[data-cert-field="purpose"]');if(el)el.textContent=purpose.toLowerCase();
-}
-
-// Refill only the clinical fields so manually edited header/body formatting is preserved.
-export function refreshCertAutofill(id){
-  const r=certificateRecords().find(x=>x.id===Number(id));if(!r)return;
-  const doctorId=parseInt((document.getElementById('ec-doctor')||document.getElementById('ic-doctor')).value);
-  const data=certificateAutofillFromTreatment(r.patientId,doctorId);
-  const f=document.getElementById('cert-findings-edit'),m=document.getElementById('cert-remarks-edit');
-  if(f)f.textContent=data.findings||'';if(m)m.textContent=data.remarks||'';
-  const note=document.getElementById('cert-autofill-note');if(note)note.textContent=data.treatment?`Autofilled from clinical notes dated ${fmtDate(data.treatment.date)}.`:'No matching clinical notes were found for this patient and doctor.';
-}
-
-export function onCertPrepareDoctorChange(id){
-  const doctorId=parseInt(document.getElementById('ec-doctor').value);const doctor=getUserById(doctorId)||{};
-  const name=document.getElementById('cert-doctor-name');if(name)name.textContent=`DR. ${((doctor.fname||'')+' '+(doctor.lname||'')).toUpperCase().trim()}`;
-  refreshCertAutofill(id);
 }
 
 // Canvas pointer events support mouse, trackpad, touchscreen and stylus input.
@@ -606,95 +544,35 @@ export function sanitizeCertHtml(html){
   return box.innerHTML;
 }
 
-// Final doctor signing stores the document and optional reusable signature, then releases it to the patient.
-export async function signCert(id){
-  const r=certificateRecords().find(x=>x.id===Number(id));if(!r||r.status!=='Awaiting Signature')return;
-  if(appState.auth.currentUser.role!=='Doctor'||r.doctorId!==appState.auth.currentUser.id){
-    toast('Only the assigned doctor can sign this certificate.','error');
-    return;
-  }
-
-  const editor=document.getElementById('cert-editor');
+// Signing saves the draft, assigns the certificate number and releases it to the patient.
+export async function signCert(){
+  if(!isDoctor())return;
   const findings=readCertificateDocumentField('findings');
-  const recommendations=readCertificateDocumentField('remarks');
-
-  if(!findings){toast('Please enter findings or a diagnosis in the FINDINGS / DIAGNOSIS line before issuing the certificate.','error');return;}
-  if(!appState.certificateService.certDraftSignature){toast('Please add your signature before issuing the certificate.','error');return;}
-
-  const certNo=certificateNumberFor(r);
-  const issuedAt=new Date().toISOString();
-  const noEl=document.getElementById('cert-number-display');if(noEl)noEl.textContent=certNo;
-  const dateEl=document.getElementById('cert-date-display');if(dateEl)dateEl.textContent=fmtDate(issuedAt);
-
-  const finalHtml=ensureCertificateLogo(sanitizeCertHtml(editor.innerHTML));
+  if(!findings){toast('Write the findings or diagnosis before issuing the certificate.','error');return;}
+  if(!appState.certificateService.certDraftSignature){toast('Add your signature before issuing the certificate.','error');return;}
   const saveSignature=Boolean(document.getElementById('cert-save-signature')?.checked);
-
   try{
+    const r=await persistCertificateDraft();
+    if(!r)throw new Error('The draft could not be saved.');
+    const certNo=certificateNumberFor(r),issuedAt=new Date().toISOString();
+    const noEl=document.getElementById('cert-number-display');if(noEl)noEl.textContent=certNo;
+    const dateEl=document.getElementById('cert-date-display');if(dateEl)dateEl.textContent=fmtDate(issuedAt);
+    const finalHtml=ensureCertificateLogo(sanitizeCertHtml(document.getElementById('cert-editor').innerHTML));
+    const recommendations=readCertificateDocumentField('remarks');
+    let issuedNo=certNo;
     if(r._realSupabase){
-      const result=await certificateAction({
-        action:'sign',
-        certificate_id:r.dbCertificateId,
-        examination_findings:findings,
-        remarks:recommendations,
-        document_content:finalHtml,
-        signature_data:appState.certificateService.certDraftSignature,
-        save_signature:saveSignature
-      });
-
-      if(saveSignature)appState.auth.currentUser.savedSignature=appState.certificateService.certDraftSignature;
-      await syncRealCertificates();
-
-      const refreshed=certificateRecords().find(x=>x.dbCertificateId===r.dbCertificateId);
-      closeAllModals();
-      toast(`Certificate ${refreshed?.certNo||result.certificate_no||certNo} signed and issued.`,'success');
-      await renderCertRequests('Issued');
-    }else{
-      r.certNo=certNo;
-      r.issuedAt=issuedAt;
-      r.findings=findings;
-      r.recommendations=recommendations;
-      r.signatureData=appState.certificateService.certDraftSignature;
-      r.documentHtml=finalHtml;
-      r.status='Issued';
-      r.issuedById=appState.auth.currentUser.id;
-      r.signedById=appState.auth.currentUser.id;
-      r.signedAt=issuedAt;
-      r.updatedAt=new Date().toLocaleString();
-      if(saveSignature)appState.auth.currentUser.savedSignature=appState.certificateService.certDraftSignature;
-      persistDB();
-      closeAllModals();
-      toast(`Certificate ${certNo} signed and issued.`,'success');
-      renderCertRequests('Issued');
-    }
-  }catch(e){
-    toast(e?.message||'Unable to sign and issue certificate.','error');
-  }
-}
-
-export function openDeclineCertModal(id){
-  if(!(appState.auth.currentUser.role==='Staff'||appState.auth.currentUser.role==='Administrator')){toast('Only staff or administrators can decline requests.','error');return;}
-  openModal(`<div class="modal"><div class="modal-header"><h3>Decline Request</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div class="form-group"><label>Reason (shown to the patient)</label><textarea id="dc-reason" rows="3" placeholder="e.g. No clinic consultation on record for the stated dates."></textarea></div><button class="btn btn-danger" style="width:100%" ${bindAction('click',(event,element)=>{declineCert((id))})}>Decline Request</button></div></div>`);
-}
-export async function declineCert(id){
-  const r=certificateRecords().find(x=>x.id===Number(id));if(!r)return;
-  if(!(appState.auth.currentUser.role==='Staff'||appState.auth.currentUser.role==='Administrator'))return;
-
-  const reason=document.getElementById('dc-reason').value.trim();
-  if(!reason){toast('Please provide a reason.','error');return;}
-
-  try{
-    if(r._realSupabase){
-      await certificateAction({action:'decline',certificate_id:r.dbCertificateId,reason});
+      const result=await certificateAction({action:'sign',certificate_id:r.dbCertificateId,examination_findings:findings,remarks:recommendations,document_content:finalHtml,signature_data:appState.certificateService.certDraftSignature,save_signature:saveSignature});
+      issuedNo=result.certificate_no||certNo;
       await syncRealCertificates();
     }else{
-      r.status='Declined';
-      r.declineReason=reason;
+      Object.assign(r,{certNo,issuedAt,findings,recommendations,signatureData:appState.certificateService.certDraftSignature,documentHtml:finalHtml,status:'Issued',issuedById:appState.auth.currentUser.id,signedById:appState.auth.currentUser.id,signedAt:issuedAt});
       persistDB();
     }
+    if(saveSignature)appState.auth.currentUser.savedSignature=appState.certificateService.certDraftSignature;
     closeAllModals();
-    toast('Request declined.','info');
-    await renderCertRequests('Pending');
-  }catch(e){toast(e?.message||'Unable to decline request.','error');}
+    toast(`Certificate ${issuedNo} signed and issued. The patient can now download it.`,'success');
+    await renderCertRequests('Issued');
+  }catch(e){toast(e?.message||'Unable to sign and issue the certificate.','error');}
 }
 
 export function loadHtml2Canvas(){return new Promise((resolve,reject)=>{if(window.html2canvas){resolve(window.html2canvas);return}const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';script.onload=()=>window.html2canvas?resolve(window.html2canvas):reject(new Error('html2canvas failed'));script.onerror=()=>reject(new Error('Could not load html2canvas'));document.head.appendChild(script)})}
@@ -783,15 +661,7 @@ export async function downloadCertPdf(id){
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
-  appState.certificateService.CERT_PURPOSES=[
-  'OJT / Internship Requirement',
-  'Excused Absence',
-  'Sports / Athletics Participation',
-  'Enrollment Requirement',
-  'Employment Requirement',
-  'Scholarship Requirement',
-  'Other'
-];
+  appState.certificateService.CERT_PURPOSES=purposeData.CERTIFICATE_PURPOSES;
   appState.certificateService.certDraftSignature='';
   appState.certificateService.certSignatureDrawing=false;
   appState.certificateService.certSignatureLastPoint=null;

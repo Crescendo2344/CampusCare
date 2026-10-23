@@ -28,7 +28,6 @@ export function renderDashboard(){
   const plural=(n,word)=>`${n} ${word}${n===1?'':'s'}`;
   const lowStock=getLowStock();
   const pendingUsers=appState.data.DB.users.filter(u=>u.status==='Pending');
-  const pendingCerts=(appState.data.DB.certRequests||[]).filter(r=>r.status==='Pending');
   const hour=new Date().getHours();
   const greeting=hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
 
@@ -81,6 +80,8 @@ export function renderDashboard(){
     let attention='';
     if(next){const pt=getPatientById(next.patientId);attention+=dashboardAttentionItem('Next patient',`${fmtTime(next.time)} · ${pt?pt.fname+' '+pt.lname:'Patient'} · ${next.service}`,'success');}
     if(scheduled.length)attention+=dashboardAttentionItem(`${scheduled.length} scheduled appointment${scheduled.length>1?'s':''}`,'Review your upcoming schedule and patient list.','warn');
+    const certDrafts=(appState.data.DB.certRequests||[]).filter(r=>r.status==='Awaiting Signature'&&r.doctorId===appState.auth.currentUser.id).length;
+    if(certDrafts)attention+=dashboardAttentionItem(`${certDrafts} certificate draft${certDrafts>1?'s':''}`,'Finish, sign and issue, or discard them.','warn');
     if(!attention)attention=dashboardAttentionItem('Schedule is clear','No urgent items need your attention.','success');
     const todayCompleted=todayMine.filter(a=>a.status==='Completed').length;
     // A patient's first booking with this doctor marks when they joined the doctor's list.
@@ -109,14 +110,14 @@ export function renderDashboard(){
     const todayCompleted=appointmentRecords().filter(a=>dashboardInRange(a.date)&&a.status==='Completed').length;
     let attention='';
     if(lowStock.length)attention+=dashboardAttentionItem(`${lowStock.length} low-stock item${lowStock.length>1?'s':''}`,`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`,'danger');
-    if(pendingCerts.length)attention+=dashboardAttentionItem(`${pendingCerts.length} certificate request${pendingCerts.length>1?'s':''}`, 'Patients are waiting for certificate review.','warn');
+    if(pendingUsers.length)attention+=dashboardAttentionItem(`${pendingUsers.length} registration${pendingUsers.length>1?'s':''} to review`,'New patients are waiting in the Approval Queue.','warn');
     if(!attention)attention=dashboardAttentionItem('Operations look good','No urgent clinic items need attention.','success');
     c.innerHTML=`<div class="dashboard-a">
       <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Monitor clinic flow and operational tasks for the selected date.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{navTo('appointments')})}>Manage Appointments</button>${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
         ${dashboardStatCard("Today's appointments",allToday.length,`${allToday.filter(a=>a.status==='Completed').length} completed · ${allToday.filter(a=>a.status==='Scheduled').length} remaining`,note('Across all clinics today'),'🕐')}
         ${dashboardStatCard('Appointments in range',allRange.length,`<strong>${todayCompleted}</strong> completed · ${rangeLabel}`,trend(appointmentRecords().filter(a=>a.status!=='Cancelled')),'📅')}
-        ${dashboardStatCard('Certificate requests',pendingCerts.length,'Waiting for review',trend(pendingCerts,'bad',r=>r.requestedAt,'new'),'📄',pendingCerts.length?'attention':'')}
+        ${dashboardStatCard('Pending approvals',pendingUsers.length,pendingUsers.length?'Registrations awaiting review':'No registrations waiting',trend(pendingUsers,'bad',r=>r.createdAt,'new'),'⏳',pendingUsers.length?'attention':'')}
         ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory needs review':'Inventory levels healthy',note(lowStock.length?`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`:'All items above their thresholds'),'⚠',lowStock.length?'critical':'')}
       </div>
       ${dashboardMobileQuickLinks(role)}
@@ -137,7 +138,6 @@ export function renderDashboard(){
   let attention='';
   if(pendingUsers.length)attention+=dashboardAttentionItem(`${pendingUsers.length} pending user approval${pendingUsers.length>1?'s':''}`,'Review new CampusCare registrations.','warn');
   if(lowStock.length)attention+=dashboardAttentionItem(`${lowStock.length} low-stock item${lowStock.length>1?'s':''}`,`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`,'danger');
-  if(pendingCerts.length)attention+=dashboardAttentionItem(`${pendingCerts.length} certificate request${pendingCerts.length>1?'s':''}`,'Medical certificates are awaiting clinic action.','warn');
   if(!attention)attention=dashboardAttentionItem('All systems normal','No urgent administrative items need attention.','success');
   const doctors=getDoctors();
   const doctorLoad=doctors.map(d=>({name:`Dr. ${d.lname}`,count:allToday.filter(a=>a.doctorId===d.id).length,max:d.maxPatients||20}));

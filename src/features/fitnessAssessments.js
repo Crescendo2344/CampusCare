@@ -14,6 +14,8 @@ import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
 import {auditLog} from './auditAndBackups.js';
 import {persistDB} from './persistence.js';
 import {bindAction,createOperationalService,workflowData} from '../dependencies.js';
+import * as screening from '../domain/fitness-screening.js';
+import {openNewCertificateModal} from './certificateService.js';
 // ================================================================
 // FITNESS-TO-COMPETE ASSESSMENT — REAL SUPABASE WORKFLOW
 // ================================================================
@@ -73,56 +75,62 @@ export async function renderFitnessAssessments(){
     if(!isCampusPageCurrent('fitness',pageToken))return;
   }
 
-  let rows=fitnessRecords().slice().sort((a,b)=>String(b.requestedDate).localeCompare(String(a.requestedDate))||b.id-a.id);
+  let rows=fitnessRecords().slice();
   if(role==='Patient'&&appState.auth.currentPatient)rows=rows.filter(x=>x.patientId===appState.auth.currentPatient.id);
   if(role==='Doctor')rows=rows.filter(x=>!x.doctorId||x.doctorId===appState.auth.currentUser.id);
+  const ui=appState.fitnessList??={};
+  ui.tab??=role==='Patient'?'all':'open';ui.query??='';
+  const today=appState.clinicInformation.TODAY;
+  const open=x=>x.status==='Requested'||x.status==='In Assessment';
+  const tabs=[['open','To assess',rows.filter(open).length],['Completed','Completed',rows.filter(x=>x.status==='Completed').length],['Cancelled','Cancelled',rows.filter(x=>x.status==='Cancelled').length],['all','All',rows.length]];
+  const q=ui.query.trim().toLowerCase();
+  const list=rows
+    .filter(x=>ui.tab==='all'||(ui.tab==='open'?open(x):x.status===ui.tab))
+    .filter(x=>{const p=getPatientById(x.patientId);return !q||`${p?`${p.fname} ${p.lname} ${p.lname}, ${p.fname} ${p.idNo||''}`:''} ${x.sport||''} #${fitnessDisplayId(x)}`.toLowerCase().includes(q);})
+    // Open requests oldest first (first come, first served); finished ones newest first.
+    .sort((a,b)=>ui.tab==='open'?String(a.requestedDate).localeCompare(String(b.requestedDate))||a.id-b.id:String(b.date||b.requestedDate).localeCompare(String(a.date||a.requestedDate))||b.id-a.id);
 
   const actionButton=role==='Patient'
-    ? `<button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{openFitnessRequestModal()})}>+ Request Assessment</button>`
+    ? `<button class="btn btn-primary btn-sm" ${bindAction('click',()=>openFitnessRequestModal())}>+ Request Assessment</button>`
     : (role==='Doctor'||role==='Administrator'
-      ? `<button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{openFitnessAssessmentModal()})}>+ New Assessment</button>`
+      ? `<button class="btn btn-primary btn-sm" ${bindAction('click',()=>openFitnessAssessmentModal())}>+ New Assessment</button>`
       : '');
+  const clearance=x=>{
+    const state=screening.clearanceState(x,today);
+    if(!state)return '<span class="text-muted">—</span>';
+    const until=screening.clearanceValidUntil(x.date);
+    return state==='expired'?`<span class="tr-due overdue" style="margin:0">Expired ${fmtDate(until)}</span>`:`Until ${fmtDate(until)}`;
+  };
 
-  c.innerHTML=`<div class="card">
-    <div class="card-header">
-      <div>
-        <h3>Fitness-to-Compete Assessments</h3>
-        <div class="tech-note">Pre-participation medical assessment for sports and athletic activities. Final medical clearance is determined by the attending doctor.</div>
-      </div>
-      ${actionButton}
-    </div>
-    <div class="alert alert-info show" style="font-size:.78rem">
-      🏅 <strong>Intramurals 2026–2027 clinic reminder:</strong>
-      Secure your Eligibility Form from your coach, complete your personal information and sports event,
-      sign the Participant's Waiver and Release Agreement, obtain the required parent/guardian and coach signatures,
-      then bring the completed form to the clinic at the <strong>Ground Floor, Education Building</strong>.
-      The posted clinic reminder states that students must have submitted their enrollment medical requirements to be eligible for a medical certificate.
-    </div>
-
-    ${rows.length?`<div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Patient</th><th>Sport / Event</th><th>Event Date</th><th>Assessment Date</th><th>Doctor</th><th>Status</th><th>Decision</th><th>Actions</th></tr></thead>
-      <tbody>${rows.map(x=>{
+  c.innerHTML=`
+    <div class="appt-head"><div class="appt-views" role="tablist" aria-label="Fitness assessment lists">${tabs.map(([id,label,count])=>`<button type="button" role="tab" class="appt-view ${ui.tab===id?'active':''} ${id==='open'&&count&&role!=='Patient'?'attention':''}" aria-selected="${ui.tab===id}" ${bindAction('click',()=>{ui.tab=id;renderFitnessAssessments();})}>${label}<span class="appt-view-count">${count}</span></button>`).join('')}</div>${actionButton}</div>
+    ${role==='Patient'?`<div class="alert alert-info show" style="font-size:.78rem;display:block">
+      <strong>Intramurals 2026–2027:</strong> get the Eligibility Form from your coach, fill in your details and sport, sign the Participant's Waiver and Release Agreement, collect the parent/guardian and coach signatures, then bring the form to the clinic at the <strong>Ground Floor, Education Building</strong>.
+    </div>`:''}
+    <div class="toolbar"><input type="search" id="fit-search" placeholder="Search patient, sport or assessment #" aria-label="Search fitness assessments" value="${escapeHtml(ui.query)}" ${bindAction('input',(event,element)=>{ui.query=element.value;clearTimeout(ui.timer);ui.timer=setTimeout(()=>renderFitnessAssessments().then(()=>{const input=document.getElementById('fit-search');if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length);}}),250);})}></div>
+    <p class="patient-filter-summary">Pre-participation medical assessment for sports. The attending doctor makes the final clearance decision; a clearance is valid for one year.</p>
+    <div class="card">${list.length?`<div class="table-wrap"><table class="treat-table">
+      <thead><tr><th scope="col">Requested</th><th scope="col">Patient</th><th scope="col">Sport / Event</th><th scope="col">Event date</th><th scope="col">Doctor</th><th scope="col">Status</th><th scope="col">Decision</th><th scope="col">Clearance</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>${list.map(x=>{
         const p=getPatientById(x.patientId),d=getUserById(x.doctorId);
-        const canAssess=(role==='Doctor'&&(!x.doctorId||x.doctorId===appState.auth.currentUser.id)&&x.status!=='Cancelled')||
-                        (role==='Administrator'&&x.status!=='Cancelled');
-        return `<tr style="cursor:pointer" ${bindAction('click',(event,element)=>{viewFitnessAssessment((x.id))})} title="Open fitness assessment">
-          <td>#${fitnessDisplayId(x)}</td>
-          <td>${p?escapeHtml(p.fname+' '+p.lname):'Unknown'}</td>
-          <td>${escapeHtml(x.sport||'—')}</td>
-          <td>${x.eventDate?fmtDate(x.eventDate):'—'}</td>
-          <td>${x.date?fmtDate(x.date):'—'}</td>
-          <td>${d?escapeHtml(docName(d)):'Pending assignment'}</td>
-          <td>${fitnessStatusBadge(x.status)}</td>
-          <td>${fitnessDecisionBadge(x.decision)}</td>
-          <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
-            <button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewFitnessAssessment((x.id))})}>View</button>
-            ${canAssess?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openFitnessAssessmentModal((x.id))})}>${x.decision?'Edit':'Assess'}</button>`:''}
-            ${role==='Patient'&&x.status==='Requested'?`<button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{cancelFitnessRequest((x.id))})}>Cancel</button>`:''}
+        const canAssess=(role==='Doctor'&&(!x.doctorId||x.doctorId===appState.auth.currentUser.id)&&x.status!=='Cancelled')||(role==='Administrator'&&x.status!=='Cancelled');
+        const eventSoon=x.eventDate&&open(x)&&x.eventDate>=today&&x.eventDate<=new Date(Date.parse(today+'T12:00:00Z')+7*864e5).toISOString().slice(0,10);
+        return `<tr class="treat-row" ${bindAction('click',()=>viewFitnessAssessment(x.id))}>
+          <td data-label="Requested"><strong>${x.requestedDate?fmtDate(String(x.requestedDate).slice(0,10)):'—'}</strong><div class="text-muted">#${fitnessDisplayId(x)}</div></td>
+          <td data-label="Patient">${p?`<strong>${escapeHtml(p.lname+', '+p.fname)}</strong><div class="text-muted">${escapeHtml(p.idNo||'')}${p.college?' · '+escapeHtml(p.college):''}</div>`:'Unknown'}</td>
+          <td data-label="Sport / Event">${escapeHtml(x.sport||'—')}</td>
+          <td data-label="Event date">${x.eventDate?fmtDate(x.eventDate):'—'}${eventSoon?'<span class="tr-due today">This week</span>':''}</td>
+          <td data-label="Doctor">${d?escapeHtml(docName(d)):'<span class="text-muted">Not yet assigned</span>'}</td>
+          <td data-label="Status">${fitnessStatusBadge(x.status)}</td>
+          <td data-label="Decision">${x.decision?fitnessDecisionBadge(x.decision):'<span class="text-muted">—</span>'}</td>
+          <td data-label="Clearance">${clearance(x)}</td>
+          <td data-label="Actions"><div class="td-actions" ${bindAction('click',(event)=>event.stopPropagation())}>
+            ${canAssess?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>openFitnessAssessmentModal(x.id))}>${x.decision?'Edit':'Assess'}</button>`:`<button class="btn btn-xs" ${bindAction('click',()=>viewFitnessAssessment(x.id))}>View</button>`}
+            ${role==='Patient'&&x.status==='Requested'?`<button class="btn btn-xs btn-danger" ${bindAction('click',()=>cancelFitnessRequest(x.id))}>Cancel</button>`:''}
           </div></td>
         </tr>`;
       }).join('')}</tbody>
-    </table></div>`:'<div class="empty-state"><p>No fitness-to-compete assessments yet.</p></div>'}
-  </div>`;
+    </table></div>`:`<div class="empty-state"><i class="bi bi-heart-pulse" aria-hidden="true" style="font-size:1.6rem"></i><p>${q?'No assessments match your search.':ui.tab==='open'?'No requests waiting for assessment.':'No fitness-to-compete assessments here yet.'}</p></div>`}</div>`;
 }
 
 export function openFitnessRequestModal(){
@@ -268,6 +276,7 @@ export function openFitnessAssessmentModal(id=null){
         <div id="fit-patient-results" class="patient-combobox-list"></div>
       </div>`;
 
+  const saved=screening.decodeScreening(x?.cardioResp||'');
   const doctorField=appState.auth.currentUser.role==='Administrator'
     ? `<select id="fit-doctor">${doctors.map(d=>`<option value="${d.id}" ${doctorId===d.id?'selected':''}>${escapeHtml(docName(d))} · ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('')}</select>`
     : `<input type="hidden" id="fit-doctor" value="${appState.auth.currentUser.id}">
@@ -286,59 +295,63 @@ export function openFitnessAssessmentModal(id=null){
       </div>`:''}
 
       <div class="form-row">
-        <div class="form-group"><label>Patient <span class="required">*</span></label>${patientField}</div>
+        <div class="form-group"><label>Patient <span class="required">*</span></label>${patientField}<p class="registration-field-error" id="fit-patient-error" aria-live="polite" hidden></p></div>
         <div class="form-group"><label>Sport / Event <span class="required">*</span></label>
-          <input id="fit-sport-a" maxlength="255" value="${escapeHtml(x?.sport||'')}">
+          <input id="fit-sport-a" maxlength="255" value="${escapeHtml(x?.sport||'')}"><p class="registration-field-error" id="fit-sport-a-error" aria-live="polite" hidden></p>
         </div>
       </div>
 
       <div class="form-row">
         <div class="form-group"><label>Competition / Event Date</label>
-          ${campusDateFieldHtml('fit-event-date-a',x?.eventDate||'','Event Date',appState.clinicInformation.TODAY)}
+          ${campusDateFieldHtml('fit-event-date-a',x?.eventDate||'','Event Date',appState.clinicInformation.TODAY)}<p class="registration-field-error" id="fit-event-date-a-error" aria-live="polite" hidden></p>
         </div>
         <div class="form-group"><label>Assessment Date <span class="required">*</span></label>
-          ${campusDateFieldHtml('fit-date',x?.date||appState.clinicInformation.TODAY,'Assessment Date','',appState.clinicInformation.TODAY)}
+          ${campusDateFieldHtml('fit-date',x?.date||appState.clinicInformation.TODAY,'Assessment Date','',appState.clinicInformation.TODAY)}<p class="registration-field-error" id="fit-date-error" aria-live="polite" hidden></p>
         </div>
         <div class="form-group"><label>Attending Doctor <span class="required">*</span></label>${doctorField}</div>
       </div>
 
       <div class="section-label">Vitals</div>
       <div class="form-row">
-        <div class="form-group"><label>Blood Pressure</label><input id="fit-bp" value="${escapeHtml(x?.vitals?.bp||'')}" placeholder="e.g. 120/80"></div>
-        <div class="form-group"><label>Heart Rate</label><input id="fit-hr" value="${escapeHtml(x?.vitals?.hr||'')}" placeholder="bpm"></div>
-        <div class="form-group"><label>Height</label><input id="fit-height" value="${escapeHtml(x?.vitals?.height||'')}" placeholder="cm"></div>
-        <div class="form-group"><label>Weight</label><input id="fit-weight" value="${escapeHtml(x?.vitals?.weight||'')}" placeholder="kg"></div>
+        <div class="form-group"><label>Blood Pressure</label><input id="fit-bp" value="${escapeHtml(x?.vitals?.bp||'')}" placeholder="e.g. 120/80"><p class="registration-field-error" id="fit-bp-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label>Heart rate (bpm)</label><input id="fit-hr" inputmode="numeric" value="${escapeHtml(x?.vitals?.hr||'')}" placeholder="bpm"><p class="registration-field-error" id="fit-hr-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label>Height (cm)</label><input id="fit-height" inputmode="decimal" value="${escapeHtml(x?.vitals?.height||'')}" placeholder="cm"><p class="registration-field-error" id="fit-height-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label>Weight (kg)</label><input id="fit-weight" inputmode="decimal" value="${escapeHtml(x?.vitals?.weight||'')}" placeholder="kg"><p class="registration-field-error" id="fit-weight-error" aria-live="polite" hidden></p></div>
       </div>
 
-      <div class="section-label">Pre-participation Review</div>
+      <div class="section-label">Screening questions</div>
+      <p class="form-note" style="margin:0 0 .5rem">Ask the patient each question. Any "Yes" needs further evaluation before clearance.</p>
+      <div class="fit-screening" id="fit-screening">${screening.SCREENING_QUESTIONS.map(([key,label])=>`<div class="fit-screen-row" role="radiogroup" aria-label="${escapeHtml(label)}"><span>${escapeHtml(label)}</span>
+        <label><input type="radio" name="fit-q-${key}" value="no" ${saved.answers[key]==='no'?'checked':''} ${bindAction('change',()=>syncFitnessScreening())}> No</label>
+        <label><input type="radio" name="fit-q-${key}" value="yes" ${saved.answers[key]==='yes'?'checked':''} ${bindAction('change',()=>syncFitnessScreening())}> Yes</label></div>`).join('')}</div>
+      <div class="pt-allergy-alert" id="fit-screen-warning" role="alert" hidden></div><p class="registration-field-error" id="fit-screening-error" aria-live="polite" hidden></p>
+      <div class="section-label">History and examination</div>
       <div class="form-row">
         <div class="form-group"><label>Medical History / Previous Injury</label>
           <textarea id="fit-history" rows="3">${escapeHtml(x?.history||'')}</textarea>
         </div>
-        <div class="form-group"><label>Cardiovascular / Respiratory Symptoms</label>
-          <textarea id="fit-cardio" rows="3">${escapeHtml(x?.cardioResp||'')}</textarea>
+        <div class="form-group"><label>Heart and lung findings</label>
+          <textarea id="fit-cardio" rows="3" placeholder="Details for any Yes answer, auscultation, etc.">${escapeHtml(saved.notes)}</textarea>
         </div>
       </div>
 
       <div class="form-group"><label>Musculoskeletal / Physical Examination Findings</label>
-        <textarea id="fit-exam" rows="3">${escapeHtml(x?.examFindings||'')}</textarea>
+        <textarea id="fit-exam" rows="3">${escapeHtml(x?.examFindings||'')}</textarea><p class="registration-field-error" id="fit-exam-error" aria-live="polite" hidden></p>
       </div>
 
       <div class="form-row">
         <div class="form-group"><label>Decision</label>
-          <select id="fit-decision">
-            <option value="">Pending Assessment</option>
+          <select id="fit-decision" ${bindAction('change',()=>syncFitnessScreening())}>
+            <option value="">No decision yet (save as in progress)</option>
             ${['Fit to Compete','Fit with Restrictions','Not Fit to Compete'].map(v=>`<option value="${v}" ${x?.decision===v?'selected':''}>${v}</option>`).join('')}
           </select>
         </div>
         <div class="form-group"><label>Restrictions / Recommendations</label>
-          <textarea id="fit-restrict" rows="3" placeholder="Required when decision is Fit with Restrictions">${escapeHtml(x?.restrictions||'')}</textarea>
+          <textarea id="fit-restrict" rows="3" placeholder="Required for Fit with Restrictions and Not Fit; for warning signs, note the further evaluation">${escapeHtml(x?.restrictions||'')}</textarea><p class="registration-field-error" id="fit-restrict-error" aria-live="polite" hidden></p>
         </div>
       </div>
 
-      <div class="alert alert-info show">
-        This assessment supports clinic documentation. The attending doctor remains responsible for the final medical clearance decision.
-      </div>
+      <p class="form-note">The attending doctor is responsible for the final clearance. A clearance is valid for one year from the assessment date.</p>
     </div>
     <div class="modal-footer">
       <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
@@ -347,6 +360,17 @@ export function openFitnessAssessmentModal(id=null){
       </button>
     </div>
   </div>`);
+  syncFitnessScreening();
+}
+
+function screeningAnswers(){
+  return Object.fromEntries(screening.SCREENING_QUESTIONS.map(([key])=>[key,document.querySelector(`input[name="fit-q-${key}"]:checked`)?.value||'']));
+}
+export function syncFitnessScreening(){
+  const warning=document.getElementById('fit-screen-warning');if(!warning)return;
+  const positive=screening.positiveScreening(screeningAnswers());
+  warning.hidden=!positive.length;
+  warning.innerHTML=positive.length?`<i class="bi bi-exclamation-octagon" aria-hidden="true"></i> <strong>Warning signs:</strong> ${positive.map(escapeHtml).join('; ')}. Evaluate further (e.g. ECG or referral) before clearing.`:'';
 }
 
 export function filterFitnessPatients(q=''){
@@ -402,26 +426,23 @@ export async function saveFitnessAssessment(id){
   const btn=document.getElementById('fit-save-btn');
   hideAlert(msg);
 
-  if(!patientId){
-    showAlert(msg,'Please search for and select a patient.');
+  const vitals={
+    bp:document.getElementById('fit-bp').value.trim(),
+    hr:document.getElementById('fit-hr').value.trim(),
+    height:document.getElementById('fit-height').value.trim(),
+    weight:document.getElementById('fit-weight').value.trim()
+  };
+  const answers=screeningAnswers();
+  const examFindings=document.getElementById('fit-exam').value.trim();
+  const errors=screening.fitnessAssessmentErrors({patientId,sport,eventDate,assessmentDate,decision,restrictions,examFindings,answers,vitals},appState.clinicInformation.TODAY);
+  const fieldIds={patient:'fit-patient',sport:'fit-sport-a',eventDate:'fit-event-date-a',date:'fit-date',bp:'fit-bp',hr:'fit-hr',height:'fit-height',weight:'fit-weight',screening:'fit-screening',exam:'fit-exam',restrictions:'fit-restrict'};
+  for(const id of Object.values(fieldIds)){const el=document.getElementById(id+'-error');if(el){el.hidden=true;el.textContent='';}}
+  if(Object.keys(errors).length){
+    for(const [key,message] of Object.entries(errors)){const el=document.getElementById(fieldIds[key]+'-error');if(el){el.textContent=message;el.hidden=false;}}
+    document.querySelector('.modal .registration-field-error:not([hidden])')?.scrollIntoView({block:'center',behavior:'smooth'});
     return;
   }
-  if(!sport){
-    showAlert(msg,'Sport or event is required.');
-    return;
-  }
-  if(!assessmentDate){
-    showAlert(msg,'Assessment date is required.');
-    return;
-  }
-  if(assessmentDate>appState.clinicInformation.TODAY){
-    showAlert(msg,'Assessment date cannot be in the future.');
-    return;
-  }
-  if(decision==='Fit with Restrictions'&&!restrictions){
-    showAlert(msg,'Enter the restrictions or recommendations for a patient who is fit with restrictions.');
-    return;
-  }
+  const cardioResp=screening.encodeScreening(answers,document.getElementById('fit-cardio').value);
 
   const pt=getPatientById(patientId);
   const doc=getUserById(doctorId);
@@ -429,13 +450,6 @@ export async function saveFitnessAssessment(id){
     showAlert(msg,'Patient or attending doctor could not be loaded.');
     return;
   }
-
-  const vitals={
-    bp:document.getElementById('fit-bp').value.trim(),
-    hr:document.getElementById('fit-hr').value.trim(),
-    height:document.getElementById('fit-height').value.trim(),
-    weight:document.getElementById('fit-weight').value.trim()
-  };
 
   const existing=id?fitnessRecords().find(x=>x.id===Number(id)):null;
   const old=btn?.textContent;
@@ -456,7 +470,7 @@ export async function saveFitnessAssessment(id){
         assessment_date:assessmentDate,
         vitals,
         medical_history:document.getElementById('fit-history').value.trim(),
-        cardio_respiratory_findings:document.getElementById('fit-cardio').value.trim(),
+        cardio_respiratory_findings:cardioResp,
         examination_findings:document.getElementById('fit-exam').value.trim(),
         decision:decision||'',
         restrictions,
@@ -478,7 +492,7 @@ export async function saveFitnessAssessment(id){
       rec.doctorId=doctorId;
       rec.vitals=vitals;
       rec.history=document.getElementById('fit-history').value.trim();
-      rec.cardioResp=document.getElementById('fit-cardio').value.trim();
+      rec.cardioResp=cardioResp;
       rec.examFindings=document.getElementById('fit-exam').value.trim();
       rec.decision=decision;
       rec.restrictions=restrictions;
@@ -534,20 +548,26 @@ export function viewFitnessAssessment(id){
         Height: ${escapeHtml(x.vitals?.height||'—')} ·
         Weight: ${escapeHtml(x.vitals?.weight||'—')}
       </p>
-
-      <div class="section-label" style="margin-top:.7rem">Medical History / Symptoms</div>
-      <p style="font-size:.8rem;line-height:1.55">${escapeHtml(x.history||'—')}<br>${escapeHtml(x.cardioResp||'')}</p>
+      ${(()=>{const s=screening.decodeScreening(x.cardioResp||''),answered=Object.keys(s.answers).length,positive=screening.positiveScreening(s.answers);
+        return `<div class="section-label" style="margin-top:.7rem">Screening</div>
+        <p style="font-size:.8rem;line-height:1.55">${answered?(positive.length?`<span class="text-danger"><strong>Warning signs:</strong> ${positive.map(escapeHtml).join('; ')}</span>`:'No warning signs reported.'):'Not recorded.'}</p>
+        <div class="section-label" style="margin-top:.7rem">Medical history and heart/lung findings</div>
+        <p style="font-size:.8rem;line-height:1.55">${escapeHtml(x.history||'—')}${s.notes?`<br>${escapeHtml(s.notes)}`:''}</p>`;})()}
 
       <div class="section-label" style="margin-top:.7rem">Physical Examination</div>
       <p style="font-size:.8rem;line-height:1.55">${escapeHtml(x.examFindings||'—')}</p>
 
       <div class="section-label" style="margin-top:.7rem">Restrictions / Recommendations</div>
       <p style="font-size:.8rem;line-height:1.55">${escapeHtml(x.restrictions||'None recorded.')}</p>
+      ${screening.clearanceState(x,appState.clinicInformation.TODAY)?`<div class="section-label" style="margin-top:.7rem">Clearance</div><p style="font-size:.8rem">${screening.clearanceState(x,appState.clinicInformation.TODAY)==='expired'?'<span class="text-danger">Expired</span>':'Valid'} until ${fmtDate(screening.clearanceValidUntil(x.date))}</p>`:''}
     </div>
     <div class="modal-footer">
       ${(appState.auth.currentUser.role==='Doctor'&&(!x.doctorId||x.doctorId===appState.auth.currentUser.id)&&x.status!=='Cancelled')||
          (appState.auth.currentUser.role==='Administrator'&&x.status!=='Cancelled')
         ? `<button class="btn btn-info" ${bindAction('click',(event,element)=>{closeAllModals();openFitnessAssessmentModal((x.id))})}>${x.decision?'Edit Assessment':'Assess Patient'}</button>`
+        : ''}
+      ${appState.auth.currentUser.role==='Doctor'&&x.doctorId===appState.auth.currentUser.id&&['Fit to Compete','Fit with Restrictions'].includes(x.decision)&&screening.clearanceState(x,appState.clinicInformation.TODAY)==='valid'
+        ? `<button class="btn" ${bindAction('click',()=>{closeAllModals();openNewCertificateModal(x.patientId,null,{purpose:'Sports / Athletics Participation',event:x.sport,fitness:x.decision==='Fit to Compete'?'Fit':'Fit with restrictions',restrictions:x.restrictions,findings:[x.examFindings,`Fitness-to-compete assessment of ${fmtDate(x.date)}: ${x.decision}.`].filter(Boolean).join(' ')})})}><i class="bi bi-file-earmark-medical" aria-hidden="true"></i> Issue Certificate</button>`
         : ''}
       <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
     </div>

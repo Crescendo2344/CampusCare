@@ -131,10 +131,6 @@ export function demoTaskBadgeSnapshot(){
       (appState.data.DB.users||[]).filter(u=>u.role==='Patient'&&u.status==='Pending'),
       u=>`approval:${u.id}:${u.createdAt||''}`
     );
-    set('cert-requests',
-      certificateRecords().filter(r=>r.status==='Pending'),
-      r=>`certificate:${r.id}:${r.updatedAt||r.requestedAt||''}`
-    );
     set('fitness',
       fitnessRecords().filter(r=>r.status==='Requested'),
       r=>`fitness:${r.id}:${r.updatedAt||r.requestedAt||''}`
@@ -201,7 +197,7 @@ const plural=(n,one,many=one+'s')=>`${n} ${n===1?one:many}`;
 function taskBadgeLabel(id,n,role){
   switch(id){
     case 'approvals':return plural(n,'registration')+' awaiting approval';
-    case 'cert-requests':return role==='Doctor'?plural(n,'certificate')+' awaiting your signature':plural(n,'certificate request')+' to prepare';
+    case 'cert-requests':return plural(n,'certificate draft')+' to finish';
     case 'fitness':return role==='Doctor'?plural(n,'fitness assessment')+' to claim or finish':plural(n,'fitness assessment request')+' waiting';
     case 'inventory':return plural(n,'item')+' at or below reorder level';
     case 'feedback-issues':return plural(n,'open issue report');
@@ -455,7 +451,7 @@ export function initializeFeature(){
     {id:'appointments',label:'Appointments'},
     {id:'treatments',label:'Treatments'},
     {id:'fitness',label:'Fitness Assessments'},
-    {id:'cert-requests',label:'Certificate Signatures'},
+    {id:'cert-requests',label:'Medical Certificates'},
     {section:'Reports'},
     {id:'reports',label:'Reports'},
     {section:'Account'},
@@ -468,7 +464,6 @@ export function initializeFeature(){
     {id:'patients',label:'Patient Records'},
     {id:'appointments',label:'Appointments'},
     {id:'approvals',label:'Approval Queue'},
-    {id:'cert-requests',label:'Certificate Requests'},
     {id:'fitness',label:'Fitness Assessments'},
     {id:'inventory',label:'Inventory'},
     {id:'health_education',label:'Health Education'},
@@ -485,7 +480,6 @@ export function initializeFeature(){
     {id:'patients',label:'Patient Records'},
     {id:'appointments',label:'Appointments'},
     {id:'approvals',label:'Approval Queue'},
-    {id:'cert-requests',label:'Certificate Requests'},
     {id:'treatments',label:'Treatments'},
     {id:'fitness',label:'Fitness Assessments'},
     {id:'inventory',label:'Inventory'},
