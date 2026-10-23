@@ -130,9 +130,6 @@ body::after{
 .auth-header h1{font-size:1.7rem;font-weight:700;letter-spacing:-.5px;text-shadow:0 1px 12px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;gap:.5rem}
 .auth-header p{font-size:.82rem;opacity:.85;margin-top:4px}
 .auth-body{padding:1.75rem}
-.auth-tabs{display:flex;border-radius:12px;overflow:hidden;background:var(--overlay);border:1px solid var(--glass-border-soft);margin-bottom:1.25rem;padding:3px;gap:3px}
-.auth-tab{flex:1;padding:.5rem;background:transparent;border:none;border-radius:9px;cursor:pointer;font-size:.85rem;transition:.18s;color:var(--ink-muted);font-weight:500}
-.auth-tab.active{background:var(--glass-surface-strong);color:var(--primary-dark);font-weight:600;box-shadow:var(--glass-shadow-sm)}
 .demo-accounts{background:var(--overlay);backdrop-filter:blur(8px);border-radius:12px;padding:.7rem .9rem;margin-bottom:1rem;font-size:.78rem;line-height:1.7;border:1px solid var(--glass-border-soft);color:var(--ink)}
 .demo-accounts strong{color:var(--primary-dark);display:block;margin-bottom:2px}
 

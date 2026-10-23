@@ -4,7 +4,7 @@ import {state as appState} from '../app/state.js';
 import {authTab,setPublicNavbarMode,showAuthPage} from './authentication.js';
 import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
 import {escapeHtml} from './issueReports.js';
-import {checkPasswordStrength} from './loginLockout.js';
+import {checkPasswordStrength,renderPasswordStrength} from './loginLockout.js';
 import {initializeSupabaseClient} from './supabaseClient.js';
 import {auditAction} from './emailDelivery.js';
 import {auditLog} from './auditAndBackups.js';
@@ -40,16 +40,6 @@ export function openForgotPassword(recoveryMode=false){
   const resetDest=document.getElementById('fp-reset-destination');
   if(resetDest)resetDest.textContent='A secure password-reset link has been sent to your registered email.';
   showForgotStep(recoveryMode?3:1);
-
-  const title=document.getElementById('forgot-title');
-  const subtitle=document.getElementById('forgot-subtitle');
-  if(recoveryMode){
-    if(title)title.textContent='Create a New Password';
-    if(subtitle)subtitle.textContent='Your secure recovery link has been verified.';
-  }else{
-    if(title)title.textContent='Reset Your Password';
-    if(subtitle)subtitle.textContent='CampusCare will send a secure reset link to your registered email.';
-  }
 }
 
 export function resetAuthUiToLogin(){
@@ -190,7 +180,8 @@ export function showRecoveryPasswordChecklist(){
   updateRecoveryPasswordStrength();
 }
 export function hideRecoveryPasswordChecklist(){
-  document.getElementById('fp-strength')?.classList.remove('show');
+  // Collapsing a filled-in checklist on blur would shift Update Password away from the pointer.
+  if(!document.getElementById('fp-newpass')?.value)document.getElementById('fp-strength')?.classList.remove('show');
 }
 export function updateRecoveryPasswordStrength(){
   const input=document.getElementById('fp-newpass');
@@ -198,18 +189,12 @@ export function updateRecoveryPasswordStrength(){
   const label=document.getElementById('fp-strength-label');
   if(!input||!el)return;
 
-  const {checks,score,valid}=checkPasswordStrength(input.value);
+  const {checks}=checkPasswordStrength(input.value);
   el.querySelectorAll('.password-check').forEach(item=>{
     item.classList.toggle('met',Boolean(checks[item.dataset.check]));
   });
 
-  if(label){
-    let strength='Weak password',cls='weak';
-    if(valid&&score>=5){strength='Strong password';cls='strong';}
-    else if(valid||score>=3){strength='Medium password';cls='medium';}
-    label.textContent=strength;
-    label.className='password-strength-label '+cls;
-  }
+  renderPasswordStrength(el,label,input.value);
 }
 
 export async function getRecoverySession(){

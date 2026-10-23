@@ -328,20 +328,22 @@
     <p>Campus Health Management System</p>
   </div>
   <div class="auth-body">
-    <!-- A single tab names the current form; the footer link of each form switches to the other. -->
-    <div class="auth-tabs" id="auth-tabs">
-      <span class="auth-tab active" id="auth-mode-title">Login</span>
+    <!-- Each form has its own heading; the footer link of each form switches to the other. -->
+    <div class="auth-mode-heading" id="auth-tabs">
+      <h2 id="auth-mode-title">Welcome</h2>
+      <p id="auth-mode-subtitle">Login with CampusCare</p>
     </div>
 
     <!-- LOGIN -->
     <div id="login-section">
       <div class="alert alert-danger" id="login-err"></div>
-      <div class="form-group"><label for="li-user">Username or Email</label><input id="li-user" type="text" placeholder="Enter username or email" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
-      <div class="form-group"><label for="li-pass">Password</label><input id="li-pass" type="password" placeholder="Enter password" autocomplete="current-password" data-action-input="shell-13" data-action-keydown="shell-14"></div>
-      <button class="btn btn-primary" style="width:100%;margin-top:.3rem" data-action-click="shell-17">Login</button>
-      <div class="auth-recovery-links" style="margin-top:.6rem">
-        <a href="#" style="font-size:.75rem;color:var(--primary);text-decoration:none" data-action-click="shell-16">Forgot password?</a>
+      <div class="form-group"><label for="li-user">Username or Email</label><input id="li-user" type="text" placeholder="e.g. juan.delacruz or name@gmail.com" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+      <div class="form-group"><label for="li-pass">Password</label><input id="li-pass" type="password" placeholder="Enter your password" autocomplete="current-password" data-action-input="shell-13" data-action-keydown="shell-14"></div>
+      <div class="auth-login-options">
+        <label class="auth-remember" for="li-remember"><input type="checkbox" id="li-remember"> Remember me</label>
+        <a href="#" class="auth-forgot-link" data-action-click="shell-16">Forgot password?</a>
       </div>
+      <button class="btn btn-primary auth-submit" data-action-click="shell-17">Login</button>
       <p class="auth-switch">New here? <a href="#" data-action-click="shell-12">Create an account</a></p>
     </div>
 
@@ -385,8 +387,9 @@
           <div class="form-group"><label for="r-pass">Password <span class="required">*</span></label><input id="r-pass" type="password" minlength="8" maxlength="64" autocomplete="new-password" data-action-focus="shell-22" data-action-input="shell-23" data-action-blur="shell-24" aria-describedby="r-pass-error"><p class="registration-field-error" id="r-pass-error" aria-live="polite" hidden></p></div>
           <div class="form-group"><label for="r-pass2">Confirm Password <span class="required">*</span></label><input id="r-pass2" type="password" maxlength="64" autocomplete="new-password" data-action-input="registration-confirm-input" data-action-blur="registration-field-blur" aria-describedby="r-pass2-error"><p class="registration-field-error" id="r-pass2-error" aria-live="polite" hidden></p></div>
         </div>
-        <div id="r-pass-strength" class="password-checklist" aria-live="polite">
-          <div id="r-pass-strength-label" class="password-strength-label weak">Weak password</div>
+        <div id="r-pass-strength" class="password-checklist" data-level="0" aria-live="polite">
+          <div class="strength-bars" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div id="r-pass-strength-label" class="password-strength-label weak">Password strength</div>
           <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>8–64 characters</span></div>
           <div class="password-check" data-check="upper"><span class="pw-check-icon"></span><span>One uppercase letter</span></div>
           <div class="password-check" data-check="lower"><span class="pw-check-icon"></span><span>One lowercase letter</span></div>
@@ -490,7 +493,7 @@
         <label for="r-privacy-consent">I have read and agree to the <a data-action-click="shell-35">CampusCare Privacy Notice and Consent</a>. I understand that my personal and health information will be collected and processed for CTU clinic registration, consultation, treatment, appointment, certificate, inventory-linked clinical operations, reporting, and other legitimate clinic purposes.</label>
       </div>
       <p class="registration-field-error" id="r-privacy-consent-error" aria-live="polite" hidden></p>
-      <button type="submit" class="btn btn-primary" style="width:100%" id="registration-submit-button">Create Account</button>
+      <button type="submit" class="btn btn-primary auth-submit" id="registration-submit-button">Create Account</button>
       <p class="auth-switch">Already on CampusCare? <a href="#" data-action-click="shell-11">Log in</a></p>
     </form>
 
@@ -512,55 +515,62 @@
       </div>
     </div>
 
-    <!-- FORGOT PASSWORD -->
+    <!-- FORGOT PASSWORD — each step has its own illustration and heading. -->
     <div id="forgot-section" style="display:none">
-      <div style="text-align:center;padding:.2rem 0 .8rem">
-        <div style="width:52px;height:52px;border-radius:50%;background:var(--info-bg);display:flex;align-items:center;justify-content:center;margin:0 auto .6rem;font-size:24px">🔑</div>
-        <h3 id="forgot-title" style="font-size:1rem">Reset Your Password</h3>
-        <p id="forgot-subtitle" class="text-muted" style="font-size:.78rem;margin-top:.25rem">CampusCare will send a secure reset link to your registered email.</p>
-      </div>
 
       <!-- Step 1: request reset email -->
       <div id="forgot-step1">
+        <div class="auth-illustration" aria-hidden="true">
+          <svg viewBox="0 0 120 90" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M52 22v54"/><path d="M40 22h38l9 9-9 9H40z"/><path d="M48 29h20M48 34h14"/>
+            <path d="M30 78c10-3 40-3 62-1"/><path d="M36 70l2 5 2-4M72 68l2 6 3-5"/>
+          </svg>
+        </div>
+        <h3 class="auth-step-title">Forgot your password?</h3>
+        <p class="auth-step-subtitle">Enter your username or email and we'll send you a link to reset your password.</p>
         <div class="alert alert-danger" id="fp-err"></div>
         <div class="form-group">
-          <label>Username or Email</label>
-          <input id="fp-identifier" type="text" placeholder="Enter your username or email" autocomplete="username" autocapitalize="none" spellcheck="false">
+          <label for="fp-identifier">Username or Email</label>
+          <input id="fp-identifier" type="text" placeholder="e.g. name@gmail.com" autocomplete="username" autocapitalize="none" spellcheck="false">
         </div>
-        <div class="alert alert-info show" style="font-size:.76rem">
-          📧 A password-reset link will be sent to the email registered with your CampusCare account.
-        </div>
-        <button class="btn btn-primary" id="fp-send-btn" style="width:100%;margin-top:.4rem" data-action-click="shell-39">Send Reset Link</button>
-        <button class="btn" style="width:100%;margin-top:.5rem" data-action-click="shell-40">Back to Login</button>
+        <button class="btn btn-primary auth-submit" id="fp-send-btn" data-action-click="shell-39">Send Reset Link</button>
+        <button class="auth-back-link" data-action-click="shell-40"><span aria-hidden="true">‹</span> Back to Login</button>
       </div>
 
       <!-- Step 2: email sent -->
       <div id="forgot-step2" style="display:none">
-        <div class="alert alert-success show" style="display:block">
-          <strong>Check your email.</strong><br>
-          <span id="fp-reset-destination">If a matching CampusCare account exists, a secure password-reset link has been sent.</span>
+        <div class="auth-illustration" aria-hidden="true">
+          <svg viewBox="0 0 120 90" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M34 44a14 14 0 0 1 28 0v20H34z"/><path d="M48 30h34a14 14 0 0 1 14 14v20H62"/>
+            <path d="M74 64v18M66 82h16"/><path d="M38 40l10 8 10-8"/><path d="M40 38h16v12H40z"/><path d="M84 30V18h10v6h-10"/>
+          </svg>
         </div>
-        <p class="text-muted" style="font-size:.79rem;line-height:1.55">
-          Open the email on this device or another device, then select <strong>Reset Password</strong>. The link will return you to CampusCare to create a new password.
-        </p>
-        <button class="btn btn-primary" style="width:100%;margin-top:.75rem" data-action-click="shell-41">Back to Login</button>
+        <h3 class="auth-step-title">Check your email</h3>
+        <p class="auth-step-subtitle" id="fp-reset-destination">If a matching CampusCare account exists, a secure password-reset link has been sent.</p>
+        <p class="auth-step-note">Open the email on any device and select <strong>Reset Password</strong>. The link brings you back to CampusCare to create a new password.</p>
+        <button class="btn btn-primary auth-submit" data-action-click="shell-41">Back to Login</button>
       </div>
 
       <!-- Step 3: reached from secure recovery link -->
       <div id="forgot-step3" style="display:none">
-        <div class="alert alert-danger" id="fp-err3"></div>
-        <div class="alert alert-info show" style="font-size:.76rem">
-          🔐 Your recovery link was verified. Create a new CampusCare password.
+        <div class="auth-illustration" aria-hidden="true">
+          <svg viewBox="0 0 120 90" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="38" y="40" width="44" height="36" rx="6"/><path d="M48 40V30a12 12 0 0 1 24 0v10"/><circle cx="60" cy="56" r="4"/><path d="M60 60v6"/>
+          </svg>
         </div>
+        <h3 class="auth-step-title">Reset password</h3>
+        <p class="auth-step-subtitle">Your recovery link was verified. Please set your new password.</p>
+        <div class="alert alert-danger" id="fp-err3"></div>
         <div class="form-group">
-          <label>New Password</label>
+          <label for="fp-newpass">New Password</label>
           <input id="fp-newpass" type="password" placeholder="At least 8 characters" autocomplete="new-password"
             data-action-focus="shell-42"
             data-action-input="shell-43"
             data-action-blur="shell-44">
         </div>
-        <div id="fp-strength" class="password-checklist" aria-live="polite">
-          <div id="fp-strength-label" class="password-strength-label weak">Weak password</div>
+        <div id="fp-strength" class="password-checklist" data-level="0" aria-live="polite">
+          <div class="strength-bars" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div id="fp-strength-label" class="password-strength-label weak">Password strength</div>
           <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>At least 8 characters</span></div>
           <div class="password-check" data-check="upper"><span class="pw-check-icon"></span><span>One uppercase letter</span></div>
           <div class="password-check" data-check="lower"><span class="pw-check-icon"></span><span>One lowercase letter</span></div>
@@ -568,12 +578,13 @@
           <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
         </div>
         <div class="form-group">
-          <label>Confirm New Password</label>
+          <label for="fp-newpass2">Re-enter Password</label>
           <input id="fp-newpass2" type="password" autocomplete="new-password"
             data-action-input="shell-45">
         </div>
-        <button class="btn btn-primary" id="fp-update-btn" style="width:100%" data-action-click="shell-46">Update Password</button>
-        <button class="btn" id="fp-new-link-btn" style="width:100%;margin-top:.5rem;display:none" data-action-click="shell-47">Request a New Reset Link</button>
+        <button class="btn btn-primary auth-submit" id="fp-update-btn" data-action-click="shell-46">Update Password</button>
+        <button class="btn auth-submit" id="fp-new-link-btn" style="margin-top:.5rem;display:none" data-action-click="shell-47">Request a New Reset Link</button>
+        <button class="auth-back-link" data-action-click="shell-41"><span aria-hidden="true">‹</span> Back to Login</button>
       </div>
     </div>
   </div>

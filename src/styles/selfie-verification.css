@@ -86,8 +86,34 @@
 .selfie-guide-square{width:var(--face-guide-width,28%);top:43%;height:auto;aspect-ratio:.76}
 .selfie-modal .modal-footer{position:static;background:var(--glass-surface-strong)}
 
-/* Login and registration share one card: a single tab names the form, and a footer link switches forms. */
-.auth-tab{display:block;text-align:center;cursor:default}
+/* Login, registration and recovery: large centred headings, roomy rounded fields and pill buttons. */
+.auth-mode-heading{text-align:center;margin:.2rem 0 1.4rem}
+.auth-mode-heading h2{font-size:1.65rem;font-weight:800;letter-spacing:-.4px;margin:0;color:var(--ink)}
+.auth-mode-heading p{font-size:.84rem;color:var(--ink-muted);margin:.35rem 0 0;line-height:1.5}
+#auth-page .form-group label{font-weight:600;color:var(--ink)}
+#auth-page .form-group input:not([type=checkbox]),#auth-page .form-group select,#auth-page .modern-date-btn{min-height:44px;border-radius:12px;padding-inline:.95rem}
+#auth-page #login-section .form-group input,#auth-page #forgot-section .form-group input{border-radius:999px;padding-inline:1.15rem}
+.auth-submit{display:flex;width:100%;min-height:46px;align-items:center;justify-content:center;border-radius:999px;font-size:.92rem;font-weight:600;margin-top:.4rem}
+.auth-login-options{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:-.1rem 0 .9rem;font-size:.8rem}
+.auth-remember{display:inline-flex;align-items:center;gap:.45rem;color:var(--ink-muted);cursor:pointer;user-select:none}
+.auth-remember input{width:16px;height:16px;margin:0;accent-color:var(--primary)}
+.auth-forgot-link{color:var(--primary);font-weight:600;text-decoration:none}
+.auth-forgot-link:hover,.auth-forgot-link:focus-visible{text-decoration:underline}
+.auth-illustration{display:flex;justify-content:center;color:var(--ink);margin:.2rem 0 .6rem}
+.auth-illustration svg{width:120px;height:auto}
+.auth-step-title{text-align:center;font-size:1.5rem;font-weight:800;letter-spacing:-.3px;margin:0}
+.auth-step-subtitle{text-align:center;font-size:.82rem;color:var(--ink-muted);line-height:1.55;margin:.4rem auto 1.3rem;max-width:34ch}
+.auth-step-note{font-size:.78rem;color:var(--ink-muted);line-height:1.55;text-align:center;margin:-.4rem 0 .8rem}
+.auth-back-link{display:flex;align-items:center;justify-content:center;gap:.4rem;width:100%;margin:1rem auto 0;padding:.4rem;background:none;border:0;color:var(--ink);font:inherit;font-size:.86rem;font-weight:500;cursor:pointer}
+.auth-back-link span{font-size:1.3rem;line-height:1}
+.auth-back-link:hover,.auth-back-link:focus-visible{color:var(--primary)}
+/* Four-bar password strength meter. */
+.strength-bars{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.strength-bars span{height:5px;border-radius:9px;background:var(--line);transition:background .2s}
+.password-checklist[data-level="1"] .strength-bars span:nth-child(-n+1){background:var(--danger)}
+.password-checklist[data-level="2"] .strength-bars span:nth-child(-n+2){background:var(--warning)}
+.password-checklist[data-level="3"] .strength-bars span:nth-child(-n+3){background:var(--primary)}
+.password-checklist[data-level="4"] .strength-bars span{background:var(--success)}
 .auth-switch{text-align:center;font-size:.82rem;color:var(--ink-muted);margin:1.1rem 0 0;padding-top:1rem;border-top:1px solid var(--line-soft,var(--line))}
 .auth-switch a{color:var(--primary);font-weight:600;text-decoration:none;margin-left:.2rem}
 .auth-switch a:hover,.auth-switch a:focus-visible{text-decoration:underline}

@@ -146,6 +146,7 @@ try{
         // Desktop carousel and navbar CTA share a right edge.
         const edges=await page.evaluate(()=>({carousel:document.querySelector('.hero-info-carousel').getBoundingClientRect().right,cta:document.querySelector('.landing-get-started').getBoundingClientRect().right}));
         assert(Math.abs(edges.carousel-edges.cta)<2,'Carousel must align with Register');
+        assert(await page.evaluate(()=>[...document.querySelectorAll('.hero-carousel-slide')].every(slide=>slide.scrollHeight<=slide.clientHeight+1)),`${width}: carousel slides must fit without scrolling`);
       }
       if(process.env.CAMPUSCARE_VISUAL_DIR){
         // Optional screenshots aid local visual review and are never production assets.
@@ -235,7 +236,10 @@ try{
     await page.locator('.landing-book-appointment').click();
     const loginBox=await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).boundingBox();
     const forgotBox=await page.getByRole('link',{name:'Forgot password?',exact:true}).boundingBox();
-    assert(forgotBox.y>loginBox.y+loginBox.height,'Forgot password must be below Login');
+    assert(forgotBox.y+forgotBox.height<loginBox.y,'Forgot password sits with Remember me above Login');
+    assert.equal(await page.locator('#auth-mode-title').innerText(),'Welcome');
+    const rememberBox=await page.getByLabel('Remember me').boundingBox();
+    assert(Math.abs(rememberBox.y+rememberBox.height/2-(forgotBox.y+forgotBox.height/2))<8,'Remember me shares a row with Forgot password');
     assert.equal(await page.getByText('Resend verification email',{exact:false}).count(),0);
     await page.evaluate(()=>window.__fixtureApp.features.loginLockout.openPrivacyNotice());
     await page.locator('.privacy-notice').waitFor();
@@ -255,8 +259,8 @@ try{
     assert(await page.locator('#forgot-step1').isVisible());assert(!await page.locator('#forgot-step2').isVisible());
     await page.evaluate(()=>window.__fixtureApp.features.passwordRecovery.closeForgotPassword());
     await page.locator('#login-section').getByRole('link',{name:'Create an account',exact:true}).click();
-    assert.equal(await page.locator('#auth-mode-title').innerText(),'Register');
-    assert.equal(await page.locator('.auth-tab').count(),1,'Only the current form has a tab');
+    assert.equal(await page.locator('#auth-mode-title').innerText(),'Create an account');
+    assert.equal(await page.locator('.auth-tab').count(),0,'Forms use headings, not tabs');
     await scrollDown();
     await page.locator('#r-ptype').selectOption('Teaching Personnel');
     await page.waitForFunction(()=>document.getElementById('r-verification-label').textContent.includes('Employee ID — Front and Back'));

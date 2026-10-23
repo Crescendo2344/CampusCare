@@ -124,3 +124,13 @@ test('registration rejects invalid personal details with field-level errors befo
   assert.equal(f.creates.length,0);
   const weak=await f.call({details:{password:'password'}});assert.equal(weak.status,400);assert(( await weak.json()).field_errors.password);
 });
+test('availability checks answer for well-formed values only and use their own lookup allowance',async()=>{
+  const f=await fixture();
+  const ask=async query=>(await f.request(new Request('https://fixture.test/?check=availability&'+new URLSearchParams(query),{headers:{'cf-connecting-ip':'198.51.100.9'}})));
+  assert.deepEqual(await (await ask({field:'username',value:'new.user'})).json(),{available:true});
+  assert.deepEqual(await (await ask({field:'email',value:'person@example.test'})).json(),{available:true});
+  assert.deepEqual(await (await ask({field:'username',value:'x'})).json(),{available:null},'Malformed values are not looked up');
+  assert.equal((await ask({field:'password',value:'secret'})).status,400);
+  assert(f.limits.every(limit=>limit.p_scope==='lookup'));
+  assert.equal(f.limits.length,2);
+});

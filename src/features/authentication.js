@@ -2,6 +2,7 @@
 import {state as appState} from '../app/state.js';
 import {prepareRegistrationCaptcha} from '../verification/registration-captcha.js';
 import {updateRegistrationIdentityFields} from './documentScanner.js';
+import {rememberSessionChosen} from './supabaseClient.js';
 // ================================================================
 // AUTH
 // ================================================================
@@ -215,10 +216,18 @@ export function initializeLandingRouting(){
   });
 }
 
-// Login and registration share one card; its single tab names the form currently shown.
+// Login and registration share one card; each form has its own heading.
+const AUTH_MODE_COPY={
+  login:['Welcome','Login with CampusCare'],
+  reg:['Create an account','Join CampusCare to book clinic visits and keep your health records in one place.']
+};
 export function authTab(t){
-  const title=document.getElementById('auth-mode-title');
-  if(title)title.textContent=t==='reg'?'Register':'Login';
+  const [title,subtitle]=AUTH_MODE_COPY[t==='reg'?'reg':'login'];
+  const titleEl=document.getElementById('auth-mode-title'),subtitleEl=document.getElementById('auth-mode-subtitle');
+  if(titleEl)titleEl.textContent=title;
+  if(subtitleEl)subtitleEl.textContent=subtitle;
+  const remember=document.getElementById('li-remember');
+  if(remember&&t!=='reg')remember.checked=rememberSessionChosen();
   document.getElementById('login-section').style.display=t==='login'?'':'none';
   document.getElementById('reg-section').style.display=t==='reg'?'':'none';
   const pending=document.getElementById('pending-section');

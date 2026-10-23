@@ -1,7 +1,7 @@
 // loginLockout: imported feature APIs; state belongs to explicit application namespaces.
 import {normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {state as appState} from '../app/state.js';
-import {initializeSupabaseClient} from './supabaseClient.js';
+import {initializeSupabaseClient,setRememberSessionPreference} from './supabaseClient.js';
 import {registrationToast,showAlert,toast} from './theme.js';
 import {normalizeSupabaseUser} from './patientService.js';
 import {auditAction} from './emailDelivery.js';
@@ -39,6 +39,7 @@ export async function doLogin(){
   const identifier=document.getElementById('li-user').value.trim();
   const password=document.getElementById('li-pass').value;
   if(!identifier||!password){toast('Enter your username/email and password.','error');return;}
+  setRememberSessionPreference(Boolean(document.getElementById('li-remember')?.checked));
   const loginBtn=document.querySelector('#login-section .btn-primary');
   const loginBtnText=loginBtn?.textContent;
   if(loginBtn){loginBtn.disabled=true;loginBtn.textContent='Signing in…';}
@@ -111,9 +112,10 @@ export function showPasswordChecklist(){
   updatePasswordStrength();
 }
 export function hidePasswordChecklist(){
-  // Hide the guidance after the user leaves the password field.
+  // Keep guidance visible once a password is typed; collapsing it on blur would move the
+  // controls below mid-click and swallow the click.
   const el=document.getElementById('r-pass-strength');
-  if(el)el.classList.remove('show');
+  if(el&&!document.getElementById('r-pass')?.value)el.classList.remove('show');
 }
 export function updatePasswordStrength(){
   const input=document.getElementById('r-pass');
@@ -121,7 +123,7 @@ export function updatePasswordStrength(){
   const label=document.getElementById('r-pass-strength-label');
   if(!input||!el)return;
   const pw=input.value;
-  const {checks,score,valid}=checkPasswordStrength(pw);
+  const {checks}=checkPasswordStrength(pw);
 
   // Keep every checklist item live while the user types.
   el.querySelectorAll('.password-check').forEach(item=>{
@@ -129,13 +131,18 @@ export function updatePasswordStrength(){
     item.classList.toggle('met',Boolean(checks[key]));
   });
 
-  // Show an overall strength rating above the checklist as well.
+  renderPasswordStrength(el,label,pw);
+}
+
+// Four bars plus a word rating, shared by registration and password reset.
+const STRENGTH_WORDS=['','Weak','Fair','Good','Excellent'];
+export function renderPasswordStrength(container,label,pw){
+  const {score,valid}=checkPasswordStrength(pw);
+  const level=!pw?0:valid&&score>=5?4:valid?3:score>=3?2:1;
+  container.dataset.level=String(level);
   if(label){
-    let strength='Weak password',cls='weak';
-    if(valid&&score>=5){strength='Strong password';cls='strong';}
-    else if(valid||score>=3){strength='Medium password';cls='medium';}
-    label.textContent=strength;
-    label.className='password-strength-label '+cls;
+    label.textContent=level?'Password strength: '+STRENGTH_WORDS[level]:'Password strength';
+    label.className='password-strength-label '+(level>=4?'strong':level>=3?'medium':'weak');
   }
 }
 

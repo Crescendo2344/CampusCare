@@ -7,6 +7,30 @@ import {state as appState} from '../app/state.js';
 
 // Production redirect target for email confirmation and password recovery.
 
+// "Remember me" keeps the session in localStorage; otherwise it lives only until the browser closes.
+const REMEMBER_KEY='campuscare-remember-session';
+export function rememberSessionPreference(){
+  try{return localStorage.getItem(REMEMBER_KEY)!=='0';}catch{return true;}
+}
+// The checkbox starts ticked only for someone who chose it last time.
+export function rememberSessionChosen(){
+  try{return localStorage.getItem(REMEMBER_KEY)==='1';}catch{return false;}
+}
+export function setRememberSessionPreference(remember){
+  try{localStorage.setItem(REMEMBER_KEY,remember?'1':'0');}catch{ /* Storage may be blocked in private modes. */ }
+}
+const rememberAwareStorage={
+  getItem(key){try{return sessionStorage.getItem(key)??localStorage.getItem(key);}catch{return null;}},
+  setItem(key,value){
+    try{
+      const keep=rememberSessionPreference();
+      (keep?localStorage:sessionStorage).setItem(key,value);
+      (keep?sessionStorage:localStorage).removeItem(key);
+    }catch{ /* Without storage the session simply is not persisted. */ }
+  },
+  removeItem(key){try{localStorage.removeItem(key);sessionStorage.removeItem(key);}catch{ /* Nothing stored. */ }}
+};
+
 export function initializeSupabaseClient(){
   if(appState.supabaseClient.supabaseClient) return appState.supabaseClient.supabaseClient;
 
@@ -17,6 +41,7 @@ export function initializeSupabaseClient(){
     {
       auth:{
         persistSession:true,
+        storage:rememberAwareStorage,
         autoRefreshToken:true,
         detectSessionInUrl:true
       }

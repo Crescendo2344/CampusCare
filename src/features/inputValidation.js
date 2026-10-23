@@ -62,6 +62,32 @@ const registrationFieldRules={
 };
 const touchedFields=new Set();
 
+// Server answers for "already taken", keyed by the normalized value so edits re-check automatically.
+const availabilityFields={
+  'r-user':{field:'username',normalize:v=>v.trim().toLowerCase(),message:'This username is already taken. Try another one.'},
+  'r-email':{field:'email',normalize:v=>v.trim().toLowerCase(),message:'An account with this email already exists. Log in or reset your password.'},
+  'r-idno':{field:'id_number',normalize:v=>v.trim(),message:'This ID number is already registered. Contact the clinic if this is a mistake.'}
+};
+const availabilityCache=new Map();
+const takenMessage=id=>{
+  const config=availabilityFields[id];
+  return config&&availabilityCache.get(id+':'+config.normalize(value(id)))===false?config.message:'';
+};
+
+async function checkRegistrationAvailability(id){
+  const config=availabilityFields[id],normalized=config.normalize(value(id)),key=id+':'+normalized;
+  if(!normalized||availabilityCache.has(key))return;
+  try{
+    const query=new URLSearchParams({check:'availability',field:config.field,value:normalized});
+    const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/register-patient?${query}`,{headers:{apikey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY}});
+    const result=await response.json().catch(()=>({}));
+    // Unknown answers (offline, rate-limited) are not cached; the server still checks on submit.
+    if(typeof result.available!=='boolean')return;
+    availabilityCache.set(key,result.available);
+    if(config.normalize(value(id))===normalized)validateRegistrationField(id,false);
+  }catch{ /* The submit request performs the authoritative duplicate check. */ }
+}
+
 // Fields left empty are only flagged when the form is submitted; leaving a filled-in field checks its format.
 // Once an error is visible it updates live while the person corrects it.
 const isEmptyField=id=>{
@@ -73,8 +99,10 @@ export function validateRegistrationField(id,showError=true,{submit=false}={}){
   const rule=registrationFieldRules[id];
   if(!rule)return '';
   if(submit||(showError&&!isEmptyField(id)))touchedFields.add(id);
-  const message=rule();
+  const message=rule()||takenMessage(id);
   setRegistrationFieldError(id,message,touchedFields.has(id));
+  // Leaving a well-formed username, email or ID asks the server whether it is already registered.
+  if(showError&&!submit&&!message&&availabilityFields[id])checkRegistrationAvailability(id);
   return message;
 }
 

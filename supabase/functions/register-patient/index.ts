@@ -82,10 +82,35 @@ async function validateCaptcha(config:ReturnType<typeof captchaConfiguration>,to
   }catch{return json({error:"The security check could not be verified. Please try again shortly."},503);}
 }
 
+// Answers "is this taken?" for one username, email or ID while the form is filled in.
+// Only well-formed values are looked up, and each network has a small lookup allowance.
+async function availability(query:URLSearchParams,req:Request){
+  const field=query.get("field")||"",value=String(query.get("value")||"").trim();
+  const columns:Record<string,string>={username:"username",email:"email",id_number:"id_number"};
+  if(!columns[field]||!value||value.length>150)return json({error:"Invalid availability check."},400);
+  if(field==="username"&&!/^[A-Za-z0-9_.-]{4,20}$/.test(value))return json({available:null});
+  if(field==="email"&&emailValidationError(value.toLowerCase()))return json({available:null});
+  if(field==="id_number"&&!/^\d{5}(?:\d{2})?$/.test(value))return json({available:null});
+  try{
+    const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const admin=createClient(Deno.env.get("SUPABASE_URL")!,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+    const limited=await registrationLimit(admin,"lookup",registrationIp(req),serviceKey);if(limited)return limited;
+    const literal=value.replace(/[\\%_]/g,"\\$&");
+    const lookup=admin.from("users").select("user_id");
+    const {data,error}=await (field==="id_number"?lookup.eq("id_number",value):lookup.ilike(columns[field],field==="email"?literal.toLowerCase():literal)).limit(1);
+    if(error)throw error;
+    return json({available:!data?.length});
+  }catch{return json({available:null});}
+}
+
 Deno.serve(async(req:Request)=>{
   if(req.method==="OPTIONS") return new Response("ok",{headers:corsHeaders});
   const captcha=captchaConfiguration();
-  if(req.method==="GET")return captcha.configured?json({captcha_required:captcha.enabled,site_key:captcha.enabled?captcha.siteKey:null}):json({error:"Registration security is temporarily unavailable. Please try again shortly."},503);
+  if(req.method==="GET"){
+    const query=new URL(req.url).searchParams;
+    if(query.get("check")==="availability")return availability(query,req);
+    return captcha.configured?json({captcha_required:captcha.enabled,site_key:captcha.enabled?captcha.siteKey:null}):json({error:"Registration security is temporarily unavailable. Please try again shortly."},503);
+  }
   if(req.method!=="POST") return json({error:"Method not allowed"},405);
 
   let cleanupId:string|null=null;
@@ -160,6 +185,8 @@ Deno.serve(async(req:Request)=>{
     const username=String(metadata.username||"").trim();
     const {data:existingEmail}=await adminClient.from("users").select("user_id").ilike("email",email).limit(1);
     if(existingEmail?.length) return json({error:"This email address is already registered.",field_errors:{email:"This email address is already registered. Log in or use Forgot password."}},409);
+    const {data:existingId}=await adminClient.from("users").select("user_id").eq("id_number",schoolId).limit(1);
+    if(existingId?.length) return json({error:"This ID number is already registered.",field_errors:{id_number:"This ID number is already registered. Contact the clinic if this is a mistake."}},409);
     if(username){
       const {data:existingUsername}=await adminClient.from("users").select("user_id").ilike("username",username).limit(1);
       if(existingUsername?.length) return json({error:"This username is already taken.",field_errors:{username:"This username is already taken. Try another one."}},409);
