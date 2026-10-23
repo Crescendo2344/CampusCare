@@ -4,7 +4,7 @@ import {getUserById} from './documentScanner.js';
 import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
 import {ageFromBirthDate,patientAction,patientDisplayId,patientMeasurementNumber,syncAdminDirectoryFromSupabase} from './patientService.js';
 import {closeAllModals,openModal} from './modals.js';
-import {assistedFile,campusDateFieldHtml,openAssistedPatientCamera,restoreAssistedPatientDraft} from './datePicker.js';
+import {campusDateFieldHtml} from './datePicker.js';
 import {escapeHtml} from './issueReports.js';
 import {openPrivacyNotice} from './loginLockout.js';
 import {persistDB} from './persistence.js';
@@ -15,10 +15,47 @@ import {collegeBadge,fmtDate,fmtTime,priorityBadge,statusBadge} from './inputVal
 import {docName} from './messaging.js';
 import {downloadPatientFHIR,openClinicalCopilot,viewPatientFHIR} from './inventoryService.js';
 import {bindAction,patientData} from '../dependencies.js';
+import {normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
+import {PATIENT_FORM_SERVER_FIELDS,resetRegistrationFieldErrors,sanitizeInput,setRegistrationFieldError,validateRegistrationField,validateRegistrationForm} from './inputValidation.js';
+import {handleRegistrationIdUpload,renderRegistrationIds,resetVerificationState,selectRegistrationIdSide,setVerificationScope,verificationState,verificationStepsHtml} from './idVerification.js';
+import {openCamera} from '../app/optional-features.js';
 import {fitnessRecords} from './fitnessAssessments.js';
 // ── Patient Modal ──
+// One form for clinic-assisted registration and record edits. Fields follow the public registration
+// order and rules (person type first, then the matching college/department and ID format), show
+// errors beside each field, and new accounts include a live selfie plus both sides of the ID.
+const PATIENT_ID_RULES={Student:{label:'Student ID No.',length:7,example:'1350098'},Employee:{label:'Employee ID No.',length:5,example:'14982'}};
+const idRule=type=>type==='Student'?PATIENT_ID_RULES.Student:PATIENT_ID_RULES.Employee;
+function patientUnits(type){
+  return type==='Non-Teaching Personnel'
+    ? appState.documentScanner.REGISTRATION_NONTEACHING_DEPARTMENTS||[]
+    : appState.documentScanner.REGISTRATION_ACADEMIC_UNITS||[];
+}
+// Keep the ID label, length, unit list and class-session field consistent with the person type.
+export function syncPatientFormType(){
+  const type=document.getElementById('pm-ptype')?.value||'Student';
+  const rule=idRule(type);
+  const idLabel=document.getElementById('pm-idno-label');
+  if(idLabel)idLabel.innerHTML=`${rule.label} <span class="required">*</span>`;
+  const idInput=document.getElementById('pm-idno');
+  if(idInput){idInput.maxLength=rule.length;idInput.placeholder=`e.g. ${rule.example}`;idInput.value=idInput.value.replace(/\D/g,'').slice(0,rule.length);}
+  const idHint=document.getElementById('pm-idno-help');
+  if(idHint)idHint.textContent=`${rule.label.replace(' No.','')} numbers have exactly ${rule.length} digits.`;
+  const unitLabel=document.getElementById('pm-college-label');
+  if(unitLabel)unitLabel.innerHTML=`${type==='Non-Teaching Personnel'?'Department':'College'} <span class="required">*</span>`;
+  const unit=document.getElementById('pm-college');
+  if(unit){
+    const previous=unit.value;
+    unit.innerHTML='<option value="">Select</option>'+patientUnits(type).map(([value,label])=>`<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join('');
+    if(patientUnits(type).some(([value])=>value===previous))unit.value=previous;
+  }
+  const session=document.getElementById('pm-session-group');
+  if(session)session.hidden=type!=='Student';
+  for(const id of ['pm-idno','pm-college','pm-class-session'])validateRegistrationField(id,false);
+}
+
 export function openPatientModal(id=null){
-  const pt=id?appState.data.DB.patients.find(p=>p.id===Number(id)):null;
+  const pt=id?appState.data.DB.patients.find(p=>p.id===id):null;
   const account=pt?.userId?getUserById(pt.userId):null;
   const realMode=Boolean(appState.auth.currentUser?._realSupabase);
   const editing=Boolean(pt);
@@ -27,171 +64,164 @@ export function openPatientModal(id=null){
     toast('Restore the patient record before editing it.','warning');
     return;
   }
+  setVerificationScope('pm');
+  if(!editing)resetVerificationState('pm');
+  resetRegistrationFieldErrors('pm-');
 
-  if(!editing){
-    appState.datePicker.assistedProfile='';
-    appState.datePicker.assistedIdCor='';
-  }
-
-  const birthDate=pt?.birthDate||'';
   const height=patientMeasurementNumber(pt?.height);
   const weight=patientMeasurementNumber(pt?.weight);
+  const type=pt?.personType||'Student';
+  const field=(idName,label,control,{required=false,hint='',full=false}={})=>`<div class="form-group${full?' full':''}">
+      <label for="${idName}" id="${idName}-label">${label}${required?' <span class="required">*</span>':''}</label>
+      ${control}
+      ${hint?`<p class="form-note field-hint" id="${idName}-help">${hint}</p>`:''}
+      <p class="registration-field-error" id="${idName}-error" aria-live="polite" hidden></p>
+    </div>`;
+  const live=(sanitize='')=>`${bindAction('input',(event,element)=>{
+    // ID numbers are digits only, up to the length the person type requires.
+    if(sanitize==='digits')element.value=element.value.replace(/\D/g,'').slice(0,element.maxLength>0?element.maxLength:7);
+    else if(sanitize)sanitizeInput(element,sanitize);
+    validateRegistrationField(element.id,false);
+  })} ${bindAction('blur',(event,element)=>{validateRegistrationField(element.id);})}`;
+  const options=(values,selected,placeholder='')=>(placeholder?`<option value="">${placeholder}</option>`:'')+values.map(([v,label=v])=>`<option value="${escapeHtml(v)}" ${selected===v?'selected':''}>${escapeHtml(label)}</option>`).join('');
 
-  openModal(`<div class="modal modal-lg">
+  openModal(`<div class="modal modal-lg patient-form" id="pm-form">
     <div class="modal-header"><h3>${editing?'Edit Patient Record':'Clinic-Assisted Patient Registration'}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
     <div class="modal-body">
+      ${editing?`<div class="pt-banner pt-form-banner">${patientAvatarHtml(pt,44)}<div class="pt-banner-main"><h2>${escapeHtml(pt.lname)}, ${escapeHtml(pt.fname)}</h2><div class="pt-banner-ids">P-${patientDisplayId(pt)} · ${escapeHtml(account?.email||'No email on file')}${account?.username?` · @${escapeHtml(account.username)}`:''}</div></div></div>`:''}
       <div id="ptm-msg"></div>
 
-      ${!editing?`<div class="alert alert-info show" style="font-size:.78rem">
-        <strong>Assisted registration:</strong> Clinic staff verifies the patient's identity in person, presents the CampusCare Privacy Notice,
-        records the patient's acknowledgement during registration, creates the active account, and sends a password-setup link to the patient's email.
-      </div>
+      <fieldset class="registration-group">
+        <legend>Personal information</legend>
+        <div class="form-row">
+          ${field('pm-fname','First Name',`<input id="pm-fname" maxlength="50" autocomplete="off" value="${escapeHtml(pt?.fname||'')}" ${live('name')}>`,{required:true})}
+          ${field('pm-lname','Last Name',`<input id="pm-lname" maxlength="50" autocomplete="off" value="${escapeHtml(pt?.lname||'')}" ${live('name')}>`,{required:true})}
+          ${field('pm-birth','Date of Birth',campusDateFieldHtml('pm-birth',pt?.birthDate||'','Date of Birth','',appState.clinicInformation.TODAY),{required:true,hint:'Must match the birth date on the patient\'s ID.'})}
+          ${field('pm-gender','Sex',`<select id="pm-gender" ${live()}>${options([['Male'],['Female']],pt?.gender||'','Select')}</select>`,{required:true})}
+        </div>
+      </fieldset>
 
-      <div class="form-row">
-        <div class="form-group">
-          <label>Profile Picture <span class="required">*</span></label>
-          <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-            <button type="button" class="btn btn-sm" ${bindAction('click',(event,element)=>{document.getElementById('pm-profile').click()})}><i class="bi bi-upload"></i> Upload Photo</button>
-            <button type="button" class="btn btn-sm btn-info" ${bindAction('click',(event,element)=>{openAssistedPatientCamera('profile')})}><i class="bi bi-camera"></i> Use Camera</button>
+      <fieldset class="registration-group">
+        <legend>School details</legend>
+        <div class="form-row">
+          ${field('pm-ptype','Person Type',`<select id="pm-ptype" ${bindAction('change',()=>syncPatientFormType())}>${options([['Student'],['Teaching Personnel'],['Non-Teaching Personnel']],type)}</select>`,{required:true})}
+          ${field('pm-college','College',`<select id="pm-college" ${live()}></select>`,{required:true})}
+          ${field('pm-idno','Student ID No.',`<input id="pm-idno" inputmode="numeric" autocomplete="off" value="${escapeHtml(pt?.idNo||'')}" ${pt?.idNo?`data-original="${escapeHtml(pt.idNo)}"`:''} ${live('digits')}>`,{required:true,hint:'Student ID numbers have exactly 7 digits.'})}
+          <div class="form-group" id="pm-session-group">
+            <label for="pm-class-session">Class Session <span class="required">*</span></label>
+            <select id="pm-class-session" ${live()}>${options([['Morning'],['Evening']],['Morning','Evening'].includes(pt?.classSession)?pt.classSession:'','Select session')}</select>
+            <p class="form-note field-hint" id="pm-class-session-help">The student's regular class schedule.</p>
+            <p class="registration-field-error" id="pm-class-session-error" aria-live="polite" hidden></p>
           </div>
-          <input type="file" id="pm-profile" accept="image/jpeg,image/png,image/webp" style="display:none" ${bindAction('change',(event,element)=>{assistedFile(element,'profile')})}>
-          <img id="pm-profile-preview" src="${appState.datePicker.assistedProfile||''}" style="${appState.datePicker.assistedProfile?'':'display:none;'}width:72px;height:72px;border-radius:50%;object-fit:cover;margin-top:.35rem;border:1px solid var(--line)">
-          <p class="form-note">JPG, PNG, or WebP · max 5 MB.</p>
         </div>
+      </fieldset>
 
-        <div class="form-group">
-          <label>Valid ID / COR <span class="required">*</span></label>
-          <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-            <button type="button" class="btn btn-sm" ${bindAction('click',(event,element)=>{document.getElementById('pm-idcor').click()})}><i class="bi bi-upload"></i> Upload ID/COR</button>
-            <button type="button" class="btn btn-sm btn-info" ${bindAction('click',(event,element)=>{openAssistedPatientCamera('id')})}><i class="bi bi-camera"></i> Use Camera</button>
-          </div>
-          <input type="file" id="pm-idcor" accept="image/jpeg,image/png,image/webp,application/pdf" style="display:none" ${bindAction('change',(event,element)=>{assistedFile(element,'id')})}>
-          <div id="pm-id-preview" class="form-note">${appState.datePicker.assistedIdCor?'✓ Photo captured / file selected.':'No file selected.'}</div>
-          <p class="form-note">JPG, PNG, WebP, or PDF · max 10 MB.</p>
+      ${editing?'':`<fieldset class="registration-group">
+        <legend>Account</legend>
+        <div class="form-row">
+          ${field('pm-email','Email',`<input id="pm-email" type="email" maxlength="150" autocomplete="off" autocapitalize="none" spellcheck="false" ${live('email')}>`,{required:true,hint:'A verification and password-setup link is sent here. The patient must open it before signing in.'})}
+          ${field('pm-username','Username',`<input id="pm-username" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" ${live('username')}>`,{required:true,hint:'Use 4–20 letters or numbers. You may also use a period (.), underscore (_) or hyphen (-).'})}
         </div>
-      </div>`:''}
+      </fieldset>`}
 
-      <div class="section-label">Identity &amp; Account</div>
-      <div class="form-row">
-        <div class="form-group"><label>First Name <span class="required">*</span></label><input id="pm-fname" maxlength="120" value="${escapeHtml(pt?.fname||'')}"></div>
-        <div class="form-group"><label>Last Name <span class="required">*</span></label><input id="pm-lname" maxlength="120" value="${escapeHtml(pt?.lname||'')}"></div>
-
-        ${!editing?`
-          <div class="form-group"><label>Email <span class="required">*</span></label><input id="pm-email" type="email" maxlength="320" placeholder="patient@example.com"></div>
-          <div class="form-group"><label>Username <span class="required">*</span></label><input id="pm-username" maxlength="120" placeholder="Choose a unique username"></div>
-        `:`
-          <div class="form-group"><label>Email</label><input id="pm-email" value="${escapeHtml(account?.email||'')}" disabled><p class="form-note">Authentication email changes are handled through Account Settings.</p></div>
-          <div class="form-group"><label>Username</label><input id="pm-username" value="${escapeHtml(account?.username||'')}" disabled></div>
-        `}
-
-        <div class="form-group"><label>University ID No. ${!editing?'<span class="required">*</span>':''}</label><input id="pm-idno" maxlength="120" value="${escapeHtml(pt?.idNo||'')}"></div>
-        <div class="form-group"><label>Date of Birth <span class="required">*</span></label>${campusDateFieldHtml('pm-birth',birthDate,'Date of Birth',null,appState.clinicInformation.TODAY)}</div>
-
-        <div class="form-group"><label>Gender</label>
-          <select id="pm-gender">${['Male','Female','Other'].map(v=>`<option ${pt?.gender===v?'selected':''}>${v}</option>`).join('')}</select>
+      <fieldset class="registration-group">
+        <legend>Contact &amp; emergency</legend>
+        <div class="form-row">
+          ${field('pm-contact','Contact No.',`<input id="pm-contact" type="tel" inputmode="tel" maxlength="24" placeholder="09… or +63…" value="${escapeHtml(pt?.contact||'')}" ${live('phone')}>`,{hint:'Use 09XXXXXXXXX or +639XXXXXXXXX.'})}
+          ${field('pm-addr','Address',`<input id="pm-addr" maxlength="300" value="${escapeHtml(pt?.address||'')}" ${live('text')}>`)}
+          ${field('pm-ename','Emergency Contact Name',`<input id="pm-ename" maxlength="100" value="${escapeHtml(pt?.emergencyName||'')}" ${live('name')}>`)}
+          ${field('pm-econtact','Emergency Contact No.',`<input id="pm-econtact" type="tel" inputmode="tel" maxlength="24" placeholder="09… or +63…" value="${escapeHtml(pt?.emergencyContact||'')}" ${live('phone')}>`)}
         </div>
+      </fieldset>
 
-        <!-- Optional session is maintained from student information, never inferred from appointment time. -->
-        <div class="form-group"><label for="pm-class-session">Student class session</label><select id="pm-class-session">${[['','Not recorded'],['Morning','Morning'],['Evening','Evening'],['Mixed','Mixed / both']].map(([v,label])=>`<option value="${v}" ${pt?.classSession===v?'selected':''}>${label}</option>`).join('')}</select><p class="form-note">For students only; leave unknown if not confirmed.</p></div>
-        <div class="form-group"><label>Blood Type</label>
-          <select id="pm-blood">${['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'].map(v=>`<option ${String(pt?.blood||'Unknown')===v?'selected':''}>${v}</option>`).join('')}</select>
+      <fieldset class="registration-group">
+        <legend>Clinical information</legend>
+        <div class="form-row">
+          ${field('pm-blood','Blood Type',`<select id="pm-blood">${options(['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'].map(v=>[v]),String(pt?.blood||'Unknown'))}</select>`)}
+          ${field('pm-height','Height (cm)',`<input id="pm-height" type="number" inputmode="decimal" min="40" max="260" step=".1" value="${height}" ${live()}>`)}
+          ${field('pm-weight','Weight (kg)',`<input id="pm-weight" type="number" inputmode="decimal" min="1" max="500" step=".1" value="${weight}" ${live()}>`)}
+          ${field('pm-allergy','Allergies',`<input id="pm-allergy" maxlength="300" value="${escapeHtml(pt?.allergies||'')}" placeholder="e.g. Penicillin, or None" ${live('text')}>`,{full:true})}
+          ${field('pm-history','Medical History',`<textarea id="pm-history" maxlength="5000" rows="3" ${bindAction('input',()=>{})}>${escapeHtml(pt?.medHistory||'')}</textarea>`,{full:true})}
         </div>
+      </fieldset>
 
-        <div class="form-group"><label>Contact Number</label><input id="pm-contact" maxlength="80" value="${escapeHtml(pt?.contact||'')}"></div>
-
-        <div class="form-group"><label>College</label>
-          <select id="pm-college">${['CCICT','COE','COED','CME','CAS','COT'].map(v=>`<option value="${v}" ${pt?.college===v?'selected':''}>${v}</option>`).join('')}</select>
-        </div>
-
-        <div class="form-group"><label>Person Type</label>
-          <select id="pm-ptype">${['Student','Teaching Personnel','Non-Teaching Personnel'].map(v=>`<option ${pt?.personType===v?'selected':''}>${v}</option>`).join('')}</select>
-        </div>
-      </div>
-
-      <div class="section-label" style="margin-top:.9rem">Patient Information</div>
-      <div class="form-row">
-        <div class="form-group"><label>Height (cm)</label><input id="pm-height" type="number" min="40" max="260" step=".1" value="${height}"></div>
-        <div class="form-group"><label>Weight (kg)</label><input id="pm-weight" type="number" min="1" max="500" step=".1" value="${weight}"></div>
-        <div class="form-group full"><label>Address</label><input id="pm-addr" maxlength="3000" value="${escapeHtml(pt?.address||'')}"></div>
-        <div class="form-group full"><label>Allergies</label><input id="pm-allergy" maxlength="3000" value="${escapeHtml(pt?.allergies||'')}" placeholder="Enter known allergies"></div>
-        <div class="form-group full"><label>Medical History</label><textarea id="pm-history" maxlength="5000" rows="3">${escapeHtml(pt?.medHistory||'')}</textarea></div>
-        <div class="form-group"><label>Emergency Contact Name</label><input id="pm-ename" maxlength="255" value="${escapeHtml(pt?.emergencyName||'')}"></div>
-        <div class="form-group"><label>Emergency Contact No.</label><input id="pm-econtact" maxlength="100" value="${escapeHtml(pt?.emergencyContact||'')}"></div>
-      </div>
-
-      ${realMode&&editing?`<div class="tech-note">Changes are recorded in the activity log.</div>`:''}
-
-      ${!editing?`<div class="privacy-agree" style="margin-top:1rem">
-        <input type="checkbox" id="pm-privacy-ack">
+      ${editing?'':`<fieldset class="registration-group">
+        <legend>Identity verification</legend>
+        <p class="form-note registration-group-note">Confirm the patient in person, then capture the same evidence as online registration.</p>
+        ${verificationStepsHtml('pm',{
+          subject:'the patient',
+          onSelfie:()=>{setVerificationScope('pm');openCamera('selfie');},
+          onIdCamera:()=>{setVerificationScope('pm');openCamera('id-'+verificationState('pm').side);},
+          onShow:side=>selectRegistrationIdSide(side,'pm'),
+          onUpload:(input,side)=>{setVerificationScope('pm');handleRegistrationIdUpload(input,side,'pm');}
+        })}
+      </fieldset>
+      <div class="privacy-agree">
+        <input type="checkbox" id="pm-privacy-ack" ${bindAction('change',(event,element)=>validateRegistrationField(element.id))}>
         <label for="pm-privacy-ack">
           The patient has reviewed and acknowledges the
           <a ${bindAction('click',(event,element)=>{event.preventDefault();openPrivacyNotice()})}>CampusCare Privacy Notice</a>
-          (version ${escapeHtml(appState.data.DB.settings?.privacyPolicyVersion||'1.0')}) as part of this assisted registration.
+          (version ${escapeHtml(appState.data.DB.settings?.privacyPolicyVersion||'1.0')}).
         </label>
-      </div>`:''}
+      </div>
+      <p class="registration-field-error" id="pm-privacy-ack-error" aria-live="polite" hidden></p>`}
+      ${realMode&&editing?`<div class="tech-note">Changes are recorded in the activity log.</div>`:''}
     </div>
 
     <div class="modal-footer">
-      <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
-      <button class="btn btn-primary" id="pm-save-btn" ${bindAction('click',(event,element)=>{savePatient((id||'null'))})}>${editing?'Save Changes':'Create Patient Account'}</button>
+      <button class="btn btn-primary" id="pm-save-btn" ${bindAction('click',(event,element)=>{savePatient(id)})}>${editing?'Save Changes':'Create Patient Account'}</button>
     </div>
   </div>`);
-
-  setTimeout(restoreAssistedPatientDraft,0);
+  // The hidden date input reports changes so its error clears once a date is chosen.
+  document.getElementById('pm-birth')?.setAttribute('data-action-change','registration-field-blur');
+  syncPatientFormType();
+  const college=document.getElementById('pm-college');
+  if(college&&pt?.college)college.value=pt.college;
+  if(!editing){renderRegistrationIds('pm');}
 }
 
 export async function savePatient(id){
-  const editing=Boolean(id);
-  const fname=document.getElementById('pm-fname')?.value.trim()||'';
-  const lname=document.getElementById('pm-lname')?.value.trim()||'';
-  const email=document.getElementById('pm-email')?.value.trim()||'';
-  const username=document.getElementById('pm-username')?.value.trim()||'';
-  const idNo=document.getElementById('pm-idno')?.value.trim()||'';
-  const birthDate=document.getElementById('pm-birth')?.value||'';
+  const editing=id!==null&&id!==undefined&&id!=='null';
+  const value=elementId=>document.getElementById(elementId)?.value.trim()||'';
   const msg=document.getElementById('ptm-msg');
   const btn=document.getElementById('pm-save-btn');
-
   hideAlert(msg);
-  if(!fname||!lname||!birthDate){
-    showAlert(msg,'First name, last name, and date of birth are required.');
-    return;
-  }
-  if(birthDate>appState.clinicInformation.TODAY){
-    showAlert(msg,'Date of birth cannot be in the future.');
-    return;
-  }
-  if(!editing&&(!email||!username||!idNo)){
-    showAlert(msg,'Email, username, and university ID number are required for assisted registration.');
-    return;
-  }
-  if(!editing&&(!appState.datePicker.assistedProfile||!appState.datePicker.assistedIdCor)){
-    showAlert(msg,'Profile picture and valid ID/COR are required for assisted registration.');
-    return;
-  }
-  if(!editing&&!document.getElementById('pm-privacy-ack')?.checked){
-    showAlert(msg,'Please confirm that the patient reviewed and acknowledged the CampusCare Privacy Notice during registration.');
+
+  // Same behaviour as public registration: every problem is shown beside its field at once.
+  const invalid=validateRegistrationForm('pm-');
+  if(invalid.length){
+    const first=invalid[0];
+    const target=document.getElementById(first)?.type==='hidden'
+      ?document.getElementById(first).closest('.form-group')?.querySelector('.modern-date-btn')
+      :first==='pm-selfie'?document.getElementById('pm-selfie-camera-button'):first==='pm-id'?document.getElementById('pm-id-camera-button'):document.getElementById(first);
+    target?.scrollIntoView?.({block:'center',behavior:'smooth'});target?.focus?.({preventScroll:true});
+    showAlert(msg,invalid.length===1?'Please fix the highlighted field.':`Please fix the ${invalid.length} highlighted fields.`);
     return;
   }
 
+  const personType=value('pm-ptype')||'Student';
+  const contact=value('pm-contact');
   const payload={
-    first_name:fname,
-    last_name:lname,
-    contact_number:document.getElementById('pm-contact')?.value.trim()||'',
-    id_number:idNo,
-    birth_date:birthDate,
-    sex:document.getElementById('pm-gender')?.value||'',
-    blood_type:document.getElementById('pm-blood')?.value||'Unknown',
-    college:document.getElementById('pm-college')?.value||'',
-    person_type:document.getElementById('pm-ptype')?.value||'Student',
-    class_session:document.getElementById('pm-ptype')?.value==='Student'?(document.getElementById('pm-class-session')?.value||null):null,
-    height_cm:document.getElementById('pm-height')?.value||null,
-    weight_kg:document.getElementById('pm-weight')?.value||null,
-    address:document.getElementById('pm-addr')?.value.trim()||'',
-    allergies:document.getElementById('pm-allergy')?.value.trim()||'',
-    medical_history:document.getElementById('pm-history')?.value.trim()||'',
-    emergency_contact_name:document.getElementById('pm-ename')?.value.trim()||'',
-    emergency_contact_number:document.getElementById('pm-econtact')?.value.trim()||''
+    first_name:value('pm-fname'),
+    last_name:value('pm-lname'),
+    contact_number:contact?normalizePhilippineMobile(contact):'',
+    id_number:value('pm-idno'),
+    birth_date:value('pm-birth'),
+    sex:value('pm-gender'),
+    blood_type:value('pm-blood')||'Unknown',
+    college:value('pm-college'),
+    person_type:personType,
+    class_session:personType==='Student'?value('pm-class-session'):null,
+    height_cm:value('pm-height')||null,
+    weight_kg:value('pm-weight')||null,
+    address:value('pm-addr'),
+    allergies:value('pm-allergy'),
+    medical_history:value('pm-history'),
+    emergency_contact_name:value('pm-ename'),
+    emergency_contact_number:value('pm-econtact')?normalizePhilippineMobile(value('pm-econtact')):''
   };
+  const email=value('pm-email').toLowerCase(),username=value('pm-username');
+  const evidence=verificationState('pm');
 
   const old=btn?.textContent;
   if(btn){btn.disabled=true;btn.textContent=editing?'Saving securely…':'Creating account…';}
@@ -201,53 +231,41 @@ export async function savePatient(id){
       if(editing){
         const pt=appState.data.DB.patients.find(p=>p.id===Number(id));
         if(!pt?._realSupabase)throw new Error('The real patient record could not be identified.');
-
-        await patientAction({
-          action:'update',
-          patient_id:pt.dbPatientId,
-          ...payload
-        });
-
+        await patientAction({action:'update',patient_id:pt.dbPatientId,...payload});
         await syncAdminDirectoryFromSupabase();
         toast('Patient record updated.','success');
       }else{
         const result=await patientAction({
           action:'create_assisted',
-          email,
-          username,
-          profile_data_url:appState.datePicker.assistedProfile,
-          verification_data_url:appState.datePicker.assistedIdCor,
+          email,username,
+          selfie_data_url:evidence.selfie,
+          id_front_data_url:evidence.ids.front?.dataUrl,
+          id_back_data_url:evidence.ids.back?.dataUrl,
           privacy_acknowledged:true,
           ...payload
         });
-
         await syncAdminDirectoryFromSupabase();
-        appState.datePicker.assistedProfile='';
-        appState.datePicker.assistedIdCor='';
-        appState.datePicker.assistedPatientDraft=null;
-
-        if(result.password_setup_email_sent){
-          toast('Patient account created and privacy acknowledgement recorded. A password-setup email was sent to the patient.','success',7000);
-        }else{
-          toast('Patient account created and privacy acknowledgement recorded. Ask the patient to use Forgot Password to set their password.','warning',7500);
-        }
+        resetVerificationState('pm');
+        toast(result.verification_email_sent
+          ?'Patient account created. A verification and password-setup email was sent — the patient must open it before signing in.'
+          :'Patient account created, but the verification email could not be sent. Ask the patient to use "Resend verification email" on the login page.',
+          result.verification_email_sent?'success':'warning',8000);
       }
     }else{
-      const age=ageFromBirthDate(birthDate);
+      const age=ageFromBirthDate(payload.birth_date);
       const data={
-        fname,lname,age,birthDate,
+        fname:payload.first_name,lname:payload.last_name,age,birthDate:payload.birth_date,
         gender:payload.sex,blood:payload.blood_type,
         contact:payload.contact_number,college:payload.college,
-        personType:payload.person_type,classSession:payload.class_session||'',
+        personType,classSession:payload.class_session||'',
         height:payload.height_cm?`${payload.height_cm}cm`:'',
         weight:payload.weight_kg?`${payload.weight_kg}kg`:'',
         address:payload.address,allergies:payload.allergies,
         medHistory:payload.medical_history,
         emergencyName:payload.emergency_contact_name,
         emergencyContact:payload.emergency_contact_number,
-        idNo
+        idNo:payload.id_number
       };
-
       if(editing){
         const idx=appState.data.DB.patients.findIndex(p=>p.id===Number(id));
         if(idx>=0)appState.data.DB.patients[idx]={...appState.data.DB.patients[idx],...data};
@@ -255,17 +273,14 @@ export async function savePatient(id){
       }else{
         const newUserId=appState.data.DB.nextUserId++;
         appState.data.DB.users.push({
-          id:newUserId,username,email,role:'Patient',fname,lname,
+          id:newUserId,username,email,role:'Patient',fname:data.fname,lname:data.lname,
           contact:payload.contact_number,status:'Active',approved:true,
-          verified:true,profilePhoto:appState.datePicker.assistedProfile,idPhoto:appState.datePicker.assistedIdCor,
+          verified:true,profilePhoto:'',idPhoto:evidence.ids.front?.dataUrl||'',
           createdAt:appState.clinicInformation.TODAY
         });
-        appState.data.DB.patients.push({
-          id:appState.data.DB.nextPatientId++,...data,userId:newUserId,createdAt:appState.clinicInformation.TODAY
-        });
+        appState.data.DB.patients.push({id:appState.data.DB.nextPatientId++,...data,userId:newUserId,createdAt:appState.clinicInformation.TODAY});
         persistDB();
-        appState.datePicker.assistedProfile='';
-        appState.datePicker.assistedIdCor='';
+        resetVerificationState('pm');
         toast('Patient added.','success');
       }
     }
@@ -273,7 +288,10 @@ export async function savePatient(id){
     closeAllModals();
     if(appState.navigationRaceProtection.campusActivePageId==='patients')await renderPatients();
   }catch(e){
-    showAlert(msg,e?.message||'Unable to save the patient record.');
+    // Server field problems (for example a taken username) appear beside the matching field.
+    const fields=Object.entries(e?.fieldErrors||{}).filter(([key])=>PATIENT_FORM_SERVER_FIELDS[key]);
+    fields.forEach(([key,message])=>setRegistrationFieldError(PATIENT_FORM_SERVER_FIELDS[key],String(message)));
+    showAlert(msg,fields.length?'Please fix the highlighted fields.':e?.message||'Unable to save the patient record.');
   }finally{
     if(btn&&document.body.contains(btn)){
       btn.disabled=false;

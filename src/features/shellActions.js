@@ -12,7 +12,7 @@ import {handleTopSearchKey,renderTopSearch,toggleSidebar} from './topbarAndNavig
 import {openProfileDetails} from './accountSettings.js';
 import {markAllRead,setNotificationFilter,toggleNotifPanel} from './assistant.js';
 import {navTo} from './navigationRaceProtection.js';
-import {handleRegistrationIdUpload,selectRegistrationIdSide} from './idVerification.js';
+import {handleRegistrationIdUpload,selectRegistrationIdSide,setVerificationScope} from './idVerification.js';
 import {registerNamedAction} from '../dependencies.js';
 import {prepareRegistrationCaptcha,resetRegistrationCaptcha} from '../verification/registration-captcha.js';
 // Shell controls use registered lexical callbacks, never HTML inline JavaScript.
@@ -55,11 +55,12 @@ export function initializeFeature(){
   registerNamedAction('shell-28',(event,element)=>{openCampusDatePicker('r-dob','Select Date of Birth','',appState.clinicInformation.TODAY,'')});
   // Each side has its own accepted file and guided camera capture.
   for(const side of ['front','back']){
-    registerNamedAction('id-'+side+'-upload',(event,input)=>handleRegistrationIdUpload(input,side));
-    registerNamedAction('id-show-'+side,()=>selectRegistrationIdSide(side));
+    registerNamedAction('id-'+side+'-upload',(event,input)=>{setVerificationScope('r');handleRegistrationIdUpload(input,side,'r');});
+    registerNamedAction('id-show-'+side,()=>selectRegistrationIdSide(side,'r'));
   }
-  registerNamedAction('id-current-camera',()=>openCamera('id-'+(appState.camera.registrationIdSide||'front')));
-  registerNamedAction('shell-30',(event,element)=>{openCamera('selfie')});
+  // Public registration photos belong to the "r" scope; the clinic-assisted form uses its own.
+  registerNamedAction('id-current-camera',()=>{setVerificationScope('r');openCamera('id-'+(appState.camera.registrationIdSide||'front'));});
+  registerNamedAction('shell-30',(event,element)=>{setVerificationScope('r');openCamera('selfie')});
   registerNamedAction('shell-35',(event,element)=>{event.preventDefault();openPrivacyNotice()});
   registerNamedAction('registration-security-retry',()=>{resetRegistrationCaptcha();prepareRegistrationCaptcha(appState.supabaseClient.SUPABASE_URL,appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY,{refresh:true}).catch(()=>{});});
   // Submitting the form (button or Enter) always runs client checks before any network request.

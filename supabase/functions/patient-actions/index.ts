@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.3";
 import {authRedirect} from "../_shared/app-url.js";
+import {registrationDetailErrors} from "../_shared/registration-validation.js";
+import {normalizePhilippineMobile} from "../_shared/contact-validation.js";
 
 const cors={
   "Access-Control-Allow-Origin":"*",
@@ -13,17 +15,19 @@ const clean=(v:unknown,max=5000)=>String(v??"").trim().slice(0,max);
 const allowedBlood=["A+","A-","B+","B-","AB+","AB-","O+","O-","Unknown"];
 const allowedPerson=["Student","Teaching Personnel","Non-Teaching Personnel"];
 
-function decodeDataUrl(dataUrl:string,kind:"profile"|"verification"){
-  const rx=kind==="profile"
+// "photo" is an identity image (selfie or ID side): JPG/PNG/WebP up to 10 MB, never a PDF.
+function decodeDataUrl(dataUrl:string,kind:"profile"|"verification"|"photo"){
+  const rx=kind!=="verification"
     ? /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/
     : /^data:(image\/(?:jpeg|png|webp)|application\/pdf);base64,([A-Za-z0-9+/=]+)$/;
   const m=dataUrl.match(rx);
   if(!m)throw new Error(kind==="profile"
     ?"Profile picture must be JPG, PNG, or WebP."
-    :"Verification file must be JPG, PNG, WebP, or PDF.");
+    :kind==="photo"?"Verification photos must be JPG, PNG, or WebP.":"Verification file must be JPG, PNG, WebP, or PDF.");
   const mime=m[1];
   const bytes=Uint8Array.from(atob(m[2]),c=>c.charCodeAt(0));
   const limit=kind==="profile"?5*1024*1024:10*1024*1024;
+  if(kind==="photo"&&bytes.byteLength>limit)throw new Error("Each verification photo must be 10 MB or smaller.");
   if(bytes.byteLength>limit)throw new Error(kind==="profile"
     ?"Profile picture must be 5 MB or smaller."
     :"Verification file must be 10 MB or smaller.");
@@ -73,70 +77,74 @@ Deno.serve(async(req)=>{
     const action=String(body.action||"update").toLowerCase();
 
     if(action==="create_assisted"){
-      const first=clean(body.first_name,120);
-      const last=clean(body.last_name,120);
-      const email=clean(body.email,320).toLowerCase();
-      const username=clean(body.username,120);
-      const idNumber=clean(body.id_number,120);
-      const contact=clean(body.contact_number,80);
+      const first=clean(body.first_name,50);
+      const last=clean(body.last_name,50);
+      const email=clean(body.email,150).toLowerCase();
+      const username=clean(body.username,20);
+      const idNumber=clean(body.id_number,7);
+      const contactRaw=clean(body.contact_number,24);
+      const contact=contactRaw?normalizePhilippineMobile(contactRaw):"";
       const personType=clean(body.person_type,80);
       const college=clean(body.college,80);
       const birthDate=clean(body.birth_date,10);
       const sex=clean(body.sex,40);
       const blood=clean(body.blood_type,20)||"Unknown";
-      // Class session is recorded explicitly; omitted fields preserve existing clients.
-      const classSession=body.class_session===undefined?undefined:clean(body.class_session,20)||null;
-      if(classSession&&!["Morning","Evening","Mixed"].includes(classSession))return json({error:"Choose a valid class session."},400);
+      const classSession=personType==="Student"?clean(body.class_session,20):"";
       const address=clean(body.address,3000);
       const emergencyName=clean(body.emergency_contact_name,255);
-      const emergencyContact=clean(body.emergency_contact_number,100);
+      const emergencyRaw=clean(body.emergency_contact_number,24);
+      const emergencyContact=emergencyRaw?normalizePhilippineMobile(emergencyRaw):"";
       const medicalHistory=clean(body.medical_history,5000);
       const allergies=clean(body.allergies,3000);
-      const profileData=String(body.profile_data_url||"");
-      const verificationData=String(body.verification_data_url||"");
       const privacyAcknowledged=body.privacy_acknowledged===true;
 
-      if(!first||!last||!email||!username||!idNumber||!birthDate)
-        return json({error:"First name, last name, email, username, university ID, and birth date are required."},400);
-      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-        return json({error:"Enter a valid patient email address."},400);
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(birthDate))
-        return json({error:"Birth date is invalid."},400);
-      if(new Date(birthDate+"T00:00:00Z").getTime()>Date.now())
-        return json({error:"Birth date cannot be in the future."},400);
-      if(!allowedPerson.includes(personType))
-        return json({error:"Choose a valid person type."},400);
-      if(!allowedBlood.includes(blood))
-        return json({error:"Choose a valid blood type."},400);
-      if(!profileData||!verificationData)
-        return json({error:"Profile picture and valid ID/COR are required for assisted registration."},400);
+      // Same field rules as public registration, reported per field.
+      const manilaToday=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
+      const fieldErrors:Record<string,string>=registrationDetailErrors({first_name:first,last_name:last,username,email,contact_number:contactRaw,person_type:personType,college,id_number:idNumber,birth_date:birthDate,sex},manilaToday);
+      if(personType==="Student"&&!["Morning","Evening"].includes(classSession))fieldErrors.class_session="Select the student's class session.";
+      if(emergencyRaw&&!emergencyContact)fieldErrors.emergency_contact_number="Use 09 followed by 9 digits, or +63 followed by 10 digits starting with 9.";
+      if(Object.keys(fieldErrors).length)return json({error:Object.values(fieldErrors)[0],field_errors:fieldErrors},400);
+      if(!allowedBlood.includes(blood))return json({error:"Choose a valid blood type."},400);
       if(!privacyAcknowledged)
         return json({error:"The patient must review and acknowledge the CampusCare Privacy Notice before assisted registration can be completed."},400);
 
+      // Identity evidence matches online registration: a live selfie and both sides of the ID (images only).
+      const selfieData=String(body.selfie_data_url||""),frontData=String(body.id_front_data_url||""),backData=String(body.id_back_data_url||"");
+      if(!selfieData||!frontData||!backData)
+        return json({error:"A verification selfie and the front and back of the patient's ID are required."},400);
+      const selfie=decodeDataUrl(selfieData,"photo");
+      const idFront=decodeDataUrl(frontData,"photo");
+      const idBack=decodeDataUrl(backData,"photo");
+      if(frontData===backData)return json({error:"Use different photos for the front and back of the ID."},400);
+
       const [{data:emailExists},{data:userExists},{data:idExists}]=await Promise.all([
-        admin.from("users").select("user_id").ilike("email",email).maybeSingle(),
-        admin.from("users").select("user_id").eq("username",username).maybeSingle(),
-        admin.from("users").select("user_id").eq("id_number",idNumber).maybeSingle()
+        admin.from("users").select("user_id").ilike("email",email).limit(1),
+        admin.from("users").select("user_id").ilike("username",username).limit(1),
+        admin.from("users").select("user_id").eq("id_number",idNumber).limit(1)
       ]);
-      if(emailExists)return json({error:"That email address is already registered."},409);
-      if(userExists)return json({error:"That username is already in use."},409);
-      if(idExists)return json({error:"That university ID number is already registered."},409);
+      const duplicates:Record<string,string>={};
+      if(emailExists?.length)duplicates.email="An account with this email already exists.";
+      if(userExists?.length)duplicates.username="This username is already taken. Choose another one.";
+      if(idExists?.length)duplicates.id_number="This ID number is already registered to another patient.";
+      if(Object.keys(duplicates).length)return json({error:Object.values(duplicates)[0],field_errors:duplicates},409);
 
-      const profile=decodeDataUrl(profileData,"profile");
-      const verification=decodeDataUrl(verificationData,"verification");
+      // The account stays unverified until the patient opens the emailed link, exactly like a
+      // public sign-up; that link also lets them choose their password.
       const temporaryPassword="Cc!"+crypto.randomUUID()+"9aA";
-
       const {data:created,error:createErr}=await admin.auth.admin.createUser({
         email,
         password:temporaryPassword,
-        email_confirm:true,
+        email_confirm:false,
         user_metadata:{
+          registration_context:"public",role:"Patient",
           first_name:first,last_name:last,username,
           contact_number:contact,person_type:personType,
           college,id_number:idNumber,birth_date:birthDate,
           sex,address,emergency_contact_name:emergencyName,
           emergency_contact_number:emergencyContact,
-          medical_history:medicalHistory,allergies
+          medical_history:medicalHistory,allergies,
+          verification_document_type:personType==="Student"?"Student ID":"Employee ID",
+          privacy_consent:true
         }
       });
       if(createErr||!created.user)throw createErr||new Error("Unable to create patient authentication account.");
@@ -151,34 +159,32 @@ Deno.serve(async(req)=>{
         .select("patient_id").eq("user_id",appUser.user_id).maybeSingle();
       if(patientErr||!patient)throw patientErr||new Error("CampusCare patient record was not created.");
 
-      const profilePath=`${created.user.id}/profile-${Date.now()}.${profile.ext}`;
-      const verificationPath=`${created.user.id}/verification-${Date.now()}.${verification.ext}`;
-
-      const {error:profileUploadErr}=await admin.storage
-        .from("campuscare-profiles")
-        .upload(profilePath,profile.bytes,{contentType:profile.mime,upsert:true});
-      if(profileUploadErr)throw profileUploadErr;
-
-      const {error:verificationUploadErr}=await admin.storage
-        .from("campuscare-verification")
-        .upload(verificationPath,verification.bytes,{contentType:verification.mime,upsert:true});
-      if(verificationUploadErr)throw verificationUploadErr;
+      const uploads:[string,{mime:string,bytes:Uint8Array,ext:string}][]=[
+        [`${created.user.id}/selfie-verification.${selfie.ext}`,selfie],
+        [`${created.user.id}/id-front.${idFront.ext}`,idFront],
+        [`${created.user.id}/id-back.${idBack.ext}`,idBack]
+      ];
+      for(const [path,file] of uploads){
+        const {error:uploadErr}=await admin.storage.from("campuscare-verification").upload(path,file.bytes,{contentType:file.mime,upsert:true});
+        if(uploadErr)throw uploadErr;
+      }
 
       const height=numberOrNull(body.height_cm,40,260);
       const weight=numberOrNull(body.weight_kg,1,500);
 
+      // Staff verified the person in person, so the record is active; sign-in still waits for the email link.
       const {error:userUpdateErr}=await admin.from("users").update({
         first_name:first,last_name:last,username,email,
         contact_number:contact||null,person_type:personType,
         college:college||null,id_number:idNumber,
-        profile_image_url:profilePath,id_file_url:verificationPath,
+        profile_image_url:null,verification_selfie_url:uploads[0][0],id_file_url:uploads[1][0],id_back_file_url:uploads[2][0],
         status:"Active",verified:true
       }).eq("user_id",appUser.user_id);
       if(userUpdateErr)throw userUpdateErr;
 
       const {error:patientUpdateErr}=await admin.from("patients").update({
         birth_date:birthDate,sex:sex||null,blood_type:blood,
-        ...(classSession===undefined?{}:{class_session:personType==="Student"?classSession:null}),
+        class_session:personType==="Student"?classSession:null,
         address:address||null,height_cm:height,weight_kg:weight,
         emergency_contact_name:emergencyName||null,
         emergency_contact_number:emergencyContact||null,
@@ -223,12 +229,13 @@ Deno.serve(async(req)=>{
         details:{user_id:appUser.user_id,id_number:idNumber,email}
       });
 
-      let passwordSetupEmailSent=false;
+      // Opening this link verifies the email address and lets the patient set a password.
+      let verificationEmailSent=false;
       try{
         const {error:resetErr}=await anon.auth.resetPasswordForEmail(email,{
           redirectTo:authRedirect("recovery",(name:string)=>Deno.env.get(name)||"")
         });
-        passwordSetupEmailSent=!resetErr;
+        verificationEmailSent=!resetErr;
       }catch(_){}
 
       cleanupAuthId=null;
@@ -238,7 +245,8 @@ Deno.serve(async(req)=>{
         ok:true,
         patient_id:patient.patient_id,
         user_id:appUser.user_id,
-        password_setup_email_sent:passwordSetupEmailSent
+        verification_email_sent:verificationEmailSent,
+        password_setup_email_sent:verificationEmailSent
       });
     }
 
@@ -263,8 +271,9 @@ Deno.serve(async(req)=>{
 
       const first=clean(body.first_name,120);
       const last=clean(body.last_name,120);
-      const contact=clean(body.contact_number,80);
-      const idNumber=clean(body.id_number,120);
+      const contactRaw=clean(body.contact_number,24);
+      const contact=contactRaw;
+      const idNumber=clean(body.id_number,7);
       const personType=clean(body.person_type,80);
       const college=clean(body.college,80);
       const birthDate=clean(body.birth_date,10);
@@ -274,10 +283,12 @@ Deno.serve(async(req)=>{
       const classSession=body.class_session===undefined?undefined:clean(body.class_session,20)||null;
       if(classSession&&!["Morning","Evening","Mixed"].includes(classSession))return json({error:"Choose a valid class session."},400);
 
-      if(!first||!last||!birthDate)
-        return json({error:"First name, last name, and birth date are required."},400);
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)||new Date(birthDate+"T00:00:00Z").getTime()>Date.now())
-        return json({error:"Birth date is invalid."},400);
+      // Record edits follow the registration rules for the fields they change.
+      const manilaToday=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
+      const fieldErrors:Record<string,string>=registrationDetailErrors({first_name:first,last_name:last,username:"placeholder",email:"placeholder@gmail.com",contact_number:contact,person_type:personType||"Student",college,id_number:idNumber,birth_date:birthDate,sex},manilaToday);
+      if(classSession&&!["Morning","Evening"].includes(classSession))fieldErrors.class_session="Select Morning or Evening.";
+      if(personType==="Student"&&classSession===null)fieldErrors.class_session="Select the student's class session.";
+      if(Object.keys(fieldErrors).length)return json({error:Object.values(fieldErrors)[0],field_errors:fieldErrors},400);
       if(personType&&!allowedPerson.includes(personType))
         return json({error:"Choose a valid person type."},400);
       if(!allowedBlood.includes(blood))
@@ -294,7 +305,7 @@ Deno.serve(async(req)=>{
 
       const {error:userUpdateErr}=await admin.from("users").update({
         first_name:first,last_name:last,
-        contact_number:contact||null,
+        contact_number:contact?normalizePhilippineMobile(contact):null,
         id_number:idNumber||null,
         person_type:personType||null,
         college:college||null

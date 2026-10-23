@@ -2,7 +2,7 @@
 import {requestCamera,cameraStartupMessage} from '../verification/camera-startup.js';
 import {state as appState} from '../app/state.js';
 import {toast} from './theme.js';
-import {closeAllModals,openModal} from './modals.js';
+import {closeLayeredModal,openLayeredModal} from './modals.js';
 import {resizeImageDataUrl,setRegistrationFieldError,setVerificationChip} from './inputValidation.js';
 import {dataUrlToProfileFile,uploadCurrentUserProfilePhoto} from './nameChangeRequests.js';
 import {renderMyAccount} from './accountSettings.js';
@@ -12,18 +12,25 @@ import {analyzeIdImage} from './documentScanner.js';
 import {bindAction} from '../dependencies.js';
 import {cameraFocus} from '../verification/camera-focus.js';
 import {startIdGuidance} from '../verification/id-controller.js';
-import {saveRegistrationId} from './idVerification.js';
+import {saveRegistrationId,selfieButtonId,verificationState} from './idVerification.js';
 import {startSelfieGuidance} from '../verification/selfie-controller.js';
 import {startCaptureLighting} from '../verification/capture-lighting.js';
 // ================================================================
 // CAMERA CAPTURE (selfie + ID) — requests device camera permission
 // ================================================================
 
+// Verification photos started from the clinic-assisted form open above it and return to it.
+const verificationTargets=new Set(['selfie','id-front','id-back']);
+function openVerificationModal(html,target){
+  openLayeredModal(html,appState.camera.verificationScope==='pm'&&verificationTargets.has(target));
+}
+const closeVerificationModal=()=>closeLayeredModal();
+
 export async function openCamera(target){
   if(target!=='selfie')return startCamera(target);
   // Preparation explains the evidence before asking for camera permission.
-  openModal(`<div class="modal selfie-modal">
-    <div class="modal-header"><h3>Selfie Verification</h3><button class="close-btn" aria-label="Close selfie instructions" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+  openVerificationModal(`<div class="modal selfie-modal">
+    <div class="modal-header"><h3>Selfie Verification</h3><button class="close-btn" aria-label="Close selfie instructions" ${bindAction('click',()=>closeVerificationModal())}>✕</button></div>
     <div class="modal-body selfie-intro">
       <div class="selfie-intro-art" aria-hidden="true">
         <svg viewBox="0 0 160 110" fill="none">
@@ -45,8 +52,8 @@ export async function openCamera(target){
       </ol>
       <p class="selfie-privacy"><i class="bi bi-shield-lock" aria-hidden="true"></i> Positioning guidance runs on your device. Only clinic staff review the captured selfie and ID.</p>
     </div>
-    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button class="btn btn-primary" ${bindAction('click',()=>startCamera('selfie'))}><i class="bi bi-camera" aria-hidden="true"></i> Start Camera</button></div>
-  </div>`);
+    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeVerificationModal())}>Cancel</button><button class="btn btn-primary" ${bindAction('click',()=>startCamera('selfie'))}><i class="bi bi-camera" aria-hidden="true"></i> Start Camera</button></div>
+  </div>`,'selfie');
 }
 
 let cameraRequest=0;
@@ -65,8 +72,8 @@ async function startCamera(target){
     const stream=await requestCamera(navigator.mediaDevices,isFrontFacing);
     if(request!==cameraRequest||(requestedFrom&&!requestedFrom.isConnected)){stream.getTracks().forEach(track=>track.stop());return;}
     appState.camera._cameraStream=stream;
-    openModal(`<div class="modal ${guided?'selfie-modal':'modal-sm'}">
-      <div class="modal-header"><h3>${isId?'ID '+(target==='id-front'?'Front — Step 1 of 2':'Back — Step 2 of 2'):target==='selfie'?'Selfie Verification':target==='id'||target==='assisted-id'?'Photograph Your ID / COR':'Take a Photo'}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{stopCamera();closeAllModals()})}>✕</button></div>
+    openVerificationModal(`<div class="modal ${guided?'selfie-modal':'modal-sm'}">
+      <div class="modal-header"><h3>${isId?'ID '+(target==='id-front'?'Front — Step 1 of 2':'Back — Step 2 of 2'):target==='selfie'?'Selfie Verification':target==='id'||target==='assisted-id'?'Photograph Your ID / COR':'Take a Photo'}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{stopCamera();closeVerificationModal()})}>✕</button></div>
       <div class="modal-body" style="text-align:center">
         ${guided?`<div class="selfie-stage" id="selfie-stage" data-camera="${isId?'id':'selfie'}" data-mirrored="${!isId}"><video id="camera-video" autoplay playsinline muted></video><div class="${isId?'id-guide-rectangle':'selfie-guide-square'}" aria-hidden="true"></div>${!isId?'<div class="selfie-id-guide" aria-hidden="true"><span>ID</span></div>':''}<div class="selfie-document-guide">${isId?'Keep all four ID corners visible':'Keep your matching ID visible'}</div></div>
         <div class="selfie-feedback"><p id="selfie-status" role="status" aria-live="polite">Preparing camera…</p><div class="selfie-progress" aria-hidden="true"><span id="selfie-progress"></span></div></div>`:`<video id="camera-video" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;transform:${isFrontFacing?'scaleX(-1)':'none'}"></video>`}
@@ -76,9 +83,9 @@ async function startCamera(target){
         <canvas id="camera-canvas" style="display:none"></canvas>
         <p class="form-note" style="margin-top:.6rem">${isId?'Use the '+(target==='id-front'?'front':'back')+' of your Student or Employee ID. Keep the ID visible and hold it comfortably still.':target==='selfie'?'Hold the front of the same Student or Employee ID beside your face, with its text readable.':`Center your ${target==='id'||target==='assisted-id'?'ID / COR':'face'} in the frame, then capture.`}</p>
       </div>
-      <div class="modal-footer"><button class="btn" ${bindAction('click',()=>{stopCamera();closeAllModals();})}>Cancel</button><button class="btn btn-primary" id="camera-capture-button" ${guided?'disabled':''} ${bindAction('click',()=>captureCameraPhoto(target))}>${guided?'Follow the guide':'📸 Capture'}</button></div>
+      <div class="modal-footer"><button class="btn" ${bindAction('click',()=>{stopCamera();closeVerificationModal();})}>Cancel</button><button class="btn btn-primary" id="camera-capture-button" ${guided?'disabled':''} ${bindAction('click',()=>captureCameraPhoto(target))}>${guided?'Follow the guide':'📸 Capture'}</button></div>
       ${guided?`<div style="padding:0 1rem 1rem;text-align:center">${!isId?`<button class="btn btn-sm selfie-manual" id="selfie-manual-button" hidden ${bindAction('click',()=>captureCameraPhoto(target,true))}>Having trouble? Capture for staff review</button>`:''}<p class="selfie-privacy">The guide checks photo positioning only. Clinic staff verify your identity and ID.</p></div>`:''}
-    </div>`);
+    </div>`,target);
     const video=document.getElementById('camera-video');
     video.srcObject=stream;
     // Mobile browsers may require explicit playback despite autoplay and camera permission.
@@ -131,22 +138,23 @@ export function captureCameraPhoto(target,manual=false){
   ctx.drawImage(video,0,0,canvas.width,canvas.height);
   const dataUrl=canvas.toDataURL('image/jpeg',0.9);
   stopCamera();
-  closeAllModals();
+  closeVerificationModal();
   if(target==='id-front'||target==='id-back'){
     const side=target==='id-front'?'front':'back';
     if(saveRegistrationId(side,dataUrl)){
-      if(side==='front')openModal(`<div class="modal selfie-modal"><div class="modal-header"><h3>Front saved — flip your ID</h3></div><div class="modal-body selfie-intro"><div class="id-flip-art" aria-hidden="true"><i class="bi bi-arrow-repeat"></i></div><p>Now photograph the back of the same Student or Employee ID.</p></div><div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Back to registration</button><button class="btn btn-primary" ${bindAction('click',()=>startCamera('id-back'))}>Photograph Back</button></div></div>`);
+      if(side==='front')openVerificationModal(`<div class="modal selfie-modal"><div class="modal-header"><h3>Front saved — flip your ID</h3></div><div class="modal-body selfie-intro"><div class="id-flip-art" aria-hidden="true"><i class="bi bi-arrow-repeat"></i></div><p>Now photograph the back of the same Student or Employee ID.</p></div><div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeVerificationModal())}>Back to registration</button><button class="btn btn-primary" ${bindAction('click',()=>startCamera('id-back'))}>Photograph Back</button></div></div>`,'id-back');
       else toast('Back saved. Both ID sides are ready for clinic review.','success');
     }
   }else if(target==='selfie'){
     resizeImageDataUrl(dataUrl,1600,0.9).then(resized=>{
-      appState.camera.capturedSelfieDataUrl=resized;
-      const wrap=document.getElementById('r-selfie-preview-wrap');
-      if(wrap)wrap.innerHTML=`<img src="${resized}" alt="Your verification selfie" style="width:100%;height:100%;object-fit:contain">`;
-      const button=document.getElementById('selfie-camera-button');
+      const scope=appState.camera.verificationScope||'r';
+      verificationState(scope).selfie=resized;
+      const wrap=document.getElementById(`${scope}-selfie-preview-wrap`);
+      if(wrap)wrap.innerHTML=`<img src="${resized}" alt="Verification selfie" style="width:100%;height:100%;object-fit:contain">`;
+      const button=document.getElementById(selfieButtonId(scope));
       if(button)button.innerHTML='<i class="bi bi-arrow-repeat" aria-hidden="true"></i> Retake Verification Selfie';
-      setVerificationChip('r-selfie-chip','done','Captured');
-      setRegistrationFieldError('r-selfie','');
+      setVerificationChip(`${scope}-selfie-chip`,'done','Captured');
+      setRegistrationFieldError(`${scope}-selfie`,'');
       toast('Verification selfie captured. Check that your face and ID are clear.','success');
     });
   }else if(target==='account'){

@@ -107,6 +107,12 @@ try{
     response={ok:true};
    }
    else if(path.endsWith('/student-reports'))response={ok:true,report:buildStudentReport({users:[{user_id:10,first_name:'Morning',last_name:'Student',id_number:'ST10',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'},{user_id:11,first_name:'Evening',last_name:'Student',id_number:'ST11',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'}],patients:[{patient_id:10,user_id:10,class_session:'Morning'},{patient_id:11,user_id:11,class_session:'Evening'}],appointments:[{appointment_id:10,patient_id:10,clinic:'Dental Clinic',appointment_date:request.postDataJSON().from,status:'Completed'}]},request.postDataJSON())};
+   else if(path.endsWith('/clinical-intelligence')){
+    const body=request.postDataJSON();
+    response=body.action==='copilot'
+      ?{ok:true,copilot:{summary:'Two clinic visits in the last 90 days.',alerts:[{type:'warning',title:'Repeat complaint',detail:'Headache recorded at two consecutive visits.'}],recent_history:['2026-03-02 — Tension headache; treatment: Paracetamol 500 mg'],record_counts:{treatments:2,appointments:3},draft_note:'S: Headache for two days.\nO: BP 110/70, T 36.8 C.\nA: Tension headache.\nP: Rest, fluids, paracetamol as needed.',method:'Explainable clinical-record summarization'}}
+      :{ok:true,bundle:{resourceType:'Bundle',type:'collection',entry:[{resource:{resourceType:'Patient',id:'patient-10',name:[{family:'Fixture',given:['Morning']}],gender:'female'}},{resource:{resourceType:'Encounter',id:'encounter-1',status:'finished',period:{start:'2026-03-02T09:00:00+08:00'}}},{resource:{resourceType:'Condition',id:'condition-1',code:{text:'Tension headache'},recordedDate:'2026-03-02'}}]}};
+   }
    else if(path.includes('/functions/v1/'))response={ok:true,notifications:[],requests:[],doctor_leaves:[],messages:[],contacts:[doctor],resources:[],surveys:[],users:[],doctors:[doctor],counts:{},items:{}};
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(response)});
   });
@@ -609,8 +615,8 @@ try{
     await page.locator('#pt-status').selectOption('archived');assert.equal(await page.locator('#pt-table tbody tr').count(),1);
     await page.locator('#pt-college').selectOption('');await page.locator('#pt-status').selectOption('active');
     await page.locator('#pt-session').selectOption('Evening');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Evening/);
-    await page.locator('#pt-session').selectOption('unrecorded');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Unknown/);
-    await page.locator('#pt-session').selectOption('Mixed');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Mixed/);
+    // Class sessions are Morning or Evening only.
+    assert.deepEqual(await page.locator('#pt-session option').evaluateAll(options=>options.map(o=>o.value)),['','Morning','Evening']);
     await page.locator('#pt-ptype').selectOption('Teaching Personnel');assert(await page.locator('#pt-session').isDisabled());
     assert.equal(await page.locator('#pt-session').inputValue(),'');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Personnel/);
     await page.locator('#pt-ptype').selectOption('Student');await page.locator('#pt-session').selectOption('Morning');
@@ -628,6 +634,24 @@ try{
     assert.equal(await page.locator('#pt-chart [role="tab"][aria-selected="true"]').innerText(),'Treatments (0)');
     assert(await page.locator('#pt-chart [data-pt-panel="treatments"]').isVisible());
     if(process.env.CAMPUSCARE_VISUAL_DIR){await page.locator('#pt-chart [role="tab"]').first().click();await page.locator('#pt-chart').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/patient-chart-${mobile?'mobile':'desktop'}.png`});}
+    if(process.env.CAMPUSCARE_VISUAL_DIR){
+      const dir=process.env.CAMPUSCARE_VISUAL_DIR,tag=mobile?'mobile':'desktop',shot=async name=>{await page.waitForTimeout(250);await page.locator('#active-modal .modal').first().screenshot({path:`${dir}/${name}-${tag}.png`});};
+      const fhir=page.locator('#pt-chart').getByRole('button',{name:/FHIR Preview/});
+      if(await fhir.count()){await fhir.first().click();await shot('fhir');await page.locator('#active-modal .close-btn').first().click();}
+      const copilot=page.getByRole('button',{name:/Clinical Copilot/});
+      if(await copilot.count()){await copilot.first().click();await shot('copilot');await page.locator('#active-modal .close-btn').first().click();}
+      const edit=page.getByRole('button',{name:'Edit Record',exact:true});
+      if(await edit.count()){await edit.click();await shot('patient-edit');}
+      await page.evaluate(()=>window.__fixtureApp.features.modals.closeAllModals());
+      const add=page.getByRole('button',{name:'+ Add Patient'});
+      if(await add.count()){await add.click();await shot('patient-create');await page.evaluate(()=>window.__fixtureApp.features.modals.closeAllModals());}
+      await page.evaluate(()=>{const c=document.createElement('canvas');c.width=900;c.height=600;const g=c.getContext('2d');const gr=g.createLinearGradient(0,0,900,600);gr.addColorStop(0,'#2b6cb0');gr.addColorStop(1,'#68d391');g.fillStyle=gr;g.fillRect(0,0,900,600);g.fillStyle='#fff';g.font='48px sans-serif';g.fillText('Zoom test',300,320);window.__fixtureApp.features.modals.showFilePreview('id-front.png',c.toDataURL());});
+      const vp=page.locator('#preview-img-viewport');const box=await vp.boundingBox();
+      await page.mouse.move(box.x+box.width*.7,box.y+box.height*.4);await page.mouse.wheel(0,-400);
+      await shot('zoom');
+      await page.evaluate(()=>window.__fixtureApp.features.modals.closeAllModals());
+      await page.locator('#pt-table').getByRole('button',{name:'View',exact:true}).click();
+    }
     await page.locator('#active-modal .close-btn').click();
     // Combine class/session and no-use filters, then check that the registration denominator survives.
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('reports'));

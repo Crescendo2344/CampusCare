@@ -15,7 +15,8 @@ export function createPatientService({getClient,request,baseUrl,publishableKey})
     });
 
     const result=await response.json().catch(()=>({}));
-    if(!response.ok||!result.ok)throw new Error(result.error||'Patient action failed.');
+    // Field-level problems travel with the error so forms can show them beside each control.
+    if(!response.ok||!result.ok)throw Object.assign(new Error(result.error||'Patient action failed.'),{fieldErrors:result.field_errors||null});
     return result;
   }
 

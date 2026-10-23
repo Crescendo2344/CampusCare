@@ -2,6 +2,7 @@
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {bindAction} from '../dependencies.js';
+import {attachImageZoom} from '../ui/image-zoom.js';
 // ================================================================
 // MODALS
 // ================================================================
@@ -47,6 +48,17 @@ export function closeTopModal(){
     (previous.focus?.isConnected?previous.focus:parent).focus({preventScroll:true});
   }else appState.clinicInformation.activeModal=null;
 }
+// Verification steps opened from a form dialog (camera, photo review) sit on top of it and close back to it.
+export function openLayeredModal(html,layered){
+  if(!layered){openModal(html);return;}
+  if(appState.clinicInformation.activeModal?.dataset.layer)closeTopModal();
+  openModal(html,{preserveParent:true});
+  appState.clinicInformation.activeModal.dataset.layer='1';
+}
+export function closeLayeredModal(){
+  if(appState.clinicInformation.activeModal?.dataset.layer)closeTopModal();
+  else closeAllModals();
+}
 export function closeAllModals(){
   // Navigation and logout clear all suspended dialogs so old records cannot reappear later.
   parentDialogs().length=0;
@@ -66,9 +78,7 @@ export function showFilePreview(fileName, fileDataUrl) {
 
   let preview='';
   if(isImage){
-    preview=`<img id="preview-img" src="${escapeHtml(src)}"
-      style="max-width:100%;max-height:58vh;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.12);cursor:zoom-in;transition:width .15s"
-      ${bindAction('click',(event,element)=>{toggleImageZoom(element)})} alt="${escapeHtml(fileName)}">`;
+    preview=`<div class="zoom-viewport" id="preview-img-viewport" aria-label="${escapeHtml(fileName)} — scroll or pinch to zoom, drag to move"><img id="preview-img" src="${escapeHtml(src)}" alt="${escapeHtml(fileName)}"></div>`;
   }else if(isPdf){
     preview=`<iframe src="${escapeHtml(src)}" title="${escapeHtml(fileName)}"
       style="width:100%;height:58vh;border:0;border-radius:8px;background:#fff"></iframe>`;
@@ -82,41 +92,33 @@ export function showFilePreview(fileName, fileDataUrl) {
   }
 
   openModal(`
-    <div class="modal modal-lg">
+    <div class="modal modal-lg file-preview-modal">
       <div class="modal-header">
         <h3>${escapeHtml(fileName)}</h3>
         <button class="close-btn" ${bindAction('click',(event,element)=>{closeTopModal()})}>✕</button>
       </div>
-      <div class="modal-body" style="text-align:center;max-height:68vh;overflow:auto;background:rgba(0,0,0,.04);border-radius:10px" id="preview-img-wrap">
+      <div class="modal-body file-preview-body" id="preview-img-wrap">
         ${preview}
       </div>
-      ${isImage?`<p class="form-note no-print" style="text-align:center;margin-top:.4rem">Click the photo to zoom in, click again to zoom out.</p>`:''}
-      <div class="modal-footer">
-        ${isImage?`<button class="btn btn-sm" ${bindAction('click',(event,element)=>{zoomImageStep(-1)})}>➖ Zoom Out</button><button class="btn btn-sm" ${bindAction('click',(event,element)=>{zoomImageStep(1)})}>➕ Zoom In</button>`:''}
-        <button class="btn" ${bindAction('click',(event,element)=>{closeTopModal()})}>Close</button>
-      </div>
+      ${isImage?`<div class="modal-footer zoom-toolbar">
+        <span class="zoom-hint">Scroll or pinch to zoom · drag to move · double-click to toggle</span>
+        <div class="zoom-controls">
+          <button class="btn btn-sm" aria-label="Zoom out" ${bindAction('click',()=>previewZoom?.zoomOut())}><i class="bi bi-zoom-out" aria-hidden="true"></i></button>
+          <button class="btn btn-sm zoom-level" id="preview-zoom-level" aria-label="Reset zoom" ${bindAction('click',()=>previewZoom?.reset())}>100%</button>
+          <button class="btn btn-sm" aria-label="Zoom in" ${bindAction('click',()=>previewZoom?.zoomIn())}><i class="bi bi-zoom-in" aria-hidden="true"></i></button>
+        </div>
+      </div>`:''}
     </div>
   `,{preserveParent:true});
+  previewZoom?.dispose();previewZoom=null;
+  const viewport=document.getElementById('preview-img-viewport'),img=document.getElementById('preview-img');
+  if(viewport&&img){
+    previewZoom=attachImageZoom(viewport,img,{onChange:scale=>{const level=document.getElementById('preview-zoom-level');if(level)level.textContent=Math.round(scale*100)+'%';}});
+    viewport.focus({preventScroll:true});
+  }
 }
 
-export function toggleImageZoom(img){
-  const zoomed=img.classList.toggle('zoomed');
-  img.style.maxWidth=zoomed?'none':'100%';
-  img.style.width=zoomed?'220%':'auto';
-  img.style.cursor=zoomed?'zoom-out':'zoom-in';
-}
-
-export function zoomImageStep(delta){
-  const img=document.getElementById('preview-img');
-  if(!img)return;
-  let pct=parseInt(img.dataset.zoomPct||'100');
-  pct=Math.min(400,Math.max(50,pct+delta*40));
-  img.dataset.zoomPct=pct;
-  img.style.maxWidth=pct>100?'none':'100%';
-  img.style.width=pct+'%';
-  img.style.cursor=pct>100?'zoom-out':'zoom-in';
-  img.classList.toggle('zoomed',pct>100);
-}
+let previewZoom=null;
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){

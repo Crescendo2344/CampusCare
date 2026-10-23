@@ -193,10 +193,18 @@ ol.selfie-prep-grid{list-style:none;padding:0}
 .capture-light-toggle[aria-pressed="true"]{border-color:var(--primary);color:var(--primary)}
 
 /* Field hints appear as a small popover while a field is focused or hovered, never shifting the form. */
-#reg-section .form-group{position:relative}
-#reg-section .field-hint{position:absolute;left:0;right:0;top:100%;z-index:6;margin:4px 0 0;padding:.5rem .7rem;border-radius:10px;background:var(--glass-surface-strong);border:1px solid var(--line);box-shadow:var(--glass-shadow-sm);color:var(--ink-muted);font-size:.74rem;line-height:1.45;opacity:0;visibility:hidden;transform:translateY(-3px);transition:none;pointer-events:none}
-#reg-section .form-group:is(:focus-within,:hover)>.field-hint{opacity:1;visibility:visible;transform:none;transition:opacity .15s ease,transform .15s ease,visibility 0s}
-#reg-section .form-group.has-error>.field-hint{display:none}
-@media(hover:none){#reg-section .form-group:hover:not(:focus-within)>.field-hint{opacity:0;visibility:hidden}}
-#reg-section .field-hint{background:#fff;color:#3d5265;border-color:#d5dee6;box-shadow:0 8px 24px rgba(10,30,50,.16)}
-[data-theme="dark"] #reg-section .field-hint{background:#22303c;color:#c9d6e0;border-color:#3a4c5c;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+:is(#reg-section,.patient-form) .form-group{position:relative}
+:is(#reg-section,.patient-form) .field-hint{position:absolute;left:0;right:0;top:100%;z-index:6;margin:4px 0 0;padding:.5rem .7rem;border-radius:10px;background:var(--glass-surface-strong);border:1px solid var(--line);box-shadow:var(--glass-shadow-sm);color:var(--ink-muted);font-size:.74rem;line-height:1.45;opacity:0;visibility:hidden;transform:translateY(-3px);transition:none;pointer-events:none}
+:is(#reg-section,.patient-form) .form-group:is(:focus-within,:hover)>.field-hint{opacity:1;visibility:visible;transform:none;transition:opacity .15s ease,transform .15s ease,visibility 0s}
+:is(#reg-section,.patient-form) .form-group.has-error>.field-hint{display:none}
+@media(hover:none){:is(#reg-section,.patient-form) .form-group:hover:not(:focus-within)>.field-hint{opacity:0;visibility:hidden}}
+:is(#reg-section,.patient-form) .field-hint{background:#fff;color:#3d5265;border-color:#d5dee6;box-shadow:0 8px 24px rgba(10,30,50,.16)}
+[data-theme="dark"] :is(#reg-section,.patient-form) .field-hint{background:#22303c;color:#c9d6e0;border-color:#3a4c5c;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+
+/* Clinic-assisted registration / edit form reuses the registration sections and verification steps. */
+.patient-form .pt-form-banner{display:flex;align-items:center;gap:.9rem;padding:0 0 1rem;margin-bottom:1rem;border-bottom:1px solid var(--line,rgba(0,0,0,.08))}
+.patient-form .pt-form-banner h2{margin:0;font-size:1.15rem;line-height:1.25}
+.patient-form .pt-form-banner .pt-banner-ids{font-size:.78rem;color:var(--ink-muted);margin-top:.15rem;overflow-wrap:anywhere}
+.patient-form .registration-group .form-row{align-items:start}
+.patient-form #pm-session-group[hidden]{display:none}
+.patient-form .privacy-agree{margin-top:.4rem}

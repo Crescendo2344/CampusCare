@@ -48,7 +48,7 @@ export async function renderPatients(){
         <option>Student</option><option>Teaching Personnel</option><option>Non-Teaching Personnel</option>
       </select>
       <select id="pt-session" aria-label="Student class session" ${bindAction('change',(event,element)=>{if(element.value)document.getElementById('pt-ptype').value='Student';renderPatientTable()})}>
-        <option value="">All Class Sessions</option><option value="Morning">Morning Students</option><option value="Evening">Evening Students</option><option value="Mixed">Mixed / Both</option><option value="unrecorded">Session Not Recorded</option>
+        <option value="">All Class Sessions</option><option value="Morning">Morning Students</option><option value="Evening">Evening Students</option>
       </select>
       <select id="pt-status" ${bindAction('change',(event,element)=>{renderPatientTable()})}>
         <option value="active">Active Records</option>
@@ -102,7 +102,7 @@ function filteredPatients(){
     const email=p.userId?getUserById(p.userId)?.email||'':'';
     const haystack=`${p.fname} ${p.lname} ${p.lname}, ${p.fname} ${p.idNo} P-${patientDisplayId(p)} ${p.contact||''} ${email}`.toLowerCase();
     const matchStatus=status==='all'||(status==='archived'?!!p.archived:!p.archived);
-    return (!q||haystack.includes(q))&&(!col||p.college===col)&&(!ptype||p.personType===ptype)&&matchStatus&&(!session||(p.personType==='Student'&&(session==='unrecorded'?!['Morning','Evening','Mixed'].includes(p.classSession):p.classSession===session)));
+    return (!q||haystack.includes(q))&&(!col||p.college===col)&&(!ptype||p.personType===ptype)&&matchStatus&&(!session||(p.personType==='Student'&&p.classSession===session));
   });
 }
 
@@ -137,7 +137,7 @@ export function renderPatientTable(){
   const el=document.getElementById('pt-table');
   if(!el)return;
   const summary=document.getElementById('pt-filter-summary');
-  if(summary)summary.textContent=`${all.length} patient record${all.length===1?'':'s'}${session?' · '+(session==='unrecorded'?'Students with no recorded class session':session+' students'):''}`;
+  if(summary)summary.textContent=`${all.length} patient record${all.length===1?'':'s'}${session?' · '+session+' students':''}`;
   const canEdit=appState.auth.currentUser.role==='Administrator'||appState.auth.currentUser.role==='Staff';
   if(!all.length){el.innerHTML='<div class="empty-state"><p>No patients match these filters.</p></div>';return;}
   const header=(key,label)=>{

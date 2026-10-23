@@ -7,7 +7,9 @@ import {fmtDate} from './inputValidation.js';
 import {getPatientById,getUserById} from './documentScanner.js';
 import {treatmentRecords} from './treatmentService.js';
 import {appointmentRecords} from './appointmentService.js';
-import {closeAllModals,openModal} from './modals.js';
+import {closeTopModal,openModal} from './modals.js';
+import {joinSoapNote,splitSoapNote,summarizeFhirBundle} from '../domain/clinical-display.js';
+import {patientDisplayId} from './patientService.js';
 import {toast} from './theme.js';
 import {databaseSkeletonHtml} from './loadingSkeletons.js';
 import {bindAction,createInventoryService,inventoryData} from '../dependencies.js';
@@ -281,39 +283,89 @@ export function buildClinicalCopilot(patientId){
   return {pt,treatments,appointments,latest,alerts,summary,history,soap};
 }
 
+// Copilot and FHIR dialogs open above the patient chart and close back to it.
+const openOverChart=html=>openModal(html,{preserveParent:Boolean(appState.clinicInformation.activeModal?.isConnected)});
+const alertIcon=type=>type==='danger'?'bi-exclamation-octagon-fill':type==='warning'?'bi-clock-history':'bi-info-circle-fill';
+
+function copilotShell(pt,body){
+  return `<div class="modal modal-xl copilot-modal">
+    <div class="modal-header"><div><h3><i class="bi bi-stars" aria-hidden="true"></i> Clinical Copilot</h3><div class="copilot-subtitle">${escapeHtml(pt.lname)}, ${escapeHtml(pt.fname)} · P-${patientDisplayId(pt)}</div></div><button class="close-btn" aria-label="Close Clinical Copilot" ${bindAction('click',()=>closeTopModal())}>✕</button></div>
+    <div class="modal-body" id="clinical-copilot-content">${body}</div>
+  </div>`;
+}
+
+// Normalised copilot view: snapshot facts, attention cards, history timeline and an editable SOAP draft.
+function renderCopilot(pt,patientId,x){
+  const el=document.getElementById('clinical-copilot-content');
+  if(!el)return;
+  const allergy=pt.allergies&&!/^(none|n\/a|na|nkda)$/i.test(pt.allergies.trim());
+  const facts=[
+    ['Age / Sex',`${pt.age===''||pt.age==null?'—':pt.age} · ${pt.gender||'—'}`],
+    ['Blood type',pt.blood||'—'],
+    ['Allergies',pt.allergies||'None recorded',allergy],
+    ['Records',`${x.counts.treatments} treatment${x.counts.treatments===1?'':'s'} · ${x.counts.appointments} appointment${x.counts.appointments===1?'':'s'}`]
+  ];
+  const soap=splitSoapNote(x.draft);
+  const soapLabels={S:'Subjective — symptoms and concerns',O:'Objective — findings and vitals',A:'Assessment',P:'Plan — treatment and follow-up'};
+  el.innerHTML=`
+    <div class="copilot-banner"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Summarises existing CampusCare records only. It does not diagnose or prescribe — review the full chart and confirm everything with the patient before using any draft.</span></div>
+    <div class="copilot-layout">
+      <div class="copilot-column">
+        <section class="copilot-card">
+          <h4>Patient snapshot</h4>
+          <dl class="copilot-facts">${facts.map(([label,value,warn])=>`<div><dt>${label}</dt><dd class="${warn?'text-danger':''}">${escapeHtml(value)}</dd></div>`).join('')}</dl>
+          <p class="copilot-summary">${escapeHtml(x.summary||'')}</p>
+        </section>
+        <section class="copilot-card">
+          <h4>Needs attention <span class="copilot-count">${x.alerts.length}</span></h4>
+          ${x.alerts.length?`<ul class="copilot-alerts">${x.alerts.map(a=>`<li class="copilot-alert ${escapeHtml(a.type||'info')}"><i class="bi ${alertIcon(a.type)}" aria-hidden="true"></i><div><strong>${escapeHtml(a.title||'Attention')}</strong><span>${escapeHtml(a.detail||'')}</span></div></li>`).join('')}</ul>`
+            :'<p class="copilot-empty"><i class="bi bi-check-circle" aria-hidden="true"></i> No automatic warnings. Still review the complete chart.</p>'}
+        </section>
+        <section class="copilot-card">
+          <h4>Recent clinical history</h4>
+          ${x.history.length?`<ol class="copilot-timeline">${x.history.map(item=>`<li><span class="copilot-time">${escapeHtml(item.date||'')}</span><strong>${escapeHtml(item.title)}</strong>${item.detail?`<span>${escapeHtml(item.detail)}</span>`:''}</li>`).join('')}</ol>`:'<p class="copilot-empty">No recent treatment history.</p>'}
+        </section>
+      </div>
+      <section class="copilot-card copilot-note">
+        <div class="copilot-note-head"><h4>Draft visit note</h4><span class="intel-badge">Human review required</span></div>
+        ${soap?Object.entries(soapLabels).map(([key,label])=>`<label class="copilot-soap-field"><span><b>${key}</b> ${label}</span><textarea data-soap="${key}" rows="${key==='O'?4:3}">${escapeHtml(soap[key])}</textarea></label>`).join('')
+          :`<textarea id="copilot-soap" rows="14">${escapeHtml(x.draft||'')}</textarea>`}
+        <div class="copilot-note-actions">
+          <button class="btn btn-sm" ${bindAction('click',()=>renderCopilot(pt,patientId,x))}><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Reset draft</button>
+          <button class="btn btn-primary btn-sm" ${bindAction('click',()=>copyCopilotDraft())}><i class="bi bi-clipboard" aria-hidden="true"></i> Copy note</button>
+        </div>
+      </section>
+    </div>
+    <div class="copilot-footer">
+      <span class="tech-note">${escapeHtml(x.method)}</span>
+      <div class="fhir-toolbar">
+        <button class="btn btn-sm" ${bindAction('click',()=>viewPatientFHIR(patientId))}><i class="bi bi-filetype-json" aria-hidden="true"></i> FHIR Preview</button>
+        <button class="btn btn-sm" ${bindAction('click',()=>downloadPatientFHIR(patientId))}><i class="bi bi-download" aria-hidden="true"></i> Export FHIR</button>
+      </div>
+    </div>`;
+}
+
+// "2026-10-20 — Diagnosis; treatment: …" history lines become timeline entries.
+const historyItem=line=>{
+  if(line&&typeof line==='object')return {date:line.date?fmtDate(line.date):'',title:line.diagnosis||line.title||'Visit',detail:line.prescription?`Treatment: ${line.prescription}`:line.detail||''};
+  const [date,rest='']=String(line).split(/\s+—\s+/);
+  const [title,...detail]=(rest||date).split(/;\s*/);
+  return {date:rest?date:'',title:title||'Visit',detail:detail.join('; ').replace(/^treatment:\s*/i,'Treatment: ')};
+};
+
 export async function openClinicalCopilot(patientId){
   const pt=getPatientById(patientId);
   if(!pt)return;
 
   if(!appState.auth.currentUser?._realSupabase){
     const x=buildClinicalCopilot(patientId);if(!x)return;
-    openModal(`<div class="modal modal-xl">
-      <div class="modal-header"><h3>Clinical Copilot — ${escapeHtml(x.pt.fname+' '+x.pt.lname)}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-      <div class="modal-body">
-        <div class="copilot-hero">
-          <div><div class="copilot-title">✦ Clinical Copilot</div><div class="copilot-disclaimer">Demo fallback: this summarizes the local CampusCare record. It does not diagnose, prescribe, or replace clinical judgment. The clinician must verify all output before use.</div></div>
-          <span class="intel-badge">Human review required</span>
-        </div>
-        <div class="copilot-section"><h4>Patient snapshot</h4><div class="copilot-summary">${escapeHtml(x.summary)}</div></div>
-        <div class="copilot-section"><h4>Attention items</h4>
-          <div class="intel-alert-list">${x.alerts.length?x.alerts.map(a=>`<div class="intel-alert-item"><div class="intel-alert-icon">${a.type==='danger'?'⚠️':a.type==='warning'?'⏱':'ℹ️'}</div><div class="intel-alert-copy"><strong>${escapeHtml(a.title)}</strong><span>${escapeHtml(a.detail)}</span></div></div>`).join(''):`<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No automatic warning generated</strong><span>Review the complete chart before making clinical decisions.</span></div></div>`}</div>
-        </div>
-        <div class="grid-2" style="margin-top:.85rem">
-          <div class="copilot-section" style="margin-top:0"><h4>Recent clinical history</h4><div class="copilot-summary">${escapeHtml(x.history)}</div></div>
-          <div class="copilot-section" style="margin-top:0"><h4>Draft structured note</h4><textarea id="copilot-soap" rows="10" style="width:100%;padding:.7rem;border-radius:11px;border:1px solid var(--line);background:var(--overlay);color:var(--ink)">${escapeHtml(x.soap)}</textarea></div>
-        </div>
-      </div>
-      <div class="modal-footer" style="justify-content:space-between">
-        <div class="fhir-toolbar">
-          <button class="btn btn-info btn-sm" ${bindAction('click',(event,element)=>{viewPatientFHIR((patientId))})}>FHIR Preview</button>
-          <button class="btn btn-sm" ${bindAction('click',(event,element)=>{downloadPatientFHIR((patientId))})}>Export FHIR JSON</button>
-        </div>
-        <div style="display:flex;gap:.45rem">
-          <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
-          <button class="btn btn-primary" ${bindAction('click',(event,element)=>{copyCopilotDraft()})}>Copy Draft Note</button>
-        </div>
-      </div>
-    </div>`);
+    openOverChart(copilotShell(pt,''));
+    renderCopilot(pt,patientId,{
+      summary:x.summary,alerts:x.alerts,draft:x.soap,
+      history:x.treatments.slice(0,5).map(t=>({date:fmtDate(t.date),title:t.diagnosis||'No diagnosis recorded',detail:t.prescription?`Treatment: ${t.prescription}`:''})),
+      counts:{treatments:x.treatments.length,appointments:x.appointments.length},
+      method:'Local record summary (offline demo data)'
+    });
     return;
   }
 
@@ -321,90 +373,17 @@ export async function openClinicalCopilot(patientId){
     toast('The real patient database record could not be identified.','error');
     return;
   }
-
-  openModal(`<div class="modal modal-xl">
-    <div class="modal-header"><h3>Clinical Copilot — ${escapeHtml(pt.fname+' '+pt.lname)}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-    <div class="modal-body" id="clinical-copilot-content">
-      <div class="copilot-hero">
-        <div>
-          <div class="copilot-title">✦ Clinical Copilot</div>
-          <div class="copilot-disclaimer">Loading clinical records…</div>
-        </div>
-        <span class="intel-badge">Clinic records</span>
-      </div>
-      ${databaseSkeletonHtml('cards',4)}
-    </div>
-  </div>`);
-
+  openOverChart(copilotShell(pt,`<p class="tech-note">Loading clinical records…</p>${databaseSkeletonHtml('cards',4)}`));
   try{
-    const result=await clinicalIntelligenceAction({
-      action:'copilot',
-      patient_id:Number(pt.dbPatientId)
-    });
+    const result=await clinicalIntelligenceAction({action:'copilot',patient_id:Number(pt.dbPatientId)});
     const x=result.copilot;
-    const el=document.getElementById('clinical-copilot-content');
-    if(!el||!x)return;
-
-    const history=(x.recent_history||[]).length
-      ? x.recent_history.join('\n')
-      : 'No recent treatment history.';
-
-    el.innerHTML=`
-      <div class="copilot-hero">
-        <div>
-          <div class="copilot-title">✦ Clinical Copilot</div>
-          <div class="copilot-disclaimer">
-            This server-side assistant summarizes existing CampusCare records using transparent rules. It does not diagnose,
-            prescribe, or replace clinical judgment. Verify the complete chart and the patient before using any draft.
-          </div>
-        </div>
-        <span class="intel-badge">Human review required</span>
-      </div>
-
-      <div class="copilot-section"><h4>Patient snapshot</h4><div class="copilot-summary">${escapeHtml(x.summary||'')}</div></div>
-
-      <div class="copilot-section"><h4>Attention items</h4>
-        <div class="intel-alert-list">${(x.alerts||[]).length
-          ? x.alerts.map(a=>`<div class="intel-alert-item">
-              <div class="intel-alert-icon">${a.type==='danger'?'⚠️':a.type==='warning'?'⏱':'ℹ️'}</div>
-              <div class="intel-alert-copy"><strong>${escapeHtml(a.title||'Attention')}</strong><span>${escapeHtml(a.detail||'')}</span></div>
-            </div>`).join('')
-          : `<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No automatic warning generated</strong><span>Review the complete chart before making clinical decisions.</span></div></div>`}
-        </div>
-      </div>
-
-      <div class="grid-2" style="margin-top:.85rem">
-        <div class="copilot-section" style="margin-top:0">
-          <h4>Recent clinical history</h4>
-          <div class="copilot-summary">${escapeHtml(history)}</div>
-        </div>
-        <div class="copilot-section" style="margin-top:0">
-          <h4>Draft structured note</h4>
-          <textarea id="copilot-soap" rows="10" style="width:100%;padding:.7rem;border-radius:11px;border:1px solid var(--line);background:var(--overlay);color:var(--ink)">${escapeHtml(x.draft_note||'')}</textarea>
-        </div>
-      </div>
-
-      <div class="tech-note" style="margin-top:.8rem">
-        Method: ${escapeHtml(x.method||'Explainable clinical-record summarization')} ·
-        ${Number(x.record_counts?.treatments||0)} treatment record${Number(x.record_counts?.treatments||0)===1?'':'s'} ·
-        ${Number(x.record_counts?.appointments||0)} appointment record${Number(x.record_counts?.appointments||0)===1?'':'s'}
-      </div>
-    `;
-
-    const modal=el.closest('.modal');
-    if(modal&&!modal.querySelector('.modal-footer')){
-      modal.insertAdjacentHTML('beforeend',`
-        <div class="modal-footer" style="justify-content:space-between">
-          <div class="fhir-toolbar">
-            <button class="btn btn-info btn-sm" ${bindAction('click',(event,element)=>{viewPatientFHIR((patientId))})}>FHIR Preview</button>
-            <button class="btn btn-sm" ${bindAction('click',(event,element)=>{downloadPatientFHIR((patientId))})}>Export FHIR JSON</button>
-          </div>
-          <div style="display:flex;gap:.45rem">
-            <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
-            <button class="btn btn-primary" ${bindAction('click',(event,element)=>{copyCopilotDraft()})}>Copy Draft Note</button>
-          </div>
-        </div>`);
-    }
+    if(!x)throw new Error('The Clinical Copilot returned no summary for this patient. Try again later.');
+    renderCopilot(pt,patientId,{
+      summary:x.summary||'',alerts:x.alerts||[],draft:x.draft_note||'',
+      history:(x.recent_history||[]).map(historyItem),
+      counts:{treatments:Number(x.record_counts?.treatments||0),appointments:Number(x.record_counts?.appointments||0)},
+      method:`Method: ${x.method||'Explainable clinical-record summarization'}`
+    });
   }catch(e){
     const el=document.getElementById('clinical-copilot-content');
     if(el)el.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load the Clinical Copilot.')}</div>`;
@@ -412,7 +391,8 @@ export async function openClinicalCopilot(patientId){
 }
 
 export function copyCopilotDraft(){
-  const text=document.getElementById('copilot-soap')?.value||'';
+  const fields=[...document.querySelectorAll('#clinical-copilot-content [data-soap]')];
+  const text=fields.length?joinSoapNote(Object.fromEntries(fields.map(field=>[field.dataset.soap,field.value]))):document.getElementById('copilot-soap')?.value||'';
   if(!text)return;
   if(navigator.clipboard?.writeText){
     navigator.clipboard.writeText(text).then(()=>toast('Copilot draft copied. Review it before saving to the record.','success')).catch(()=>toast('Could not access clipboard.','warning'));
@@ -526,50 +506,58 @@ export function campusCareFHIRBundle(patientId){
   };
 }
 
+// FHIR export preview: what the bundle contains in plain terms first, raw JSON on its own tab.
+function fhirShell(pt,body){
+  return `<div class="modal modal-xl fhir-modal">
+    <div class="modal-header"><div><h3><i class="bi bi-filetype-json" aria-hidden="true"></i> FHIR Record Export</h3><div class="copilot-subtitle">${escapeHtml(pt.lname)}, ${escapeHtml(pt.fname)} · P-${patientDisplayId(pt)} · FHIR R4 collection bundle</div></div><button class="close-btn" aria-label="Close FHIR preview" ${bindAction('click',()=>closeTopModal())}>✕</button></div>
+    <div class="modal-body" id="fhir-preview-body">${body}</div>
+  </div>`;
+}
+function renderFhirPreview(patientId,bundle,note){
+  const el=document.getElementById('fhir-preview-body');
+  if(!el)return;
+  const summary=summarizeFhirBundle(bundle);
+  const json=JSON.stringify(bundle,null,2);
+  const show=tab=>{
+    el.querySelectorAll('[data-fhir-tab]').forEach(button=>{const on=button.dataset.fhirTab===tab;button.classList.toggle('active',on);button.setAttribute('aria-selected',String(on));});
+    el.querySelectorAll('[data-fhir-panel]').forEach(panel=>{panel.hidden=panel.dataset.fhirPanel!==tab;});
+  };
+  el.innerHTML=`
+    <div class="fhir-counts">${summary.counts.map(c=>`<span class="fhir-count"><strong>${c.count}</strong> ${escapeHtml(c.type)}</span>`).join('')}<span class="fhir-count total"><strong>${summary.total}</strong> resources</span></div>
+    <p class="fhir-note"><i class="bi bi-info-circle" aria-hidden="true"></i> ${escapeHtml(note)}</p>
+    <div class="pt-tabs" role="tablist">
+      <button type="button" role="tab" class="pt-tab active" data-fhir-tab="summary" aria-selected="true" ${bindAction('click',()=>show('summary'))}>Summary</button>
+      <button type="button" role="tab" class="pt-tab" data-fhir-tab="json" aria-selected="false" ${bindAction('click',()=>show('json'))}>JSON</button>
+    </div>
+    <div data-fhir-panel="summary"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Details</th><th>Date</th><th>Status</th><th>ID</th></tr></thead><tbody>${summary.rows.map(r=>`<tr><td><span class="badge badge-info">${escapeHtml(r.type)}</span></td><td>${escapeHtml(r.detail)}</td><td>${r.date?fmtDate(r.date):'—'}</td><td>${escapeHtml(r.status||'—')}</td><td class="text-muted"><code>${escapeHtml(r.id)}</code></td></tr>`).join('')}</tbody></table></div></div>
+    <div data-fhir-panel="json" hidden><pre class="fhir-preview">${escapeHtml(json)}</pre></div>
+    <div class="copilot-footer">
+      <span class="tech-note">Generated ${escapeHtml(new Date(bundle.timestamp||Date.now()).toLocaleString('en-PH'))}</span>
+      <div class="fhir-toolbar">
+        <button class="btn btn-sm" ${bindAction('click',()=>{navigator.clipboard?.writeText(json).then(()=>toast('FHIR JSON copied.','success')).catch(()=>toast('Could not access the clipboard.','warning'));})}><i class="bi bi-clipboard" aria-hidden="true"></i> Copy JSON</button>
+        <button class="btn btn-primary btn-sm" ${bindAction('click',()=>downloadPatientFHIR(patientId))}><i class="bi bi-download" aria-hidden="true"></i> Download JSON</button>
+      </div>
+    </div>`;
+}
+
 export async function viewPatientFHIR(patientId){
   const pt=getPatientById(patientId);if(!pt)return;
-
+  const note='Validate this bundle against the receiving system\'s FHIR implementation guide before sharing it.';
   if(!appState.auth.currentUser?._realSupabase){
     const bundle=campusCareFHIRBundle(patientId);if(!bundle)return;
-    openModal(`<div class="modal modal-xl">
-      <div class="modal-header"><div><h3>FHIR-ready Record Preview</h3><div class="tech-note">Sample FHIR R4 export. Check compatibility before sharing with another system.</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-      <div class="modal-body"><pre class="fhir-preview">${escapeHtml(JSON.stringify(bundle,null,2))}</pre></div>
-      <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadPatientFHIR((patientId))})}>Download JSON</button></div>
-    </div>`);
+    openOverChart(fhirShell(pt,''));
+    renderFhirPreview(patientId,bundle,note);
     return;
   }
-
   if(!pt.dbPatientId){
     toast('The real patient database record could not be identified.','error');
     return;
   }
-
-  openModal(`<div class="modal modal-xl">
-    <div class="modal-header"><div><h3>FHIR-ready Record Preview</h3><div class="tech-note">Preparing the record export…</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-    <div class="modal-body" id="fhir-preview-body">${databaseSkeletonHtml('table')}</div>
-  </div>`);
-
+  openOverChart(fhirShell(pt,`<p class="tech-note">Preparing the record export…</p>${databaseSkeletonHtml('table')}`));
   try{
-    const result=await clinicalIntelligenceAction({
-      action:'fhir',
-      patient_id:Number(pt.dbPatientId),
-      mode:'preview'
-    });
-    const el=document.getElementById('fhir-preview-body');
-    if(!el||!result.bundle)return;
-
-    el.innerHTML=`
-      <div class="alert alert-info show" style="font-size:.76rem">${escapeHtml(result.validation_note||'Validate this bundle against the receiving FHIR implementation guide before exchange.')}</div>
-      <pre class="fhir-preview">${escapeHtml(JSON.stringify(result.bundle,null,2))}</pre>`;
-
-    const modal=el.closest('.modal');
-    if(modal&&!modal.querySelector('.modal-footer')){
-      modal.insertAdjacentHTML('beforeend',`
-        <div class="modal-footer">
-          <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
-          <button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadPatientFHIR((patientId))})}>Download JSON</button>
-        </div>`);
-    }
+    const result=await clinicalIntelligenceAction({action:'fhir',patient_id:Number(pt.dbPatientId),mode:'preview'});
+    if(!result.bundle)throw new Error('No FHIR bundle was returned for this patient. Try again later.');
+    renderFhirPreview(patientId,result.bundle,result.validation_note||note);
   }catch(e){
     const el=document.getElementById('fhir-preview-body');
     if(el)el.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to generate the FHIR preview.')}</div>`;

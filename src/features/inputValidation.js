@@ -45,8 +45,10 @@ export function setRegistrationFieldError(id,message,showError=true){
     }
   }
   // Photo steps highlight their whole panel; other fields mark the control a person interacts with.
-  const group={'r-selfie':'r-selfie-group','r-id':'r-id-group'}[id];
-  const control=group?null:document.getElementById(id==='r-dob'?'r-dob-button':id);
+  const group=/-(selfie|id)$/.test(id)?`${id}-group`:'';
+  const field=document.getElementById(id);
+  // Date fields store their value in a hidden input; the visible picker button carries the error state.
+  const control=group?null:field?.type==='hidden'?field.closest('.form-group')?.querySelector('.modern-date-btn'):field;
   control?.setAttribute('aria-invalid',String(visible));
   (group?document.getElementById(group):control?.closest('.form-group'))?.classList.toggle('has-error',visible);
   document.getElementById(id)?.setCustomValidity?.(message||'');
@@ -73,7 +75,37 @@ const registrationFieldRules={
     if(appState.documentScanner.lastOcrDocumentType==='COR')return 'COR is not accepted. Use the front and back of your Student or Employee ID.';
     return sides.front&&sides.back?'':'Provide the front and back of your Student or Employee ID.';
   },
-  'r-privacy-consent':()=>document.getElementById('r-privacy-consent')?.checked?'':'Please read and agree to the CampusCare Privacy Notice and Consent.'
+  'r-privacy-consent':()=>document.getElementById('r-privacy-consent')?.checked?'':'Please read and agree to the CampusCare Privacy Notice and Consent.',
+  // Clinic-assisted registration and patient edits (pm-*) use the same rules; account-only fields
+  // exist only while creating, and photo steps only while the verification panel is on screen.
+  'pm-fname':()=>nameValidationError(value('pm-fname'),'First name'),
+  'pm-lname':()=>nameValidationError(value('pm-lname'),'Last name'),
+  'pm-email':()=>enabled('pm-email')?(value('pm-email').trim()?emailValidationError(value('pm-email')):'Enter the patient\'s email address.'):'',
+  'pm-username':()=>enabled('pm-username')?usernameValidationError(value('pm-username')):'',
+  'pm-college':()=>value('pm-college')?'':'Select the college or department.',
+  'pm-idno':()=>schoolIdValidationError(value('pm-idno').trim(),value('pm-ptype')||'Student'),
+  'pm-birth':()=>birthDateValidationError(value('pm-birth'),appState.clinicInformation.TODAY),
+  'pm-gender':()=>value('pm-gender')?'':'Select the patient\'s sex.',
+  'pm-class-session':()=>value('pm-ptype')==='Student'&&!value('pm-class-session')?'Select the student\'s class session.':'',
+  'pm-contact':()=>contactValidationError(value('pm-contact')),
+  'pm-height':()=>rangeError('pm-height',40,260,'Height must be between 40 and 260 cm.'),
+  'pm-weight':()=>rangeError('pm-weight',1,500,'Weight must be between 1 and 500 kg.'),
+  'pm-ename':()=>value('pm-ename').trim()?nameValidationError(value('pm-ename'),'Emergency contact name'):'',
+  'pm-econtact':()=>contactValidationError(value('pm-econtact')),
+  'pm-selfie':()=>!document.getElementById('pm-selfie-group')||appState.camera.verificationScopes?.pm?.selfie?'':'Take a live verification selfie of the patient holding their ID.',
+  'pm-id':()=>{
+    if(!document.getElementById('pm-id-group'))return '';
+    const sides=appState.camera.verificationScopes?.pm?.ids||{};
+    return sides.front&&sides.back?'':'Provide the front and back of the patient\'s Student or Employee ID.';
+  },
+  'pm-privacy-ack':()=>!document.getElementById('pm-privacy-ack')||document.getElementById('pm-privacy-ack').checked?'':'Confirm that the patient reviewed and acknowledged the Privacy Notice.'
+};
+const enabled=id=>{const el=document.getElementById(id);return Boolean(el&&!el.disabled);};
+const rangeError=(id,min,max,message)=>{
+  const raw=value(id).trim();
+  if(!raw)return '';
+  const number=Number(raw);
+  return Number.isFinite(number)&&number>=min&&number<=max?'':message;
 };
 const touchedFields=new Set();
 
@@ -81,17 +113,23 @@ const touchedFields=new Set();
 const availabilityFields={
   'r-user':{field:'username',normalize:v=>v.trim().toLowerCase(),message:'This username is already taken. Try another one.'},
   'r-email':{field:'email',normalize:v=>v.trim().toLowerCase(),message:'An account with this email already exists. Log in or reset your password.'},
-  'r-idno':{field:'id_number',normalize:v=>v.trim(),message:'This ID number is already registered. Contact the clinic if this is a mistake.'}
+  'r-idno':{field:'id_number',normalize:v=>v.trim(),message:'This ID number is already registered. Contact the clinic if this is a mistake.'},
+  'pm-username':{field:'username',normalize:v=>v.trim().toLowerCase(),message:'This username is already taken. Choose another one.'},
+  'pm-email':{field:'email',normalize:v=>v.trim().toLowerCase(),message:'An account with this email already exists.'},
+  'pm-idno':{field:'id_number',normalize:v=>v.trim(),message:'This ID number is already registered to another patient.'}
 };
+// A patient's own saved ID number is never "taken" while their record is being edited.
+const unchangedOriginal=id=>{const el=document.getElementById(id);return Boolean(el?.dataset.original)&&el.value.trim()===el.dataset.original;};
 const availabilityCache=new Map();
 const takenMessage=id=>{
   const config=availabilityFields[id];
+  if(!config||!enabled(id)||unchangedOriginal(id))return '';
   return config&&availabilityCache.get(id+':'+config.normalize(value(id)))===false?config.message:'';
 };
 
 async function checkRegistrationAvailability(id){
   const config=availabilityFields[id],normalized=config.normalize(value(id)),key=id+':'+normalized;
-  if(!normalized||availabilityCache.has(key))return;
+  if(!normalized||availabilityCache.has(key)||!enabled(id)||unchangedOriginal(id))return;
   try{
     const query=new URLSearchParams({check:'availability',field:config.field,value:normalized});
     const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/register-patient?${query}`,{headers:{apikey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY}});
@@ -122,14 +160,16 @@ export function validateRegistrationField(id,showError=true,{submit=false}={}){
 }
 
 // Check every field at once, show all problems and return the invalid controls in page order.
-export function validateRegistrationForm(){
-  return Object.keys(registrationFieldRules).filter(id=>validateRegistrationField(id,true,{submit:true}));
+export function validateRegistrationForm(prefix='r-'){
+  return Object.keys(registrationFieldRules).filter(id=>id.startsWith(prefix)).filter(id=>validateRegistrationField(id,true,{submit:true}));
 }
 
-export function resetRegistrationFieldErrors(){
-  touchedFields.clear();
-  for(const id of Object.keys(registrationFieldRules))setRegistrationFieldError(id,'',false);
+export function resetRegistrationFieldErrors(prefix='r-'){
+  for(const id of Object.keys(registrationFieldRules).filter(id=>id.startsWith(prefix))){touchedFields.delete(id);setRegistrationFieldError(id,'',false);}
 }
+
+// Server field names (from field_errors) mapped to the patient form controls.
+export const PATIENT_FORM_SERVER_FIELDS={first_name:'pm-fname',last_name:'pm-lname',username:'pm-username',email:'pm-email',contact_number:'pm-contact',college:'pm-college',id_number:'pm-idno',birth_date:'pm-birth',sex:'pm-gender',class_session:'pm-class-session'};
 
 export function getSemester(...args){return formatters.getSemester(...args);}
 export function currentSemester(){return getSemester(appState.clinicInformation.TODAY);}
@@ -158,11 +198,11 @@ export function setVerificationChip(id,state,text){
   chip.dataset.state=state;chip.textContent=text;
 }
 
-export function resetSelfiePreview(){
-  setVerificationChip('r-selfie-chip','todo','Required');
-  const button=document.getElementById('selfie-camera-button');
+export function resetSelfiePreview(scope='r'){
+  setVerificationChip(`${scope}-selfie-chip`,'todo','Required');
+  const button=document.getElementById(scope==='r'?'selfie-camera-button':`${scope}-selfie-camera-button`);
   if(button)button.innerHTML='<i class="bi bi-camera" aria-hidden="true"></i> Take Verification Selfie';
-  const wrap=document.getElementById('r-selfie-preview-wrap');
+  const wrap=document.getElementById(`${scope}-selfie-preview-wrap`);
   if(wrap)wrap.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:26px;height:26px;color:var(--ink-muted)"><path stroke-linecap="round" stroke-linejoin="round" d="M15 8a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 20a7.5 7.5 0 0115 0"/></svg>`;
 }
 
