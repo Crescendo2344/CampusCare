@@ -604,19 +604,30 @@ try{
     await patientScroll.evaluate(el=>{el.scrollTop=el.scrollHeight;});
     assert(await patientScroll.evaluate(el=>el.scrollTop>0));
     await page.locator('#pt-session').selectOption('Morning');assert.equal(await page.locator('#pt-ptype').inputValue(),'Student');
-    assert.equal(await page.locator('#pt-table tbody tr').count(),1);assert.match(await page.locator('#pt-table').innerText(),/Morning Fixture/);
+    assert.equal(await page.locator('#pt-table tbody tr').count(),1);assert.match(await page.locator('#pt-table').innerText(),/Fixture, Morning/);
     await page.locator('#pt-college').selectOption('COE');assert.equal(await page.locator('#pt-table tbody tr').count(),0);
     await page.locator('#pt-status').selectOption('archived');assert.equal(await page.locator('#pt-table tbody tr').count(),1);
     await page.locator('#pt-college').selectOption('');await page.locator('#pt-status').selectOption('active');
-    await page.locator('#pt-session').selectOption('Evening');assert.match(await page.locator('#pt-table').innerText(),/Evening Fixture/);
-    await page.locator('#pt-session').selectOption('unrecorded');assert.match(await page.locator('#pt-table').innerText(),/Unknown Fixture/);
-    await page.locator('#pt-session').selectOption('Mixed');assert.match(await page.locator('#pt-table').innerText(),/Mixed Fixture/);
+    await page.locator('#pt-session').selectOption('Evening');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Evening/);
+    await page.locator('#pt-session').selectOption('unrecorded');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Unknown/);
+    await page.locator('#pt-session').selectOption('Mixed');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Mixed/);
     await page.locator('#pt-ptype').selectOption('Teaching Personnel');assert(await page.locator('#pt-session').isDisabled());
-    assert.equal(await page.locator('#pt-session').inputValue(),'');assert.match(await page.locator('#pt-table').innerText(),/Personnel Fixture/);
+    assert.equal(await page.locator('#pt-session').inputValue(),'');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Personnel/);
     await page.locator('#pt-ptype').selectOption('Student');await page.locator('#pt-session').selectOption('Morning');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/workspace-patients-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+    // Sortable columns announce their order; the export covers the filtered list.
+    await page.locator('#pt-table th').getByRole('button',{name:/Patient/}).click();
+    assert.equal(await page.locator('#pt-table th[aria-sort="descending"]').count(),1);
+    assert.equal(await page.getByRole('button',{name:/Export CSV/}).count(),1);
     await page.locator('#pt-table').getByRole('button',{name:'View',exact:true}).click();
     for(const label of ['Allergies','Medical History'])assert.equal(await page.locator('.info-row').filter({has:page.locator('.info-label',{hasText:label})}).locator('.info-val').innerText(),'—');
+    // Chart layout: identity banner, no allergy alert without allergies, and five keyboard-navigable tabs.
+    assert.equal(await page.locator('#pt-chart .pt-allergy-alert').count(),0);
+    assert.equal(await page.locator('#pt-chart [role="tab"]').count(),5);
+    await page.locator('#pt-chart [role="tab"]').first().focus();await page.keyboard.press('ArrowRight');
+    assert.equal(await page.locator('#pt-chart [role="tab"][aria-selected="true"]').innerText(),'Treatments (0)');
+    assert(await page.locator('#pt-chart [data-pt-panel="treatments"]').isVisible());
+    if(process.env.CAMPUSCARE_VISUAL_DIR){await page.locator('#pt-chart [role="tab"]').first().click();await page.locator('#pt-chart').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/patient-chart-${mobile?'mobile':'desktop'}.png`});}
     await page.locator('#active-modal .close-btn').click();
     // Combine class/session and no-use filters, then check that the registration denominator survives.
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('reports'));

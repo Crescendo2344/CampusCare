@@ -126,3 +126,58 @@ export function mergeClinicalDirectory(db,rows,now=new Date()){
   return {users:[...(db.users||[]).filter(u=>!u._realSupabase),...rows.map(normalizeSupabaseUser)],
     patients:[...(db.patients||[]).filter(p=>!p._realSupabase),...rows.map(r=>directoryRowToPatient(r,now)).filter(Boolean)]};
 }
+
+// An allergy entry needs a warning unless it explicitly records that there are none.
+export function hasAllergyAlert(allergies){
+  const text=String(allergies||'').trim().toLowerCase().replace(/[.\s]+$/,'');
+  return Boolean(text)&&!['none','n/a','na','no','nka','nkda','no known allergies','no known drug allergies','-','—'].includes(text);
+}
+
+// BMI from stored height ("170cm") and weight ("65kg"), with the WHO adult category.
+export function bodyMassIndex(height,weight){
+  const cm=parseFloat(String(height||'').replace(/[^\d.]/g,'')),kg=parseFloat(String(weight||'').replace(/[^\d.]/g,''));
+  if(!(cm>=40&&cm<=260)||!(kg>=1&&kg<=500))return null;
+  const value=Math.round(kg/((cm/100)**2)*10)/10;
+  const category=value<18.5?'Underweight':value<25?'Normal':value<30?'Overweight':'Obese';
+  return {value,category};
+}
+
+// Most recent completed visit (appointment or treatment) and the next scheduled appointment.
+export function patientVisitSummary(patientId,{appointments=[],treatments=[],today}){
+  const visits=[
+    ...appointments.filter(a=>a.patientId===patientId&&a.status==='Completed').map(a=>a.date),
+    ...treatments.filter(t=>t.patientId===patientId&&!t.archived).map(t=>t.date)
+  ].filter(date=>date&&date<=today).sort();
+  const upcoming=appointments.filter(a=>a.patientId===patientId&&a.status==='Scheduled'&&a.date>=today)
+    .sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  return {lastVisit:visits.at(-1)||'',nextAppointment:upcoming[0]||null};
+}
+
+// Column sorting for the records table; blanks always sort last.
+export function sortPatients(rows,key,direction='asc',lastVisit=()=>''){
+  const value={
+    name:p=>`${p.lname||''} ${p.fname||''}`.trim().toLowerCase(),
+    id:p=>String(p.idNo||'').toLowerCase(),
+    age:p=>Number.isFinite(Number(p.age))&&p.age!==''?Number(p.age):null,
+    college:p=>String(p.college||'').toLowerCase(),
+    lastVisit:p=>lastVisit(p)||''
+  }[key]||(p=>`${p.lname||''} ${p.fname||''}`.toLowerCase());
+  const sign=direction==='desc'?-1:1;
+  return [...rows].sort((a,b)=>{
+    const x=value(a),y=value(b),blankX=x===null||x==='',blankY=y===null||y==='';
+    if(blankX||blankY)return blankX===blankY?0:blankX?1:-1;
+    return (x<y?-1:x>y?1:0)*sign;
+  });
+}
+
+// Spreadsheet-safe CSV of the filtered list; formula-like cells are neutralised.
+export function patientsCsv(rows,lastVisit=()=>''){
+  const cell=value=>{
+    let text=String(value??'');
+    if(/^[=+\-@]/.test(text))text="'"+text;
+    return /[",\n]/.test(text)?`"${text.replace(/"/g,'""')}"`:text;
+  };
+  const header=['Patient No.','ID No.','Last Name','First Name','Age','Sex','College','Type','Class Session','Blood Type','Allergies','Contact','Last Visit','Status'];
+  const lines=rows.map(p=>[`P-${patientDisplayId(p)}`,p.idNo,p.lname,p.fname,p.age,p.gender,p.college,p.personType,p.personType==='Student'?p.classSession:'',p.blood,p.allergies,p.contact,lastVisit(p),p.archived?'Archived':'Active'].map(cell).join(','));
+  return [header.join(','),...lines].join('\r\n');
+}

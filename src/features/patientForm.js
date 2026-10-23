@@ -2,7 +2,7 @@
 import {state as appState} from '../app/state.js';
 import {getUserById} from './documentScanner.js';
 import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
-import {ageFromBirthDate,patientAction,patientMeasurementNumber,syncAdminDirectoryFromSupabase} from './patientService.js';
+import {ageFromBirthDate,patientAction,patientDisplayId,patientMeasurementNumber,syncAdminDirectoryFromSupabase} from './patientService.js';
 import {closeAllModals,openModal} from './modals.js';
 import {assistedFile,campusDateFieldHtml,openAssistedPatientCamera,restoreAssistedPatientDraft} from './datePicker.js';
 import {escapeHtml} from './issueReports.js';
@@ -11,10 +11,11 @@ import {persistDB} from './persistence.js';
 import {patientAvatarHtml,renderPatients} from './patientManagement.js';
 import {syncRealTreatments,treatmentRecords} from './treatmentService.js';
 import {appointmentRecords} from './appointmentService.js';
-import {collegeBadge,fmtDate,priorityBadge,statusBadge} from './inputValidation.js';
+import {collegeBadge,fmtDate,fmtTime,priorityBadge,statusBadge} from './inputValidation.js';
 import {docName} from './messaging.js';
 import {downloadPatientFHIR,openClinicalCopilot,viewPatientFHIR} from './inventoryService.js';
-import {bindAction} from '../dependencies.js';
+import {bindAction,patientData} from '../dependencies.js';
+import {fitnessRecords} from './fitnessAssessments.js';
 // ── Patient Modal ──
 export function openPatientModal(id=null){
   const pt=id?appState.data.DB.patients.find(p=>p.id===Number(id)):null;
@@ -281,41 +282,70 @@ export async function savePatient(id){
   }
 }
 
+// Patient chart: identity banner, allergy alert, then Overview / Treatments / Appointments /
+// Certificates / Fitness tabs, following the layout of common clinic record systems.
 export async function viewPatient(id){
   const pt=appState.data.DB.patients.find(p=>p.id===id);if(!pt)return;
   if(appState.auth.currentUser?._realSupabase){
     try{await syncRealTreatments();}catch(e){console.error('Patient treatment sync:',e);}
   }
-  const treats=treatmentRecords().filter(t=>t.patientId===id&&!t.archived);
-  const appts=appointmentRecords().filter(a=>a.patientId===id).slice(-5);
-  openModal(`<div class="modal modal-lg">
-    <div class="modal-header"><h3 style="display:flex;align-items:center;gap:.6rem">${patientAvatarHtml(pt,32)} Patient: ${pt.fname} ${pt.lname}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+  const today=appState.clinicInformation.TODAY;
+  const byNewest=(a,b)=>String(b).localeCompare(String(a));
+  const treats=treatmentRecords().filter(t=>t.patientId===id&&!t.archived).sort((a,b)=>byNewest(a.date,b.date));
+  const appts=appointmentRecords().filter(a=>a.patientId===id).sort((a,b)=>byNewest(a.date+(a.time||''),b.date+(b.time||'')));
+  const certs=(appState.data.DB.certRequests||[]).filter(c=>c.patientId===id).sort((a,b)=>byNewest(a.requestedAt,b.requestedAt));
+  const fitness=fitnessRecords().filter(f=>f.patientId===id).sort((a,b)=>byNewest(a.requestedDate||a.date,b.requestedDate||b.date));
+  const {lastVisit,nextAppointment}=patientData.patientVisitSummary(id,{appointments:appointmentRecords(),treatments:treatmentRecords(),today});
+  const bmi=patientData.bodyMassIndex(pt.height,pt.weight);
+  const allergy=patientData.hasAllergyAlert(pt.allergies);
+  const email=pt.userId?getUserById(pt.userId)?.email||'':'';
+  const val=v=>escapeHtml(String(v??'').trim()||'—');
+  const row=(label,value)=>`<div class="info-row"><span class="info-label">${label}</span><span class="info-val">${value}</span></div>`;
+  const doctor=d=>{const doc=getUserById(d);return doc?escapeHtml(docName(doc)):'—';};
+  const table=(cols,rows,empty)=>rows.length?`<div class="table-wrap"><table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`:`<p class="text-muted pt-tab-empty">${empty}</p>`;
+  const tabs=[
+    ['overview','Overview',`<div class="pt-overview">
+      <section><h4>Contact</h4>${row('Phone',val(pt.contact))}${row('Email',val(email))}${row('Address',val(pt.address))}</section>
+      <section><h4>Emergency contact</h4>${row('Name',val(pt.emergencyName))}${row('Phone',val(pt.emergencyContact))}</section>
+      <section><h4>Clinical summary</h4>${row('Height',val(pt.height))}${row('Weight',val(pt.weight))}${row('BMI',bmi?`${bmi.value} <span class="text-muted">(${bmi.category})</span>`:'—')}${row('Blood Type',val(pt.blood))}</section>
+      <section><h4>History</h4><div class="info-row"><span class="info-label">Allergies</span><span class="info-val ${allergy?'text-danger':''}">${val(pt.allergies)}</span></div>${row('Medical History',val(pt.medHistory))}</section>
+      <section><h4>Visits</h4>${row('Last visit',lastVisit?fmtDate(lastVisit):'—')}${row('Next appointment',nextAppointment?`${fmtDate(nextAppointment.date)}${nextAppointment.time?' · '+fmtTime(nextAppointment.time):''} · ${escapeHtml(nextAppointment.clinic||'')}`:'—')}${row('Registered',pt.createdAt?fmtDate(String(pt.createdAt).slice(0,10)):'—')}</section>
+    </div>`],
+    ['treatments',`Treatments (${treats.length})`,table(['Date','Diagnosis','Prescription','Doctor'],treats.map(t=>`<tr><td>${fmtDate(t.date)}</td><td>${val(t.diagnosis)}</td><td>${val(t.prescription)}</td><td>${doctor(t.doctorId)}</td></tr>`),'No treatments on record.')],
+    ['appointments',`Appointments (${appts.length})`,table(['Date','Time','Clinic','Service','Doctor','Status'],appts.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${a.time?fmtTime(a.time):'—'}</td><td>${val(a.clinic)}</td><td>${val(a.service)}</td><td>${doctor(a.doctorId)}</td><td>${statusBadge(a.status)}</td></tr>`),'No appointments on record.')],
+    ['certificates',`Certificates (${certs.length})`,table(['Requested','Purpose','Certificate No.','Status'],certs.map(c=>`<tr><td>${c.requestedAt?fmtDate(String(c.requestedAt).slice(0,10)):'—'}</td><td>${val(c.purpose)}</td><td>${val(c.certNo)}</td><td>${statusBadge(c.status)}</td></tr>`),'No certificate requests.')],
+    ['fitness',`Fitness (${fitness.length})`,table(['Requested','Sport / Event','Decision','Status'],fitness.map(f=>`<tr><td>${(f.requestedDate||f.date)?fmtDate(String(f.requestedDate||f.date).slice(0,10)):'—'}</td><td>${val(f.sport)}</td><td>${val(f.decision)}</td><td>${statusBadge(f.status)}</td></tr>`),'No fitness assessments.')]
+  ];
+  const showTab=key=>{
+    document.querySelectorAll('#pt-chart [data-pt-tab]').forEach(btn=>{const on=btn.dataset.ptTab===key;btn.classList.toggle('active',on);btn.setAttribute('aria-selected',String(on));btn.tabIndex=on?0:-1;});
+    document.querySelectorAll('#pt-chart [data-pt-panel]').forEach(panel=>{panel.hidden=panel.dataset.ptPanel!==key;});
+  };
+  openModal(`<div class="modal modal-lg patient-chart" id="pt-chart">
+    <div class="modal-header"><h3>Patient Record</h3><button class="close-btn" aria-label="Close patient record" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
     <div class="modal-body">
-      <div class="grid-2" style="margin-bottom:.75rem">
-        <div>
-          <div class="section-label">Personal Info</div>
-          <div class="info-row"><span class="info-label">Name</span><span class="info-val">${pt.fname} ${pt.lname}</span></div>
-          <div class="info-row"><span class="info-label">Age / Gender</span><span class="info-val">${pt.age} / ${pt.gender}</span></div>
-          <div class="info-row"><span class="info-label">Blood Type</span><span class="info-val">${pt.blood}</span></div>
-          <div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
-          <div class="info-row"><span class="info-label">Person Type</span><span class="info-val">${priorityBadge(pt.personType)}</span></div>
-          <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${pt.idNo||'—'}</span></div>
-        </div>
-        <div>
-          <div class="section-label">Medical Info</div>
-          <div class="info-row"><span class="info-label">Height / Weight</span><span class="info-val">${pt.height||'—'} / ${pt.weight||'—'}</span></div>
-          <div class="info-row"><span class="info-label">Allergies</span><span class="info-val ${pt.allergies&&pt.allergies!=='None'?'text-danger':''}">${escapeHtml(pt.allergies?.trim()||'—')}</span></div>
-          <div class="info-row"><span class="info-label">Medical History</span><span class="info-val">${escapeHtml(pt.medHistory?.trim()||'—')}</span></div>
-          <div class="info-row"><span class="info-label">Emergency Contact</span><span class="info-val">${pt.emergencyName||'—'} (${pt.emergencyContact||'—'})</span></div>
+      <div class="pt-banner">
+        ${patientAvatarHtml(pt,56)}
+        <div class="pt-banner-main">
+          <h2>${escapeHtml(pt.lname)}, ${escapeHtml(pt.fname)}${pt.archived?' <span class="badge badge-gray">Archived</span>':''}</h2>
+          <div class="pt-banner-ids">P-${patientDisplayId(pt)} · ID No. ${val(pt.idNo)}</div>
+          <div class="pt-banner-facts">
+            <span><strong>${val(pt.age)}</strong> yrs · ${val(pt.gender)}</span>
+            <span>DOB <strong>${pt.birthDate?fmtDate(pt.birthDate):'—'}</strong></span>
+            <span>Blood <strong>${val(pt.blood)}</strong></span>
+            <span>${priorityBadge(pt.personType)} ${collegeBadge(pt.college)}</span>
+            ${pt.personType==='Student'?`<span>Class session <strong>${val(pt.classSession||'Not recorded')}</strong></span>`:''}
+          </div>
         </div>
       </div>
-      <div class="section-label">Recent Treatments</div>
-      ${treats.length?`<table style="margin-bottom:.75rem"><thead><tr><th>Date</th><th>Diagnosis</th><th>Prescription</th><th>Doctor</th></tr></thead><tbody>${treats.map(t=>{const doc=getUserById(t.doctorId);return`<tr><td>${fmtDate(t.date)}</td><td>${t.diagnosis}</td><td>${t.prescription||'-'}</td><td>${doc?docName(doc):'?'}</td></tr>`;}).join('')}</tbody></table>`:'<p class="text-muted" style="margin-bottom:.75rem">No treatments on record.</p>'}
-      <div class="section-label">Recent Appointments</div>
-      ${appts.length?`<table><thead><tr><th>Date</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${appts.map(a=>{const doc=getUserById(a.doctorId);return`<tr><td>${fmtDate(a.date)}</td><td>${a.clinic}</td><td>${doc?docName(doc):'?'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table>`:'<p class="text-muted">No appointments.</p>'}
+      ${allergy?`<div class="pt-allergy-alert" role="alert"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><div><strong>Allergies</strong><span>${escapeHtml(pt.allergies)}</span></div></div>`:''}
+      <div class="pt-tabs" role="tablist" aria-label="Patient record sections">
+        ${tabs.map(([key,label],i)=>`<button type="button" role="tab" class="pt-tab ${i?'':'active'}" data-pt-tab="${key}" aria-selected="${!i}" tabindex="${i?-1:0}" ${bindAction('click',()=>showTab(key))}>${label}</button>`).join('')}
+      </div>
+      ${tabs.map(([key,,html],i)=>`<div class="pt-panel" role="tabpanel" data-pt-panel="${key}" ${i?'hidden':''}>${html}</div>`).join('')}
     </div>
     <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap">
       <div class="fhir-toolbar">
+        <button class="btn btn-sm" ${bindAction('click',()=>printPatientSummary(id))}><i class="bi bi-printer" aria-hidden="true"></i> Print summary</button>
         ${appState.auth.currentUser.role==='Doctor'||appState.auth.currentUser.role==='Administrator'?`<button class="btn btn-purple btn-sm" ${bindAction('click',(event,element)=>{openClinicalCopilot((id))})}>✦ Clinical Copilot</button>`:''}
         ${appState.auth.currentUser.role!=='Patient'?`<button class="btn btn-info btn-sm" ${bindAction('click',(event,element)=>{viewPatientFHIR((id))})}>FHIR Preview</button>
         <button class="btn btn-sm" ${bindAction('click',(event,element)=>{downloadPatientFHIR((id))})}>Export FHIR</button>`:''}
@@ -326,6 +356,39 @@ export async function viewPatient(id){
       </div>
     </div>
   </div>`);
+  // Arrow keys move between tabs, as in standard tab widgets.
+  document.querySelector('#pt-chart .pt-tabs')?.addEventListener('keydown',event=>{
+    if(!['ArrowLeft','ArrowRight'].includes(event.key))return;
+    const keys=tabs.map(([key])=>key),current=keys.indexOf(document.querySelector('#pt-chart .pt-tab.active')?.dataset.ptTab);
+    const next=keys[(current+(event.key==='ArrowRight'?1:-1)+keys.length)%keys.length];
+    showTab(next);document.querySelector(`#pt-chart [data-pt-tab="${next}"]`)?.focus();
+  });
+}
+
+// One-page printable summary of the chart overview and recent history.
+export function printPatientSummary(id){
+  const chart=document.getElementById('pt-chart');
+  if(!chart)return;
+  const frame=document.createElement('iframe');
+  frame.style.cssText='position:fixed;width:0;height:0;border:0;right:0;bottom:0';
+  document.body.append(frame);
+  const panels=[...chart.querySelectorAll('[data-pt-panel]')].map(panel=>{
+    const title=chart.querySelector(`[data-pt-tab="${panel.dataset.ptPanel}"]`)?.textContent||'';
+    return `<h3>${escapeHtml(title)}</h3>${panel.innerHTML}`;
+  }).join('');
+  const doc=frame.contentDocument;
+  doc.open();
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Patient summary</title><style>
+    body{font:12px/1.5 Arial,Helvetica,sans-serif;color:#111;margin:24px}h2{margin:0 0 4px}h3{margin:18px 0 6px;font-size:13px;border-bottom:1px solid #ccc;padding-bottom:3px}
+    h4{margin:10px 0 4px;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;text-align:left}
+    .info-row{display:flex;gap:8px}.info-label{width:140px;color:#555}.pt-banner img,.pt-banner .sb-avatar{display:none}.badge{border:1px solid #999;border-radius:8px;padding:0 5px}
+    .pt-allergy-alert{border:2px solid #b00;padding:6px 8px;margin:8px 0;color:#b00}.bi{display:none}
+  </style></head><body><p>CampusCare · CTU Main Medical &amp; Dental Clinic · Printed ${escapeHtml(new Date().toLocaleString('en-PH'))}</p>
+  ${chart.querySelector('.pt-banner')?.outerHTML||''}${chart.querySelector('.pt-allergy-alert')?.outerHTML||''}${panels}
+  <p style="margin-top:18px;color:#555">Confidential medical information. Handle according to the CampusCare Privacy Notice.</p></body></html>`);
+  doc.close();
+  frame.contentWindow.focus();frame.contentWindow.print();
+  setTimeout(()=>frame.remove(),2000);
 }
 
 export function archivePatient(id){

@@ -309,3 +309,35 @@
 .notif-empty strong{color:inherit;font-size:.9rem}
 .notif-panel .notif-empty strong{color:var(--ink)}
 @media(max-width:480px){.notif-panel{right:8px;left:8px;width:auto}}
+
+/* Patient records list: identity cell, sortable headers, allergy flag and pager. */
+.patient-records-table .pt-identity{display:flex;align-items:center;gap:.6rem;min-width:200px}
+.patient-records-table .pt-identity .text-muted{font-size:.72rem;margin-top:.1rem}
+.th-sort{display:inline-flex;align-items:center;gap:.15rem;padding:0;border:0;background:none;color:inherit;font:inherit;font-weight:inherit;text-transform:inherit;letter-spacing:inherit;cursor:pointer;white-space:nowrap}
+.th-sort span{opacity:.45;font-size:.8em}
+.th-sort.active span{opacity:1;color:var(--primary)}
+.pt-allergy-flag{font-size:.62rem;vertical-align:middle}
+.pt-pager{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap;padding:.7rem .9rem;font-size:.78rem;color:var(--ink-muted);border-top:1px solid var(--line-soft,var(--line))}
+.pt-pager div{display:flex;gap:.35rem}
+
+/* Patient chart: identity banner, allergy alert and tabbed sections. */
+.patient-chart .pt-banner{display:flex;align-items:center;gap:1rem;padding:.2rem 0 .9rem}
+.patient-chart .pt-banner-main h2{margin:0;font-size:1.25rem;line-height:1.25}
+.patient-chart .pt-banner-ids{font-size:.78rem;color:var(--ink-muted);margin-top:.1rem}
+.patient-chart .pt-banner-facts{display:flex;flex-wrap:wrap;gap:.35rem .9rem;margin-top:.45rem;font-size:.8rem;color:var(--ink-muted)}
+.patient-chart .pt-banner-facts strong{color:var(--ink)}
+.pt-allergy-alert{display:flex;gap:.6rem;align-items:flex-start;padding:.65rem .8rem;margin-bottom:.9rem;border:1px solid var(--danger-border);border-left:4px solid var(--danger);border-radius:10px;background:var(--danger-bg);color:var(--danger)}
+.pt-allergy-alert .bi{font-size:1.1rem;margin-top:.05rem}
+.pt-allergy-alert strong{display:block;font-size:.82rem}
+.pt-allergy-alert span{font-size:.82rem;color:var(--ink)}
+.pt-tabs{display:flex;gap:.2rem;overflow-x:auto;border-bottom:1px solid var(--line);margin-bottom:.9rem;scrollbar-width:none}
+.pt-tab{flex:0 0 auto;padding:.55rem .85rem;border:0;border-bottom:2px solid transparent;background:none;color:var(--ink-muted);font:inherit;font-size:.82rem;font-weight:600;cursor:pointer;margin-bottom:-1px}
+.pt-tab:hover{color:var(--ink)}
+.pt-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.pt-tab:focus-visible{outline:2px solid var(--primary);outline-offset:-2px;border-radius:6px 6px 0 0}
+.pt-panel[hidden]{display:none}
+.pt-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem 1.2rem}
+.pt-overview section{padding:.7rem .85rem;border:1px solid var(--line-soft,var(--line));border-radius:12px;background:var(--overlay)}
+.pt-overview h4{margin:0 0 .35rem;font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted)}
+.pt-tab-empty{padding:1rem 0}
+@media(max-width:640px){.pt-overview{grid-template-columns:1fr}.patient-chart .pt-banner{align-items:flex-start}}
