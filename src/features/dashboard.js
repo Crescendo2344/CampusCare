@@ -4,7 +4,7 @@ import {state as appState} from '../app/state.js';
 import {dashboardAttentionItem,dashboardChartControlHtml,dashboardControlsHtml,dashboardInRange,dashboardMobileQuickLinks,dashboardRangeCounts,dashboardRangeLabel,dashboardStatCard,dashboardTrendSvg} from './dashboardChartHelpers.js';
 import {appointmentRecords} from './appointmentService.js';
 import {getDoctors,getLowStock,getPatientById,getUserById} from './documentScanner.js';
-import {docName,messageRecords} from './messaging.js';
+import {docName} from './messaging.js';
 import {collegeBadge,currentSemester,fmtDate,fmtTime,getSemester,statusBadge} from './inputValidation.js';
 import {escapeHtml} from './issueReports.js';
 import {navTo} from './navigationRaceProtection.js';
@@ -29,7 +29,6 @@ export function renderDashboard(){
   const lowStock=getLowStock();
   const pendingUsers=appState.data.DB.users.filter(u=>u.status==='Pending');
   const pendingCerts=(appState.data.DB.certRequests||[]).filter(r=>r.status==='Pending');
-  const unreadMessages=messageRecords().filter(m=>m.toUserId===appState.auth.currentUser.id&&!m.isRead&&!m.deleted).length;
   const hour=new Date().getHours();
   const greeting=hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
 
@@ -50,7 +49,6 @@ export function renderDashboard(){
     if(reminders.length)attention+=dashboardAttentionItem(`${reminders.length} active medication reminder${reminders.length>1?'s':''}`,'Open your medication reminders and keep your schedule on track.','warn');
     const ready=myCerts.filter(r=>r.status==='Issued').length;
     if(ready)attention+=dashboardAttentionItem(`${ready} certificate${ready>1?'s are':' is'} ready`,'Download issued medical certificates from Medical Certificates.','success');
-    if(unreadMessages)attention+=dashboardAttentionItem(`${unreadMessages} unread message${unreadMessages>1?'s':''}`,'You have new messages waiting in Chats.','warn');
     if(!attention)attention=dashboardAttentionItem('You are all caught up','No urgent items need your attention right now.','success');
     c.innerHTML=`<div class="dashboard-a">
       <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Here is your personal CampusCare health overview.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap">${dashboardControlsHtml()}</div></div>
@@ -83,7 +81,6 @@ export function renderDashboard(){
     let attention='';
     if(next){const pt=getPatientById(next.patientId);attention+=dashboardAttentionItem('Next patient',`${fmtTime(next.time)} · ${pt?pt.fname+' '+pt.lname:'Patient'} · ${next.service}`,'success');}
     if(scheduled.length)attention+=dashboardAttentionItem(`${scheduled.length} scheduled appointment${scheduled.length>1?'s':''}`,'Review your upcoming schedule and patient list.','warn');
-    if(unreadMessages)attention+=dashboardAttentionItem(`${unreadMessages} unread message${unreadMessages>1?'s':''}`,'Open Chats to respond to patients or clinic staff.','warn');
     if(!attention)attention=dashboardAttentionItem('Schedule is clear','No urgent items need your attention.','success');
     const todayCompleted=todayMine.filter(a=>a.status==='Completed').length;
     // A patient's first booking with this doctor marks when they joined the doctor's list.
@@ -113,7 +110,6 @@ export function renderDashboard(){
     let attention='';
     if(lowStock.length)attention+=dashboardAttentionItem(`${lowStock.length} low-stock item${lowStock.length>1?'s':''}`,`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`,'danger');
     if(pendingCerts.length)attention+=dashboardAttentionItem(`${pendingCerts.length} certificate request${pendingCerts.length>1?'s':''}`, 'Patients are waiting for certificate review.','warn');
-    if(unreadMessages)attention+=dashboardAttentionItem(`${unreadMessages} unread message${unreadMessages>1?'s':''}`,'Check Chats for new patient or staff messages.','warn');
     if(!attention)attention=dashboardAttentionItem('Operations look good','No urgent clinic items need attention.','success');
     c.innerHTML=`<div class="dashboard-a">
       <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Monitor clinic flow and operational tasks for the selected date.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{navTo('appointments')})}>Manage Appointments</button>${dashboardControlsHtml()}</div></div>
@@ -142,7 +138,6 @@ export function renderDashboard(){
   if(pendingUsers.length)attention+=dashboardAttentionItem(`${pendingUsers.length} pending user approval${pendingUsers.length>1?'s':''}`,'Review new CampusCare registrations.','warn');
   if(lowStock.length)attention+=dashboardAttentionItem(`${lowStock.length} low-stock item${lowStock.length>1?'s':''}`,`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`,'danger');
   if(pendingCerts.length)attention+=dashboardAttentionItem(`${pendingCerts.length} certificate request${pendingCerts.length>1?'s':''}`,'Medical certificates are awaiting clinic action.','warn');
-  if(unreadMessages)attention+=dashboardAttentionItem(`${unreadMessages} unread message${unreadMessages>1?'s':''}`,'Open Chats to review new messages.','warn');
   if(!attention)attention=dashboardAttentionItem('All systems normal','No urgent administrative items need attention.','success');
   const doctors=getDoctors();
   const doctorLoad=doctors.map(d=>({name:`Dr. ${d.lname}`,count:allToday.filter(a=>a.doctorId===d.id).length,max:d.maxPatients||20}));

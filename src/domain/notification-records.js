@@ -33,9 +33,9 @@ export function notificationPageFor(n,account){
     'privacy-center':'my-account',
     'certificate-signatures':'cert-requests',
     'certificate-requests':'cert-requests',
-    'patient-messages':'messages',
-    'my-messages':'messages'
   };
+  // Messages are not part of CampusCare; their notifications simply open nothing.
+  if(['messages','patient-messages','my-messages'].includes(action))return '';
   if(action)return aliases[action]||action;
 
   const type=String(n.type||'').toLowerCase();

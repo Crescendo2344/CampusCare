@@ -51,8 +51,11 @@ export function recordPageHistory(id,historyMode){
     window.history.pushState({...window.history.state,campuscareNavigation:{account,page:id,index:previous.index+1}},'');
   }
 }
+// Pages that are no longer part of CampusCare open the dashboard instead (e.g. old history entries).
+const RETIRED_PAGES=new Set(['messages']);
 export function navTo(id,{historyMode='push'}={}){
   if(!appState.auth.currentUser)return;
+  if(RETIRED_PAGES.has(id))id='dashboard';
   recordPageHistory(id,historyMode);
   if(window.innerWidth<=768) toggleSidebar(false);
   document.querySelectorAll('[id^="nav-"]').forEach(el=>el.classList.remove('active'));
@@ -65,8 +68,7 @@ export function navTo(id,{historyMode='push'}={}){
     reports:'Reports & Analytics',users:'User Management',settings:'System Settings',
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',
     'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log',
-    'dental-survey':'Dental Clinic Survey','survey-results':'Survey Results',
-    messages:'Messages'
+    'dental-survey':'Dental Clinic Survey','survey-results':'Survey Results'
   }[id]||id;
   renderPage(id);
   void acknowledgeNavAttention(id);

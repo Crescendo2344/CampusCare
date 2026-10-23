@@ -3,7 +3,6 @@ import {state as appState} from '../app/state.js';
 import {escapeHtml,issueReportRecords} from './issueReports.js';
 import {navTo} from './navigationRaceProtection.js';
 import {notificationCenterAction,notificationPageFor,notificationRecords} from './notifications.js';
-import {messageRecords} from './messaging.js';
 import {certificateRecords} from './certificateService.js';
 import {fitnessRecords} from './fitnessAssessments.js';
 import {inventoryRecords} from './inventoryService.js';
@@ -125,11 +124,6 @@ export function demoTaskBadgeSnapshot(){
     items[page]=(rows||[]).map(tokenFn);
     counts[page]=items[page].length;
   };
-
-  set('messages',
-    messageRecords().filter(m=>m.toUserId===appState.auth.currentUser.id&&!m.isRead&&!m.deleted),
-    m=>`message:${m.id}`
-  );
 
   if(role==='Administrator'||role==='Staff'){
     set('approvals',
@@ -352,7 +346,6 @@ export function initializeFeature(){
   'my-certificates':['certificate','medical certificate'],
   treatments:['treatment','diagnosis','medical notes'],
   inventory:['stock','medicine','supplies','predictive inventory','stock forecast','reorder prediction'],
-  messages:['message','chat','conversation'],
   reports:['report','analytics','statistics','campus health intelligence','predictive health','health trends'],
   users:['user','account','management'],
   settings:['settings','configuration'],
@@ -377,7 +370,6 @@ export function initializeFeature(){
   'my-records':'bi-file-earmark-medical',
   certificates:'bi-file-earmark-check',
   'cert-requests':'bi-file-earmark-check',
-  messages:'bi-chat-dots',
   'my-account':'bi-person',
   patients:'bi-people',
   appointments:'bi-calendar3',
@@ -407,7 +399,6 @@ export function initializeFeature(){
     {id:'fitness',label:'Fitness to Compete'},
     {id: 'health_education', label: 'Health Education' },
     {id:'dental-survey',label:'Dental Clinic Survey'},
-    { id: 'messages', label: 'Messages' },
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
     {id:'report-issue',label:'Report an Issue'},
@@ -421,7 +412,6 @@ export function initializeFeature(){
     {id:'treatments',label:'Treatments'},
     {id:'fitness',label:'Fitness Assessments'},
     {id:'cert-requests',label:'Certificate Signatures'},
-    { id: 'messages', label: 'Patient Messages' },
     {section:'Reports'},
     {id:'reports',label:'Reports'},
     {section:'Account'},
@@ -438,8 +428,7 @@ export function initializeFeature(){
     {id:'fitness',label:'Fitness Assessments'},
     {id:'inventory',label:'Inventory'},
     {id:'health_education',label:'Health Education'},
-    {section:'Communication'},
-    {id:'messages',label:'Messages'},
+    {section:'Insights'},
     {id:'survey-results',label:'Survey Results'},
     {id:'reports',label:'Reports'},
     {section:'Account'},
@@ -456,8 +445,6 @@ export function initializeFeature(){
     {id:'treatments',label:'Treatments'},
     {id:'fitness',label:'Fitness Assessments'},
     {id:'inventory',label:'Inventory'},
-    {section:'Communication'},
-    {id:'messages',label:'Messages'},
     {section:'Management'},
     {id:'users',label:'User Management'},
     {id:'survey-results',label:'Survey Results'},

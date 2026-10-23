@@ -5,7 +5,6 @@ import {normalizeSupabaseUser,syncAdminDirectoryFromSupabase,syncCurrentPatientF
 import {initApp} from './appInitialization.js';
 import {syncPublicSystemSettings} from './systemSettings.js';
 import {syncRealMedicationReminders,syncRealTreatments} from './treatmentService.js';
-import {syncRealMessages,refreshMessageViews} from './messaging.js';
 import {syncRealHealthResources} from './navigationRaceProtection.js';
 import {syncRealIssueReports} from './issueReports.js';
 import {syncRealWorkflowRequests} from './workflowRequests.js';
@@ -99,9 +98,6 @@ async function restoreAuthenticatedAccount(){
           if(typeof syncRealTreatments==='function'){
             try{await syncRealTreatments();}catch(err){console.error('Treatment sync:',err);}
           }
-          if(typeof syncRealMessages==='function'){
-            try{await syncRealMessages();}catch(err){console.error('Message sync:',err);}
-          }
           if(typeof syncRealHealthResources==='function'){
             try{await syncRealHealthResources();}catch(err){console.error('Health Education sync:',err);}
           }
@@ -139,7 +135,6 @@ async function restoreAuthenticatedAccount(){
         .then(()=>syncRealAppointments())
         .then(()=>syncClinicSurveys())
         .then(()=>{rebuildConditionalNavigation();})
-        .then(()=>syncRealMessages())
         .then(()=>syncRealHealthResources())
         .then(()=>syncRealIssueReports())
         .then(()=>syncRealWorkflowRequests())
@@ -183,8 +178,7 @@ export function refreshActivePageAfterSync(){
   if(pageId!==appState.navigationRaceProtection.campusActivePageId)return;
 
   try{
-    if(pageId==='messages'&&document.getElementById('msgr-shell'))refreshMessageViews();
-    else if(pageId==='dashboard')renderDashboard();
+    if(pageId==='dashboard')renderDashboard();
     else renderPage(pageId);
   }catch(err){
     console.error('Page refresh after database sync:',err);

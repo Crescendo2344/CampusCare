@@ -5,7 +5,7 @@ import {authTab,setPublicNavbarMode,showAuthPage} from './authentication.js';
 import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
 import {escapeHtml} from './issueReports.js';
 import {afterPointerRelease,checkPasswordStrength,renderPasswordStrength} from './loginLockout.js';
-import {initializeSupabaseClient} from './supabaseClient.js';
+import {initializeSupabaseClient,rememberedLogin} from './supabaseClient.js';
 import {auditAction} from './emailDelivery.js';
 import {auditLog} from './auditAndBackups.js';
 import {persistDB} from './persistence.js';
@@ -439,7 +439,8 @@ export function logout(){
 
         const userInput=document.getElementById('li-user');
         const passInput=document.getElementById('li-pass');
-        if(userInput)userInput.value='';
+        // Keep the remembered username or email ready for the next sign-in; never the password.
+        if(userInput)userInput.value=rememberedLogin();
         if(passInput)passInput.value='';
 
         document.getElementById('back-to-top')?.classList.remove('show');

@@ -7,7 +7,7 @@ import {computeCampusHealthAnalytics} from './predictiveAnalytics.js';
 import {getLowStock,getPatientByUserId,getUserById} from './documentScanner.js';
 import {appointmentRecords} from './appointmentService.js';
 import {fmtDate,fmtTime} from './inputValidation.js';
-import {docName,messageRecords} from './messaging.js';
+import {docName} from './messaging.js';
 import {getDoctorLeaves} from './doctorSchedule.js';
 import {addNotif,notificationCenterAction,notificationPageFor,notificationRecords,notificationTone,updateNotifUI} from './notifications.js';
 import {toast} from './theme.js';
@@ -30,9 +30,9 @@ export function getAssistantChips(){
   if(!appState.auth.currentUser)return [];
   const role=appState.auth.currentUser.role;
   if(role==='Administrator')return ['Any predicted stock-outs?','Campus health trends','How many pending approvals?',"Today's appointments"];
-  if(role==='Doctor')return ["Today's appointments",'Campus health trends','How do I use Clinical Copilot?',"Unread messages"];
-  if(role==='Staff')return ['Any predicted stock-outs?','Campus health trends','Pending approvals','Unread messages'];
-  return ['My next appointment','How do I book an appointment?','Unread messages','Clinic hours'];
+  if(role==='Doctor')return ["Today's appointments",'Campus health trends','How do I use Clinical Copilot?'];
+  if(role==='Staff')return ['Any predicted stock-outs?','Campus health trends','Pending approvals'];
+  return ['My next appointment','How do I book an appointment?','Clinic hours'];
 }
 
 export function renderAssistantChips(){
@@ -87,7 +87,7 @@ export function getAssistantReply(raw){
 
   // Greetings
   if(has('hello','hi ','hey','good morning','good afternoon') || q==='hi')
-    return `Hello, ${u.fname}! Ask me about appointments, approvals, inventory, messages, or how to do something in the app.`;
+    return `Hello, ${u.fname}! Ask me about appointments, approvals, inventory, or how to do something in the app.`;
 
   // Navigation intent takes priority over keyword data-lookups below,
   // since "take me to inventory" should navigate, not report stock levels.
@@ -163,12 +163,6 @@ export function getAssistantReply(raw){
     return upcoming.length?`${scheduleMsg} You have ${upcoming.length} approved day${upcoming.length===1?'':'s'} off coming up, starting ${fmtDate(upcoming[0].date)}.`:`${scheduleMsg} No upcoming approved days off.`;
   }
 
-  // Messages / unread
-  if(has('unread message','new message','messages')){
-    const unread=messageRecords().filter(m=>m.toUserId===u.id&&!m.isRead&&!m.deleted).length;
-    return unread?`You have ${unread} unread message${unread===1?'':'s'}. Check the Messages page.`:"You're all caught up — no unread messages.";
-  }
-
   // Patient count
   if(has('how many patient','total patient','number of patient')){
     if(!(role==='Administrator'||role==='Staff'||role==='Doctor'))return "Patient counts are only available to clinic staff.";
@@ -208,10 +202,6 @@ export function getAssistantReply(raw){
     {keys:['add inventory','new inventory item','add stock item'],ans:"Go to Inventory and click \"+ Add Item.\" You can also attach a photo by uploading one or using your camera."},
     {keys:['update stock','adjust quantity','restock'],ans:"In Inventory, click \"Update Qty\" next to an item to add or remove stock, or record a disbursement."},
     {keys:['add article','write article','create health article','post article'],ans:"On Health Education, click \"+ Add Article\" (staff/admin). You can upload a real photo, pick or type any category you like, and add a source link."},
-    {keys:['send message','message a doctor','contact staff','chat with'],ans:"Go to Messages and click the ✏️ pencil icon to start a secure conversation. Patient accounts can contact active Doctors, clinic Staff, and Administrators, but not other Patient accounts."},
-    {keys:['forward message','share message'],ans:"Hover a message bubble and click the ⋯ button — you'll see options to Forward, Share, and (for your own messages) Edit or Delete."},
-    {keys:['delete message'],ans:"Hover the message and click ⋯ → Delete. You can choose \"Delete for Everyone\" (your own messages only) or \"Delete for Me.\""},
-    {keys:['voice message','record audio','send voice note'],ans:"In a conversation, click the 🎤 microphone icon to start recording, and click it again to stop and send."},
     {keys:['upload id','upload photo id','verify identity'],ans:"During registration you'll upload a selfie and a valid ID/COR — you can also use your camera directly instead of a file upload."},
     {keys:['register','create account','sign up'],ans:"On the login screen, click Register, fill in your details including date of birth, upload a selfie and ID, then submit. An admin approves it within 24–48 hours."},
     {keys:['pending account','account not approved','still pending'],ans:"New accounts are reviewed by an administrator, usually within 24–48 hours. Try logging in again later, or check with the clinic office if it's been a while."},
@@ -226,7 +216,7 @@ export function getAssistantReply(raw){
     if(item.keys.some(k=>hasAllWords(k)))return item.ans;
   }
 
-  return "I'm not totally sure about that one yet. Try asking about appointments, approvals, inventory, messages, or how to do something — or use \"Report an Issue\" if something seems broken.";
+  return "I'm not totally sure about that one yet. Try asking about appointments, approvals, inventory, or how to do something — or use \"Report an Issue\" if something seems broken.";
 }
 
 // Notification panel: All/Unread tabs, Today/Yesterday/Earlier sections, grouped repeats,

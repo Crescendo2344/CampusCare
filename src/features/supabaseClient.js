@@ -19,6 +19,18 @@ export function rememberSessionChosen(){
 export function setRememberSessionPreference(remember){
   try{localStorage.setItem(REMEMBER_KEY,remember?'1':'0');}catch{ /* Storage may be blocked in private modes. */ }
 }
+// "Remember me" also fills in the username or email on this device next time. Passwords are
+// never stored by CampusCare; the browser's own password manager handles those.
+const REMEMBERED_LOGIN_KEY='campuscare-remembered-login';
+export function rememberedLogin(){
+  try{return localStorage.getItem(REMEMBERED_LOGIN_KEY)||'';}catch{return '';}
+}
+export function setRememberedLogin(identifier){
+  try{
+    if(identifier)localStorage.setItem(REMEMBERED_LOGIN_KEY,String(identifier).slice(0,150));
+    else localStorage.removeItem(REMEMBERED_LOGIN_KEY);
+  }catch{ /* Storage may be blocked in private modes. */ }
+}
 const rememberAwareStorage={
   getItem(key){try{return sessionStorage.getItem(key)??localStorage.getItem(key);}catch{return null;}},
   setItem(key,value){

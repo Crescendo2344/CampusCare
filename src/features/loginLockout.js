@@ -1,7 +1,7 @@
 // loginLockout: imported feature APIs; state belongs to explicit application namespaces.
 import {normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {state as appState} from '../app/state.js';
-import {initializeSupabaseClient,setRememberSessionPreference} from './supabaseClient.js';
+import {initializeSupabaseClient,setRememberSessionPreference,setRememberedLogin} from './supabaseClient.js';
 import {registrationToast,showAlert,toast} from './theme.js';
 import {normalizeSupabaseUser} from './patientService.js';
 import {auditAction} from './emailDelivery.js';
@@ -77,6 +77,8 @@ export async function doLogin(){
       throw new Error('This account is not currently active.');
     }
 
+    // Only a successful sign-in updates the remembered username or email.
+    setRememberedLogin(document.getElementById('li-remember')?.checked?identifier:'');
     appState.auth.currentUser=normalizeSupabaseUser(profile);
     appState.auth.currentUser.lastLogin=data.user?.last_sign_in_at||new Date().toISOString();
     appState.auth.currentUser.emailConfirmedAt=data.user?.email_confirmed_at||null;

@@ -2,7 +2,7 @@
 import {state as appState} from '../app/state.js';
 import {prepareRegistrationCaptcha} from '../verification/registration-captcha.js';
 import {updateRegistrationIdentityFields} from './documentScanner.js';
-import {rememberSessionChosen} from './supabaseClient.js';
+import {rememberSessionChosen,rememberedLogin} from './supabaseClient.js';
 // ================================================================
 // AUTH
 // ================================================================
@@ -227,7 +227,12 @@ export function authTab(t){
   if(titleEl)titleEl.textContent=title;
   if(subtitleEl)subtitleEl.textContent=subtitle;
   const remember=document.getElementById('li-remember');
-  if(remember&&t!=='reg')remember.checked=rememberSessionChosen();
+  if(remember&&t!=='reg'){
+    remember.checked=rememberSessionChosen();
+    // A remembered username or email is filled in when the login form opens empty.
+    const user=document.getElementById('li-user');
+    if(user&&!user.value)user.value=rememberedLogin();
+  }
   document.getElementById('login-section').style.display=t==='login'?'':'none';
   document.getElementById('reg-section').style.display=t==='reg'?'':'none';
   const pending=document.getElementById('pending-section');

@@ -145,7 +145,6 @@ export function dashboardTrendSvg(points,label='Visits',chartType=appState.dashb
 
 export function dashboardTarget(text=''){
   const s=String(text).toLowerCase(),r=appState.auth.currentUser?.role;
-  if(s.includes('message')||s.includes('chat'))return 'messages';
   if(s.includes('certificate'))return r==='Patient'?'my-certificates':'cert-requests';
   if(s.includes('approval')||s.includes('registration'))return 'approvals';
   if(s.includes('stock')||s.includes('inventory'))return 'inventory';
@@ -171,15 +170,15 @@ export function dashboardMobileQuickLinks(role){
       ['my-appointments','fa-calendar-plus','Appointments'],
       ['my-records','fa-notes-medical','Health Records'],
       ['my-certificates','fa-file-medical','Certificates'],
-      ['messages','fa-comments','Messages'],
       ['health_education','fa-book-medical','Health Tips'],
+      ['dental-survey','fa-tooth','Dental Survey'],
       ['my-account','fa-user-gear','Account']
     ],
     Doctor:[
       ['schedule','fa-calendar-days','Schedule'],
       ['my-patients','fa-hospital-user','My Patients'],
       ['appointments','fa-stethoscope','Appointments'],
-      ['messages','fa-comments','Messages'],
+      ['treatments','fa-notes-medical','Treatments'],
       ['cert-requests','fa-file-circle-check','Certificates'],
       ['my-account','fa-user-gear','Account']
     ],
@@ -188,7 +187,7 @@ export function dashboardMobileQuickLinks(role){
       ['appointments','fa-calendar-check','Appointments'],
       ['cert-requests','fa-file-medical','Certificates'],
       ['inventory','fa-boxes-stacked','Inventory'],
-      ['messages','fa-comments','Messages'],
+      ['health_education','fa-book-medical','Health Education'],
       ['my-account','fa-user-gear','Account']
     ],
     Administrator:[
@@ -196,7 +195,7 @@ export function dashboardMobileQuickLinks(role){
       ['appointments','fa-calendar-check','Appointments'],
       ['approvals','fa-user-check','Approvals'],
       ['reports','fa-chart-line','Reports'],
-      ['messages','fa-comments','Messages'],
+      ['users','fa-users-gear','Users'],
       ['settings','fa-gears','Settings']
     ]
   };

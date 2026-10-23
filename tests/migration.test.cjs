@@ -138,7 +138,7 @@ async function checkPatientAdapter(){
 async function checkNotificationAdapter(){
   const client=w.supabaseClient,user=w.currentUser,request=w.fetch,notifications=w.DB.notifications;
   const counts=w.navTaskCounts,items=w.navTaskItems,seen=w.navTaskSeen;
-  let rows=[{notification_id:7,user_id:2,title:'Test notice',action_page:'patient-messages',is_read:false},{notification_id:8,user_id:2,title:'Other notice',action_page:'my-messages',is_read:false}];
+  let rows=[{notification_id:7,user_id:2,title:'Test notice',action_page:'appointments',is_read:false},{notification_id:8,user_id:2,title:'Other notice',action_page:'appointments',is_read:false}];
   const calls=[];
   w.supabaseClient={auth:{getSession:async()=>({data:{session:{access_token:'test-session'}}})}};
   w.fetch=async(url,options)=>{
@@ -151,15 +151,15 @@ async function checkNotificationAdapter(){
     w.currentUser={...w.DB.users.find(u=>u.role==='Staff'),id:100002,_realSupabase:true};
     w.navTaskCounts={};w.navTaskItems={};w.navTaskSeen={};w.buildNav();
     await w.updateNotifUI();assert.equal(w.document.getElementById('notif-count').textContent,'2');
-    assert.equal(w.document.querySelector('#nav-messages .nav-badge').textContent,'2');
+    assert.equal(w.document.querySelector('#nav-appointments .nav-badge').textContent,'2');
     assert.equal(w.document.querySelectorAll('#notif-list .unread').length,2);
     const total=w.DB.notifications.length;w.addNotif(w.currentUser.id,'Test','Test');assert.equal(w.DB.notifications.length,total);
     await w.readNotif(1100007);assert(calls.some(c=>c.action==='read'&&c.notification_id===7));
-    assert.equal(w.document.getElementById('notif-count').textContent,'1');assert.equal(w.document.querySelector('#nav-messages .nav-badge').textContent,'1');
+    assert.equal(w.document.getElementById('notif-count').textContent,'1');assert.equal(w.document.querySelector('#nav-appointments .nav-badge').textContent,'1');
     await w.markAllRead();assert(calls.some(c=>c.action==='read_all'));
-    assert.equal(w.document.getElementById('notif-count').hidden,true);assert.equal(w.document.querySelector('#nav-messages .nav-badge'),null);
-    rows=Array.from({length:101},(_,i)=>({notification_id:100+i,user_id:2,action_page:'messages',is_read:false}));await w.updateNotifUI();
-    assert.equal(w.document.getElementById('notif-count').textContent,'99+');assert.equal(w.document.querySelector('#nav-messages .nav-badge').textContent,'99+');
+    assert.equal(w.document.getElementById('notif-count').hidden,true);assert.equal(w.document.querySelector('#nav-appointments .nav-badge'),null);
+    rows=Array.from({length:101},(_,i)=>({notification_id:100+i,user_id:2,action_page:'appointments',is_read:false}));await w.updateNotifUI();
+    assert.equal(w.document.getElementById('notif-count').textContent,'99+');assert.equal(w.document.querySelector('#nav-appointments .nav-badge').textContent,'99+');
   }finally{w.supabaseClient=client;w.currentUser=user;w.fetch=request;w.DB.notifications=notifications;w.navTaskCounts=counts;w.navTaskItems=items;w.navTaskSeen=seen;}
 }
 // Verify certificate refresh, failure recovery and actions through the production adapters.

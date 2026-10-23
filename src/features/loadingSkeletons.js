@@ -122,7 +122,6 @@ export function renderPage(id){
     'cert-requests':()=>renderCertRequests(),
     treatments:()=>renderTreatments(),
     inventory:()=>renderInventory(),
-    messages:()=>renderMessages(),
     reports:()=>renderReports(),
     users:()=>renderUsers(),
     settings:()=>renderSettings(),
