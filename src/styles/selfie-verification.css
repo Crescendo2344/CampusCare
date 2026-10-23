@@ -90,20 +90,6 @@
 .auth-mode-heading{text-align:center;margin:.2rem 0 1.4rem}
 .auth-mode-heading h2,.auth-step-title{font-family:"Plus Jakarta Sans",-apple-system,"Segoe UI",system-ui,sans-serif}
 .auth-mode-heading h2{font-size:1.7rem;font-weight:800;letter-spacing:-.5px;margin:0;background:linear-gradient(120deg,var(--ink) 30%,var(--primary));-webkit-background-clip:text;background-clip:text;color:transparent}
-.auth-mode-art{display:flex;justify-content:center;margin-bottom:.35rem}
-.auth-mode-art svg{width:112px;height:auto;animation:auth-art-in .45s ease both}
-.auth-mode-heading[data-mode="reg"] .auth-art-login,.auth-mode-heading:not([data-mode="reg"]) .auth-art-reg{display:none}
-.auth-mode-art .art-halo{fill:color-mix(in srgb,var(--primary) 12%,transparent)}
-.auth-mode-art .art-fill{fill:color-mix(in srgb,var(--primary) 22%,var(--glass-surface-strong));stroke:var(--primary);stroke-width:2.4}
-.auth-mode-art .art-line{stroke:var(--ink);stroke-width:2.4}
-.auth-mode-art .art-tube{stroke:var(--primary)}
-.auth-mode-art .art-chest{fill:var(--glass-surface-strong);stroke:var(--primary);stroke-width:2.6}
-.auth-mode-art .art-cross{stroke:#fff;stroke-width:3.2}
-.auth-mode-art .art-mark{stroke:var(--primary);stroke-width:3.4}
-.auth-mode-art .art-badge{fill:var(--success)}
-.auth-mode-art .art-dot{fill:var(--primary);opacity:.55}
-@keyframes auth-art-in{from{opacity:0;transform:translateY(6px) scale(.96)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){.auth-mode-art svg{animation:none}}
 .auth-mode-heading p{font-size:.84rem;color:var(--ink-muted);margin:.35rem 0 0;line-height:1.5}
 #auth-page .form-group label{font-weight:600;color:var(--ink)}
 #auth-page .form-group input:not([type=checkbox]),#auth-page .form-group select,#auth-page .modern-date-btn{min-height:44px;border-radius:12px;padding-inline:.95rem}

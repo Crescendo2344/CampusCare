@@ -226,7 +226,6 @@ export function authTab(t){
   const titleEl=document.getElementById('auth-mode-title'),subtitleEl=document.getElementById('auth-mode-subtitle');
   if(titleEl)titleEl.textContent=title;
   if(subtitleEl)subtitleEl.textContent=subtitle;
-  document.getElementById('auth-tabs')?.setAttribute('data-mode',t==='reg'?'reg':'login');
   const remember=document.getElementById('li-remember');
   if(remember&&t!=='reg')remember.checked=rememberSessionChosen();
   document.getElementById('login-section').style.display=t==='login'?'':'none';
