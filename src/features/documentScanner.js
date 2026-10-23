@@ -1,7 +1,7 @@
 // documentScanner: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {resetRegistrationIds} from './idVerification.js';
-import {currentSemester,getSemester,previewFile,readFileAsDataURL} from './inputValidation.js';
+import {currentSemester,getSemester,previewFile,readFileAsDataURL,resetSelfiePreview} from './inputValidation.js';
 import {escapeHtml} from './issueReports.js';
 import {applyNavBadges} from './topbarAndNavigation.js';
 import {appointmentRecords} from './appointmentService.js';
@@ -287,7 +287,7 @@ export function updateRegistrationIdentityFields(){
   // Evidence collected for a different person type must not be reused silently.
   if(appState.camera.registrationPersonType&&appState.camera.registrationPersonType!==pt){
     resetRegistrationIds();appState.camera.capturedSelfieDataUrl=null;
-    document.getElementById('r-selfie-preview-wrap')?.replaceChildren();
+    resetSelfiePreview();
     clearRegistrationScan();
   }
   appState.camera.registrationPersonType=pt;

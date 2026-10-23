@@ -52,6 +52,8 @@ export function applyCampusDateSelection(date){
   const input=document.getElementById(inputId),label=document.getElementById(inputId+'-label');
   if(input)input.value=date;
   if(label)label.textContent=fmtDate(date);
+  // Hidden inputs do not emit change on assignment; announce the choice for field validation.
+  input?.dispatchEvent(new window.Event('change',{bubbles:true}));
   const cb=onChange&&resolveCallback(onChange);
   appState.datePicker.campusDatePickerTarget=null;
   closeAllModals();

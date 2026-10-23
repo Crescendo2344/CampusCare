@@ -1,6 +1,8 @@
 // Execute the real registration handler with fake Auth/Storage clients and no production records.
 import {emailValidationError,normalizePhilippineMobile} from '../supabase/functions/_shared/contact-validation.js';
 import {createMailDomainValidator} from '../supabase/functions/_shared/mail-domain.js';
+import {registrationDetailErrors} from '../supabase/functions/_shared/registration-validation.js';
+import {authRedirect} from '../supabase/functions/_shared/app-url.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -15,7 +17,7 @@ async function fixture({requireEmail=false,confirmationFailure=false,uploadFailu
     from(table){return {select(){return this;},delete(){return this;},ilike(){return this;},limit:async()=>({data:[]}),update(body){updates.push(body);return this;},eq(){return this;},maybeSingle:async()=>({data:{user_id:1}}),insert:async()=>({error:null})};},
     storage:{from(bucket){return {upload:async(path,file)=>{uploads.push({bucket,path,size:file.size});return {error:uploadFailure&&uploads.length===2?new Error('Fixture upload failed'):null};},remove:async paths=>{removes.push(paths);return {};}};}}};
   globalThis.__registrationClient=()=>client;
-  globalThis.__registrationContact={emailValidationError,normalizePhilippineMobile,createMailDomainValidator};
+  globalThis.__registrationContact={emailValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,authRedirect};
   const environment={SUPABASE_URL:'https://fixture.test',SUPABASE_ANON_KEY:'fixture',SUPABASE_SERVICE_ROLE_KEY:'fixture-private-key',CAMPUSCARE_REQUIRE_EMAIL_CONFIRMATION:String(requireEmail),...(captcha?{TURNSTILE_SITE_KEY:'0x4-fixture-site-key',TURNSTILE_SECRET_KEY:'fixture-secret'}:{}),...env};
   globalThis.Deno={env:{get:name=>environment[name]},serve:fn=>{handler=fn;}};
   globalThis.__registrationFetch=async(url,options)=>{
@@ -26,10 +28,10 @@ async function fixture({requireEmail=false,confirmationFailure=false,uploadFailu
     return Response.json({success:!duplicate,hostname:'campuscare-brown-two.vercel.app',action:'campuscare_register',...verdict});
   };
   const source=readFileSync('supabase/functions/register-patient/index.ts','utf8').replace(/^import[^\n]+\n/gm,'');
-  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const {emailValidationError,normalizePhilippineMobile,createMailDomainValidator}=globalThis.__registrationContact;const createClient=globalThis.__registrationClient;const fetch=globalThis.__registrationFetch;\n'+source)+'\n// '+Math.random()).toString('base64'));
-  const call=async({source='camera',consent=true,back=true,same=false,type='image/png',documentType='Student ID',token='fixture-captcha',ip='198.51.100.1',xff='',email='fixture@example.test',contact='',id='1234567',size=null}={})=>{
-    const form=new FormData();form.set('email',email);form.set('captcha_token',token);form.set('password','Fixture-password1!');form.set('selfie_capture_source',source);
-    form.set('metadata',JSON.stringify({username:'fixture',contact_no:contact,id_number:id,person_type:'Student',verification_document_type:documentType,privacy_consent:consent,role:'Administrator',registration_context:'internal'}));
+  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const {emailValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,authRedirect}=globalThis.__registrationContact;const createClient=globalThis.__registrationClient;const fetch=globalThis.__registrationFetch;\n'+source)+'\n// '+Math.random()).toString('base64'));
+  const call=async({details={},source='camera',consent=true,back=true,same=false,type='image/png',documentType='Student ID',token='fixture-captcha',ip='198.51.100.1',xff='',email='fixture@example.test',contact='',id='1234567',size=null}={})=>{
+    const form=new FormData();form.set('email',email);form.set('captcha_token',token);form.set('password',details.password||'Clinic-Pass1!');form.set('selfie_capture_source',source);
+    form.set('metadata',JSON.stringify({first_name:'Ana',last_name:'Reyes',username:'fixture',college:'COE',date_of_birth:'2004-05-06',sex:'Female',...details,contact_no:contact,id_number:id,person_type:'Student',verification_document_type:documentType,privacy_consent:consent,role:'Administrator',registration_context:'internal'}));
     form.set('selfie',new File(['selfie'],'camera.jpg',{type:'image/jpeg'}));form.set('verification',new File(['document'],'id.png',{type}));if(back)form.set('verification_back',new File([same?'document':'back-document'],'id-back.png',{type:'image/png'}));
     return handler(new Request('https://fixture.test',{method:'POST',headers:{'cf-connecting-ip':ip,'x-forwarded-for':xff,...(size?{'content-length':String(size)}:{})},body:form}));
   };
@@ -113,4 +115,12 @@ test('unroutable mail domains and DNS outages cannot create accounts',async()=>{
 // A delivery failure must not leave an email or username blocked for the next attempt.
 test('failed confirmation delivery rolls back the unconfirmed account and private uploads',async()=>{
  const f=await fixture({confirmationFailure:true});assert.equal((await f.call()).status,500);assert.deepEqual(f.deletes,['fixture']);assert.equal(f.removes[0].length,3);
+});
+test('registration rejects invalid personal details with field-level errors before creating an account',async()=>{
+  const f=await fixture();
+  const r=await f.call({details:{first_name:'4na',username:'_x',sex:'Other',date_of_birth:'2030-01-01'}});
+  assert.equal(r.status,400);const body=await r.json();
+  assert.deepEqual(Object.keys(body.field_errors).sort(),['birth_date','first_name','sex','username']);
+  assert.equal(f.creates.length,0);
+  const weak=await f.call({details:{password:'password'}});assert.equal(weak.status,400);assert(( await weak.json()).field_errors.password);
 });

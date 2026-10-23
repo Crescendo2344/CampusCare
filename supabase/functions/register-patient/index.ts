@@ -3,6 +3,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2.117.3";
 
 import {emailValidationError,normalizePhilippineMobile} from '../_shared/contact-validation.js';
 import {createMailDomainValidator} from '../_shared/mail-domain.js';
+import {authRedirect} from '../_shared/app-url.js';
+import {registrationDetailErrors} from '../_shared/registration-validation.js';
 const checkMailDomain=createMailDomainValidator();
 
 const corsHeaders = {
@@ -15,7 +17,7 @@ const json=(body:unknown,status=200,extra:Record<string,string>={})=>new Respons
 // Signup confirmations return to the deployed login flow.
 // Every public registration must prove ownership of its email before signing in.
 const REQUIRE_EMAIL_CONFIRMATION=true;
-const APP_CONFIRM_URL="https://campuscare-brown-two.vercel.app/?auth=confirmed";
+const APP_CONFIRM_URL=authRedirect("confirmed",(name:string)=>Deno.env.get(name)||"");
 
 // Only the public site key is returned to browsers. A half-configured widget fails closed.
 function captchaConfiguration(){
@@ -109,7 +111,7 @@ Deno.serve(async(req:Request)=>{
 
     if(!email||!password||!(selfie instanceof File)||!(verification instanceof File)||!(verificationBack instanceof File))
       return json({error:"Email, password, selfie, and front and back ID photos are required."},400);
-    if(form.get("selfie_capture_source")!=="camera")return json({error:"Take a live camera verification selfie while holding your document."},400);
+    if(form.get("selfie_capture_source")!=="camera")return json({error:"Take a live camera verification selfie while holding your ID."},400);
     if(!selfie.size||!verification.size||!verificationBack.size)return json({error:"Selfie and verification document must not be empty."},400);
     if(password.length<8) return json({error:"Password must contain at least 8 characters."},400);
     if(selfie.size>5*1024*1024) return json({error:"Verification selfie must be 5 MB or smaller."},400);
@@ -140,9 +142,14 @@ Deno.serve(async(req:Request)=>{
     // Apply independent email and ID limits even when callers rotate networks.
     const schoolId=String(metadata.id_number||"").trim();
     if(!/^\d{5}(?:\d{2})?$/.test(schoolId))return json({error:"Enter a valid email and Student or Employee ID number."},400);
-    const emailError=emailValidationError(email);if(emailError)return json({error:emailError},400);
+    const emailError=emailValidationError(email);if(emailError)return json({error:emailError,field_errors:{email:emailError}},400);
     const contactRaw=String(metadata.contact_number||'').trim();
-    if(contactRaw&&!normalizePhilippineMobile(contactRaw))return json({error:'Use a Philippine mobile number starting with 09 or +639.'},400);
+    if(contactRaw&&!normalizePhilippineMobile(contactRaw))return json({error:'Use a Philippine mobile number starting with 09 or +639.',field_errors:{contact_number:'Use a Philippine mobile number starting with 09 or +639.'}},400);
+    // The same field rules as the browser form; never trust client-side checks alone.
+    for(const key of ["first_name","last_name","username","college","sex"])metadata[key]=String(metadata[key]??"").trim();
+    const manilaToday=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
+    const fieldErrors=registrationDetailErrors({...metadata,email,password,contact_number:contactRaw,id_number:schoolId,birth_date:String(metadata.birth_date||"")},manilaToday);
+    if(Object.keys(fieldErrors).length)return json({error:Object.values(fieldErrors)[0],field_errors:fieldErrors},400);
     if(contactRaw){metadata.contact_number=normalizePhilippineMobile(contactRaw);metadata.contact_no=metadata.contact_number;}
     const captchaError=await validateCaptcha(captcha,form.get("captcha_token"));if(captchaError)return captchaError;
     for(const [scope,value] of [["email",email],["id",schoolId]]){const denied=await registrationLimit(adminClient,scope,value,serviceKey);if(denied)return denied;}
@@ -152,10 +159,10 @@ Deno.serve(async(req:Request)=>{
 
     const username=String(metadata.username||"").trim();
     const {data:existingEmail}=await adminClient.from("users").select("user_id").ilike("email",email).limit(1);
-    if(existingEmail?.length) return json({error:"This email address is already registered."},409);
+    if(existingEmail?.length) return json({error:"This email address is already registered.",field_errors:{email:"This email address is already registered. Log in or use Forgot password."}},409);
     if(username){
       const {data:existingUsername}=await adminClient.from("users").select("user_id").ilike("username",username).limit(1);
-      if(existingUsername?.length) return json({error:"This username is already taken."},409);
+      if(existingUsername?.length) return json({error:"This username is already taken.",field_errors:{username:"This username is already taken. Try another one."}},409);
     }
 
     // Direct Auth signups stay disabled: only this CAPTCHA-checked endpoint can register.

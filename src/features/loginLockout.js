@@ -1,5 +1,5 @@
 // loginLockout: imported feature APIs; state belongs to explicit application namespaces.
-import {emailValidationError,normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
+import {normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {state as appState} from '../app/state.js';
 import {initializeSupabaseClient} from './supabaseClient.js';
 import {registrationToast,showAlert,toast} from './theme.js';
@@ -10,7 +10,7 @@ import {refreshRealApprovalQueue} from './approvalQueue.js';
 import {syncPublicSystemSettings} from './systemSettings.js';
 import {closeAllModals,openModal} from './modals.js';
 import {escapeHtml} from './issueReports.js';
-import {fmtDate,validateRegistrationContact} from './inputValidation.js';
+import {fmtDate,resetRegistrationFieldErrors,resetSelfiePreview,setRegistrationFieldError,validateRegistrationForm} from './inputValidation.js';
 import {updateRegistrationIdentityFields} from './documentScanner.js';
 import {authTab} from './authentication.js';
 import {registrationIdSides,resetRegistrationIds} from './idVerification.js';
@@ -224,6 +224,8 @@ export function dataUrlToRegistrationFile(dataUrl, filename='capture.jpg'){
   return new File([bytes],filename,{type:mime});
 }
 
+const REGISTRATION_SERVER_FIELDS={first_name:'r-fname',last_name:'r-lname',username:'r-user',email:'r-email',password:'r-pass',contact_number:'r-contact',college:'r-college',id_number:'r-idno',birth_date:'r-dob',sex:'r-sex'};
+
 export async function doRegister() {
   if(!initializeSupabaseClient()){
     registrationToast('Unable to connect to CampusCare. Please try again.','error');
@@ -246,79 +248,17 @@ export async function doRegister() {
   const dob=document.getElementById('r-dob').value;
   const sex=document.getElementById('r-sex').value;
   const idSides=registrationIdSides();
-  const privacyConsent=document.getElementById('r-privacy-consent');
 
-  if(!privacyConsent?.checked){
-    registrationToast('Please read and agree to the CampusCare Privacy Notice and Consent before registering.','error');
+  // Show every problem beside its field, like a standard sign-up form, then move to the first one.
+  const invalid=validateRegistrationForm();
+  if(invalid.length){
+    const first=invalid[0];
+    const target=first==='r-dob'?document.getElementById('r-dob-button'):first==='r-selfie'?document.getElementById('selfie-camera-button'):first==='r-id'?document.getElementById('r-id-camera-button'):document.getElementById(first);
+    target?.scrollIntoView?.({block:'center',behavior:'smooth'});
+    target?.focus?.({preventScroll:true});
+    registrationToast(invalid.length===1?'Please fix the highlighted field.':`Please fix the ${invalid.length} highlighted fields.`,'error');
     return;
   }
-  if(!fname||!lname||!uname||!email||!pass){
-    registrationToast('Name, username, email and password are required.','error');
-    return;
-  }
-  if(fname.length>50||lname.length>50){
-    registrationToast('First and last name must not exceed 50 characters.','error');
-    return;
-  }
-  if(!/^[A-Za-z0-9_.-]{4,20}$/.test(uname)){
-    registrationToast('Username must be 4–20 characters using letters, numbers, periods, underscores, or hyphens.','error');
-    return;
-  }
-  if(emailValidationError(email)){
-    validateRegistrationContact(document.getElementById('r-email'));
-    registrationToast(emailValidationError(email),'error');
-    return;
-  }
-  if(pass.length>64){
-    registrationToast('Password must not exceed 64 characters.','error');
-    return;
-  }
-  if(contactRaw&&!contact){
-    validateRegistrationContact(document.getElementById('r-contact'));
-    registrationToast('Use a Philippine mobile number starting with 09 or +639.','error');
-    return;
-  }
-  const expectedIdLength=ptype==='Student'?7:5;
-  if(!new RegExp(`^\\d{${expectedIdLength}}$`).test(idNo)){
-    registrationToast(
-      ptype==='Student'
-        ? 'Student ID must contain exactly 7 digits, for example 1350098.'
-        : 'Employee ID must contain exactly 5 digits, for example 14982.',
-      'error'
-    );
-    return;
-  }
-  if(!college){
-    registrationToast(ptype==='Non-Teaching Personnel'?'Please select your department.':'Please select your college.','error');
-    return;
-  }
-  if(!dob){
-    registrationToast('Please enter your date of birth.','error');
-    return;
-  }
-  if(dob>appState.clinicInformation.TODAY){
-    registrationToast('Date of birth cannot be in the future.','error');
-    return;
-  }
-  const ageYears=Math.floor((new Date(appState.clinicInformation.TODAY)-new Date(dob))/(365.25*24*60*60*1000));
-  if(ageYears<10||ageYears>100){
-    registrationToast('Please double-check your date of birth.','error');
-    return;
-  }
-  if(!sex){
-    registrationToast('Please select your sex.','error');
-    return;
-  }
-  if(!checkPasswordStrength(pass).valid){
-    registrationToast('Password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.','error');
-    return;
-  }
-  if(!appState.camera.capturedSelfieDataUrl){
-    registrationToast('Use the camera to take a verification selfie while holding the document you will upload.','error');
-    return;
-  }
-  if(!idSides.front||!idSides.back){registrationToast('Provide the front and back of your Student or Employee ID.','error');return;}
-  if(appState.documentScanner.lastOcrDocumentType==='COR'){registrationToast('COR is not accepted. Use the front and back of your Student or Employee ID.','error');return;}
   let captchaToken;
   try{captchaToken=await registrationCaptchaToken(appState.supabaseClient.SUPABASE_URL,appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY);}
   catch(error){registrationToast(error.message,'error');return;}
@@ -373,7 +313,7 @@ export async function doRegister() {
     });
     const result=await response.json().catch(()=>({}));
     if(!response.ok||!result.ok){
-      throw new Error(result.error||'Registration failed. Please try again.');
+      throw Object.assign(new Error(result.error||'Registration failed. Please try again.'),{fieldErrors:result.field_errors});
     }
 
     registrationToast(
@@ -390,19 +330,22 @@ export async function doRegister() {
       dob,sex,status:'Pending'
     });
 
-    ['r-fname','r-lname','r-user','r-email','r-pass','r-contact','r-idno','r-dob','r-sex']
+    ['r-fname','r-lname','r-user','r-email','r-pass','r-pass2','r-contact','r-idno','r-dob','r-sex']
       .forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    const dobLabel=document.getElementById('r-dob-label');if(dobLabel)dobLabel.textContent='Select date';
     resetRegistrationIds();
-    const selfiePreview=document.getElementById('r-selfie-preview-wrap');
-    if(selfiePreview)selfiePreview.replaceChildren();
-    const selfieButton=document.getElementById('selfie-camera-button');
-    if(selfieButton)selfieButton.textContent='Take Verification Selfie';
+    resetSelfiePreview();
+    resetRegistrationFieldErrors();
     const preview=document.getElementById('r-file-preview');if(preview)preview.textContent='';
     const consent=document.getElementById('r-privacy-consent');if(consent)consent.checked=false;
     appState.camera.capturedSelfieDataUrl=null;appState.camera.capturedIdDataUrl=null;
     updateRegistrationIdentityFields();
   }catch(e){
-    registrationToast(e?.message||'Registration failed. Please try again.','error',6000);
+    // Server field problems (for example a taken username) appear beside the field, like client checks.
+    const fields=Object.entries(e?.fieldErrors||{}).filter(([key])=>REGISTRATION_SERVER_FIELDS[key]);
+    fields.forEach(([key,message])=>setRegistrationFieldError(REGISTRATION_SERVER_FIELDS[key],String(message)));
+    if(fields.length)document.getElementById(REGISTRATION_SERVER_FIELDS[fields[0][0]])?.focus();
+    registrationToast(fields.length?'Please fix the highlighted fields.':e?.message||'Registration failed. Please try again.','error',6000);
   }finally{
     // Tokens are one-time use, including failed submissions that reached verification.
     resetRegistrationCaptcha();
@@ -416,12 +359,14 @@ export function showPendingPanel(user){
   document.getElementById('reg-section').style.display='none';
   document.getElementById('auth-tabs').style.display='none';
   document.getElementById('pending-name').textContent = user?`${user.fname} ${user.lname}`:'there';
+  const pendingEmail=document.getElementById('pending-email');
+  if(pendingEmail)pendingEmail.textContent=user?.email?maskVerificationEmail(user.email):'your email';
   document.getElementById('pending-section').style.display='block';
 }
 
 export function closePendingPanel(){
   document.getElementById('pending-section').style.display='none';
-  document.getElementById('auth-tabs').style.display='flex';
+  document.getElementById('auth-tabs').style.display='';
   document.getElementById('li-user').value='';
   document.getElementById('li-pass').value='';
   authTab('login');

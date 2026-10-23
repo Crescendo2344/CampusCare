@@ -19,7 +19,7 @@ export function startSelfieGuidance({video,root,captureButton,manualButton,statu
     // Brief missed detections should not make the shutter flicker or restart a long countdown.
     const smoothed=readiness.update(result,now);
     progress.style.width=Math.round(smoothed.progress*100)+'%';
-    setStatus(smoothed.ready?'ready':smoothed.feedback.code,smoothed.ready?'Good position — keep your document visible':result.ready?'Hold still for a moment…':smoothed.feedback.message,smoothed.ready);
+    setStatus(smoothed.ready?'ready':smoothed.feedback.code,smoothed.ready?'Good position — keep your ID visible':result.ready?'Hold still for a moment…':smoothed.feedback.message,smoothed.ready);
   };
   const fallback=async()=>{
     if(disposed||switching)return;

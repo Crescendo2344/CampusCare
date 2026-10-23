@@ -2,7 +2,7 @@
 import {state as appState} from '../app/state.js';
 import {authTab,landingNavTo,showAuthPage,showLandingPage} from './authentication.js';
 import {toggleTheme} from './theme.js';
-import {sanitizeInput,validateRegistrationContact} from './inputValidation.js';
+import {sanitizeInput,validateRegistrationContact,validateRegistrationField} from './inputValidation.js';
 import {closePendingPanel,doLogin,doRegister,hidePasswordChecklist,openPrivacyNotice,showPasswordChecklist,updatePasswordStrength} from './loginLockout.js';
 import {closeForgotPassword,hideRecoveryPasswordChecklist,logout,openForgotPassword,sendPasswordResetEmail,showForgotStep,showRecoveryPasswordChecklist,submitNewPassword,updateRecoveryPasswordStrength} from './passwordRecovery.js';
 import {recheckNameMatch,sanitizeRegistrationId,updateRegistrationIdentityFields} from './documentScanner.js';
@@ -30,25 +30,28 @@ export function initializeFeature(){
   registerNamedAction('shell-6',(event,element)=>{showAuthPage('reg')});
   registerNamedAction('landing-book-appointment',()=>showAuthPage('login'));
   registerNamedAction('registration-contact-blur',(event,element)=>validateRegistrationContact(element));
+  // Fields report their own error after the person leaves them, then update live while being corrected.
+  registerNamedAction('registration-field-blur',(event,element)=>{validateRegistrationField(element.id)});
+  registerNamedAction('registration-confirm-input',(event,element)=>{sanitizeInput(element,'password');validateRegistrationField(element.id,false)});
   registerNamedAction('shell-7',(event,element)=>{document.querySelector('.landing-nav-links').classList.toggle('mobile-show')});
   registerNamedAction('shell-8',(event,element)=>{showAuthPage('login')});
   registerNamedAction('shell-9',(event,element)=>{showLandingPage()});
-  registerNamedAction('shell-11',(event,element)=>{authTab('login')});
-  registerNamedAction('shell-12',(event,element)=>{authTab('reg')});
+  registerNamedAction('shell-11',(event,element)=>{event.preventDefault();authTab('login')});
+  registerNamedAction('shell-12',(event,element)=>{event.preventDefault();authTab('reg')});
   registerNamedAction('shell-13',(event,element)=>{sanitizeInput(element,'password')});
   registerNamedAction('shell-14',(event,element)=>{if(event.key==='Enter')doLogin()});
   registerNamedAction('shell-16',(event,element)=>{openForgotPassword();return false;});
   registerNamedAction('shell-17',(event,element)=>{doLogin()});
-  registerNamedAction('shell-18',(event,element)=>{sanitizeInput(element,'name');recheckNameMatch()});
-  registerNamedAction('shell-19',(event,element)=>{sanitizeInput(element,'name');recheckNameMatch()});
-  registerNamedAction('shell-20',(event,element)=>{sanitizeInput(element,'username')});
+  registerNamedAction('shell-18',(event,element)=>{sanitizeInput(element,'name');validateRegistrationField(element.id,false);recheckNameMatch()});
+  registerNamedAction('shell-19',(event,element)=>{sanitizeInput(element,'name');validateRegistrationField(element.id,false);recheckNameMatch()});
+  registerNamedAction('shell-20',(event,element)=>{sanitizeInput(element,'username');validateRegistrationField(element.id,false)});
   registerNamedAction('shell-21',(event,element)=>{sanitizeInput(element,'email');validateRegistrationContact(element,false)});
   registerNamedAction('shell-22',(event,element)=>{showPasswordChecklist()});
-  registerNamedAction('shell-23',(event,element)=>{sanitizeInput(element,'password');updatePasswordStrength()});
-  registerNamedAction('shell-24',(event,element)=>{hidePasswordChecklist()});
+  registerNamedAction('shell-23',(event,element)=>{sanitizeInput(element,'password');updatePasswordStrength();validateRegistrationField(element.id,false);validateRegistrationField('r-pass2',false)});
+  registerNamedAction('shell-24',(event,element)=>{hidePasswordChecklist();validateRegistrationField(element.id)});
   registerNamedAction('shell-25',(event,element)=>{sanitizeInput(element,'phone');validateRegistrationContact(element,false)});
-  registerNamedAction('shell-26',(event,element)=>{updateRegistrationIdentityFields()});
-  registerNamedAction('shell-27',(event,element)=>{sanitizeRegistrationId(element)});
+  registerNamedAction('shell-26',(event,element)=>{updateRegistrationIdentityFields();validateRegistrationField('r-idno',false)});
+  registerNamedAction('shell-27',(event,element)=>{sanitizeRegistrationId(element);validateRegistrationField(element.id,false)});
   registerNamedAction('shell-28',(event,element)=>{openCampusDatePicker('r-dob','Select Date of Birth','',appState.clinicInformation.TODAY,'')});
   // Each side has its own accepted file and guided camera capture.
   for(const side of ['front','back']){
@@ -59,7 +62,8 @@ export function initializeFeature(){
   registerNamedAction('shell-30',(event,element)=>{openCamera('selfie')});
   registerNamedAction('shell-35',(event,element)=>{event.preventDefault();openPrivacyNotice()});
   registerNamedAction('registration-security-retry',()=>{resetRegistrationCaptcha();prepareRegistrationCaptcha(appState.supabaseClient.SUPABASE_URL,appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY,{refresh:true}).catch(()=>{});});
-  registerNamedAction('shell-36',(event,element)=>{doRegister()});
+  // Submitting the form (button or Enter) always runs client checks before any network request.
+  registerNamedAction('registration-submit',(event,element)=>{event.preventDefault();doRegister()});
   registerNamedAction('shell-38',(event,element)=>{closePendingPanel()});
   registerNamedAction('shell-39',(event,element)=>{sendPasswordResetEmail()});
   registerNamedAction('shell-40',(event,element)=>{closeForgotPassword()});

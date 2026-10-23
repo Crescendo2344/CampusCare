@@ -1,5 +1,6 @@
 // inputValidation: imported feature APIs; state belongs to explicit application namespaces.
-import {emailValidationError,normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
+import {emailValidationError} from '../../supabase/functions/_shared/contact-validation.js';
+import {birthDateValidationError,confirmPasswordValidationError,contactValidationError,nameValidationError,passwordValidationError,schoolIdValidationError,usernameValidationError} from '../../supabase/functions/_shared/registration-validation.js';
 import {state as appState} from '../app/state.js';
 import {displayMarkup,formatters,sanitizeValue,scheduleRules} from '../dependencies.js';
 // ================================================================
@@ -20,13 +21,67 @@ export function sanitizeInput(el,type){
 
 // Show actionable inline feedback after leaving a field; typing clears a stale error immediately.
 export function validateRegistrationContact(el,showError=true){
-  const email=el.id==='r-email';
-  const message=el.value?(email?emailValidationError(el.value):(normalizePhilippineMobile(el.value)?'':'Use 09 followed by 9 digits, or +63 followed by 10 digits starting with 9.')):'';
-  const node=document.getElementById(el.id+'-error');
-  if(node){node.textContent=showError?message:'';node.hidden=!(showError&&message);}
-  el.setAttribute('aria-invalid',String(Boolean(showError&&message)));
-  el.setCustomValidity(message);
+  return validateRegistrationField(el.id,showError);
+}
+
+// Place a message under its field, mark the control invalid and keep native validity in step.
+export function setRegistrationFieldError(id,message,showError=true){
+  const visible=Boolean(showError&&message);
+  const node=document.getElementById(id+'-error');
+  if(node){node.textContent=visible?message:'';node.hidden=!visible;}
+  // Photo steps highlight their whole panel; other fields mark the control a person interacts with.
+  const group={'r-selfie':'r-selfie-group','r-id':'r-id-group'}[id];
+  const control=group?null:document.getElementById(id==='r-dob'?'r-dob-button':id);
+  control?.setAttribute('aria-invalid',String(visible));
+  (group?document.getElementById(group):control?.closest('.form-group'))?.classList.toggle('has-error',visible);
+  document.getElementById(id)?.setCustomValidity?.(message||'');
   return message;
+}
+
+const value=id=>String(document.getElementById(id)?.value||'');
+// Each registration control maps to the shared rule the server also enforces.
+const registrationFieldRules={
+  'r-fname':()=>nameValidationError(value('r-fname'),'First name'),
+  'r-lname':()=>nameValidationError(value('r-lname'),'Last name'),
+  'r-user':()=>usernameValidationError(value('r-user')),
+  'r-email':()=>value('r-email').trim()?emailValidationError(value('r-email')):'Enter your email address.',
+  'r-pass':()=>passwordValidationError(value('r-pass'),{username:value('r-user'),email:value('r-email')}),
+  'r-pass2':()=>confirmPasswordValidationError(value('r-pass'),value('r-pass2')),
+  'r-contact':()=>contactValidationError(value('r-contact')),
+  'r-college':()=>value('r-college')?'':'Select your college or department.',
+  'r-idno':()=>schoolIdValidationError(value('r-idno').trim(),value('r-ptype')||'Student'),
+  'r-dob':()=>birthDateValidationError(value('r-dob'),appState.clinicInformation.TODAY),
+  'r-sex':()=>value('r-sex')?'':'Select your sex.',
+  'r-selfie':()=>appState.camera.capturedSelfieDataUrl?'':'Use the camera to take a verification selfie while holding the ID you will upload.',
+  'r-id':()=>{
+    const sides=appState.camera.registrationIds||{};
+    if(appState.documentScanner.lastOcrDocumentType==='COR')return 'COR is not accepted. Use the front and back of your Student or Employee ID.';
+    return sides.front&&sides.back?'':'Provide the front and back of your Student or Employee ID.';
+  },
+  'r-privacy-consent':()=>document.getElementById('r-privacy-consent')?.checked?'':'Please read and agree to the CampusCare Privacy Notice and Consent.'
+};
+const touchedFields=new Set();
+
+// While typing, only correct an error already shown; a fresh field is checked when the person leaves it.
+export function validateRegistrationField(id,showError=true){
+  const rule=registrationFieldRules[id];
+  if(!rule)return '';
+  // An empty optional or untouched field should not turn red mid-typing.
+  if(showError)touchedFields.add(id);
+  const message=rule();
+  setRegistrationFieldError(id,message,showError||touchedFields.has(id));
+  return message;
+}
+
+// Check every field at once, show all problems and return the first invalid control for focus.
+export function validateRegistrationForm(){
+  const invalid=Object.keys(registrationFieldRules).filter(id=>validateRegistrationField(id));
+  return invalid;
+}
+
+export function resetRegistrationFieldErrors(){
+  touchedFields.clear();
+  for(const id of Object.keys(registrationFieldRules))setRegistrationFieldError(id,'',false);
 }
 
 export function getSemester(...args){return formatters.getSemester(...args);}
@@ -50,7 +105,16 @@ export function previewFile(input,previewId){
   if(el&&input.files[0])el.textContent='✓ '+input.files[0].name;
 }
 
+export function setVerificationChip(id,state,text){
+  const chip=document.getElementById(id);
+  if(!chip)return;
+  chip.dataset.state=state;chip.textContent=text;
+}
+
 export function resetSelfiePreview(){
+  setVerificationChip('r-selfie-chip','todo','Required');
+  const button=document.getElementById('selfie-camera-button');
+  if(button)button.innerHTML='<i class="bi bi-camera" aria-hidden="true"></i> Take Verification Selfie';
   const wrap=document.getElementById('r-selfie-preview-wrap');
   if(wrap)wrap.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:26px;height:26px;color:var(--ink-muted)"><path stroke-linecap="round" stroke-linejoin="round" d="M15 8a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 20a7.5 7.5 0 0115 0"/></svg>`;
 }

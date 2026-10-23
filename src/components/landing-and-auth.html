@@ -328,36 +328,64 @@
     <p>Campus Health Management System</p>
   </div>
   <div class="auth-body">
-    <div class="auth-tabs" id="auth-tabs">
-      <button class="auth-tab active" data-action-click="shell-11">Login</button>
-      <button class="auth-tab" data-action-click="shell-12">Register</button>
+    <!-- One heading per mode; each form links to the other instead of using tabs. -->
+    <div class="auth-mode-heading" id="auth-tabs">
+      <h2 id="auth-mode-title">Welcome back</h2>
+      <p id="auth-mode-subtitle">Log in to book visits and view your clinic records.</p>
     </div>
 
     <!-- LOGIN -->
     <div id="login-section">
       <div class="alert alert-danger" id="login-err"></div>
-      <div class="form-group"><label>Username or Email</label><input id="li-user" type="text" placeholder="Enter username or email" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
-      <div class="form-group"><label>Password</label><input id="li-pass" type="password" placeholder="Enter password" data-action-input="shell-13" data-action-keydown="shell-14"></div>
+      <div class="form-group"><label for="li-user">Username or Email</label><input id="li-user" type="text" placeholder="Enter username or email" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+      <div class="form-group"><label for="li-pass">Password</label><input id="li-pass" type="password" placeholder="Enter password" autocomplete="current-password" data-action-input="shell-13" data-action-keydown="shell-14"></div>
       <button class="btn btn-primary" style="width:100%;margin-top:.3rem" data-action-click="shell-17">Login</button>
       <div class="auth-recovery-links" style="margin-top:.6rem">
         <a href="#" style="font-size:.75rem;color:var(--primary);text-decoration:none" data-action-click="shell-16">Forgot password?</a>
       </div>
+      <p class="auth-switch">New here? <a href="#" data-action-click="shell-12">Create an account</a></p>
     </div>
 
     <!-- REGISTER -->
-    <div id="reg-section" style="display:none">
-<div class="alert alert-danger" id="reg-err"></div>
+    <form id="reg-section" style="display:none" novalidate data-action-submit="registration-submit">
+      <div class="alert alert-danger" id="reg-err"></div>
       <div class="alert alert-success" id="reg-ok"></div>
-      <div class="form-row">
-        <div class="form-group"><label>First Name <span class="required">*</span></label><input id="r-fname" type="text" maxlength="50" autocomplete="given-name" data-action-input="shell-18"></div>
-        <div class="form-group"><label>Last Name <span class="required">*</span></label><input id="r-lname" type="text" maxlength="50" autocomplete="family-name" data-action-input="shell-19"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Username <span class="required">*</span></label><input id="r-user" type="text" maxlength="20" autocomplete="username" data-action-input="shell-20"></div>
-        <div class="form-group"><label>Email <span class="required">*</span></label><input id="r-email" type="email" maxlength="150" autocomplete="email" data-action-input="shell-21" data-action-blur="registration-contact-blur" aria-describedby="r-email-error"><p class="registration-field-error" id="r-email-error" aria-live="polite" hidden></p></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Password <span class="required">*</span></label><input id="r-pass" type="password" minlength="8" maxlength="64" autocomplete="new-password" data-action-focus="shell-22" data-action-input="shell-23" data-action-blur="shell-24"></div>
+      <p class="registration-required-note"><span class="required">*</span> Required field</p>
+
+      <fieldset class="registration-group">
+        <legend>Personal information</legend>
+        <div class="form-row">
+          <div class="form-group"><label for="r-fname">First Name <span class="required">*</span></label><input id="r-fname" type="text" maxlength="50" autocomplete="given-name" data-action-input="shell-18" data-action-blur="registration-field-blur" aria-describedby="r-fname-error"><p class="registration-field-error" id="r-fname-error" aria-live="polite" hidden></p></div>
+          <div class="form-group"><label for="r-lname">Last Name <span class="required">*</span></label><input id="r-lname" type="text" maxlength="50" autocomplete="family-name" data-action-input="shell-19" data-action-blur="registration-field-blur" aria-describedby="r-lname-error"><p class="registration-field-error" id="r-lname-error" aria-live="polite" hidden></p></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Date of Birth <span class="required">*</span></label>
+            <input type="hidden" id="r-dob" value="" data-action-change="registration-field-blur">
+            <div class="campus-date-field"><button type="button" class="modern-date-btn" id="r-dob-button" aria-describedby="r-dob-error" data-action-click="shell-28"><i class="bi bi-calendar3"></i><span id="r-dob-label">Select date</span></button></div>
+            <p class="registration-field-error" id="r-dob-error" aria-live="polite" hidden></p>
+          </div>
+          <div class="form-group"><label for="r-sex">Sex <span class="required">*</span></label>
+            <select id="r-sex" data-action-change="registration-field-blur" aria-describedby="r-sex-error">
+              <option value="">Select</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
+            <p class="registration-field-error" id="r-sex-error" aria-live="polite" hidden></p>
+          </div>
+        </div>
+        <p class="form-note registration-group-note">Your date of birth helps us match you to your ID and is used for your medical record.</p>
+      </fieldset>
+
+      <fieldset class="registration-group">
+        <legend>Account details</legend>
+        <div class="form-row">
+          <div class="form-group"><label for="r-user">Username <span class="required">*</span></label><input id="r-user" type="text" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" data-action-input="shell-20" data-action-blur="registration-field-blur" aria-describedby="r-user-help r-user-error"><p class="form-note" id="r-user-help">4–20 letters, numbers, . _ or -</p><p class="registration-field-error" id="r-user-error" aria-live="polite" hidden></p></div>
+          <div class="form-group"><label for="r-email">Email <span class="required">*</span></label><input id="r-email" type="email" maxlength="150" autocomplete="email" autocapitalize="none" spellcheck="false" data-action-input="shell-21" data-action-blur="registration-contact-blur" aria-describedby="r-email-error"><p class="registration-field-error" id="r-email-error" aria-live="polite" hidden></p></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="r-pass">Password <span class="required">*</span></label><input id="r-pass" type="password" minlength="8" maxlength="64" autocomplete="new-password" data-action-focus="shell-22" data-action-input="shell-23" data-action-blur="shell-24" aria-describedby="r-pass-error"><p class="registration-field-error" id="r-pass-error" aria-live="polite" hidden></p></div>
+          <div class="form-group"><label for="r-pass2">Confirm Password <span class="required">*</span></label><input id="r-pass2" type="password" maxlength="64" autocomplete="new-password" data-action-input="registration-confirm-input" data-action-blur="registration-field-blur" aria-describedby="r-pass2-error"><p class="registration-field-error" id="r-pass2-error" aria-live="polite" hidden></p></div>
+        </div>
         <div id="r-pass-strength" class="password-checklist" aria-live="polite">
           <div id="r-pass-strength-label" class="password-strength-label weak">Weak password</div>
           <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>8–64 characters</span></div>
@@ -366,69 +394,83 @@
           <div class="password-check" data-check="number"><span class="pw-check-icon"></span><span>One number</span></div>
           <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
         </div>
-        <div class="form-group"><label>Contact No.</label><input id="r-contact" type="tel" inputmode="tel" maxlength="24" autocomplete="tel" placeholder="09… or +63…" data-action-input="shell-25" data-action-blur="registration-contact-blur" aria-describedby="r-contact-help r-contact-error"><p class="form-note" id="r-contact-help">Use 09XXXXXXXXX or +639XXXXXXXXX.</p><p class="registration-field-error" id="r-contact-error" aria-live="polite" hidden></p></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Person Type <span class="required">*</span></label>
-          <select id="r-ptype" data-action-change="shell-26">
-            <option value="Student">Student</option>
-            <option value="Teaching Personnel">Teaching Personnel</option>
-            <option value="Non-Teaching Personnel">Non-Teaching Personnel</option>
-          </select>
-        </div>
-        <div class="form-group" id="r-college-group">
-          <label id="r-unit-label">College / Department <span class="required">*</span></label>
-          <select id="r-college"></select>
-        </div>
-      </div>
-      <div class="form-group">
-        <label id="r-idno-label">Student ID No. <span class="required">*</span></label>
-        <input id="r-idno" type="text" inputmode="numeric" maxlength="7" placeholder="e.g. 1350098" data-action-input="shell-27">
-        <p class="form-note" id="r-idno-note">Student ID must contain exactly 7 digits.</p>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Date of Birth <span class="required">*</span></label>
-          <input type="hidden" id="r-dob" value="">
-          <div class="campus-date-field"><button type="button" class="modern-date-btn" data-action-click="shell-28"><i class="bi bi-calendar3"></i><span id="r-dob-label">Select date</span></button></div>
-        </div>
-        <div class="form-group"><label>Sex <span class="required">*</span></label>
-          <select id="r-sex">
-            <option value="">Select</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-          </select>
-        </div>
-      </div>
-      <p class="form-note" style="margin:-.4rem 0 .8rem">Your date of birth helps us verify your identity against your uploaded ID and is used for your medical record.</p>
-      <div class="form-group">
-        <label>Selfie Verification <span class="required">*</span></label>
-        <p class="form-note" style="margin:0 0 .4rem">Take a live camera photo of yourself holding the front of the same Student or Employee ID you upload below. Keep your full face and document visible, with the text readable. This is private verification evidence, separate from your profile picture.</p>
-        <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
-          <div id="r-selfie-preview-wrap" style="width:180px;height:135px;max-width:100%;border-radius:12px;background:var(--overlay);border:1px solid var(--glass-border-soft);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:26px;height:26px;color:var(--ink-muted)"><path stroke-linecap="round" stroke-linejoin="round" d="M15 8a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 20a7.5 7.5 0 0115 0"/></svg>
+        <div class="form-group"><label for="r-contact">Contact No. <span class="text-muted registration-optional">(optional)</span></label><input id="r-contact" type="tel" inputmode="tel" maxlength="24" autocomplete="tel" placeholder="09… or +63…" data-action-input="shell-25" data-action-blur="registration-contact-blur" aria-describedby="r-contact-help r-contact-error"><p class="form-note" id="r-contact-help">Use 09XXXXXXXXX or +639XXXXXXXXX.</p><p class="registration-field-error" id="r-contact-error" aria-live="polite" hidden></p></div>
+      </fieldset>
+
+      <fieldset class="registration-group">
+        <legend>School details</legend>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="r-ptype">Person Type <span class="required">*</span></label>
+            <select id="r-ptype" data-action-change="shell-26">
+              <option value="Student">Student</option>
+              <option value="Teaching Personnel">Teaching Personnel</option>
+              <option value="Non-Teaching Personnel">Non-Teaching Personnel</option>
+            </select>
           </div>
-          <button type="button" class="btn btn-sm btn-info" id="selfie-camera-button" data-action-click="shell-30"><i class="bi bi-camera" aria-hidden="true"></i> Take Verification Selfie</button>
+          <div class="form-group" id="r-college-group">
+            <label for="r-college" id="r-unit-label">College / Department <span class="required">*</span></label>
+            <select id="r-college" data-action-change="registration-field-blur" aria-describedby="r-college-error"></select>
+            <p class="registration-field-error" id="r-college-error" aria-live="polite" hidden></p>
+          </div>
         </div>
-      </div>
-      <!-- A single panel advances from front to back while retaining both private images. -->
-      <div class="form-group"><label id="r-verification-label">Student ID — Front and Back <span class="required">*</span></label>
-        <p class="form-note">Use the same original ID for both sides and your selfie. COR and PDF documents are not accepted.</p>
-        <section class="registration-id-panel" aria-label="ID photos">
-          <div class="registration-id-heading"><h4 id="r-id-step-title">Step 1 of 2 — Front of ID</h4><div class="registration-id-switch" aria-label="Review saved ID sides">
-            <button type="button" class="btn btn-xs" id="r-id-show-front" data-action-click="id-show-front" hidden>Front ✓</button>
-            <button type="button" class="btn btn-xs" id="r-id-show-back" data-action-click="id-show-back" hidden>Back ✓</button>
-          </div></div>
+        <div class="form-group">
+          <label for="r-idno" id="r-idno-label">Student ID No. <span class="required">*</span></label>
+          <input id="r-idno" type="text" inputmode="numeric" maxlength="7" placeholder="e.g. 1350098" data-action-input="shell-27" data-action-blur="registration-field-blur" aria-describedby="r-idno-note r-idno-error">
+          <p class="form-note" id="r-idno-note">Student ID must contain exactly 7 digits.</p>
+          <p class="registration-field-error" id="r-idno-error" aria-live="polite" hidden></p>
+        </div>
+      </fieldset>
+
+      <fieldset class="registration-group">
+        <legend>Identity verification</legend>
+        <p class="form-note registration-group-note">Clinic staff compare your selfie with both sides of your ID. These photos stay private and are not used as your profile picture.</p>
+
+        <!-- Step 1: live selfie while holding the front of the ID. -->
+        <section class="verification-step" id="r-selfie-group" aria-labelledby="r-selfie-title">
+          <div class="verification-step-head">
+            <span class="verification-step-num" aria-hidden="true">1</span>
+            <div class="verification-step-text"><h4 id="r-selfie-title">Selfie holding your ID <span class="required">*</span></h4><p>Live camera photo with the front of your ID beside your face.</p></div>
+            <span class="verification-chip" id="r-selfie-chip" data-state="todo">Required</span>
+          </div>
+          <div class="verification-selfie-body">
+            <div id="r-selfie-preview-wrap" class="verification-selfie-preview">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:26px;height:26px;color:var(--ink-muted)"><path stroke-linecap="round" stroke-linejoin="round" d="M15 8a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 20a7.5 7.5 0 0115 0"/></svg>
+            </div>
+            <ul class="verification-tips">
+              <li>Face fully visible, no mask or sunglasses</li>
+              <li>Front of your ID held beside your face</li>
+              <li>ID text readable, without glare</li>
+            </ul>
+          </div>
+          <button type="button" class="btn btn-sm btn-info verification-action" id="selfie-camera-button" aria-describedby="r-selfie-error" data-action-click="shell-30"><i class="bi bi-camera" aria-hidden="true"></i> Take Verification Selfie</button>
+          <p class="registration-field-error" id="r-selfie-error" aria-live="polite" hidden></p>
+        </section>
+
+        <!-- Step 2: a single panel advances from front to back while retaining both private images. -->
+        <section class="verification-step registration-id-panel" id="r-id-group" aria-labelledby="r-verification-label">
+          <div class="verification-step-head">
+            <span class="verification-step-num" aria-hidden="true">2</span>
+            <div class="verification-step-text"><h4 id="r-verification-label">Student ID — Front and Back <span class="required">*</span></h4><p>Use the same original ID as your selfie. COR and PDF files are not accepted.</p></div>
+            <span class="verification-chip" id="r-id-chip" data-state="todo">0 of 2</span>
+          </div>
+          <div class="registration-id-switch" role="group" aria-label="Choose ID side">
+            <button type="button" class="registration-id-side" id="r-id-show-front" data-action-click="id-show-front" aria-pressed="true"><span class="registration-id-side-dot" aria-hidden="true"></span>Front</button>
+            <button type="button" class="registration-id-side" id="r-id-show-back" data-action-click="id-show-back" aria-pressed="false"><span class="registration-id-side-dot" aria-hidden="true"></span>Back</button>
+          </div>
+          <h5 class="registration-id-step-title" id="r-id-step-title">Step 1 of 2 — Front of ID</h5>
           <div class="registration-id-preview" id="r-id-preview"><span>Front of your ID</span></div>
           <p id="r-id-status" aria-live="polite">0 of 2 saved — start with the front.</p>
           <div class="registration-id-actions">
-            <label class="btn btn-sm" id="r-id-upload-label" for="r-id-file">Upload Front</label>
             <button type="button" class="btn btn-sm btn-info" id="r-id-camera-button" data-action-click="id-current-camera">Photograph Front</button>
+            <label class="btn btn-sm" id="r-id-upload-label" for="r-id-file">Upload Front</label>
           </div>
           <input type="file" id="r-id-file" aria-label="Upload front of ID" accept="image/jpeg,image/png,image/webp" class="id-file-input" data-action-change="id-front-upload">
           <input type="file" id="r-id-back-file" aria-label="Upload back of ID" accept="image/jpeg,image/png,image/webp" class="id-file-input" data-action-change="id-back-upload">
+          <p class="registration-field-error" id="r-id-error" aria-live="polite" hidden></p>
         </section>
-      </div>
+      </fieldset>
+
       <!-- The security check precedes consent, following the registration reading order. -->
       <section id="registration-captcha-section" aria-labelledby="registration-security-title" data-state="waiting" hidden>
         <div class="registration-security-heading">
@@ -445,11 +487,13 @@
         </div>
       </section>
       <div class="privacy-agree">
-        <input type="checkbox" id="r-privacy-consent">
+        <input type="checkbox" id="r-privacy-consent" data-action-change="registration-field-blur" aria-describedby="r-privacy-consent-error">
         <label for="r-privacy-consent">I have read and agree to the <a data-action-click="shell-35">CampusCare Privacy Notice and Consent</a>. I understand that my personal and health information will be collected and processed for CTU clinic registration, consultation, treatment, appointment, certificate, inventory-linked clinical operations, reporting, and other legitimate clinic purposes.</label>
       </div>
-      <button class="btn btn-primary" style="width:100%" id="registration-submit-button" data-action-click="shell-36">Submit Registration</button>
-    </div>
+      <p class="registration-field-error" id="r-privacy-consent-error" aria-live="polite" hidden></p>
+      <button type="submit" class="btn btn-primary" style="width:100%" id="registration-submit-button">Create Account</button>
+      <p class="auth-switch">Already on CampusCare? <a href="#" data-action-click="shell-11">Log in</a></p>
+    </form>
 
     <!-- PENDING VERIFICATION -->
     <div id="pending-section" style="display:none">
@@ -457,12 +501,12 @@
         <div style="width:56px;height:56px;border-radius:50%;background:var(--warning-bg);display:flex;align-items:center;justify-content:center;margin:0 auto .75rem;font-size:26px">🕐</div>
         <h3 style="font-size:1rem;margin-bottom:.5rem">Account Pending Verification</h3>
         <p style="font-size:.83rem;color:var(--ink-muted);line-height:1.6">
-          Thanks for registering, <strong id="pending-name">there</strong>! Our clinic staff will verify your uploaded ID and selfie and review your registration. Email confirmation is temporarily not required.
+          Thanks for registering, <strong id="pending-name">there</strong>! We sent a verification link to <strong id="pending-email">your email</strong>. Open it to confirm your address — it will bring you back to the CampusCare login page.
         </p>
       </div>
       <div class="demo-accounts" style="font-size:.76rem">
         <strong>What happens next?</strong>
-        Staff will cross-check your front and back ID photos against your selfie and details. You can log in after clinic approval — you do not need to click an email confirmation link.
+        Confirm your email first, then clinic staff will cross-check your front and back ID photos against your selfie and details. You can log in once your email is confirmed and the clinic approves your registration.
       </div>
       <div style="display:grid;gap:.5rem;margin-top:.9rem">
         <button class="btn btn-primary" style="width:100%" data-action-click="shell-38">Close</button>

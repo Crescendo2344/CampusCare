@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.3";
+import {authRedirect} from "../_shared/app-url.js";
 
 const cors={
   "Access-Control-Allow-Origin":"*",
@@ -225,7 +226,7 @@ Deno.serve(async(req)=>{
       let passwordSetupEmailSent=false;
       try{
         const {error:resetErr}=await anon.auth.resetPasswordForEmail(email,{
-          redirectTo:"https://crescendo2344.github.io/CampusCare/?auth=recovery"
+          redirectTo:authRedirect("recovery",(name:string)=>Deno.env.get(name)||"")
         });
         passwordSetupEmailSent=!resetErr;
       }catch(_){}

@@ -251,14 +251,16 @@ try{
     await page.locator('#fp-err').getByText('No CampusCare account matches that username or email.',{exact:true}).waitFor();
     assert(await page.locator('#forgot-step1').isVisible());assert(!await page.locator('#forgot-step2').isVisible());
     await page.evaluate(()=>window.__fixtureApp.features.passwordRecovery.closeForgotPassword());
-    await page.getByRole('button',{name:'Register',exact:true}).click();
+    await page.locator('#login-section').getByRole('link',{name:'Create an account',exact:true}).click();
+    assert.equal(await page.locator('#auth-mode-title').innerText(),'Create your account');
+    assert.equal(await page.locator('.auth-tab').count(),0,'Login and registration must not use tabs');
     await scrollDown();
     await page.locator('#r-ptype').selectOption('Teaching Personnel');
     await page.waitForFunction(()=>document.getElementById('r-verification-label').textContent.includes('Employee ID — Front and Back'));
     await page.locator('#r-ptype').selectOption('Student');
     await page.waitForFunction(()=>document.getElementById('r-verification-label').textContent.includes('Student ID — Front and Back'));
     // Populate a valid registration and an OCR name mismatch at the requested 25% boundary.
-    const fields={'r-fname':'Fixture','r-lname':'Student','r-user':'fixture.student','r-email':'fixture@example.test','r-pass':'Fixture-only-password1!','r-idno':'1234567'};
+    const fields={'r-fname':'Fixture','r-lname':'Student','r-user':'fixture.student','r-email':'fixture@example.test','r-pass':'Clinic-only-Pass1!','r-pass2':'Clinic-only-Pass1!','r-idno':'1234567'};
     for(const [id,value]of Object.entries(fields))await page.locator('#'+id).fill(value);
     await page.locator('#r-college').selectOption({index:0});await page.locator('#r-sex').selectOption('Male');
     await page.evaluate(()=>{
@@ -271,7 +273,8 @@ try{
     assert.equal(await page.locator('#r-selfie-file').count(),0,'Selfie file upload must be unavailable');
     await page.locator('#r-privacy-consent').check();
     await page.locator('#registration-submit-button').click();
-    await page.getByText('Use the camera to take a verification selfie while holding the document you will upload.',{exact:true}).waitFor();
+    await page.locator('#r-selfie-error').getByText('Use the camera to take a verification selfie while holding the ID you will upload.',{exact:true}).waitFor();
+    assert(await page.locator('#r-fname-error').isHidden(),'Valid fields must not show errors');
     assert(!requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'),'Missing camera selfie must block submission');
     await page.locator('#selfie-camera-button').click();
     await page.getByRole('button',{name:'Start Camera',exact:true}).click();
@@ -308,7 +311,7 @@ try{
       await feed({brightness:25},'Move to brighter, even lighting');
       await feed({documentVisible:false},'Hold the front of your ID beside your face, with all corners visible');
       assert(await page.locator('#camera-capture-button').isDisabled(),'Face without a held document must block capture');
-      await feed({},'Good position — keep your document visible');
+      await feed({},'Good position — keep your ID visible');
       assert(await page.locator('#camera-capture-button').isEnabled());
       if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/guided-selfie.png`,fullPage:true});
       await page.locator('#camera-capture-button').click();
@@ -333,7 +336,7 @@ try{
 
     // Both ID sides are mandatory even after a successful selfie.
     await page.locator('#registration-submit-button').click();
-    await page.getByText('Provide the front and back of your Student or Employee ID.',{exact:true}).waitFor();
+    await page.locator('#r-id-error').getByText('Provide the front and back of your Student or Employee ID.',{exact:true}).waitFor();
     assert(!requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'));
     const front=await page.evaluate(()=>{
       const c=document.createElement('canvas');c.width=640;c.height=480;const g=c.getContext('2d');g.fillStyle='#141414';g.fillRect(0,0,640,480);g.fillStyle='#ddd';g.fillRect(120,112,400,256);g.fillStyle='#222';g.font='24px sans-serif';g.fillText('STUDENT ID FRONT',145,190);return c.toDataURL('image/png').split(',')[1];

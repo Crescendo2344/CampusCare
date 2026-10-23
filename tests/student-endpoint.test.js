@@ -4,11 +4,12 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 import {buildStudentReport} from '../src/domain/student-report.js';
+import {authRedirect} from '../supabase/functions/_shared/app-url.js';
 async function endpoint(file,client){
   let handler;
-  globalThis.__studentClient=()=>client;globalThis.__studentRules=buildStudentReport;
+  globalThis.__studentClient=()=>client;globalThis.__studentRules=buildStudentReport;globalThis.__authRedirect=authRedirect;
   globalThis.Deno={env:{get:()=> 'fixture'},serve:fn=>{handler=fn;}};
-  let source=readFileSync(file,'utf8').replace(/import \{\s*createClient\s*\} from [^;]+;/,'const createClient=globalThis.__studentClient;').replace(/import \{buildStudentReport\} from [^;]+;/,'const buildStudentReport=globalThis.__studentRules;');
+  let source=readFileSync(file,'utf8').replace(/import \{\s*createClient\s*\} from [^;]+;/,'const createClient=globalThis.__studentClient;').replace(/import \{buildStudentReport\} from [^;]+;/,'const buildStudentReport=globalThis.__studentRules;').replace(/import \{authRedirect\} from [^;]+;/,'const authRedirect=globalThis.__authRedirect;');
   await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes(source)+'\n// '+Math.random()).toString('base64'));
   return handler;
 }

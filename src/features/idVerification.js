@@ -1,6 +1,6 @@
 // Accepted front/back images are separate from file inputs, so canceling a replacement keeps the old side.
 import {state as appState} from '../app/state.js';
-import {readFileAsDataURL} from './inputValidation.js';
+import {readFileAsDataURL,setRegistrationFieldError,setVerificationChip} from './inputValidation.js';
 import {inspectIdPhoto} from '../verification/id-controller.js';
 import {closeAllModals,openModal} from './modals.js';
 import {toast} from './theme.js';
@@ -19,7 +19,15 @@ export function renderRegistrationIds(){
   document.getElementById('r-id-status').textContent=count===2?'2 of 2 saved — both sides ready for clinic review.':count===1?'1 of 2 saved — add the '+(sides.front?'back':'front')+' of the same ID.':'0 of 2 saved — start with the front.';
   const upload=document.getElementById('r-id-upload-label');upload.htmlFor=side==='front'?'r-id-file':'r-id-back-file';upload.textContent=(sides[side]?'Replace ':'Upload ')+title;
   document.getElementById('r-id-camera-button').textContent=(sides[side]?'Retake ':'Photograph ')+title;
-  for(const value of ['front','back']){const button=document.getElementById('r-id-show-'+value);button.hidden=!sides.front&&!sides.back;button.textContent=(value==='front'?'Front':'Back')+(sides[value]?' ✓':'');button.setAttribute('aria-pressed',String(value===side));}
+  // Both side buttons stay visible so people can see which side is still missing.
+  for(const value of ['front','back']){
+    const button=document.getElementById('r-id-show-'+value);
+    button.dataset.saved=String(Boolean(sides[value]));
+    button.setAttribute('aria-pressed',String(value===side));
+    button.setAttribute('aria-label',(value==='front'?'Front':'Back')+' of ID — '+(sides[value]?'saved':'not added yet'));
+  }
+  setVerificationChip('r-id-chip',count===2?'done':count?'partial':'todo',count===2?'Both sides ready':count+' of 2');
+  if(count===2)setRegistrationFieldError('r-id','');
 }
 export function selectRegistrationIdSide(side){
   if(!['front','back'].includes(side))return;

@@ -18,7 +18,7 @@ export function assessSelfieFrame({faces=[],width,height,brightness=null,sharpne
   if(sharpness!==null&&sharpness<7)return result('blur','Hold still and clean the camera lens');
   if(!documentVisible)return result('document','Hold the front of your ID beside your face, with all corners visible');
   if(documentSharpness!==null&&documentSharpness<4)return result('document-blur','Hold your ID still so its details are visible');
-  return result('ready','Good position — keep your document visible',true);
+  return result('ready','Good position — keep your ID visible',true);
 }
 
 // Measure only the face crop so a bright wall cannot hide an underlit face.

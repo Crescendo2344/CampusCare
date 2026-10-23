@@ -3,7 +3,7 @@ import {requestCamera,cameraStartupMessage} from '../verification/camera-startup
 import {state as appState} from '../app/state.js';
 import {toast} from './theme.js';
 import {closeAllModals,openModal} from './modals.js';
-import {resizeImageDataUrl} from './inputValidation.js';
+import {resizeImageDataUrl,setRegistrationFieldError,setVerificationChip} from './inputValidation.js';
 import {dataUrlToProfileFile,uploadCurrentUserProfilePhoto} from './nameChangeRequests.js';
 import {renderMyAccount} from './accountSettings.js';
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
@@ -24,16 +24,27 @@ export async function openCamera(target){
   openModal(`<div class="modal selfie-modal">
     <div class="modal-header"><h3>Selfie Verification</h3><button class="close-btn" aria-label="Close selfie instructions" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body selfie-intro">
-      <h4>Get ready for your selfie</h4>
-      <p>Keep your face and the same document you will upload clearly visible.</p>
-      <div class="selfie-prep-grid">
-        <div class="selfie-prep-card"><i class="bi bi-person-circle" aria-hidden="true"></i><strong>Face visible</strong><span>Remove face coverings and sunglasses.</span></div>
-        <div class="selfie-prep-card"><i class="bi bi-brightness-high" aria-hidden="true"></i><strong>Even lighting</strong><span>Face a light source. Avoid glare and dark rooms.</span></div>
-        <div class="selfie-prep-card"><i class="bi bi-person-vcard" aria-hidden="true"></i><strong>Hold your document</strong><span>Keep the front of your Student or Employee ID beside your face.</span></div>
+      <div class="selfie-intro-art" aria-hidden="true">
+        <svg viewBox="0 0 160 110" fill="none">
+          <rect x="4" y="4" width="152" height="102" rx="16" class="art-frame"/>
+          <ellipse cx="98" cy="48" rx="21" ry="26" class="art-face"/>
+          <path d="M66 106c4-20 17-30 32-30s28 10 32 30" class="art-body"/>
+          <rect x="22" y="38" width="38" height="26" rx="4" class="art-card"/>
+          <circle cx="32" cy="49" r="5" class="art-card-photo"/>
+          <path d="M41 46h13M41 52h10M27 58h27" class="art-card-text"/>
+          <path d="M58 66c4 2 8 2 12 0" class="art-hand"/>
+        </svg>
       </div>
-      <p class="selfie-privacy">Positioning guidance runs on your device. Clinic staff review the captured selfie and document.</p>
+      <h4>Get ready for your selfie</h4>
+      <p>Take a live photo holding the front of the same ID you will upload.</p>
+      <ol class="selfie-prep-grid">
+        <li class="selfie-prep-card"><span class="selfie-prep-num">1</span><i class="bi bi-person-circle" aria-hidden="true"></i><strong>Face visible</strong><span>Remove face coverings, caps and sunglasses.</span></li>
+        <li class="selfie-prep-card"><span class="selfie-prep-num">2</span><i class="bi bi-brightness-high" aria-hidden="true"></i><strong>Even lighting</strong><span>Face a light source. Avoid glare and dark rooms.</span></li>
+        <li class="selfie-prep-card"><span class="selfie-prep-num">3</span><i class="bi bi-person-vcard" aria-hidden="true"></i><strong>Hold your ID</strong><span>Keep the front of your Student or Employee ID beside your face.</span></li>
+      </ol>
+      <p class="selfie-privacy"><i class="bi bi-shield-lock" aria-hidden="true"></i> Positioning guidance runs on your device. Only clinic staff review the captured selfie and ID.</p>
     </div>
-    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button class="btn btn-primary" ${bindAction('click',()=>startCamera('selfie'))}>Start Camera</button></div>
+    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button class="btn btn-primary" ${bindAction('click',()=>startCamera('selfie'))}><i class="bi bi-camera" aria-hidden="true"></i> Start Camera</button></div>
   </div>`);
 }
 
@@ -58,13 +69,13 @@ async function startCamera(target){
       <div class="modal-body" style="text-align:center">
         ${guided?`<div class="selfie-stage" id="selfie-stage" data-camera="${isId?'id':'selfie'}" data-mirrored="${!isId}"><video id="camera-video" autoplay playsinline muted></video><div class="${isId?'id-guide-rectangle':'selfie-guide-square'}" aria-hidden="true"></div>${!isId?'<div class="selfie-id-guide" aria-hidden="true"><span>ID</span></div>':''}<div class="selfie-document-guide">${isId?'Keep all four ID corners visible':'Keep your matching ID visible'}</div></div>
         <div class="selfie-feedback"><p id="selfie-status" role="status" aria-live="polite">Preparing camera…</p><div class="selfie-progress" aria-hidden="true"><span id="selfie-progress"></span></div></div>`:`<video id="camera-video" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;transform:${isFrontFacing?'scaleX(-1)':'none'}"></video>`}
-        ${target==='selfie'?`<label class="camera-mirror-control"><input id="camera-mirror-preview" type="checkbox" checked ${bindAction('change',(event,element)=>{document.getElementById('selfie-stage').dataset.mirrored=String(element.checked)})}> Mirror preview</label><p class="selfie-privacy">The saved photo keeps your ID text readable.</p>`:''}
+        ${target==='selfie'?`<label class="camera-mirror-control"><input id="camera-mirror-preview" type="checkbox" checked ${bindAction('change',(event,element)=>{document.getElementById('selfie-stage').dataset.mirrored=String(element.checked)})}> Mirror preview</label><p class="selfie-privacy">The saved photo is not mirrored, so your ID text stays readable.</p>`:''}
         ${isId?'<button type="button" id="camera-refocus" class="btn btn-sm" hidden>Refocus camera</button>':''}
         <canvas id="camera-canvas" style="display:none"></canvas>
         <p class="form-note" style="margin-top:.6rem">${isId?'Use the '+(target==='id-front'?'front':'back')+' of your Student or Employee ID. Keep the ID visible and hold it comfortably still.':target==='selfie'?'Hold the front of the same Student or Employee ID beside your face, with its text readable.':`Center your ${target==='id'||target==='assisted-id'?'ID / COR':'face'} in the frame, then capture.`}</p>
       </div>
       <div class="modal-footer"><button class="btn" ${bindAction('click',()=>{stopCamera();closeAllModals();})}>Cancel</button><button class="btn btn-primary" id="camera-capture-button" ${guided?'disabled':''} ${bindAction('click',()=>captureCameraPhoto(target))}>${guided?'Follow the guide':'📸 Capture'}</button></div>
-      ${guided?`<div style="padding:0 1rem 1rem;text-align:center">${!isId?`<button class="btn btn-sm selfie-manual" id="selfie-manual-button" hidden ${bindAction('click',()=>captureCameraPhoto(target,true))}>Having trouble? Capture for staff review</button>`:''}<p class="selfie-privacy">The guide checks photo positioning only. Clinic staff verify your identity and document.</p></div>`:''}
+      ${guided?`<div style="padding:0 1rem 1rem;text-align:center">${!isId?`<button class="btn btn-sm selfie-manual" id="selfie-manual-button" hidden ${bindAction('click',()=>captureCameraPhoto(target,true))}>Having trouble? Capture for staff review</button>`:''}<p class="selfie-privacy">The guide checks photo positioning only. Clinic staff verify your identity and ID.</p></div>`:''}
     </div>`);
     const video=document.getElementById('camera-video');
     video.srcObject=stream;
@@ -119,17 +130,19 @@ export function captureCameraPhoto(target,manual=false){
   if(target==='id-front'||target==='id-back'){
     const side=target==='id-front'?'front':'back';
     if(saveRegistrationId(side,dataUrl)){
-      if(side==='front')openModal(`<div class="modal selfie-modal"><div class="modal-header"><h3>Front saved — flip your ID</h3></div><div class="modal-body"><p>Now photograph the back of the same Student or Employee ID.</p></div><div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Back to registration</button><button class="btn btn-primary" ${bindAction('click',()=>startCamera('id-back'))}>Photograph Back</button></div></div>`);
+      if(side==='front')openModal(`<div class="modal selfie-modal"><div class="modal-header"><h3>Front saved — flip your ID</h3></div><div class="modal-body selfie-intro"><div class="id-flip-art" aria-hidden="true"><i class="bi bi-arrow-repeat"></i></div><p>Now photograph the back of the same Student or Employee ID.</p></div><div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Back to registration</button><button class="btn btn-primary" ${bindAction('click',()=>startCamera('id-back'))}>Photograph Back</button></div></div>`);
       else toast('Back saved. Both ID sides are ready for clinic review.','success');
     }
   }else if(target==='selfie'){
     resizeImageDataUrl(dataUrl,1600,0.9).then(resized=>{
       appState.camera.capturedSelfieDataUrl=resized;
       const wrap=document.getElementById('r-selfie-preview-wrap');
-      if(wrap)wrap.innerHTML=`<img src="${resized}" style="width:100%;height:100%;object-fit:contain">`;
+      if(wrap)wrap.innerHTML=`<img src="${resized}" alt="Your verification selfie" style="width:100%;height:100%;object-fit:contain">`;
       const button=document.getElementById('selfie-camera-button');
-      if(button)button.textContent='Retake Verification Selfie';
-      toast('Verification selfie captured. Check that your face and document are clear.','success');
+      if(button)button.innerHTML='<i class="bi bi-arrow-repeat" aria-hidden="true"></i> Retake Verification Selfie';
+      setVerificationChip('r-selfie-chip','done','Captured');
+      setRegistrationFieldError('r-selfie','');
+      toast('Verification selfie captured. Check that your face and ID are clear.','success');
     });
   }else if(target==='account'){
     resizeImageDataUrl(dataUrl,700,0.88).then(async resized=>{

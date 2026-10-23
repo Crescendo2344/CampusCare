@@ -215,15 +215,24 @@ export function initializeLandingRouting(){
   });
 }
 
+// Login and registration share one card; each form links to the other instead of showing tabs.
+const AUTH_MODE_COPY={
+  login:['Welcome back','Log in to book visits and view your clinic records.'],
+  reg:['Create your account','Register once to book clinic visits and access your health records.']
+};
 export function authTab(t){
-  document.querySelectorAll('.auth-tab').forEach((b,i)=>b.classList.toggle('active',i===(t==='login'?0:1)));
+  const [title,subtitle]=AUTH_MODE_COPY[t==='reg'?'reg':'login'];
+  const titleEl=document.getElementById('auth-mode-title'),subtitleEl=document.getElementById('auth-mode-subtitle');
+  if(titleEl)titleEl.textContent=title;
+  if(subtitleEl)subtitleEl.textContent=subtitle;
   document.getElementById('login-section').style.display=t==='login'?'':'none';
   document.getElementById('reg-section').style.display=t==='reg'?'':'none';
   const pending=document.getElementById('pending-section');
   if(pending)pending.style.display='none';
   const forgot=document.getElementById('forgot-section');
   if(forgot)forgot.style.display='none';
-  document.getElementById('auth-tabs').style.display='flex';
+  document.getElementById('auth-tabs').style.display='';
+  document.querySelector('#auth-page .auth-box')?.scrollIntoView?.({block:'start'});
   if(t==='reg'){
     updateRegistrationIdentityFields();
     // Load the human check while the user completes registration details.

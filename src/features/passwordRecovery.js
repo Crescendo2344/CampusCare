@@ -352,7 +352,9 @@ export async function submitNewPassword(){
 export async function handleCampusCareAuthCallback(){
   const params=new URLSearchParams(window.location.search);
   const hashParams=new URLSearchParams((window.location.hash||'').replace(/^#/,''));
-  const mode=params.get('auth');
+  // If Supabase falls back to the Site URL, the ?auth= marker is lost but the link type remains.
+  const linkType=hashParams.get('type')||params.get('type');
+  const mode=params.get('auth')||(['signup','email','invite'].includes(linkType)?'confirmed':linkType==='recovery'?'recovery':null);
 
   // Supabase can return callback errors in the query string or URL fragment.
   const callbackError=
