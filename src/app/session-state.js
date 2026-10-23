@@ -14,6 +14,8 @@ export function clearAccountState(){
   // Stop an active camera stream rather than keeping the device running after sign-out.
   state.camera._cameraStream?.getTracks().forEach(track=>track.stop());
   state.camera._cameraStream=null;
+  state.camera.captureLighting?.dispose?.();
+  state.camera.captureLighting=null;
   state.messaging.activeConversationId=null;
   state.messaging.pendingAttachment=null;
   state.approvalQueue.realPendingApprovals=[];

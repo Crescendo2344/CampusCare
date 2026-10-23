@@ -28,7 +28,22 @@ export function validateRegistrationContact(el,showError=true){
 export function setRegistrationFieldError(id,message,showError=true){
   const visible=Boolean(showError&&message);
   const node=document.getElementById(id+'-error');
-  if(node){node.textContent=visible?message:'';node.hidden=!visible;}
+  if(node){
+    const text=document.createElement('span');text.textContent=visible?message:'';
+    node.replaceChildren(...(visible?[text]:[]));node.hidden=!visible;
+    // A domain suggestion can be applied with one tap instead of retyping the address.
+    const suggested=visible&&id==='r-email'&&String(message).match(/Did you mean @([a-z0-9.-]+)\?/i)?.[1];
+    if(suggested){
+      const apply=document.createElement('button');
+      apply.type='button';apply.className='registration-field-fix';apply.textContent='Use @'+suggested;
+      apply.addEventListener('click',()=>{
+        const input=document.getElementById('r-email');
+        input.value=input.value.split('@')[0]+'@'+suggested;
+        validateRegistrationField('r-email');input.focus();
+      });
+      node.append(apply);
+    }
+  }
   // Photo steps highlight their whole panel; other fields mark the control a person interacts with.
   const group={'r-selfie':'r-selfie-group','r-id':'r-id-group'}[id];
   const control=group?null:document.getElementById(id==='r-dob'?'r-dob-button':id);

@@ -330,6 +330,26 @@
   <div class="auth-body">
     <!-- Each form has its own heading; the footer link of each form switches to the other. -->
     <div class="auth-mode-heading" id="auth-tabs">
+      <div class="auth-mode-art" aria-hidden="true">
+        <!-- Login: a clinic heart with a stethoscope. -->
+        <svg class="auth-art-login" viewBox="0 0 120 96" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="60" cy="48" r="44" class="art-halo"/>
+          <path d="M60 74S34 58 34 41a13 13 0 0 1 26-3 13 13 0 0 1 26 3c0 17-26 33-26 33Z" class="art-fill"/>
+          <path d="M53 47h14M60 40v14" class="art-mark"/>
+          <path d="M24 22v14a12 12 0 0 0 24 0V22M20 22h8M44 22h8" class="art-line"/>
+          <path d="M36 48v8a16 16 0 0 0 32 0" class="art-line art-tube"/>
+          <circle cx="94" cy="26" r="3" class="art-dot"/><circle cx="102" cy="40" r="2" class="art-dot"/>
+        </svg>
+        <!-- Registration: a new ID card with a plus badge. -->
+        <svg class="auth-art-reg" viewBox="0 0 120 96" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="60" cy="48" r="44" class="art-halo"/>
+          <rect x="26" y="28" width="62" height="42" rx="7" class="art-fill"/>
+          <circle cx="43" cy="45" r="7" class="art-line"/><path d="M33 62c2-6 6-8 10-8s8 2 10 8" class="art-line"/>
+          <path d="M60 42h18M60 50h14M60 58h10" class="art-line"/>
+          <circle cx="88" cy="68" r="12" class="art-badge"/><path d="M88 62v12M82 68h12" class="art-cross"/>
+          <circle cx="98" cy="24" r="3" class="art-dot"/><circle cx="20" cy="30" r="2" class="art-dot"/>
+        </svg>
+      </div>
       <h2 id="auth-mode-title">Welcome</h2>
       <p id="auth-mode-subtitle">Login with CampusCare</p>
     </div>
@@ -337,7 +357,7 @@
     <!-- LOGIN -->
     <div id="login-section">
       <div class="alert alert-danger" id="login-err"></div>
-      <div class="form-group"><label for="li-user">Username or Email</label><input id="li-user" type="text" placeholder="e.g. juan.delacruz or name@gmail.com" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+      <div class="form-group"><label for="li-user">Username or Email</label><input id="li-user" type="text" placeholder="Enter username or email" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
       <div class="form-group"><label for="li-pass">Password</label><input id="li-pass" type="password" placeholder="Enter your password" autocomplete="current-password" data-action-input="shell-13" data-action-keydown="shell-14"></div>
       <div class="auth-login-options">
         <label class="auth-remember" for="li-remember"><input type="checkbox" id="li-remember"> Remember me</label>

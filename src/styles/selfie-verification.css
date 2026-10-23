@@ -88,7 +88,21 @@
 
 /* Login, registration and recovery: large centred headings, roomy rounded fields and pill buttons. */
 .auth-mode-heading{text-align:center;margin:.2rem 0 1.4rem}
-.auth-mode-heading h2{font-size:1.65rem;font-weight:800;letter-spacing:-.4px;margin:0;color:var(--ink)}
+.auth-mode-heading h2,.auth-step-title{font-family:"Plus Jakarta Sans",-apple-system,"Segoe UI",system-ui,sans-serif}
+.auth-mode-heading h2{font-size:1.7rem;font-weight:800;letter-spacing:-.5px;margin:0;background:linear-gradient(120deg,var(--ink) 30%,var(--primary));-webkit-background-clip:text;background-clip:text;color:transparent}
+.auth-mode-art{display:flex;justify-content:center;margin-bottom:.35rem}
+.auth-mode-art svg{width:112px;height:auto;animation:auth-art-in .45s ease both}
+.auth-mode-heading[data-mode="reg"] .auth-art-login,.auth-mode-heading:not([data-mode="reg"]) .auth-art-reg{display:none}
+.auth-mode-art .art-halo{fill:color-mix(in srgb,var(--primary) 12%,transparent)}
+.auth-mode-art .art-fill{fill:color-mix(in srgb,var(--primary) 22%,var(--glass-surface-strong));stroke:var(--primary);stroke-width:2.4}
+.auth-mode-art .art-line{stroke:var(--ink);stroke-width:2.4}
+.auth-mode-art .art-tube{stroke:var(--primary)}
+.auth-mode-art .art-cross{stroke:#fff;stroke-width:3.2}
+.auth-mode-art .art-mark{stroke:var(--primary);stroke-width:3.4}
+.auth-mode-art .art-badge{fill:var(--success)}
+.auth-mode-art .art-dot{fill:var(--primary);opacity:.55}
+@keyframes auth-art-in{from{opacity:0;transform:translateY(6px) scale(.96)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.auth-mode-art svg{animation:none}}
 .auth-mode-heading p{font-size:.84rem;color:var(--ink-muted);margin:.35rem 0 0;line-height:1.5}
 #auth-page .form-group label{font-weight:600;color:var(--ink)}
 #auth-page .form-group input:not([type=checkbox]),#auth-page .form-group select,#auth-page .modern-date-btn{min-height:44px;border-radius:12px;padding-inline:.95rem}
@@ -101,7 +115,7 @@
 .auth-forgot-link:hover,.auth-forgot-link:focus-visible{text-decoration:underline}
 .auth-illustration{display:flex;justify-content:center;color:var(--ink);margin:.2rem 0 .6rem}
 .auth-illustration svg{width:120px;height:auto}
-.auth-step-title{text-align:center;font-size:1.5rem;font-weight:800;letter-spacing:-.3px;margin:0}
+.auth-step-title{text-align:center;font-size:1.5rem;font-weight:800;color:var(--ink);letter-spacing:-.3px;margin:0}
 .auth-step-subtitle{text-align:center;font-size:.82rem;color:var(--ink-muted);line-height:1.55;margin:.4rem auto 1.3rem;max-width:34ch}
 .auth-step-note{font-size:.78rem;color:var(--ink-muted);line-height:1.55;text-align:center;margin:-.4rem 0 .8rem}
 .auth-back-link{display:flex;align-items:center;justify-content:center;gap:.4rem;width:100%;margin:1rem auto 0;padding:.4rem;background:none;border:0;color:var(--ink);font:inherit;font-size:.86rem;font-weight:500;cursor:pointer}
@@ -126,9 +140,10 @@
 .registration-optional{font-weight:400;font-size:.72rem}
 
 /* Field errors sit directly beneath the control they describe. */
-.registration-field-error{display:flex;gap:.35rem;align-items:flex-start;font-size:.75rem;line-height:1.45;color:var(--danger);margin:.3rem 0 0}
-.registration-field-error::before{content:"!";flex:0 0 auto;display:inline-grid;place-items:center;width:1.05em;height:1.05em;margin-top:.15em;border-radius:50%;background:var(--danger);color:#fff;font-size:.68rem;font-weight:800}
+.registration-field-error{display:block;padding-left:1.45em;text-indent:-1.45em;font-size:.75rem;line-height:1.45;color:var(--danger);margin:.3rem 0 0}
+.registration-field-error::before{content:"!";display:inline-grid;place-items:center;width:1.05rem;height:1.05rem;margin-right:.4em;text-indent:0;vertical-align:-.2em;border-radius:50%;background:var(--danger);color:#fff;font-size:.68rem;font-weight:800}
 .registration-field-error[hidden]{display:none}
+.registration-field-fix{display:inline-block;text-indent:0;margin:.3rem 0 0 .3rem;padding:.1rem .55rem;border:1px solid currentColor;border-radius:999px;background:none;color:var(--primary);font:inherit;font-weight:700;cursor:pointer}
 .form-group.has-error>label{color:var(--danger)}
 .form-group select[aria-invalid="true"],.form-group .modern-date-btn[aria-invalid="true"]{border-color:var(--danger)}
 .form-group input[aria-invalid="true"]:focus,.form-group select[aria-invalid="true"]:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--danger) 20%,transparent)}
@@ -182,3 +197,11 @@ ol.selfie-prep-grid{list-style:none;padding:0}
 .selfie-privacy .bi{color:var(--primary);margin-right:.2rem}
 .id-flip-art{display:grid;place-items:center;width:56px;height:56px;margin:0 auto .6rem;border-radius:50%;background:var(--info-bg);color:var(--primary);font-size:1.6rem}
 @media(max-width:480px){.selfie-prep-grid{grid-template-columns:1fr}.selfie-prep-card{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:.7rem;text-align:left;padding:.7rem .8rem .7rem 2.2rem}.selfie-prep-card .bi{grid-row:span 2;margin:0;font-size:1.5rem;align-self:center}.selfie-prep-card span:not(.selfie-prep-num){margin-top:.1rem}.selfie-prep-card .selfie-prep-num{top:50%;transform:translateY(-50%)}}
+
+/* Screen light: a bright white surround lights the face and ID for cameras facing the person. */
+.capture-fill-light #active-modal{background:#fff!important;backdrop-filter:none!important}
+.capture-fill-light .selfie-modal{--glass-surface-strong:#fff;--overlay:#f3f6f9;--ink:#10202c;--ink-muted:#44586a;--line:#d5dee6;background:#fff!important;color:#10202c;box-shadow:0 0 0 100vmax #fff,0 0 80px 40px #fff}
+.capture-fill-light .selfie-modal .modal-header,.capture-fill-light .selfie-modal .modal-footer{background:#fff}
+.capture-light-controls{display:flex;justify-content:center;gap:.5rem;flex-wrap:wrap;margin-top:.5rem}
+.capture-light-controls:empty{display:none}
+.capture-light-toggle[aria-pressed="true"]{border-color:var(--primary);color:var(--primary)}

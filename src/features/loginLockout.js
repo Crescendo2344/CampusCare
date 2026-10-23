@@ -112,10 +112,24 @@ export function showPasswordChecklist(){
   updatePasswordStrength();
 }
 export function hidePasswordChecklist(){
-  // Keep guidance visible once a password is typed; collapsing it on blur would move the
-  // controls below mid-click and swallow the click.
-  const el=document.getElementById('r-pass-strength');
-  if(el&&!document.getElementById('r-pass')?.value)el.classList.remove('show');
+  // Guidance shows only while the password field is focused.
+  afterPointerRelease(()=>{if(document.activeElement?.id!=='r-pass')document.getElementById('r-pass-strength')?.classList.remove('show');});
+}
+
+// Collapsing a checklist while a mouse or finger is still pressed moves the controls below it,
+// so the press ends on a different element and the click is lost. Wait for the release instead.
+let pointerPressed=false;
+if(typeof document!=='undefined'){
+  document.addEventListener('pointerdown',()=>{pointerPressed=true;},true);
+  document.addEventListener('pointerup',()=>{pointerPressed=false;},true);
+  document.addEventListener('pointercancel',()=>{pointerPressed=false;},true);
+}
+export function afterPointerRelease(callback){
+  if(!pointerPressed){callback();return;}
+  const run=()=>{document.removeEventListener('click',run,true);document.removeEventListener('pointerup',later,true);setTimeout(callback,0);};
+  const later=()=>setTimeout(run,0);
+  document.addEventListener('click',run,true);
+  document.addEventListener('pointerup',later,true);
 }
 export function updatePasswordStrength(){
   const input=document.getElementById('r-pass');

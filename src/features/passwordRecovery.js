@@ -4,7 +4,7 @@ import {state as appState} from '../app/state.js';
 import {authTab,setPublicNavbarMode,showAuthPage} from './authentication.js';
 import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
 import {escapeHtml} from './issueReports.js';
-import {checkPasswordStrength,renderPasswordStrength} from './loginLockout.js';
+import {afterPointerRelease,checkPasswordStrength,renderPasswordStrength} from './loginLockout.js';
 import {initializeSupabaseClient} from './supabaseClient.js';
 import {auditAction} from './emailDelivery.js';
 import {auditLog} from './auditAndBackups.js';
@@ -180,8 +180,7 @@ export function showRecoveryPasswordChecklist(){
   updateRecoveryPasswordStrength();
 }
 export function hideRecoveryPasswordChecklist(){
-  // Collapsing a filled-in checklist on blur would shift Update Password away from the pointer.
-  if(!document.getElementById('fp-newpass')?.value)document.getElementById('fp-strength')?.classList.remove('show');
+  afterPointerRelease(()=>{if(document.activeElement?.id!=='fp-newpass')document.getElementById('fp-strength')?.classList.remove('show');});
 }
 export function updateRecoveryPasswordStrength(){
   const input=document.getElementById('fp-newpass');

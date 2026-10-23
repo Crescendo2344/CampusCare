@@ -14,6 +14,7 @@ import {cameraFocus} from '../verification/camera-focus.js';
 import {startIdGuidance} from '../verification/id-controller.js';
 import {saveRegistrationId} from './idVerification.js';
 import {startSelfieGuidance} from '../verification/selfie-controller.js';
+import {startCaptureLighting} from '../verification/capture-lighting.js';
 // ================================================================
 // CAMERA CAPTURE (selfie + ID) — requests device camera permission
 // ================================================================
@@ -71,6 +72,7 @@ async function startCamera(target){
         <div class="selfie-feedback"><p id="selfie-status" role="status" aria-live="polite">Preparing camera…</p><div class="selfie-progress" aria-hidden="true"><span id="selfie-progress"></span></div></div>`:`<video id="camera-video" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;transform:${isFrontFacing?'scaleX(-1)':'none'}"></video>`}
         ${target==='selfie'?`<label class="camera-mirror-control"><input id="camera-mirror-preview" type="checkbox" checked ${bindAction('change',(event,element)=>{document.getElementById('selfie-stage').dataset.mirrored=String(element.checked)})}> Mirror preview</label><p class="selfie-privacy">The saved photo is not mirrored, so your ID text stays readable.</p>`:''}
         ${isId?'<button type="button" id="camera-refocus" class="btn btn-sm" hidden>Refocus camera</button>':''}
+        ${guided?'<div class="capture-light-controls" id="capture-light-controls"></div>':''}
         <canvas id="camera-canvas" style="display:none"></canvas>
         <p class="form-note" style="margin-top:.6rem">${isId?'Use the '+(target==='id-front'?'front':'back')+' of your Student or Employee ID. Keep the ID visible and hold it comfortably still.':target==='selfie'?'Hold the front of the same Student or Employee ID beside your face, with its text readable.':`Center your ${target==='id'||target==='assisted-id'?'ID / COR':'face'} in the frame, then capture.`}</p>
       </div>
@@ -93,10 +95,12 @@ async function startCamera(target){
       button.hidden=!focus.supported;button.onclick=async()=>{button.disabled=true;await focus.refocus();button.disabled=false;};
       focus.refocus();
     }
+    // Brighten the scene for verification photos and restore everything when capture ends.
+    if(guided)appState.camera.captureLighting=startCaptureLighting({track:stream.getVideoTracks()[0],controls:document.getElementById('capture-light-controls')});
     if(guided)appState.camera.selfieGuidance=(isId?startIdGuidance:startSelfieGuidance)({video,root:document.getElementById('selfie-stage'),captureButton:document.getElementById('camera-capture-button'),manualButton:document.getElementById('selfie-manual-button'),status:document.getElementById('selfie-status'),progress:document.getElementById('selfie-progress')});
     // Close buttons, backdrop clicks, and other modal replacements all release the camera.
     const modal=document.getElementById('active-modal');
-    const observer=new MutationObserver(()=>{if(!modal?.isConnected){stream.getTracks().forEach(track=>track.stop());if(appState.camera._cameraStream===stream){appState.camera._cameraStream=null;appState.camera.selfieGuidance?.dispose();appState.camera.selfieGuidance=null;}observer.disconnect();}});
+    const observer=new MutationObserver(()=>{if(!modal?.isConnected){stream.getTracks().forEach(track=>track.stop());if(appState.camera._cameraStream===stream){appState.camera._cameraStream=null;appState.camera.selfieGuidance?.dispose();appState.camera.selfieGuidance=null;appState.camera.captureLighting?.dispose();appState.camera.captureLighting=null;}observer.disconnect();}});
     observer.observe(document.getElementById('modals'),{childList:true});
   }catch(e){
     stopCamera();
@@ -107,6 +111,7 @@ async function startCamera(target){
 export function stopCamera(){
   cameraRequest++;
   appState.camera.selfieGuidance?.dispose();appState.camera.selfieGuidance=null;
+  appState.camera.captureLighting?.dispose();appState.camera.captureLighting=null;
   if(appState.camera._cameraStream){ appState.camera._cameraStream.getTracks().forEach(t=>t.stop()); appState.camera._cameraStream=null; }
 }
 
