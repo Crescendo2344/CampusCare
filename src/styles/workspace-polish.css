@@ -1,3 +1,4 @@
+[hidden]{display:none!important}
 /* The app header is opaque so dashboard content cannot show through while scrolling. */
 .top-bar {background:#e4edf7;backdrop-filter:none;-webkit-backdrop-filter:none;border-bottom:1px solid #c7d6e4;isolation:isolate}
 [data-theme="dark"] .top-bar {background:#182733;border-color:#354956}
@@ -561,3 +562,20 @@
 .fi-main .text-muted{font-size:.74rem}
 .fi-badges{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 @media(max-width:640px){.fi-row{flex-wrap:wrap}.fi-badges{width:100%;justify-content:flex-start}}
+.pw-match{font-size:.76rem;color:var(--success);margin:.3rem 0 0}
+/* Short, scrollable list for long dropdowns (see ui/select-popover.js). */
+.select-popover{position:fixed;z-index:10000;overflow-y:auto;overscroll-behavior:contain;padding:.3rem;border-radius:12px;background:var(--glass-surface-strong,#fff);border:1px solid var(--line);box-shadow:var(--glass-shadow-lg,0 12px 32px rgba(0,0,0,.2));font-size:.85rem;color:var(--ink);max-width:min(420px,calc(100vw - 16px))}
+[data-theme="dark"] .select-popover{background:#1c2128}
+:root:not([data-theme="dark"]) .select-popover{background:#fff}
+.select-popover-option{padding:.45rem .65rem;border-radius:8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.select-popover-option.grouped{padding-left:1.1rem}
+.select-popover-option.active{background:var(--primary-light,rgba(10,126,168,.12))}
+.select-popover-option[aria-selected="true"]{font-weight:700;color:var(--primary)}
+.select-popover-option[aria-disabled="true"]{opacity:.45;cursor:default}
+.select-popover-group{padding:.5rem .65rem .25rem;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted)}
+.device-list{list-style:none;margin:0;padding:0;display:grid;gap:.4rem}
+.device-row{display:flex;align-items:center;gap:.7rem;padding:.55rem .65rem;border:1px solid var(--line-soft,var(--line));border-radius:12px}
+.device-row>i{font-size:1.2rem;color:var(--primary)}
+.device-info{display:flex;flex-direction:column;flex:1;min-width:0;font-size:.84rem}
+.device-info .text-muted{font-size:.72rem}
+.device-info .badge{align-self:flex-start;margin:.15rem 0}

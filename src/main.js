@@ -6,6 +6,7 @@ import modalHost from './components/modal-host.html?raw';
 import sessionSkeleton from './components/session-skeleton.html?raw';
 import {installTableScrolling} from './ui/table-scroll.js';
 import {installActionEvents} from './ui/events.js';
+import {installSelectPopover} from './ui/select-popover.js';
 import {mountApplication,application} from './app/application.js';
 const templates={landingAndAuth:landing,appShell,notificationPanel,modalHost,sessionSkeleton};
 for(const [name,html] of Object.entries(templates)){
@@ -13,6 +14,8 @@ for(const [name,html] of Object.entries(templates)){
   if(host)host.outerHTML=html;
 }
 installActionEvents();
+// Long dropdowns open as a short scrollable list instead of filling the screen.
+installSelectPopover();
 // Keep every module and modal table bounded as route markup changes.
 installTableScrolling();
 mountApplication();

@@ -241,6 +241,7 @@ export function accountPasswordCooldownState(){
   return {locked:Date.now()<next.getTime(),next};
 }
 
+// Only the 7-day lock needs a notice; field rules show beside each field.
 export function renderPasswordCooldownNotice(){
   const note=document.getElementById('pw-cooldown-note');
   const btn=document.getElementById('pw-change-btn');
@@ -249,13 +250,28 @@ export function renderPasswordCooldownNotice(){
   const state=accountPasswordCooldownState();
   if(state.locked&&state.next){
     note.className='alert alert-warning show';
-    note.innerHTML=`🔒 Your password was changed recently. You can change it again on <strong>${state.next.toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'})}</strong>.`;
+    note.hidden=false;
+    note.innerHTML=`Your password was changed recently. You can change it again on <strong>${state.next.toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'})}</strong>.`;
     if(btn)btn.disabled=true;
   }else{
-    note.className='alert alert-info show';
-    note.textContent='🔐 Enter your current password, then choose a new password that meets the security requirements below.';
+    note.hidden=true;note.className='';note.textContent='';
     if(btn)btn.disabled=false;
   }
+}
+
+export function setPasswordFieldError(id,message){
+  const el=document.getElementById(id+'-error'),input=document.getElementById(id);
+  if(el){el.textContent=message;el.hidden=!message;}
+  if(input){if(message)input.setAttribute('aria-invalid','true');else input.removeAttribute('aria-invalid');}
+}
+// While typing, a mismatch shows once the confirmation is as long as the new password; on leaving the field it always shows.
+export function checkPasswordConfirmation(final=false){
+  const nw=document.getElementById('pw-new')?.value||'',conf=document.getElementById('pw-conf')?.value||'';
+  const match=document.getElementById('pw-conf-match');
+  const mismatch=conf&&conf!==nw&&(final||conf.length>=nw.length||!nw.startsWith(conf));
+  setPasswordFieldError('pw-conf',mismatch?'Passwords do not match.':'');
+  if(match){const ok=Boolean(conf)&&conf===nw;match.hidden=!ok;match.textContent=ok?'Passwords match.':'';}
+  return !mismatch;
 }
 
 export function showAccountPasswordChecklist(){
@@ -303,21 +319,16 @@ export async function changeAccountPassword(){
     return;
   }
 
-  if(!cur){
-    showAlert(msg,'Enter your current password.');
-    return;
-  }
-  if(!nw||!checkPasswordStrength(nw).valid){
-    showAlert(msg,'New password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.');
-    showAccountPasswordChecklist();
-    return;
-  }
-  if(nw!==conf){
-    showAlert(msg,'Passwords do not match.');
-    return;
-  }
-  if(cur===nw){
-    showAlert(msg,'Your new password must be different from your current password.');
+  const errors={
+    'pw-cur':cur?'':'Enter your current password.',
+    'pw-new':!nw?'Enter a new password.':!checkPasswordStrength(nw).valid?'Use at least 8 characters with an uppercase letter, a lowercase letter and a number.':cur&&cur===nw?'Choose a password different from your current one.':'',
+    'pw-conf':!conf?'Re-enter the new password.':conf!==nw?'Passwords do not match.':''
+  };
+  for(const [id,message] of Object.entries(errors))setPasswordFieldError(id,message);
+  const firstError=Object.keys(errors).find(id=>errors[id]);
+  if(firstError){
+    if(firstError==='pw-new')showAccountPasswordChecklist();
+    document.getElementById(firstError)?.focus();
     return;
   }
 
@@ -367,7 +378,9 @@ export async function changeAccountPassword(){
 
     toast('Password changed successfully. Please log in again with your new password.','success',6500);
   }catch(e){
-    showAlert(msg,e?.message||'Unable to change password.');
+    const message=e?.message||'Unable to change password.';
+    if(/current password/i.test(message))setPasswordFieldError('pw-cur',message);
+    else showAlert(msg,message);
     if(btn){btn.disabled=false;btn.textContent=oldText||'Change Password';}
   }
 }

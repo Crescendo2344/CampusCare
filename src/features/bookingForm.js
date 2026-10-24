@@ -63,7 +63,7 @@ export async function onBookingDoctorChange(){
   const from=clinicToday(),to=addBookingDays(from,365);
   const renderCalendar=(days,selected='')=>{
     const available=days.filter(day=>day.openSlots>0).map(day=>day.date);
-    initModernCalendar('booking-modern-calendar',selected,from,'chooseBookingDate',{allowEmptySelection:!selected,maxDate:to,availableDates:available,viewMonth:(selected||available[0]||from).slice(0,7),showAppointmentHints:false,showTodayButton:false});
+    initModernCalendar('booking-modern-calendar',selected,from,'chooseBookingDate',{showAppointmentHints:true,allowEmptySelection:!selected,maxDate:to,availableDates:available,viewMonth:(selected||available[0]||from).slice(0,7),showAppointmentHints:false,showTodayButton:false});
   };
   renderCalendar([]);loadTimeSlots();
   if(!doctor){note.textContent='Choose your doctor first to see available dates.';return;}

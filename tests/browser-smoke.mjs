@@ -638,6 +638,35 @@ try{
       await page.evaluate(()=>localStorage.removeItem('campuscare-theme'));
     }
   }
+  if(role==='Administrator'&&!mobile){
+    // Signed-in devices list each session; other devices can be signed out one by one.
+    await page.evaluate(()=>{
+      const client=window.__fixtureApp.state.supabaseClient.supabaseClient,now=Date.now();
+      window.__revoked=[];window.__realRpc=client.rpc;
+      client.rpc=async(name,args)=>{
+        if(name==='revoke_my_session'){window.__revoked.push(args.target);return {data:true,error:null};}
+        return {data:[
+          {id:'a',current:true,user_agent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36',ip:'203.0.113.4',created_at:new Date(now-864e5).toISOString(),last_active_at:new Date(now).toISOString()},
+          {id:'b',current:false,user_agent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1',ip:'198.51.100.7',created_at:new Date(now-5*864e5).toISOString(),last_active_at:new Date(now-2*864e5).toISOString()}
+        ].filter(r=>!window.__revoked.includes(r.id)),error:null};
+      };
+    });
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('my-account'));
+    const devices=page.locator('#acc-devices .device-row');await devices.first().waitFor();
+    await page.waitForTimeout(800);await devices.first().waitFor();
+    assert.equal(await devices.count(),2);
+    assert.match(await devices.first().innerText(),/Chrome on Windows[\s\S]*This device/);
+    assert.match(await devices.nth(1).innerText(),/Safari on iOS/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR){await page.evaluate(()=>document.getElementById('acc-devices').scrollIntoView({block:'center'}));const box=await page.locator('#acc-devices').boundingBox();await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/devices.png`,clip:{x:box.x-10,y:box.y-60,width:box.width+20,height:box.height+70}});}
+    await devices.nth(1).getByRole('button',{name:'Sign out'}).click();await page.locator('#cc-confirm-ok-btn').click();
+    await page.waitForFunction(()=>document.querySelectorAll('#acc-devices .device-row').length===1);
+    // Mismatched passwords are flagged beside the confirmation field.
+    await page.locator('#pw-new').fill('NewPass123');await page.locator('#pw-conf').fill('NewPass12x');
+    assert.equal(await page.locator('#pw-conf-error').innerText(),'Passwords do not match.');
+    await page.locator('#pw-conf').fill('NewPass123');assert(await page.locator('#pw-conf-error').isHidden());
+    assert.equal(await page.locator('#pw-cooldown-note.alert-info').count(),0);
+    await page.evaluate(()=>{const client=window.__fixtureApp.state.supabaseClient.supabaseClient;client.rpc=window.__realRpc;});
+  }
   if(process.env.CAMPUSCARE_VISUAL_DIR&&role==='Administrator'&&!mobile){
     for(const route of ['inventory','users','survey-results','feedback-issues','settings','activity-log','my-account']){
       await page.evaluate(route=>window.__fixtureApp.features.navigationRaceProtection.navTo(route),route);
@@ -690,6 +719,17 @@ try{
     assert.equal(await page.locator('#pt-college option').first().innerText(),'All Departments');
     assert(await page.locator('#pt-college option',{hasText:'Registrar'}).count());
     await page.locator('#pt-ptype').selectOption('');assert.equal(await page.locator('#pt-college optgroup').count(),2);
+    if(!mobile){
+      // Long dropdowns open as a short scrollable list; choosing an option updates the real select.
+      await page.locator('#pt-college').click();
+      const popover=page.locator('.select-popover');await popover.waitFor();
+      assert(await popover.evaluate(el=>el.getBoundingClientRect().height<=301&&el.scrollHeight>el.clientHeight));
+      if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/select-popover.png`,clip:await popover.evaluate(el=>{const r=el.getBoundingClientRect();return {x:Math.max(0,r.left-200),y:Math.max(0,r.top-60),width:r.width+400,height:r.height+80};})});
+      await popover.getByRole('option',{name:'Registrar',exact:true}).click();
+      assert.equal(await page.locator('#pt-college').inputValue(),'Registrar');
+      assert.equal(await page.locator('.select-popover').count(),0);
+      await page.locator('#pt-college').selectOption('');
+    }
     await page.locator('#pt-ptype').selectOption('Teaching Personnel');assert(await page.locator('#pt-session').isDisabled());
     assert.equal(await page.locator('#pt-college option').first().innerText(),'All Colleges');
     assert.equal(await page.locator('#pt-session').inputValue(),'');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Personnel/);
@@ -814,7 +854,7 @@ try{
     const pending=page.locator('#user-table tbody tr').filter({hasText:'Applicant, Pending'}),active=()=>page.locator('#user-table tbody tr').filter({hasText:'Doctor, Fixture'});
     await pending.waitFor();assert.equal(await pending.getByRole('button',{name:'Edit',exact:true}).count(),0);assert.equal(await pending.getByRole('button',{name:'Review in Approval Queue',exact:true}).count(),1);
     await page.evaluate(()=>window.__fixtureApp.features.userForm.openEditUserModal(100093));assert.equal(await page.locator('#eu-fname').count(),0);
-    await pending.locator('td').first().click();await page.getByRole('heading',{name:'User Information',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Edit User',exact:true}).count(),0);await page.locator('#active-modal .close-btn').click();
+    await pending.locator('td').first().click();await page.getByRole('heading',{name:/^(User Information|Pending Applicant)$/}).first().waitFor();await page.getByRole('heading',{name:'Pending Applicant',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Edit User',exact:true}).count(),0);await page.locator('#active-modal .close-btn').click();
     const updatesBefore=requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').length;
     await active().getByRole('button',{name:'Edit',exact:true}).click();assert.equal(await page.locator('#eu-status').count(),0);
     await page.locator('#eu-fname').fill('Updated');await page.locator('#eu-contact').fill('+639987654321');

@@ -5,7 +5,7 @@ import {closeAllModals,openModal,showFilePreview} from './modals.js';
 import {collegeBadge,fmtTime,priorityBadge,sanitizeInput,statusBadge} from './inputValidation.js';
 import {navTo} from './navigationRaceProtection.js';
 import {openCamera} from '../app/optional-features.js';
-import {changeAccountPassword,changeProfilePhoto,hideAccountPasswordChecklist,openNameChangeRequest,renderPasswordCooldownNotice,showAccountPasswordChecklist,updateAccountPasswordStrength} from './nameChangeRequests.js';
+import {changeAccountPassword,changeProfilePhoto,checkPasswordConfirmation,hideAccountPasswordChecklist,openNameChangeRequest,renderPasswordCooldownNotice,setPasswordFieldError,showAccountPasswordChecklist,updateAccountPasswordStrength} from './nameChangeRequests.js';
 import {openScheduleChangeRequest,saveAccount} from './workflowRequests.js';
 import {openPrivacyNotice} from './loginLockout.js';
 import {openPrivacyRequestModal} from './privacy.js';
@@ -100,18 +100,18 @@ export function renderMyAccount(){
             </div>
           </div>
           <div id="pw-msg"></div>
-          <div id="pw-cooldown-note" class="alert alert-info show" style="font-size:.76rem"></div>
+          <div id="pw-cooldown-note" hidden></div>
           <div class="form-group">
             <label>Current Password</label>
             <input id="pw-cur" type="password" autocomplete="current-password"
-              ${bindAction('input',(event,element)=>{sanitizeInput(element,'password')})}>
+              ${bindAction('input',(event,element)=>{sanitizeInput(element,'password');setPasswordFieldError('pw-cur','')})}><p class="registration-field-error" id="pw-cur-error" aria-live="polite" hidden></p>
           </div>
           <div class="form-group">
             <label>New Password</label>
             <input id="pw-new" type="password" autocomplete="new-password"
               ${bindAction('focus',(event,element)=>{showAccountPasswordChecklist()})}
-              ${bindAction('input',(event,element)=>{sanitizeInput(element,'password');updateAccountPasswordStrength()})}
-              ${bindAction('blur',(event,element)=>{hideAccountPasswordChecklist()})}>
+              ${bindAction('input',(event,element)=>{sanitizeInput(element,'password');updateAccountPasswordStrength();setPasswordFieldError('pw-new','');checkPasswordConfirmation(false)})}
+              ${bindAction('blur',(event,element)=>{hideAccountPasswordChecklist()})}><p class="registration-field-error" id="pw-new-error" aria-live="polite" hidden></p>
           </div>
           <div id="pw-strength" class="password-checklist" aria-live="polite">
             <div id="pw-strength-label" class="password-strength-label weak">Weak password</div>
@@ -124,7 +124,9 @@ export function renderMyAccount(){
           <div class="form-group">
             <label>Confirm New Password</label>
             <input id="pw-conf" type="password" autocomplete="new-password"
-              ${bindAction('input',(event,element)=>{sanitizeInput(element,'password')})}>
+              ${bindAction('input',(event,element)=>{sanitizeInput(element,'password');checkPasswordConfirmation(false)})}
+              ${bindAction('blur',()=>checkPasswordConfirmation(true))}>
+            <p class="pw-match" id="pw-conf-match" aria-live="polite" hidden></p><p class="registration-field-error" id="pw-conf-error" aria-live="polite" hidden></p>
           </div>
           <button class="btn btn-primary btn-sm" id="pw-change-btn" ${bindAction('click',(event,element)=>{changeAccountPassword()})}>Change Password</button>
         </div>
@@ -166,9 +168,9 @@ export function renderMyAccount(){
           </div>
         </div>
         ${u._realSupabase?`<div class="card">
-          <div class="card-header"><h3>Signed-in devices</h3></div>
-          <p class="text-muted" style="font-size:.8rem;line-height:1.55">If you used CampusCare on a shared or lost device, sign out everywhere else. This device stays signed in.</p>
-          <button class="btn btn-sm btn-warning" ${bindAction('click',()=>signOutOtherSessions())}><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Sign out of other devices</button>
+          <div class="card-header"><h3>Signed-in devices</h3><button class="btn btn-xs" ${bindAction('click',()=>renderSignedInDevices())}><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button></div>
+          <p class="text-muted" style="font-size:.8rem;line-height:1.55;margin:0 0 .6rem">Sign out any device you don't recognise or no longer use. A signed-out device loses access within an hour at most.</p>
+          <div id="acc-devices"><div class="db-skeleton-shimmer" style="height:90px;border-radius:12px"></div></div>
         </div>`:''}
       </div>
     </div>`;
@@ -188,6 +190,49 @@ export function renderMyAccount(){
   // Initialize the live password-security UI after the account card is in the DOM.
   renderPasswordCooldownNotice();
   updateAccountPasswordStrength();
+  if(u._realSupabase)renderSignedInDevices().catch(()=>{});
+}
+
+// "Mozilla/5.0 (Windows NT 10.0…) Chrome/…" reads as "Chrome on Windows".
+export function describeUserAgent(agent=''){
+  const ua=String(agent);
+  const browser=/Edg\//.test(ua)?'Edge':/OPR\/|Opera/.test(ua)?'Opera':/SamsungBrowser/.test(ua)?'Samsung Internet':/Firefox\//.test(ua)?'Firefox':/Chrome\//.test(ua)?'Chrome':/Safari\//.test(ua)?'Safari':'Browser';
+  const os=/iPhone|iPad|iPod/.test(ua)?'iOS':/Android/.test(ua)?'Android':/Windows/.test(ua)?'Windows':/Mac OS X|Macintosh/.test(ua)?'macOS':/CrOS/.test(ua)?'ChromeOS':/Linux/.test(ua)?'Linux':'Unknown system';
+  const mobile=/Mobile|iPhone|Android/.test(ua);
+  return {label:`${browser} on ${os}`,icon:mobile?'bi-phone':'bi-laptop'};
+}
+
+export async function renderSignedInDevices(){
+  const box=document.getElementById('acc-devices');if(!box)return;
+  const client=appState.supabaseClient.supabaseClient;
+  const {data,error}=await client.rpc('list_my_sessions');
+  if(!document.getElementById('acc-devices'))return;
+  if(error||!Array.isArray(data)){
+    // Older databases without the session functions still offer the all-devices action.
+    box.innerHTML=`<p class="form-note">The device list isn't available yet.</p><button class="btn btn-sm btn-warning" ${bindAction('click',()=>signOutOtherSessions())}><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Sign out of all other devices</button>`;
+    return;
+  }
+  const rows=data;
+  const others=rows.filter(r=>!r.current);
+  const when=v=>v?new Date(v).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'}):'—';
+  box.innerHTML=`<ul class="device-list">${rows.map(r=>{const d=describeUserAgent(r.user_agent);return `<li class="device-row">
+      <i class="bi ${d.icon}" aria-hidden="true"></i>
+      <div class="device-info"><strong>${escapeHtml(d.label)}</strong>${r.current?' <span class="badge badge-success">This device</span>':''}
+        <span class="text-muted">${r.ip?`IP ${escapeHtml(r.ip)} · `:''}Last active ${escapeHtml(when(r.last_active_at))} · Signed in ${escapeHtml(when(r.created_at))}</span></div>
+      ${r.current?'':`<button class="btn btn-xs btn-warning" ${bindAction('click',()=>revokeDevice(r.id,d.label))}>Sign out</button>`}
+    </li>`;}).join('')||'<li class="text-muted">No active sessions found.</li>'}</ul>
+    ${others.length>1?`<button class="btn btn-sm btn-warning" style="margin-top:.6rem" ${bindAction('click',()=>signOutOtherSessions())}>Sign out of all other devices (${others.length})</button>`:''}`;
+}
+
+export function revokeDevice(id,label){
+  showConfirmDialog({title:'Sign out device',message:`Sign out <strong>${escapeHtml(label)}</strong>? Anyone using CampusCare on it will need to log in again.`,confirmLabel:'Sign out',onConfirm:async()=>{
+    try{
+      const {error}=await appState.supabaseClient.supabaseClient.rpc('revoke_my_session',{target:id});
+      if(error)throw error;
+      toast(`${label} signed out.`,'success');
+      await renderSignedInDevices();
+    }catch(e){toast(e?.message||'Unable to sign out that device.','error');}
+  }});
 }
 
 export function signOutOtherSessions(){
@@ -196,6 +241,7 @@ export function signOutOtherSessions(){
       const {error}=await appState.supabaseClient.supabaseClient.auth.signOut({scope:'others'});
       if(error)throw error;
       toast('Signed out of all other devices.','success');
+      await renderSignedInDevices();
     }catch(e){toast(e?.message||'Unable to sign out other devices.','error');}
   }});
 }

@@ -41,7 +41,6 @@ export function openCampusDatePicker(inputId,title,minDate='',maxDate='',onChang
     'applyCampusDateSelection',
     {
       maxDate:maxDate||'',
-      showAppointmentHints:!isDob,
       showTodayButton:!isDob
     }
   );
@@ -122,7 +121,7 @@ export function applyReportDateRange(){
 export function openApptRangePicker(){
   appState.datePicker.apptFilterFrom=document.getElementById('appt-date-from')?.value||appState.clinicInformation.TODAY;appState.datePicker.apptFilterTo=document.getElementById('appt-date-to')?.value||'';appState.datePicker.apptFilterStage='from';
   openModal(`<div class="modal"><div class="modal-header"><div><h3>Appointment Date Range</h3><div class="text-muted">Select Date From, then Date To.</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div class="dashboard-range-summary"><div class="dashboard-range-value"><span>From</span><strong id="af-from">${fmtDate(appState.datePicker.apptFilterFrom)}</strong></div><div class="dashboard-range-arrow">→</div><div class="dashboard-range-value"><span>To</span><strong id="af-to">${appState.datePicker.apptFilterTo?fmtDate(appState.datePicker.apptFilterTo):'Select date'}</strong></div></div><div class="dashboard-range-step" id="af-step">1. Select Date From</div><div id="appt-filter-calendar"></div></div><div class="modal-footer" style="justify-content:space-between"><button class="btn btn-danger" ${bindAction('click',(event,element)=>{clearApptRange(true)})}><i class="bi bi-eraser"></i> Clear Range</button><div style="display:flex;gap:.5rem"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{applyApptRange()})}>Apply</button></div></div></div>`);
-  initModernCalendar('appt-filter-calendar',appState.datePicker.apptFilterFrom,'','selectApptFilterDate',{rangeMode:true,rangeStart:appState.datePicker.apptFilterFrom,rangeEnd:appState.datePicker.apptFilterTo});
+  initModernCalendar('appt-filter-calendar',appState.datePicker.apptFilterFrom,'','selectApptFilterDate',{showAppointmentHints:true,rangeMode:true,rangeStart:appState.datePicker.apptFilterFrom,rangeEnd:appState.datePicker.apptFilterTo});
 }
 export function selectApptFilterDate(date){
   if(appState.datePicker.apptFilterStage==='from'||appState.datePicker.apptFilterStage==='done'){appState.datePicker.apptFilterFrom=date;appState.datePicker.apptFilterTo='';appState.datePicker.apptFilterStage='to';}else{if(date<appState.datePicker.apptFilterFrom){appState.datePicker.apptFilterTo=appState.datePicker.apptFilterFrom;appState.datePicker.apptFilterFrom=date}else appState.datePicker.apptFilterTo=date;appState.datePicker.apptFilterStage='done'}

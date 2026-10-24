@@ -8,7 +8,8 @@ import {bindAction} from '../dependencies.js';
 export function initModernCalendar(id,selectedDate=appState.clinicInformation.TODAY,minDate='',callbackName='',options={}){
   const base=(selectedDate||appState.clinicInformation.TODAY);
   const selected=options.allowEmptySelection?(selectedDate||''):base;
-  appState.calendar.modernCalendarState[id]={selected,minDate:minDate||'',callbackName,viewMonth:base.slice(0,7),...options};
+  // The "dates with appointments" dots appear only on appointment calendars, which opt in.
+  appState.calendar.modernCalendarState[id]={selected,minDate:minDate||'',callbackName,viewMonth:base.slice(0,7),...options,showAppointmentHints:options.showAppointmentHints===true};
   renderModernCalendar(id);
 }
 // Appointment calendars skip empty months without changing calendars used for birthdays or report ranges.
