@@ -802,3 +802,55 @@ tr.dsb-row:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
   tr.dsb-row td:last-child{grid-column:6/-1;margin-top:.4rem;text-align:right}
   .dsb-tools,.dsb-tools input,.dsb-tools select{width:100%}
 }
+/* Coverage grid fits the card without sideways scrolling */
+.dsb-table{table-layout:fixed;width:100%}
+.dsb-table .dsb-col-doc{width:21%}
+.dsb-table .dsb-col-cap{width:13%}
+.dsb-table th,.dsb-table td{padding:.45rem .25rem}
+.dsb-table th:first-child,.dsb-table td:first-child{padding-left:.7rem}
+.dsb-doc{min-width:0;gap:.5rem}
+.dsb-doc strong{overflow-wrap:anywhere;line-height:1.25}
+.dsb-cell.work{display:inline-flex;flex-direction:column;align-items:center;line-height:1.2;padding:.22rem .35rem;font-size:.7rem}
+.dsb-cell.work b{font-weight:600;white-space:nowrap}
+.dsb-cap{white-space:normal}
+.dsb-table td.dsb-cap{padding-right:.5rem}
+.dsb-cap-in{display:flex;align-items:center;justify-content:space-between;gap:.3rem}
+.dsb-cap span{display:block}
+.dsb-edit{padding:.2rem .4rem;flex-shrink:0}
+@media (max-width:640px){.dsb-table{table-layout:auto}tr.dsb-row .dsb-cell.work{display:block}tr.dsb-row td.dsb-cap{grid-column:1/-1}}
+
+/* Add staff account */
+.au-modal{max-width:680px}
+.au-section{margin-bottom:1.15rem}
+.au-section h4{display:flex;align-items:center;gap:.45rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted);margin:0 0 .6rem;font-weight:700}
+.au-step{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--primary);color:#fff;font-size:.7rem}
+.au-roles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem}
+.au-role input{position:absolute;opacity:0;width:1px;height:1px}
+.au-role-card{display:flex;flex-direction:column;gap:.2rem;height:100%;padding:.75rem .8rem;border:1.5px solid var(--line);border-radius:12px;background:var(--overlay);cursor:pointer;transition:border-color .15s,background .15s}
+.au-role-card i{font-size:1.2rem;color:var(--primary)}
+.au-role-card strong{font-size:.9rem}
+.au-role-card small{font-size:.74rem;color:var(--ink-muted);line-height:1.4}
+.au-role input:checked+.au-role-card{border-color:var(--primary);background:var(--overlay-strong);box-shadow:0 0 0 3px var(--info-bg)}
+.au-role input:focus-visible+.au-role-card{outline:2px solid var(--primary);outline-offset:2px}
+.au-doctor{margin-top:.7rem}
+.au-doctor .form-row{max-width:50%}
+.au-note{display:flex;gap:.4rem;align-items:flex-start;margin:.2rem 0 0}
+.au-pw-modes{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.7rem}
+.au-pw-modes label{display:flex;gap:.55rem;align-items:flex-start;padding:.6rem .7rem;border:1px solid var(--line);border-radius:12px;cursor:pointer;background:var(--overlay)}
+.au-pw-modes label:has(input:checked){border-color:var(--primary);background:var(--overlay-strong)}
+.au-pw-modes span{display:flex;flex-direction:column}
+.au-pw-modes small{font-size:.74rem;color:var(--ink-muted)}
+.au-generated{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap}
+.au-generated code,.au-creds code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.95rem;letter-spacing:.04em;padding:.4rem .7rem;border-radius:9px;background:var(--line-soft);border:1px dashed var(--line);user-select:all}
+.au-pw-wrap{position:relative;display:flex}
+.au-pw-wrap input{flex:1;padding-right:2.4rem}
+.au-eye{position:absolute;right:.35rem;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--ink-muted);cursor:pointer;padding:.25rem}
+.au-review-title{margin:0 0 .5rem}
+.au-done{text-align:center;padding:.5rem 0}
+.au-done h4{margin:.6rem 0 .25rem}
+.au-done-icon{width:52px;height:52px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:1.6rem;background:var(--success-bg);color:var(--success);border:1px solid var(--success-border)}
+.au-creds{display:grid;gap:.35rem;max-width:380px;margin:.9rem auto;text-align:left}
+.au-creds div{display:flex;justify-content:space-between;gap:.6rem;align-items:center;padding:.45rem .7rem;border-radius:10px;background:var(--overlay);border:1px solid var(--line-soft)}
+.au-creds dt{color:var(--ink-muted);font-size:.8rem}
+.au-creds dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+@media (max-width:600px){.au-roles,.au-pw-modes{grid-template-columns:1fr}.au-doctor .form-row{max-width:none}}

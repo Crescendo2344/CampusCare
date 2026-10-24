@@ -215,7 +215,12 @@ async function adminUserAction(payload){
     body:JSON.stringify(payload)
   });
   const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.ok)throw new Error(result.error||'Unable to update user.');
+  if(!response.ok||!result.ok){
+    // Field-level messages let a form point at the exact input the server rejected.
+    const error=new Error(result.error||'Unable to update user.');
+    if(result.field_errors)error.fieldErrors=result.field_errors;
+    throw error;
+  }
   return result;
 }
 return {backupAction,settingsAction,emailDeliveryAction,auditAction,privacyAction,taskBadgeAction,healthResourceAction,workflowAction,fitnessAction,surveyAction,messageAction,adminUserAction};

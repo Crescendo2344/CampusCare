@@ -62,7 +62,7 @@ export function doctorSchedulesHtml(){
       <div class="card-header dsb-head"><div><h3>Weekly coverage</h3><p class="form-note">Week of ${escapeHtml(fmtDate(dates[0]))} · click a doctor to edit their hours</p></div>
         <div class="dsb-tools"><input type="search" id="dsb-search" placeholder="Search doctor" aria-label="Search doctor" value="${escapeHtml(s.scheduleSearch)}" ${bindAction('input',(event,element)=>{ui().scheduleSearch=element.value;renderDoctorScheduleRows();})}>
         <select id="dsb-specialty" aria-label="Specialty" ${bindAction('change',(event,element)=>{ui().scheduleSpecialty=element.value;renderDoctorScheduleRows();})}><option value="">All specialties</option>${specialties.map(x=>`<option ${x===s.scheduleSpecialty?'selected':''}>${escapeHtml(x)}</option>`).join('')}</select></div></div>
-      <div class="table-wrap"><table class="dsb-table"><thead><tr><th>Doctor</th>${WEEK_DAYS.map((day,i)=>`<th class="${dates[i]===today?'dsb-today':''}">${day}<small>${Number(dates[i].slice(8))}</small></th>`).join('')}<th>Bookings</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="dsb-rows"></tbody></table></div>
+      <div class="table-wrap"><table class="dsb-table"><colgroup><col class="dsb-col-doc">${WEEK_DAYS.map(()=>'<col>').join('')}<col class="dsb-col-cap"></colgroup><thead><tr><th>Doctor</th>${WEEK_DAYS.map((day,i)=>`<th class="${dates[i]===today?'dsb-today':''}">${day}<small>${Number(dates[i].slice(8))}</small></th>`).join('')}<th>Bookings</th></tr></thead><tbody id="dsb-rows"></tbody></table></div>
       <div class="dsb-legend"><span><i class="dsb-dot work"></i>Working hours</span><span><i class="dsb-dot leave"></i>Approved leave</span><span><i class="dsb-dot off"></i>Not scheduled</span><span><i class="dsb-dot today"></i>Today</span></div>
     </div>
     <div class="card">
@@ -91,14 +91,13 @@ export function renderDoctorScheduleRows(){
     const cells=week.map((x,i)=>{
       const leave=leavesOn(d,dates[i]),isToday=dates[i]===today;
       const content=leave?`<span class="dsb-cell leave" title="${escapeHtml(leave.reason||'Approved leave')}">On leave</span>`
-        :x.isWorking?`<span class="dsb-cell work">${escapeHtml(shiftLabel(x))}</span>`:'<span class="dsb-cell off">Off</span>';
+        :x.isWorking?`<span class="dsb-cell work" title="${escapeHtml(shiftLabel(x))}"><b>${escapeHtml(shortTime(x.startTime))}</b><span class="sr-only"> to </span><b>${escapeHtml(shortTime(x.endTime))}</b></span>`:'<span class="dsb-cell off">Off</span>';
       return `<td class="dsb-daycell ${isToday?'dsb-today':''}" data-label="${x.day}">${content}</td>`;
     }).join('');
     return `<tr class="dsb-row" tabindex="0" ${bindAction('click',()=>openDoctorScheduleEditor(d.id))} ${bindAction('keydown',event=>{if(event.key==='Enter'){event.preventDefault();openDoctorScheduleEditor(d.id);}})}>
       <td><div class="dsb-doc">${userAvatarHtml(d,32)}<div><strong>${escapeHtml(docName(d))}</strong><span>${escapeHtml(d.specialty||'General')}</span>${change?`<span class="badge ${change.status==='Pending'?'badge-warning':'badge-info'}">${change.status==='Pending'?'Change requested':'Changes '+escapeHtml(fmtDate(change.effectiveDate))}</span>`:''}</div></div></td>
       ${cells}
-      <td class="dsb-cap" data-label="Bookings"><strong>${d.slotDuration||60} min</strong><span>${Math.min(d.maxPatients||20,stats.maxSlots||d.maxPatients||20)}/day · ${stats.weeklyHours} h/wk</span></td>
-      <td><button class="btn btn-xs btn-info" ${bindAction('click',event=>{event.stopPropagation();openDoctorScheduleEditor(d.id);})}>Edit</button></td>
+      <td class="dsb-cap" data-label="Bookings"><div class="dsb-cap-in"><div><strong>${d.slotDuration||60} min</strong><span>${Math.min(d.maxPatients||20,stats.maxSlots||d.maxPatients||20)}/day · ${stats.weeklyHours} h/wk</span></div><button class="btn btn-xs btn-info dsb-edit" aria-label="Edit ${escapeHtml(docName(d))}'s schedule" title="Edit schedule" ${bindAction('click',event=>{event.stopPropagation();openDoctorScheduleEditor(d.id);})}><i class="bi bi-pencil"></i></button></td>
     </tr>`;
   }).join('');
 }

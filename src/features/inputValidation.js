@@ -32,14 +32,14 @@ export function setRegistrationFieldError(id,message,showError=true){
     const text=document.createElement('span');text.textContent=visible?message:'';
     node.replaceChildren(...(visible?[text]:[]));node.hidden=!visible;
     // A domain suggestion can be applied with one tap instead of retyping the address.
-    const suggested=visible&&id==='r-email'&&String(message).match(/Did you mean @([a-z0-9.-]+)\?/i)?.[1];
+    const suggested=visible&&/(^|-)email$/.test(id)&&String(message).match(/Did you mean @([a-z0-9.-]+)\?/i)?.[1];
     if(suggested){
       const apply=document.createElement('button');
       apply.type='button';apply.className='registration-field-fix';apply.textContent='Use @'+suggested;
       apply.addEventListener('click',()=>{
-        const input=document.getElementById('r-email');
+        const input=document.getElementById(id);
         input.value=input.value.split('@')[0]+'@'+suggested;
-        validateRegistrationField('r-email');input.focus();
+        validateRegistrationField(id);input.focus();
       });
       node.append(apply);
     }
@@ -92,6 +92,14 @@ const registrationFieldRules={
   'pm-weight':()=>rangeError('pm-weight',1,500,'Weight must be between 1 and 500 kg.'),
   'pm-ename':()=>value('pm-ename').trim()?nameValidationError(value('pm-ename'),'Emergency contact name'):'',
   'pm-econtact':()=>contactValidationError(value('pm-econtact')),
+  // Staff accounts added by an administrator (au-*) follow the public registration rules.
+  'au-fname':()=>nameValidationError(value('au-fname'),'First name'),
+  'au-lname':()=>nameValidationError(value('au-lname'),'Last name'),
+  'au-user':()=>usernameValidationError(value('au-user')),
+  'au-email':()=>value('au-email').trim()?emailValidationError(value('au-email')):'Enter an email address.',
+  'au-contact':()=>contactValidationError(value('au-contact')),
+  'au-pass':()=>enabled('au-pass')?passwordValidationError(value('au-pass'),{username:value('au-user'),email:value('au-email')}):'',
+  'au-pass2':()=>enabled('au-pass2')?confirmPasswordValidationError(value('au-pass'),value('au-pass2')):'',
   'pm-selfie':()=>!document.getElementById('pm-selfie-group')||appState.camera.verificationScopes?.pm?.selfie?'':'Take a live verification selfie of the patient holding their ID.',
   'pm-id':()=>{
     if(!document.getElementById('pm-id-group'))return '';
@@ -116,7 +124,9 @@ const availabilityFields={
   'r-idno':{field:'id_number',normalize:v=>v.trim(),message:'This ID number is already registered. Contact the clinic if this is a mistake.'},
   'pm-username':{field:'username',normalize:v=>v.trim().toLowerCase(),message:'This username is already taken. Choose another one.'},
   'pm-email':{field:'email',normalize:v=>v.trim().toLowerCase(),message:'An account with this email already exists.'},
-  'pm-idno':{field:'id_number',normalize:v=>v.trim(),message:'This ID number is already registered to another patient.'}
+  'pm-idno':{field:'id_number',normalize:v=>v.trim(),message:'This ID number is already registered to another patient.'},
+  'au-user':{field:'username',normalize:v=>v.trim().toLowerCase(),message:'This username is already taken. Choose another one.'},
+  'au-email':{field:'email',normalize:v=>v.trim().toLowerCase(),message:'An account with this email already exists.'}
 };
 // A patient's own saved ID number is never "taken" while their record is being edited.
 const unchangedOriginal=id=>{const el=document.getElementById(id);return Boolean(el?.dataset.original)&&el.value.trim()===el.dataset.original;};

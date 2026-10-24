@@ -162,7 +162,6 @@ export function renderMyAccount(){
         <div class="card">
           <div class="card-header"><h3>Account Information</h3></div>
           <div class="info-row"><span class="info-label">Username</span><span class="info-val">@${escapeHtml(u.username||'')}</span></div>
-          <div class="info-row"><span class="info-label">Role</span><span class="info-val">${escapeHtml(u.role)}</span></div>
           <div class="info-row"><span class="info-label">Status</span><span class="info-val">${statusBadge(u.status)}</span></div>
           <div class="info-row"><span class="info-label">Email Verification</span><span class="info-val">${u.emailVerificationSkipped?'<span class="badge badge-info">Temporarily skipped</span>':u.emailConfirmedAt?'<span class="badge badge-success">Confirmed</span>':'<span class="badge badge-warning">Not confirmed</span>'}</span></div>
           <div class="info-row"><span class="info-label">Last Login</span><span class="info-val">${formatLastLogin(u.lastLogin)}</span></div>

@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 import {buildUserEditPatch} from "../_shared/admin-user-edit.js";
+import {emailValidationError,normalizePhilippineMobile} from "../_shared/contact-validation.js";
+import {contactValidationError,nameValidationError,passwordValidationError,usernameValidationError} from "../_shared/registration-validation.js";
 
 const cors={
   "Access-Control-Allow-Origin":"*",
@@ -128,18 +130,31 @@ Deno.serve(async(req)=>{
       const email=String(body.email||"").trim().toLowerCase();
       const password=String(body.password||"");
       const role=String(body.role||"").trim();
-      if(!firstName||!lastName||!username||!email||!password||!["Doctor","Staff","Administrator"].includes(role))
-        return json({error:"First name, last name, username, email, password, and a valid staff role are required."},400);
-      if(password.length<8) return json({error:"Password must be at least 8 characters."},400);
+      const contactRaw=String(body.contact_number||"").trim();
+      const specialty=String(body.specialty||"General Medicine");
+      if(!["Doctor","Staff","Administrator"].includes(role))return json({error:"Choose a valid staff role.",field_errors:{role:"Choose a valid staff role."}},400);
+      // The same field rules as public registration, so both sign-up paths accept the same accounts.
+      const fieldErrors=Object.fromEntries(Object.entries({
+        first_name:nameValidationError(firstName,"First name"),
+        last_name:nameValidationError(lastName,"Last name"),
+        username:usernameValidationError(username),
+        email:email?emailValidationError(email):"Enter an email address.",
+        password:passwordValidationError(password,{username,email}),
+        contact_number:contactValidationError(contactRaw),
+        specialty:role==="Doctor"&&!["General Medicine","Dental","Eye","Mental Health"].includes(specialty)?"Choose a valid doctor specialty.":""
+      }).filter(([,message])=>message));
+      if(Object.keys(fieldErrors).length)return json({error:Object.values(fieldErrors)[0],field_errors:fieldErrors},400);
+      const contactNumber=contactRaw?normalizePhilippineMobile(contactRaw):"";
+      const literal=(v:string)=>v.replace(/[\\%_]/g,"\\$&");
 
-      const {data:emailHit}=await admin.from("users").select("user_id").ilike("email",email).limit(1);
-      if(emailHit?.length) return json({error:"This email address is already registered."},409);
-      const {data:userHit}=await admin.from("users").select("user_id").ilike("username",username).limit(1);
-      if(userHit?.length) return json({error:"This username is already taken."},409);
+      const {data:emailHit}=await admin.from("users").select("user_id").ilike("email",literal(email)).limit(1);
+      if(emailHit?.length) return json({error:"This email address is already registered.",field_errors:{email:"This email address is already registered."}},409);
+      const {data:userHit}=await admin.from("users").select("user_id").ilike("username",literal(username)).limit(1);
+      if(userHit?.length) return json({error:"This username is already taken.",field_errors:{username:"This username is already taken."}},409);
 
       const metadata={
         first_name:firstName,last_name:lastName,username,
-        contact_number:String(body.contact_number||""),
+        contact_number:contactNumber,
         person_type:role==="Doctor"?"Clinic Personnel":"Staff"
       };
       const {data:created,error:createErr}=await admin.auth.admin.createUser({
@@ -150,14 +165,14 @@ Deno.serve(async(req)=>{
       const uid=created.user.id;
       const patch:any={
         first_name:firstName,last_name:lastName,username,email,
-        contact_number:String(body.contact_number||""),
+        contact_number:contactNumber,
         role,status:"Active",verified:true,
-        specialty:role==="Doctor"?String(body.specialty||"General Medicine"):null,
+        specialty:role==="Doctor"?specialty:null,
         work_days:role==="Doctor"?(body.work_days||["Mon","Tue","Wed","Thu","Fri"]):[],
         start_time:role==="Doctor"?String(body.start_time||"08:00"):null,
         end_time:role==="Doctor"?String(body.end_time||"17:00"):null,
         slot_duration:role==="Doctor"?Number(body.slot_duration||60):null,
-        max_patients:role==="Doctor"?Number(body.max_patients||20):null
+        max_patients:role==="Doctor"?Number(body.max_patients||9):null
       };
       const {data:profile,error:profileErr}=await admin.from("users")
         .update(patch).eq("auth_user_id",uid).select("user_id").single();
