@@ -6,7 +6,7 @@ import {appointmentAction,appointmentRecords,appointmentService,syncRealAppointm
 import {checkDentalQuota,getDentalDoctors,getMedDoctors,getPatientById,getUserById} from './documentScanner.js';
 import {escapeHtml} from './issueReports.js';
 import {docName} from './messaging.js';
-import {closeAllModals,openModal} from './modals.js';
+import {closeAllModals,closeTopModal,openModal} from './modals.js';
 import {filterBookPatients} from './datePicker.js';
 import {initModernCalendar,renderModernCalendar} from './calendar.js';
 import {hideAlert,showAlert,toast} from './theme.js';
@@ -63,7 +63,7 @@ export async function onBookingDoctorChange(){
   const from=clinicToday(),to=addBookingDays(from,365);
   const renderCalendar=(days,selected='')=>{
     const available=days.filter(day=>day.openSlots>0).map(day=>day.date);
-    initModernCalendar('booking-modern-calendar',selected,from,'chooseBookingDate',{showAppointmentHints:true,allowEmptySelection:!selected,maxDate:to,availableDates:available,viewMonth:(selected||available[0]||from).slice(0,7),showAppointmentHints:false,showTodayButton:false});
+    initModernCalendar('booking-modern-calendar',selected,from,'chooseBookingDate',{allowEmptySelection:!selected,maxDate:to,availableDates:available,viewMonth:(selected||available[0]||from).slice(0,7),showAppointmentHints:false,showTodayButton:false});
   };
   renderCalendar([]);loadTimeSlots();
   if(!doctor){note.textContent='Choose your doctor first to see available dates.';return;}
@@ -165,7 +165,7 @@ export function openBookApptModal(apptId=null){
       <div class="form-group">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
           <label>Available Time Slots</label>
-          ${['Staff','Administrator'].includes(appState.auth.currentUser.role)?`<button type="button" class="btn btn-xs" ${bindAction('click',(event,element)=>{openManageDateSlots()})}><i class="bi bi-clock"></i> Manage slots for this date</button>`:''}
+          ${['Staff','Administrator'].includes(appState.auth.currentUser.role)?`<button type="button" class="btn btn-xs" id="b-manage-slots" disabled title="Pick a doctor and a date first" ${bindAction('click',()=>openManageDateSlots())}><i class="bi bi-sliders" aria-hidden="true"></i> Manage slots for this date</button>`:''}
         </div>
         <div id="slot-grid" class="slot-grid" style="min-height:40px"><span class="text-muted" style="font-size:.78rem">Select an appointment date to see available doctors and time slots.</span></div>
         <div class="form-note">Booked, past, lunch-break, and manually unavailable slots are clearly marked and cannot be selected.</div>
@@ -258,65 +258,104 @@ export function slotAvailabilityState(doc,date,time){
   return {blocked:false,label:'Available',kind:'available'};
 }
 
+// Staff can open or close individual time slots for one doctor and date. The dialog sits on top of the
+// booking form so nothing typed there is lost, and it works from the same availability the form shows.
+const EDITABLE_SLOT_KINDS=['available','full','blocked','lunch'];
 export function openManageDateSlots(){
   if(!['Staff','Administrator'].includes(appState.auth.currentUser.role))return;
-  const docId=parseInt((document.getElementById('b-doc')||{}).value),date=(document.getElementById('b-date')||{}).value;
-  const doc=getUserById(docId); if(!doc||!date){toast('Choose a doctor and date first.','warning');return;}
-  appState.bookingForm.bookingDraftForSlotManager={
-    patientId:(document.getElementById('b-pt')||{}).value||'',
-    clinic:(document.getElementById('b-clinic')||{}).value||'Medical Clinic',
-    service:(document.getElementById('b-service')||{}).value||'',
-    doctorId:String(docId),date,
-    reason:(document.getElementById('b-reason')||{}).value||''
-  };
-  const slots=appointmentSlotBaseTimes(doc),taken=new Set(appointmentRecords().filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time));
-  const override=getSlotOverride(docId,date),blocked=new Set((override&&override.blockedTimes)||[]),available=new Set((override&&override.availableTimes)||[]);
-  openModal(`<div class="modal modal-lg"><div class="modal-header"><div><h3>Manage Available Time Slots</h3><div class="text-muted">${escapeHtml(docName(doc))} · ${fmtDate(date)} · Lunch is ${fmtTime(appState.data.DB.settings.lunchBreakStart||'12:00')}–${fmtTime(appState.data.DB.settings.lunchBreakEnd||'13:00')}</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div class="alert alert-info show">Checked slots are available for booking. Booked slots cannot be changed. You can reopen a lunch-break slot for a specific date if needed.</div><div class="slot-manager-grid">${slots.map(t=>{const isLunch=isDefaultLunchSlot(t,doc),isTaken=taken.has(t),checked=isTaken||(!blocked.has(t)&&(!isLunch||available.has(t)));return `<label class="slot-manager-item ${isTaken?'booked':''}"><input type="checkbox" class="slot-manager-check" value="${t}" ${checked?'checked':''} ${isTaken?'disabled':''}><span><strong>${fmtTime(t)}</strong><small style="display:block;color:var(--ink-muted)">${isTaken?'Booked':isLunch?'Lunch break':'Regular slot'}</small></span></label>`;}).join('')}</div></div><div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{saveManagedDateSlots((docId),(String(date)))})}>Save Availability</button></div></div>`);
+  const docId=parseInt(document.getElementById('b-doc')?.value),date=document.getElementById('b-date')?.value;
+  const doc=getUserById(docId),day=(appState.bookingForm.availabilityDays||[]).find(d=>d.date===date);
+  if(!doc||!date||!day){toast('Pick a doctor and a date first.','warning');return;}
+  const override=getSlotOverride(docId,date);
+  const reopenedLunch=new Set(override?.availableTimes||[]);
+  const slots=(day.slots||[]).map(s=>({
+    time:s.time,kind:s.kind,label:s.label,
+    editable:EDITABLE_SLOT_KINDS.includes(s.kind),
+    lunch:s.kind==='lunch'||reopenedLunch.has(s.time)||(s.kind==='blocked'&&isDefaultLunchSlot(s.time,doc)),
+    open:s.kind==='available'||s.kind==='full'
+  }));
+  appState.bookingForm.slotDraft={docId,date,slots,initial:slots.map(s=>s.open)};
+  openModal(`<div class="modal modal-lg slot-manager-modal">
+    <div class="modal-header"><div><h3>Manage time slots</h3><div class="text-muted">${escapeHtml(docName(doc))} · ${fmtDate(date)}</div></div><button class="close-btn" ${bindAction('click',()=>closeTopModal())}>✕</button></div>
+    <div class="modal-body">
+      <p class="form-note" style="margin:0 0 .6rem">Tap a time to open or close it for booking. Booked and past times can't be changed. Lunch-break times start closed; open one only when the doctor agrees.</p>
+      <div class="slot-manager-tools">
+        <span id="slot-manager-summary" role="status" aria-live="polite"></span>
+        <div><button type="button" class="btn btn-xs" ${bindAction('click',()=>setAllManagedSlots(true))}>Open all</button>
+        <button type="button" class="btn btn-xs" ${bindAction('click',()=>setAllManagedSlots(false))}>Close all</button>
+        <button type="button" class="btn btn-xs" ${bindAction('click',()=>resetManagedSlots())}>Undo changes</button></div>
+      </div>
+      <div class="slot-manager-grid" id="slot-manager-grid" role="group" aria-label="Time slots"></div>
+      <div class="slot-manager-legend"><span><i class="dot open"></i>Open</span><span><i class="dot closed"></i>Closed</span><span><i class="dot lunch"></i>Lunch break</span><span><i class="dot locked"></i>Booked or past</span></div>
+      <div class="form-group" style="margin-top:.8rem"><label for="slot-manager-reason">Reason for closed times <span class="text-muted">(optional, shown to staff)</span></label><input id="slot-manager-reason" maxlength="120" placeholder="e.g. Doctor attending a meeting"></div>
+    </div>
+    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeTopModal())}>Back to booking</button><button class="btn btn-primary" id="slot-manager-save" ${bindAction('click',()=>saveManagedDateSlots())}>Save changes</button></div>
+  </div>`,{preserveParent:true});
+  renderManagedSlots();
 }
-export async function saveManagedDateSlots(docId,date){
-  const doc=getUserById(docId);if(!doc)return;
-  const slots=appointmentSlotBaseTimes(doc);
-  const checked=new Set(Array.from(document.querySelectorAll('.slot-manager-check:checked')).map(x=>x.value));
-  const taken=new Set(appointmentRecords().filter(a=>a.doctorId===docId&&a.date===date&&a.status!=='Cancelled').map(a=>a.time));
+
+function renderManagedSlots(){
+  const draft=appState.bookingForm.slotDraft,grid=document.getElementById('slot-manager-grid');
+  if(!draft||!grid)return;
+  grid.innerHTML=draft.slots.map((s,i)=>{
+    const state=!s.editable?'locked':s.open?'open':s.lunch?'lunch':'closed';
+    const caption=!s.editable?s.label:s.open?(s.lunch?'Open (lunch)':'Open'):s.lunch?'Lunch break':'Closed';
+    const changed=s.editable&&s.open!==draft.initial[i];
+    return `<button type="button" class="slot-toggle ${state} ${changed?'changed':''}" role="switch" aria-checked="${s.open}" ${s.editable?'':'disabled'} ${bindAction('click',()=>toggleManagedSlot(i))}><strong>${fmtTime(s.time)}</strong><small>${escapeHtml(caption)}</small></button>`;
+  }).join('');
+  const open=draft.slots.filter(s=>s.editable&&s.open).length,closed=draft.slots.filter(s=>s.editable&&!s.open).length,locked=draft.slots.filter(s=>!s.editable).length;
+  const changes=draft.slots.filter((s,i)=>s.editable&&s.open!==draft.initial[i]).length;
+  const summary=document.getElementById('slot-manager-summary');
+  if(summary)summary.textContent=`${open} open · ${closed} closed · ${locked} booked or past${changes?` · ${changes} unsaved change${changes===1?'':'s'}`:''}`;
+  const save=document.getElementById('slot-manager-save');if(save)save.disabled=!changes;
+}
+export function toggleManagedSlot(index){
+  const slot=appState.bookingForm.slotDraft?.slots[index];
+  if(!slot?.editable)return;
+  slot.open=!slot.open;renderManagedSlots();
+}
+export function setAllManagedSlots(open){
+  for(const slot of appState.bookingForm.slotDraft?.slots||[])if(slot.editable)slot.open=open;
+  renderManagedSlots();
+}
+export function resetManagedSlots(){
+  const draft=appState.bookingForm.slotDraft;if(!draft)return;
+  draft.slots.forEach((slot,i)=>{slot.open=draft.initial[i];});
+  renderManagedSlots();
+}
+
+export async function saveManagedDateSlots(){
+  const draft=appState.bookingForm.slotDraft;if(!draft)return;
+  const doc=getUserById(draft.docId);if(!doc)return;
+  const reason=(document.getElementById('slot-manager-reason')?.value||'').trim().slice(0,120);
+  // Only differences from the normal schedule are stored: closed regular times and reopened lunch times.
   const deviations=[];
-
-  slots.forEach(t=>{
-    if(taken.has(t))return;
-    const lunch=isDefaultLunchSlot(t,doc);
-    if(!checked.has(t))deviations.push({time:t,is_available:false,reason:lunch?'Lunch break':'Manually unavailable'});
-    else if(lunch)deviations.push({time:t,is_available:true,reason:'Lunch slot reopened'});
-  });
-
+  for(const slot of draft.slots){
+    if(!slot.editable)continue;
+    if(!slot.open&&!slot.lunch)deviations.push({time:slot.time,is_available:false,reason:reason||'Manually unavailable'});
+    else if(slot.open&&slot.lunch)deviations.push({time:slot.time,is_available:true,reason:'Lunch slot reopened'});
+  }
+  const button=document.getElementById('slot-manager-save');
+  if(button){button.disabled=true;button.textContent='Saving…';}
   try{
     if(appState.auth.currentUser?._realSupabase){
-      await appointmentAction({action:'manage_slots',doctor_id:doc.dbUserId,date,slots:deviations});
+      if(!doc.dbUserId)throw new Error('This doctor record could not be matched. Refresh the page and try again.');
+      await appointmentAction({action:'manage_slots',doctor_id:doc.dbUserId,date:draft.date,slots:deviations});
       await syncRealAppointments();
     }else{
-      const blockedTimes=deviations.filter(x=>!x.is_available).map(x=>x.time);
-      const availableTimes=deviations.filter(x=>x.is_available).map(x=>x.time);
-      appState.data.DB.settings.slotOverrides=Array.isArray(appState.data.DB.settings.slotOverrides)?appState.data.DB.settings.slotOverrides:[];
-      appState.data.DB.settings.slotOverrides=appState.data.DB.settings.slotOverrides.filter(o=>!(o.doctorId===docId&&o.date===date));
-      appState.data.DB.settings.slotOverrides.push({doctorId:docId,date,blockedTimes,availableTimes});
+      appState.data.DB.settings.slotOverrides=(Array.isArray(appState.data.DB.settings.slotOverrides)?appState.data.DB.settings.slotOverrides:[]).filter(o=>!(o.doctorId===draft.docId&&o.date===draft.date));
+      appState.data.DB.settings.slotOverrides.push({doctorId:draft.docId,date:draft.date,blockedTimes:deviations.filter(x=>!x.is_available).map(x=>x.time),availableTimes:deviations.filter(x=>x.is_available).map(x=>x.time)});
       persistDB();
     }
-    closeAllModals();
-    toast('Time-slot availability updated.','success');
-
-    const draft=appState.bookingForm.bookingDraftForSlotManager;appState.bookingForm.bookingDraftForSlotManager=null;
-    openBookApptModal();
-    setTimeout(async()=>{
-      if(!draft)return;
-      const pt=document.getElementById('b-pt'),clinic=document.getElementById('b-clinic'),docEl=document.getElementById('b-doc'),reason=document.getElementById('b-reason');
-      if(pt&&!pt.disabled)pt.value=draft.patientId;
-      if(clinic){clinic.value=draft.clinic;await onClinicChange(Number(draft.doctorId));}
-      chooseBookingDate(draft.date);
-      const svc=document.getElementById('b-service');
-      if(svc&&Array.from(svc.options).some(o=>o.value===draft.service||o.text===draft.service))svc.value=draft.service;
-      if(reason)reason.value=draft.reason;
-      loadTimeSlots();
-    },0);
+    closeTopModal();
+    appState.bookingForm.slotDraft=null;
+    toast('Time slots updated.','success');
+    // Reload this doctor's availability and return to the same date in the booking form.
+    await onBookingDoctorChange();
+    if(!chooseBookingDate(draft.date))toast('No times are open on that date now. Choose another date.','warning');
   }catch(e){
     toast(e?.message||'Unable to update time slots.','error');
+    if(button&&document.body.contains(button)){button.disabled=false;button.textContent='Save changes';}
   }
 }
 
@@ -325,6 +364,8 @@ export function loadTimeSlots(){
   const date=(document.getElementById('b-date')||{}).value;
   const grid=document.getElementById('slot-grid');
   if(!grid)return;
+  const manage=document.getElementById('b-manage-slots');
+  if(manage){manage.disabled=!(docId&&date);manage.title=manage.disabled?'Pick a doctor and a date first':'';}
   if(!date){grid.innerHTML='<span class="text-muted" style="font-size:.78rem">'+(docId?'Choose a highlighted date to see times.':'Choose your doctor first.')+'</span>';return;}
   if(!docId){grid.innerHTML='<span class="text-muted" style="font-size:.78rem">No doctor is available for the selected date and clinic.</span>';return;}
   const day=(appState.bookingForm.availabilityDays||[]).find(day=>day.date===date);

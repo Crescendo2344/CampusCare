@@ -14,7 +14,7 @@ for(const [name,html] of Object.entries(templates)){
   if(host)host.outerHTML=html;
 }
 installActionEvents();
-// Long dropdowns open as a short scrollable list instead of filling the screen.
+// Every dropdown opens as the same short, scrollable, themed list.
 installSelectPopover();
 // Keep every module and modal table bounded as route markup changes.
 installTableScrolling();

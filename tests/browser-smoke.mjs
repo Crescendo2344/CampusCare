@@ -542,6 +542,24 @@ try{
     assert.equal(await page.locator('#b-time').inputValue(),'08:00');
     assert.equal(await page.locator('#slot-grid button.selected').getAttribute('aria-pressed'),'true');
     for(const time of ['09:00','10:00','12:00'])assert(await page.locator('#slot-grid button[data-time="'+time+'"]').isDisabled());
+    if(role!=='Patient'){
+      // Managing slots opens over the booking form, saves only the changes, and returns to the same date.
+      await page.locator('#b-reason').fill('Kept while managing slots');
+      await page.locator('#b-manage-slots').click();
+      await page.locator('.slot-manager-modal').waitFor();
+      assert(await page.locator('.slot-toggle.locked').first().isDisabled(),'Booked times cannot be changed');
+      assert(await page.locator('#slot-manager-save').isDisabled());
+      await page.locator('.slot-toggle',{hasText:'11:00'}).click();
+      assert.match(await page.locator('#slot-manager-summary').innerText(),/1 unsaved change/);
+      if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.slot-manager-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/slot-manager-${mobile?'mobile':'desktop'}.png`});
+      await page.locator('#slot-manager-save').click();
+      await page.waitForFunction(()=>!document.querySelector('.slot-manager-modal'));
+      const manage=requests.filter(r=>r.path.endsWith('/appointment-actions')&&r.body?.action==='manage_slots').at(-1);
+      assert(manage.body.slots.some(x=>x.time==='11:00'&&x.is_available===false),'Closing a time sends it as unavailable');
+      await page.waitForFunction(date=>document.getElementById('b-date')?.value===date,page.__bookingDate);
+      assert.equal(await page.locator('#b-reason').inputValue(),'Kept while managing slots');
+      await page.locator('#slot-grid button[data-time="08:00"]').click();
+    }
     if(role!=='Patient')await page.locator('#b-pt').evaluate(el=>el.value='200004');
     await page.locator('#b-reason').fill('Synthetic booking flow verification');
     await page.getByRole('button',{name:'Save Draft',exact:true}).click();
@@ -719,6 +737,12 @@ try{
     assert.equal(await page.locator('#pt-college option').first().innerText(),'All Departments');
     assert(await page.locator('#pt-college option',{hasText:'Registrar'}).count());
     await page.locator('#pt-ptype').selectOption('');assert.equal(await page.locator('#pt-college optgroup').count(),2);
+    // Every dropdown, short or long, opens the same themed list; on phones a tap opens it too.
+    if(mobile)await page.locator('#pt-status').tap();else await page.locator('#pt-status').click();
+    await page.locator('.select-popover').waitFor();
+    await page.locator('.select-popover').getByRole('option',{name:'All Records',exact:true}).click();
+    assert.equal(await page.locator('#pt-status').inputValue(),'all');
+    await page.locator('#pt-status').selectOption('active');
     if(!mobile){
       // Long dropdowns open as a short scrollable list; choosing an option updates the real select.
       await page.locator('#pt-college').click();

@@ -579,3 +579,24 @@
 .device-info{display:flex;flex-direction:column;flex:1;min-width:0;font-size:.84rem}
 .device-info .text-muted{font-size:.72rem}
 .device-info .badge{align-self:flex-start;margin:.15rem 0}
+/* Manage time slots: one toggle per time, coloured by state. */
+.slot-manager-modal .slot-manager-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:.5rem}
+.slot-manager-tools{display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem;font-size:.8rem;color:var(--ink-muted)}
+.slot-manager-tools>div{display:flex;gap:.35rem;flex-wrap:wrap}
+.slot-toggle{display:flex;flex-direction:column;align-items:flex-start;gap:.1rem;padding:.55rem .7rem;border-radius:12px;border:1px solid var(--line);background:var(--glass-surface-soft);color:var(--ink);font:inherit;cursor:pointer;text-align:left;transition:background .15s,border-color .15s}
+.slot-toggle strong{font-size:.9rem;font-variant-numeric:tabular-nums}
+.slot-toggle small{font-size:.7rem;color:var(--ink-muted)}
+.slot-toggle.open{border-color:var(--success-border);background:var(--success-bg)}
+.slot-toggle.open small{color:var(--success)}
+.slot-toggle.closed{border-style:dashed;opacity:.85}
+.slot-toggle.lunch{border-color:var(--warning-border);background:var(--warning-bg)}
+.slot-toggle.lunch small{color:var(--warning)}
+.slot-toggle.locked{cursor:not-allowed;opacity:.55}
+.slot-toggle.changed{box-shadow:0 0 0 2px var(--primary)}
+.slot-toggle:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.slot-manager-legend{display:flex;gap:.9rem;flex-wrap:wrap;margin-top:.7rem;font-size:.74rem;color:var(--ink-muted)}
+.slot-manager-legend .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:.3rem;vertical-align:-1px;border:1px solid var(--line)}
+.slot-manager-legend .dot.open{background:var(--success-bg);border-color:var(--success-border)}
+.slot-manager-legend .dot.closed{border-style:dashed}
+.slot-manager-legend .dot.lunch{background:var(--warning-bg);border-color:var(--warning-border)}
+.slot-manager-legend .dot.locked{opacity:.5;background:var(--line)}

@@ -1,10 +1,9 @@
-// Long dropdowns open as a short, scrollable list instead of the browser's full-height list.
+// Every dropdown opens as the same short, scrollable, themed list instead of the browser's own list.
 // The native <select> stays in place and keeps its value, events and keyboard behaviour; only the
-// mouse-opened list is replaced, and only on pointer devices (phones keep their native picker).
-const LIMIT=8;
+// opened list is replaced, for mouse, pen and touch alike.
 let open=null;
 
-const isLong=el=>el instanceof HTMLSelectElement&&!el.multiple&&el.size<=1&&!el.disabled&&el.options.length>LIMIT;
+const isCustomisable=el=>el instanceof HTMLSelectElement&&!el.multiple&&el.size<=1&&!el.disabled&&el.options.length>0&&!el.closest('[data-native-select]');
 
 function close(focusSelect=false){
   if(!open)return;
@@ -89,25 +88,51 @@ function openList(select){
   const reposition=event=>{if(event?.target&&list.contains(event.target))return;close();};
   document.addEventListener('keydown',onKey,true);
   document.addEventListener('mousedown',outside,true);
+  document.addEventListener('touchstart',outside,true);
   addEventListener('resize',reposition);
   document.addEventListener('scroll',reposition,true);
   document.body.append(list);
   place(list,select);
   highlight(active);
   select.setAttribute('aria-expanded','true');
-  open={list,select,cleanup:()=>{document.removeEventListener('keydown',onKey,true);document.removeEventListener('mousedown',outside,true);removeEventListener('resize',reposition);document.removeEventListener('scroll',reposition,true);}};
+  open={list,select,cleanup:()=>{document.removeEventListener('keydown',onKey,true);document.removeEventListener('mousedown',outside,true);document.removeEventListener('touchstart',outside,true);removeEventListener('resize',reposition);document.removeEventListener('scroll',reposition,true);}};
 }
 
 export function installSelectPopover(root=document){
-  if(!matchMedia('(pointer: fine)').matches)return ()=>{};
   const onDown=event=>{
     const select=event.target;
-    if(event.button!==0||!isLong(select))return;
+    if(event.button!==0||!isCustomisable(select))return;
     event.preventDefault();
     if(open?.select===select){close(true);return;}
     select.focus({preventScroll:true});
     openList(select);
   };
+  // Touch: a tap (not a scroll) opens the list; stopping the touch keeps the native picker closed.
+  let touch=null;
+  const onTouchStart=event=>{
+    const select=event.target;
+    if(!isCustomisable(select))return;
+    const t=event.touches[0];touch={select,x:t.clientX,y:t.clientY};
+  };
+  const onTouchEnd=event=>{
+    if(!touch||event.target!==touch.select)return;
+    const t=event.changedTouches[0],moved=Math.hypot(t.clientX-touch.x,t.clientY-touch.y)>10;
+    const select=touch.select;touch=null;
+    if(moved)return;
+    event.preventDefault();
+    if(open?.select===select){close(true);return;}
+    select.focus({preventScroll:true});
+    openList(select);
+  };
+  // Alt+Down / F4 / Space would open the browser's list from the keyboard; open ours instead.
+  const onKey=event=>{
+    const select=event.target;
+    if(open||!isCustomisable(select))return;
+    if((event.altKey&&event.key==='ArrowDown')||event.key==='F4'||event.key===' '){event.preventDefault();openList(select);}
+  };
   root.addEventListener('mousedown',onDown,true);
-  return ()=>{root.removeEventListener('mousedown',onDown,true);close();};
+  root.addEventListener('touchstart',onTouchStart,{capture:true,passive:true});
+  root.addEventListener('touchend',onTouchEnd,{capture:true,passive:false});
+  root.addEventListener('keydown',onKey,true);
+  return ()=>{root.removeEventListener('mousedown',onDown,true);root.removeEventListener('touchstart',onTouchStart,true);root.removeEventListener('touchend',onTouchEnd,true);root.removeEventListener('keydown',onKey,true);close();};
 }
