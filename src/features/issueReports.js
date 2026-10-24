@@ -27,8 +27,7 @@ export function issueDisplayId(r){return workflowData.issueDisplayId(r);}
 
 export function issueTypeBadge(type){
   const map={Bug:'badge-danger',Suggestion:'badge-info',Feedback:'badge-purple'};
-  const icon={Bug:'🐞',Suggestion:'💡',Feedback:'💬'};
-  return `<span class="badge ${map[type]||'badge-gray'}">${icon[type]||''} ${escapeHtml(type||'Report')}</span>`;
+  return `<span class="badge ${map[type]||'badge-gray'}">${escapeHtml(type||'Report')}</span>`;
 }
 
 export function issueStatusBadge(status){
@@ -244,64 +243,59 @@ export async function renderFeedbackIssues(){
     if(!isCampusPageCurrent('feedback-issues',pageToken))return;
   }
 
+  const ui=appState.issueReports.queue??={tab:'active',order:'newest'};
+  const all=issueReportRecords();
+  const count=fn=>all.filter(fn).length;
+  const tabs=[['active','Needs action',count(r=>['Open','In Review'].includes(r.status))],['Open','Open',count(r=>r.status==='Open')],['In Review','In review',count(r=>r.status==='In Review')],['Resolved','Resolved',count(r=>r.status==='Resolved')],['Dismissed','Dismissed',count(r=>r.status==='Dismissed')],['all','All',all.length]];
   c.innerHTML=`
-    <div class="card">
-      <div class="card-header">
-        <div><h3>Feedback &amp; Issue Tracking</h3><div class="tech-note">Review, reply to, and close reports submitted by CampusCare users.</div></div>
-      </div>
-      <div class="toolbar">
-        <input id="fi-search" type="search" placeholder="Search reporter, page, or description..." ${bindAction('input',(event,element)=>{renderFeedbackIssuesList()})}>
-        <select id="fi-type" ${bindAction('change',(event,element)=>{renderFeedbackIssuesList()})}>
-          <option value="">All Types</option><option>Bug</option><option>Suggestion</option><option>Feedback</option>
-        </select>
-        <select id="fi-status" ${bindAction('change',(event,element)=>{renderFeedbackIssuesList()})}>
-          <option value="">All Statuses</option><option>Open</option><option>In Review</option><option>Resolved</option><option>Dismissed</option>
-        </select>
-      </div>
-      <div id="fi-list"></div>
-    </div>`;
+    <div class="appt-head"><div class="appt-views" role="tablist" aria-label="Report status">${tabs.map(([id,label,n])=>`<button type="button" role="tab" class="appt-view ${ui.tab===id?'active':''} ${id==='active'&&n?'attention':''}" aria-selected="${ui.tab===id}" ${bindAction('click',()=>{ui.tab=id;renderFeedbackIssues();})}>${label}<span class="appt-view-count">${n}</span></button>`).join('')}</div></div>
+    <div class="toolbar">
+      <input id="fi-search" type="search" placeholder="Search reporter, page or description" aria-label="Search reports" ${bindAction('input',()=>renderFeedbackIssuesList())}>
+      <select id="fi-type" aria-label="Type" ${bindAction('change',()=>renderFeedbackIssuesList())}>
+        <option value="">All types</option><option>Bug</option><option>Suggestion</option><option>Feedback</option>
+      </select>
+      <select id="fi-order" aria-label="Order" ${bindAction('change',(event,element)=>{ui.order=element.value;renderFeedbackIssuesList();})}>
+        <option value="newest" ${ui.order==='newest'?'selected':''}>Newest first</option><option value="oldest" ${ui.order==='oldest'?'selected':''}>Oldest first</option><option value="waiting" ${ui.order==='waiting'?'selected':''}>Awaiting reply first</option>
+      </select>
+    </div>
+    <p class="patient-filter-summary" id="fi-summary" role="status" aria-live="polite"></p>
+    <div id="fi-list"></div>`;
   renderFeedbackIssuesList();
 }
 
+// A report awaits a reply when an administrator has not answered its latest message.
+const awaitingReply=r=>['Open','In Review'].includes(r.status)&&((r.replies||[]).at(-1)?.authorRole!=='Administrator');
+const ageLabel=date=>{const days=Math.floor((Date.now()-new Date(date).getTime())/864e5);return Number.isNaN(days)?'':days<1?'today':days===1?'1 day ago':`${days} days ago`;};
+
 export function renderFeedbackIssuesList(){
   const el=document.getElementById('fi-list');if(!el)return;
+  const ui=appState.issueReports.queue??={tab:'active',order:'newest'};
   const q=(document.getElementById('fi-search')?.value||'').trim().toLowerCase();
   const type=document.getElementById('fi-type')?.value||'';
-  const status=document.getElementById('fi-status')?.value||'';
-
-  let reports=issueReportRecords()
-    .slice()
-    .sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
-
+  let reports=issueReportRecords().filter(r=>ui.tab==='all'||(ui.tab==='active'?['Open','In Review'].includes(r.status):r.status===ui.tab));
   if(type)reports=reports.filter(r=>r.type===type);
-  if(status)reports=reports.filter(r=>r.status===status);
-  if(q)reports=reports.filter(r=>
-    `${r.reporterName||''} ${r.page||''} ${r.description||''} ${r.type||''}`.toLowerCase().includes(q)
-  );
-
+  if(q)reports=reports.filter(r=>`${r.reporterName||''} ${r.page||''} ${r.description||''} ${r.type||''} #${issueDisplayId(r)}`.toLowerCase().includes(q));
+  reports.sort((a,b)=>ui.order==='oldest'?String(a.createdAt).localeCompare(String(b.createdAt))
+    :ui.order==='waiting'?Number(awaitingReply(b))-Number(awaitingReply(a))||String(a.createdAt).localeCompare(String(b.createdAt))
+    :String(b.createdAt).localeCompare(String(a.createdAt)));
+  const summary=document.getElementById('fi-summary');
+  if(summary)summary.textContent=`${reports.length} report${reports.length===1?'':'s'} · ${reports.filter(awaitingReply).length} awaiting your reply`;
   if(!reports.length){
-    el.innerHTML='<div class="empty-state"><p>No reports match this filter.</p></div>';
+    el.innerHTML='<div class="empty-state"><i class="bi bi-inbox" aria-hidden="true" style="font-size:1.6rem"></i><p>No reports here.</p></div>';
     return;
   }
-
-  el.innerHTML=reports.map(r=>{
+  el.innerHTML=`<div class="card"><div class="fi-list">${reports.map(r=>{
     const user=getUserById(r.reporterId);
     const replyCount=(r.replies||[]).length;
-    return `<div class="card" style="cursor:pointer;margin-bottom:.7rem" ${bindAction('click',(event,element)=>{viewIssueThread((r.id))})}>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem;flex-wrap:wrap">
-        <div style="display:flex;gap:.6rem;align-items:center;min-width:0">
-          ${user?userAvatarHtml(user,32):'<div class="sb-avatar" style="width:32px;height:32px;font-size:.7rem">?</div>'}
-          <div style="min-width:0">
-            <strong style="font-size:.85rem">${escapeHtml(r.reporterName||'CampusCare user')}</strong>
-            <div class="text-muted" style="font-size:.72rem">#${issueDisplayId(r)} · ${fmtDate(r.createdAt)}${r.page?' · '+escapeHtml(r.page):''}${replyCount?` · 💬 ${replyCount}`:''}</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:.4rem;align-items:center">${issueTypeBadge(r.type)}${issueStatusBadge(r.status)}</div>
-      </div>
-      <p style="font-size:.85rem;margin:.7rem 0">${escapeHtml(r.description.substring(0,160))}${r.description.length>160?'…':''}</p>
-      ${r.photo?`<img src="${r.photo}" style="max-width:140px;max-height:90px;object-fit:cover;border-radius:8px" ${bindAction('click',(event,element)=>{event.stopPropagation();showFilePreview('Issue Screenshot',(String(r.photo)))})}>`:''}
-    </div>`;
-  }).join('');
+    return `<button type="button" class="fi-row" ${bindAction('click',()=>viewIssueThread(r.id))}>
+      ${user?userAvatarHtml(user,32):'<div class="sb-avatar" style="width:32px;height:32px;font-size:.7rem">?</div>'}
+      <span class="fi-main">
+        <span class="fi-title"><strong>${escapeHtml(r.description.substring(0,110))}${r.description.length>110?'…':''}</strong></span>
+        <span class="text-muted">#${issueDisplayId(r)} · ${escapeHtml(r.reporterName||'CampusCare user')}${r.page?' · '+escapeHtml(r.page):''} · ${ageLabel(r.createdAt)}${replyCount?` · ${replyCount} repl${replyCount===1?'y':'ies'}`:''}${r.photo?' · screenshot':''}</span>
+      </span>
+      <span class="fi-badges">${awaitingReply(r)?'<span class="tr-due today" style="margin:0">Awaiting reply</span>':''}${issueTypeBadge(r.type)}${issueStatusBadge(r.status)}</span>
+    </button>`;
+  }).join('')}</div></div>`;
 }
 
 export function viewIssueThread(id){

@@ -61,6 +61,15 @@ export function setTheme(mode,{manual=false}={}){
   applyThemeIcons();
 }
 
+// "auto" follows the time of day; "light" and "dark" are remembered on this device.
+export function themePreference(){return savedTheme()||'auto';}
+export function setThemePreference(preference){
+  if(preference==='light'||preference==='dark'){setTheme(preference,{manual:true});return;}
+  try{localStorage.removeItem(THEME_KEY);}catch(_){}
+  appState.theme.campusThemeManualOverride=null;
+  setTheme(automaticThemeForLocalTime());
+}
+
 export function applyAutomaticTheme(){
   if(currentThemeOverride())return;
   setTheme(automaticThemeForLocalTime(),{manual:false});

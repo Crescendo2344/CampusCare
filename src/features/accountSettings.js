@@ -9,7 +9,7 @@ import {changeAccountPassword,changeProfilePhoto,hideAccountPasswordChecklist,op
 import {openScheduleChangeRequest,saveAccount} from './workflowRequests.js';
 import {openPrivacyNotice} from './loginLockout.js';
 import {openPrivacyRequestModal} from './privacy.js';
-import {getDoctors} from './documentScanner.js';
+import {setThemePreference,showConfirmDialog,themePreference,toast} from './theme.js';
 import {bindAction} from '../dependencies.js';
 // ================================================================
 // MY ACCOUNT
@@ -66,13 +66,13 @@ export function renderMyAccount(){
           <div class="card-header"><h3>Profile Photo</h3></div>
           <div style="display:flex;align-items:center;gap:1rem">
             <div id="acc-photo-wrap" style="width:72px;height:72px;border-radius:50%;overflow:hidden;background:var(--overlay);border:1px solid var(--glass-border-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:700;font-size:1.1rem;color:var(--primary-dark)${u.profilePhoto?';cursor:pointer':''}" ${u.profilePhoto?`${bindAction('click',(event,element)=>{showFilePreview((String(u.fname)+" "+String(u.lname)+" - Photo"),(String(u.profilePhoto)))})} title="Click to view full size"`:''}>
-              ${u.profilePhoto?`<img src="${u.profilePhoto}" style="width:100%;height:100%;object-fit:cover">`:`${(u.fname[0]||'')}${(u.lname[0]||'')}`}
+              ${u.profilePhoto?`<img src="${escapeHtml(u.profilePhoto)}" alt="Your profile photo" style="width:100%;height:100%;object-fit:cover">`:escapeHtml(`${(u.fname[0]||'')}${(u.lname[0]||'')}`)}
             </div>
             <div>
               <button class="btn btn-sm" ${bindAction('click',(event,element)=>{document.getElementById('acc-photo-file').click()})}>Upload Photo</button>
               <button class="btn btn-sm btn-info" ${bindAction('click',(event,element)=>{openCamera('account')})}><i class="bi bi-camera" aria-hidden="true"></i> Use Camera</button>
               <input type="file" id="acc-photo-file" accept="image/*" style="display:none" ${bindAction('change',(event,element)=>{changeProfilePhoto(element)})}>
-              <p class="form-note">This was originally your verification selfie. JPG/PNG, square photos look best.</p>
+              <p class="form-note">Shown on your clinic records so staff can recognise you. JPG or PNG; square photos look best.</p>
             </div>
           </div>
         </div>
@@ -80,16 +80,16 @@ export function renderMyAccount(){
           <div class="card-header"><h3>Profile Information</h3></div>
           <div id="acc-msg"></div>
           <div class="form-row">
-            <div class="form-group"><label>First Name</label><input id="acc-fname" value="${u.fname}" disabled></div>
-            <div class="form-group"><label>Last Name</label><input id="acc-lname" value="${u.lname}" disabled></div>
+            <div class="form-group"><label>First Name</label><input id="acc-fname" value="${escapeHtml(u.fname)}" disabled></div>
+            <div class="form-group"><label>Last Name</label><input id="acc-lname" value="${escapeHtml(u.lname)}" disabled></div>
           </div>
           <p class="form-note" style="margin:-.2rem 0 .8rem">${u.role==='Administrator'?'As an administrator, you can update your name directly from User Management.':`For security, your name can only be changed by an administrator. <a href="#" ${bindAction('click',(event,element)=>{openNameChangeRequest();return false;})} style="color:var(--primary);text-decoration:none">Request a name change →</a>`}</p>
           <div class="divider"></div>
-          <div class="form-group"><label>Email</label><input id="acc-email" value="${u.email}" type="email" ${bindAction('input',(event,element)=>{sanitizeInput(element,'email')})}></div>
-          <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${u.contact||''}" type="tel" inputmode="tel" maxlength="24" placeholder="09XXXXXXXXX or +639XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
+          <div class="form-group"><label>Email</label><input id="acc-email" value="${escapeHtml(u.email||'')}" type="email" autocomplete="email" ${bindAction('input',(event,element)=>{sanitizeInput(element,'email')})}></div>
+          <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${escapeHtml(u.contact||'')}" autocomplete="tel" type="tel" inputmode="tel" maxlength="24" placeholder="09XXXXXXXXX or +639XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
           ${u.role==='Administrator'
             ? '<p class="form-note">As an administrator, updating your email or contact applies immediately — no verification code needed.</p>'
-            : '<p class="form-note">Changing your email or contact requires a 6-digit verification code sent to your current verified email or phone. If you change your phone number, Supabase also sends an SMS code to the new number before the change is completed.</p>'}
+            : '<p class="form-note">To change your email or contact number, you will confirm with a 6-digit code sent to your current email or phone. A new phone number also gets its own confirmation code.</p>'}
           <button class="btn btn-primary btn-sm" id="account-save-button" ${bindAction('click',(event,element)=>{saveAccount()})}>Save Changes</button>
         </div>
         <div class="card">
@@ -132,14 +132,14 @@ export function renderMyAccount(){
       <div>
         <div class="card">
           <div class="card-header"><h3>Account Information</h3></div>
-          <div class="info-row"><span class="info-label">Username</span><span class="info-val">${u.username}</span></div>
-          <div class="info-row"><span class="info-label">Role</span><span class="info-val">${u.role}</span></div>
+          <div class="info-row"><span class="info-label">Username</span><span class="info-val">@${escapeHtml(u.username||'')}</span></div>
+          <div class="info-row"><span class="info-label">Role</span><span class="info-val">${escapeHtml(u.role)}</span></div>
           <div class="info-row"><span class="info-label">Status</span><span class="info-val">${statusBadge(u.status)}</span></div>
           <div class="info-row"><span class="info-label">Email Verification</span><span class="info-val">${u.emailVerificationSkipped?'<span class="badge badge-info">Temporarily skipped</span>':u.emailConfirmedAt?'<span class="badge badge-success">Confirmed</span>':'<span class="badge badge-warning">Not confirmed</span>'}</span></div>
           <div class="info-row"><span class="info-label">Last Login</span><span class="info-val">${formatLastLogin(u.lastLogin)}</span></div>
           ${pt?`<div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
           <div class="info-row"><span class="info-label">Person Type</span><span class="info-val">${priorityBadge(pt.personType)}</span></div>
-          <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${pt.idNo}</span></div>`:''}
+          <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${escapeHtml(pt.idNo||'—')}</span></div>`:''}
         </div>
         <div class="card">
           <div class="card-header">
@@ -156,13 +156,19 @@ export function renderMyAccount(){
             <button class="btn btn-sm btn-warning" ${bindAction('click',(event,element)=>{openPrivacyRequestModal()})}>Submit Privacy / Data Request</button>
           </div>
         </div>
-        ${u.role==='Patient'?`<div class="card">
-          <div class="card-header"><h3>Available Doctors</h3></div>
-          ${getDoctors().map(d=>`<div style="display:flex;align-items:center;gap:.6rem;padding:.5rem 0;border-bottom:1px solid var(--line)">
-            <div class="sb-avatar" style="width:30px;height:30px;font-size:.72rem">${d.fname[0]}${d.lname[0]}</div>
-            <div style="flex:1"><div class="fw-500" style="font-size:.83rem">Dr. ${d.fname} ${d.lname}</div>
-            <div class="text-muted">${d.specialty} · ${(d.workDays||[]).join(', ')}</div></div>
-          </div>`).join('')}
+        <div class="card">
+          <div class="card-header"><h3>Appearance</h3></div>
+          <div class="form-group"><label for="acc-theme">Theme</label>
+            <select id="acc-theme" ${bindAction('change',(event,element)=>{setThemePreference(element.value);toast(element.value==='auto'?'Theme now follows the time of day.':`${element.value==='dark'?'Dark':'Light'} theme saved on this device.`,'success');})}>
+              ${[['auto','Automatic (dark from 6 PM to 6 AM)'],['light','Light'],['dark','Dark']].map(([v,t])=>`<option value="${v}" ${themePreference()===v?'selected':''}>${t}</option>`).join('')}
+            </select>
+            <p class="form-note">Saved on this device. The moon/sun button in the top bar switches it too.</p>
+          </div>
+        </div>
+        ${u._realSupabase?`<div class="card">
+          <div class="card-header"><h3>Signed-in devices</h3></div>
+          <p class="text-muted" style="font-size:.8rem;line-height:1.55">If you used CampusCare on a shared or lost device, sign out everywhere else. This device stays signed in.</p>
+          <button class="btn btn-sm btn-warning" ${bindAction('click',()=>signOutOtherSessions())}><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Sign out of other devices</button>
         </div>`:''}
       </div>
     </div>`;
@@ -182,6 +188,16 @@ export function renderMyAccount(){
   // Initialize the live password-security UI after the account card is in the DOM.
   renderPasswordCooldownNotice();
   updateAccountPasswordStrength();
+}
+
+export function signOutOtherSessions(){
+  showConfirmDialog({title:'Sign out of other devices',message:'End your CampusCare sessions on every other browser and device?',confirmLabel:'Sign out others',onConfirm:async()=>{
+    try{
+      const {error}=await appState.supabaseClient.supabaseClient.auth.signOut({scope:'others'});
+      if(error)throw error;
+      toast('Signed out of all other devices.','success');
+    }catch(e){toast(e?.message||'Unable to sign out other devices.','error');}
+  }});
 }
 
 // Run side effects only after every feature's function exports are available.

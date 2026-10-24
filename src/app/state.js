@@ -38,4 +38,7 @@ export const state={
   fitnessList:{},
   inventoryList:{},
   userManagement:{},
+  surveyResults:{},
+  settingsPage:{},
+  activityLog:{},
 };

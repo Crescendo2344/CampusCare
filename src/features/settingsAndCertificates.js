@@ -20,6 +20,12 @@ import {bindAction} from '../dependencies.js';
 // accidentally removed during the Supabase merge.
 // ================================================================
 
+export function showSettingsSection(id){
+  (appState.settingsPage??={}).tab=id;
+  for(const panel of document.querySelectorAll('[data-settings-panel]'))panel.hidden=panel.dataset.settingsPanel!==id;
+  for(const tab of document.querySelectorAll('[data-settings-tab]'))tab.setAttribute('aria-selected',String(tab.dataset.settingsTab===id));
+}
+
 export async function renderSettings(){
   const s=appState.data.DB.settings;
   const c=document.getElementById('app-content');
@@ -45,8 +51,11 @@ export async function renderSettings(){
     }
     if(!isCampusPageCurrent('settings',pageToken))return;
   }
+  const ui=appState.settingsPage??={};ui.tab??='clinic';
+  const sections=[['clinic','Clinic & semesters','bi-hospital'],['privacy','Privacy','bi-shield-lock'],...(appState.auth.currentUser?._realSupabase?[['email','Email delivery','bi-envelope']]:[]),['backups','Backups','bi-database']];
   c.innerHTML=`
-    <div class="grid-2">
+    <div class="report-tabs settings-tabs" role="tablist" aria-label="Settings sections">${sections.map(([id,label,icon])=>`<button type="button" role="tab" aria-selected="${ui.tab===id}" data-settings-tab="${id}" ${bindAction('click',()=>showSettingsSection(id))}><i class="bi ${icon}" aria-hidden="true"></i>${label}</button>`).join('')}</div>
+    <div class="grid-2" data-settings-panel="clinic">
       <div class="card">
         <div class="card-header"><h3>Clinic Settings</h3></div><p class="settings-danger-notice">Critical settings: changes affect clinic information, visit limits and appointment reminders. Review every change before confirming.</p>
         <div id="set-msg"></div>
@@ -67,7 +76,7 @@ export async function renderSettings(){
         <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{saveSemSettings()})}>Save Semester</button>
       </div>
     </div>
-    <div class="card">
+    <div class="card" data-settings-panel="privacy">
       <div class="card-header">
         <div>
           <h3>Privacy &amp; Data Protection</h3>
@@ -100,7 +109,7 @@ export async function renderSettings(){
 
       <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{savePrivacySettings()})}>Save Privacy Notice Version</button>
     </div>
-    ${appState.auth.currentUser?._realSupabase?`<div class="card">
+    ${appState.auth.currentUser?._realSupabase?`<div class="card" data-settings-panel="email">
       <div class="card-header">
         <div>
           <h3>Operational Email Delivery</h3>
@@ -123,14 +132,10 @@ export async function renderSettings(){
             : `<span class="badge badge-warning">Provider setup required</span>`}
         </p>
         ${!appState.data.DB.emailDeliveryStatus?.configured?`
-          <div class="alert alert-warning show" style="font-size:.76rem;margin-top:.6rem">
-            The CampusCare queue and automatic scheduler are active, but external email sending requires two protected
-            <strong>Supabase Edge Function secrets</strong>: <code>RESEND_API_KEY</code> and <code>CAMPUSCARE_EMAIL_FROM</code>.
-            Do not place these credentials in this HTML file or in GitHub.
-          </div>
-          <div class="tech-note">
-            This Supabase build uses a Resend delivery adapter. When CampusCare is later moved to the planned Vercel/Node.js architecture,
-            the same <code>email_outbox</code> queue can be consumed by Nodemailer without changing the patient-facing workflow.
+          <div class="alert alert-warning show" style="font-size:.76rem;margin-top:.6rem;display:block">
+            Emails are queued but not sent yet. Ask the system maintainer to add the email provider key
+            (<code>RESEND_API_KEY</code>) and sender address (<code>CAMPUSCARE_EMAIL_FROM</code>) as Supabase secrets.
+            Queued emails are delivered once these are set.
           </div>
         `:''}
       </div>
@@ -153,7 +158,7 @@ export async function renderSettings(){
       <div id="email-queue-list">${renderEmailQueueHtml()}</div>
     </div>`:''}
 
-    <div class="card">
+    <div class="card" data-settings-panel="backups">
       <div class="card-header">
         <div>
           <h3>Automated Daily Backups</h3>
@@ -197,6 +202,7 @@ export async function renderSettings(){
 
       <div id="backup-list">${renderBackupListHtml()}</div>
     </div>`;
+  showSettingsSection(sections.some(([id])=>id===ui.tab)?ui.tab:'clinic');
   requestAnimationFrame(sizeBackupHistory);
   if(appState.auth.currentUser?._realSupabase){
     renderEmailDeliveryPanel();

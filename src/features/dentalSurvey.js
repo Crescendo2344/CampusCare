@@ -9,6 +9,7 @@ import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {fmtDate,fmtDateTime,fmtTime} from './inputValidation.js';
 import {showAlert,toast} from './theme.js';
 import {persistDB} from './persistence.js';
+import * as surveyData from '../domain/survey-analysis.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
 // ================================================================
 // DENTAL CLINIC PATIENT SURVEY / CLIENT SATISFACTION MEASUREMENT
@@ -321,36 +322,53 @@ export async function renderSurveyResults(){
     if(!isCampusPageCurrent('survey-results',pageToken))return;
   }
 
-  const rows=clinicSurveyRecords().slice().sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
-  const avgOverall=averageNumeric(rows.map(r=>r.ratings?.overall));
-  const avgSatisfaction=averageNumeric(rows.map(r=>r.sqd?.sqd0));
-  const services={};
-  rows.forEach(r=>{if(r.service)services[r.service]=(services[r.service]||0)+1;});
-  const topService=Object.entries(services).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
+  const ui=appState.surveyResults??={};ui.period??='';ui.group??='';ui.service??='';
+  const all=clinicSurveyRecords().slice().sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  const today=appState.clinicInformation.TODAY;
+  const from=ui.period?new Date(Date.parse(today+'T12:00:00Z')-Number(ui.period)*864e5).toISOString().slice(0,10):'';
+  const rows=surveyData.filterSurveys(all,{from,group:ui.group,service:ui.service});
+  const overall=surveyData.overallSatisfaction(rows),sqd0=surveyData.satisfaction(rows,'sqd0'),charter=surveyData.charterAwareness(rows);
+  const avgOverall=surveyData.averageRating(rows,r=>r.ratings?.overall);
+  const pct=v=>v===null?'—':`${v}%`;
+  const groups=[...new Set(all.map(r=>r.groupType).filter(Boolean))].sort();
+  const services=[...new Set(all.map(r=>r.service).filter(Boolean))].sort();
+  const select=(id,label,value,options,key)=>`<select id="${id}" aria-label="${label}" ${bindAction('change',(event,element)=>{ui[key]=element.value;renderSurveyResults();})}>${options.map(([v,t])=>`<option value="${escapeHtml(v)}" ${v===value?'selected':''}>${escapeHtml(t)}</option>`).join('')}</select>`;
+  const bar=(value)=>`<div class="survey-bar"><span style="width:${value??0}%"></span></div>`;
 
   c.innerHTML=`
-    <div class="survey-stats">
-      <div class="survey-stat"><strong>${rows.length}</strong><span>Total Survey Responses</span></div>
-      <div class="survey-stat"><strong>${avgOverall?avgOverall.toFixed(2):'—'}</strong><span>Average Dental Rating / 5</span></div>
-      <div class="survey-stat"><strong>${avgSatisfaction?avgSatisfaction.toFixed(2):'—'}</strong><span>Average SQD0 Satisfaction / 5</span></div>
+    <div class="toolbar survey-toolbar">
+      ${select('sv-period','Period',ui.period,[['','All time'],['30','Last 30 days'],['90','Last 90 days'],['365','Last 12 months']],'period')}
+      ${select('sv-group','Client type',ui.group,[['','All client types'],...groups.map(g=>[g,g])],'group')}
+      ${select('sv-service','Service',ui.service,[['','All services'],...services.map(v=>[v,v])],'service')}
+      <button class="btn btn-sm" ${bindAction('click',()=>{const url=URL.createObjectURL(new Blob(['﻿'+surveyData.surveysCsv(rows)],{type:'text/csv;charset=utf-8'}));const a=Object.assign(document.createElement('a'),{href:url,download:`campuscare-dental-survey-${today}.csv`});document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);})}><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>
+      <button class="btn btn-sm" ${bindAction('click',()=>renderSurveyResults())}><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button>
     </div>
-
+    <div class="approval-summary survey-summary">
+      <div class="approval-stat"><span>Responses</span><strong>${rows.length}</strong></div>
+      <div class="approval-stat"><span>Overall satisfaction (SQD0–SQD8)</span><strong>${pct(overall.pct)}</strong></div>
+      <div class="approval-stat"><span>Satisfied with the service (SQD0)</span><strong>${pct(sqd0.pct)}</strong></div>
+      <div class="approval-stat"><span>Average overall dental rating</span><strong>${avgOverall??'—'}${avgOverall?' / 5':''}</strong></div>
+      <div class="approval-stat"><span>Aware of the Citizen's Charter (CC1)</span><strong>${pct(charter.pct)}</strong></div>
+    </div>
+    <div class="survey-grid">
+      <div class="card"><div class="card-header"><div><h3>Service quality dimensions</h3><div class="text-muted">Share of clients who agree or strongly agree. N/A answers are not counted.</div></div></div>
+        ${rows.length?`<table class="survey-sqd-table"><thead><tr><th scope="col">Dimension</th><th scope="col">Satisfied</th><th scope="col">Answers</th></tr></thead><tbody>${surveyData.SQD_LABELS.map(([key,label])=>{const s=surveyData.satisfaction(rows,key);return `<tr><td><strong>${key.toUpperCase()}</strong> ${escapeHtml(label)}</td><td>${bar(s.pct)}<span class="survey-pct ${s.pct!==null&&s.pct<80?'low':''}">${pct(s.pct)}</span></td><td>${s.base}</td></tr>`;}).join('')}</tbody></table>`:'<div class="empty-state"><p>No responses for these filters.</p></div>'}
+      </div>
+      <div class="card"><div class="card-header"><h3>Responses by service</h3></div>
+        ${rows.length?`<ul class="survey-breakdown">${surveyData.countBy(rows,r=>r.service).map(([name,n])=>`<li><span>${escapeHtml(name)}</span><strong>${n}</strong></li>`).join('')}</ul>`:'<p class="text-muted" style="padding:.75rem">—</p>'}
+        <div class="card-header" style="margin-top:.6rem"><h3>Responses by client type</h3></div>
+        ${rows.length?`<ul class="survey-breakdown">${surveyData.countBy(rows,r=>r.groupType).map(([name,n])=>`<li><span>${escapeHtml(name)}</span><strong>${n}</strong></li>`).join('')}</ul>`:''}
+      </div>
+    </div>
     <div class="card">
-      <div class="card-header"><div><h3>Dental Clinic Survey Results</h3><div class="text-muted">Top service: ${escapeHtml(topService)}</div></div>
-        <button class="btn btn-sm" ${bindAction('click',(event,element)=>{renderSurveyResults()})}><i class="bi bi-arrow-clockwise"></i> Refresh</button></div>
-      ${rows.length?`<div class="table-wrap"><table><thead><tr>
-        <th>Date</th><th>Respondent</th><th>Group</th><th>Service</th><th>Overall</th><th>SQD0</th><th>Suggestion</th>
-      </tr></thead><tbody>${rows.map(r=>{
-        const patient=r.patient;
-        const name=patient?`${patient.first_name||''} ${patient.last_name||''}`.trim():'Patient';
-        return `<tr><td>${r.createdAt?fmtDateTime(r.createdAt):'—'}</td><td>${escapeHtml(name||'Patient')}</td>
-          <td>${escapeHtml(r.groupType||'—')}</td><td>${escapeHtml(r.service||'—')}</td>
-          <td>${escapeHtml(String(r.ratings?.overall||'—'))}</td><td>${escapeHtml(String(r.sqd?.sqd0||'—'))}</td>
-          <td>${escapeHtml(r.suggestions||'—')}</td></tr>`;
-      }).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No survey responses yet.</p></div>'}
-    </div>
-
-    ${rows.some(r=>r.suggestions)?`<div class="card" style="margin-top:.8rem"><div class="card-header"><h3>Recent Suggestions</h3></div><div style="padding:.75rem">${rows.filter(r=>r.suggestions).slice(0,8).map(r=>`<div class="survey-comment">${escapeHtml(r.suggestions)}</div>`).join('')}</div></div>`:''}`;
+      <div class="card-header"><div><h3>Responses</h3><div class="text-muted">Respondents are kept confidential, as the CSM form promises.</div></div></div>
+      ${rows.length?`<div class="table-wrap"><table class="treat-table"><thead><tr>
+        <th scope="col">Date</th><th scope="col">Client type</th><th scope="col">Service</th><th scope="col">Overall</th><th scope="col">SQD0</th><th scope="col">Suggestion</th>
+      </tr></thead><tbody>${rows.map(r=>`<tr><td data-label="Date">${r.createdAt?fmtDate(String(r.createdAt).slice(0,10)):'—'}</td>
+          <td data-label="Client type">${escapeHtml(r.groupType||'—')}</td><td data-label="Service">${escapeHtml(r.service||'—')}</td>
+          <td data-label="Overall">${escapeHtml(String(r.ratings?.overall||'—'))}${r.ratings?.overall?' / 5':''}</td><td data-label="SQD0">${escapeHtml(String(r.sqd?.sqd0||'—'))}</td>
+          <td data-label="Suggestion">${escapeHtml(r.suggestions||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No survey responses for these filters.</p></div>'}
+    </div>`;
 }
 
 // Run side effects only after every feature's function exports are available.

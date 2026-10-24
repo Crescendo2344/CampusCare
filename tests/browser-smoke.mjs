@@ -497,9 +497,9 @@ try{
       const app=window.__fixtureApp,me=app.state.auth.currentUser,now=Date.now(),hour=36e5;
       const make=(id,title,body,ago,read,ref=null)=>({id,dbNotificationId:id,userId:me.id,title,body,type:'info',read,createdAt:new Date(now-ago*hour).toISOString(),referenceType:ref?'issue_reports':'',referenceId:ref,actionPage:'',_realSupabase:Boolean(me._realSupabase)});
       app.state.data.DB.notifications=[
-        make(1,'New Reply on a CampusCare Report','A reporter replied to an existing issue thread.',1,false,7),
-        make(2,'New Reply on a CampusCare Report','A reporter replied to an existing issue thread.',2,false,7),
-        make(3,'Appointment Confirmed','Your appointment was confirmed.',3,true),
+        make(1,'New Reply on a CampusCare Report','A reporter replied to an existing issue thread.',1/60,false,7),
+        make(2,'New Reply on a CampusCare Report','A reporter replied to an existing issue thread.',2/60,false,7),
+        make(3,'Appointment Confirmed','Your appointment was confirmed.',3/60,true),
         make(4,'Low Stock Alert','Paracetamol is below its threshold.',30,false),
         make(5,'Certificate Issued','Your medical certificate is ready.',100,true)
       ];
@@ -636,6 +636,13 @@ try{
       await page.reload();await page.waitForFunction(()=>Boolean(window.__fixtureApp));
       assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme||'light'),chosen);
       await page.evaluate(()=>localStorage.removeItem('campuscare-theme'));
+    }
+  }
+  if(process.env.CAMPUSCARE_VISUAL_DIR&&role==='Administrator'&&!mobile){
+    for(const route of ['inventory','users','survey-results','feedback-issues','settings','activity-log','my-account']){
+      await page.evaluate(route=>window.__fixtureApp.features.navigationRaceProtection.navTo(route),route);
+      await page.waitForTimeout(400);
+      await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/admin-${route}.png`,fullPage:true});
     }
   }
   // Walk every visible role route through its actual generated click callback.
@@ -797,6 +804,7 @@ try{
     await page.locator('#critical-settings-save').click();
     await page.waitForFunction(()=>!document.getElementById('critical-settings-phrase'));
     assert.equal(requests.filter(r=>r.path.endsWith('/settings-actions')&&r.body?.action==='update').at(-1).body.critical_confirmation,true);
+    await page.getByRole('tab',{name:'Backups'}).click();
     await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.data.DB.realBackupLogs=Array.from({length:6},(_,i)=>({id:i+1,type:'Daily',status:'Completed',startedAt:`2026-10-${String(21-i).padStart(2,'0')}T00:00:00Z`,fileSize:100}));features.serverBackups.renderBackupPanel();});
     await page.waitForTimeout(100);
     assert.equal(await page.locator('#backup-list .backup-day').count(),6);

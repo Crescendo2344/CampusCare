@@ -250,50 +250,63 @@ export async function renderActivityLog(){
       </select>
       <select id="audit-action" ${bindAction('change',(event,element)=>{renderActivityLogTable()})}>
         <option value="">All actions</option>
-        ${[...new Set((appState.data.DB.activityLogs||[]).map(x=>x.action))].filter(Boolean).sort().map(a=>`<option>${escapeHtml(a)}</option>`).join('')}
+        ${[...new Set((appState.data.DB.activityLogs||[]).map(x=>x.action))].filter(Boolean).sort().map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(friendlyAction(a))}</option>`).join('')}
+      </select>
+      <select id="audit-period" aria-label="Period" ${bindAction('change',()=>renderActivityLogTable())}>
+        <option value="">All time</option><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option>
       </select>
     </div>
+    <p class="patient-filter-summary" id="audit-summary" role="status" aria-live="polite"></p>
     <div id="audit-table"></div>
   </div>`;
   renderActivityLogTable();
 }
 
-export function renderActivityLogTable(){
-  const el=document.getElementById('audit-table');if(!el)return;
-
+// "APPOINTMENT_CREATED" reads as "Appointment created".
+export function friendlyAction(action=''){
+  const text=String(action).toLowerCase().replace(/_/g,' ').trim();
+  return text?text.charAt(0).toUpperCase()+text.slice(1):'';
+}
+function filteredActivity(){
   const q=(document.getElementById('audit-q')?.value||'').toLowerCase();
   const role=document.getElementById('audit-role')?.value||'';
   const action=document.getElementById('audit-action')?.value||'';
-
-  const rows=(appState.data.DB.activityLogs||[])
-    .filter(x=>
-      (!role||x.role===role)&&
-      (!action||x.action===action)&&
-      (!q||`${x.userName} ${x.action} ${x.details} ${x.targetType} ${x.targetId||''}`.toLowerCase().includes(q))
-    )
-    .slice(0,500);
-
-  el.innerHTML=rows.length?`<div class="table-wrap"><table>
-    <thead><tr><th>Date / Time</th><th>User</th><th>Role</th><th>Action</th><th>Target</th><th>Details</th><th>IP</th></tr></thead>
-    <tbody>${rows.map(x=>`<tr>
-      <td>${new Date(x.timestamp).toLocaleString('en-PH')}</td>
-      <td>${escapeHtml(x.userName)}</td>
-      <td>${escapeHtml(x.role)}</td>
-      <td><span class="badge badge-info">${escapeHtml(x.action)}</span></td>
-      <td>${escapeHtml(x.targetType||'—')}${x.targetId!=null?` #${escapeHtml(String(x.targetId))}`:''}</td>
-      <td style="max-width:360px;white-space:normal">${escapeHtml(x.details||'—')}</td>
-      <td>${escapeHtml(x.ipAddress||'—')}</td>
-    </tr>`).join('')}</tbody>
-  </table></div>`:'<div class="empty-state"><p>No activity matches the selected filters.</p></div>';
+  const period=Number(document.getElementById('audit-period')?.value||0);
+  const since=period?Date.now()-period*864e5:0;
+  return (appState.data.DB.activityLogs||[])
+    .filter(x=>(!role||x.role===role)&&(!action||x.action===action)&&(!since||new Date(x.timestamp).getTime()>=since)
+      &&(!q||`${x.userName} ${x.action} ${friendlyAction(x.action)} ${x.details} ${x.targetType} ${x.targetId||''}`.toLowerCase().includes(q)))
+    .sort((a,b)=>String(b.timestamp).localeCompare(String(a.timestamp)));
 }
 
+export function renderActivityLogTable(){
+  const el=document.getElementById('audit-table');if(!el)return;
+  const ui=appState.activityLog??={};ui.limit??=100;
+  const all=filteredActivity(),rows=all.slice(0,ui.limit);
+  const summary=document.getElementById('audit-summary');
+  if(summary)summary.textContent=`${all.length} entr${all.length===1?'y':'ies'}${all.length>rows.length?` · showing the latest ${rows.length}`:''}`;
+  el.innerHTML=rows.length?`<div class="table-wrap"><table class="treat-table">
+    <thead><tr><th scope="col">Date / time</th><th scope="col">User</th><th scope="col">Action</th><th scope="col">Record</th><th scope="col">Details</th><th scope="col">IP</th></tr></thead>
+    <tbody>${rows.map(x=>`<tr>
+      <td data-label="Date / time">${new Date(x.timestamp).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'})}</td>
+      <td data-label="User"><strong>${escapeHtml(x.userName)}</strong><div class="text-muted">${escapeHtml(x.role||'')}</div></td>
+      <td data-label="Action">${escapeHtml(friendlyAction(x.action))}</td>
+      <td data-label="Record">${escapeHtml(x.targetType||'—')}${x.targetId!=null?` #${escapeHtml(String(x.targetId))}`:''}</td>
+      <td data-label="Details" style="max-width:360px;white-space:normal">${escapeHtml(x.details||'—')}</td>
+      <td data-label="IP">${escapeHtml(x.ipAddress||'—')}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>${all.length>rows.length?`<div class="pt-pager"><span>Showing ${rows.length} of ${all.length}</span><div><button class="btn btn-xs" ${bindAction('click',()=>{ui.limit+=100;renderActivityLogTable();})}>Show more</button></div></div>`:''}`:'<div class="empty-state"><p>No activity matches the selected filters.</p></div>';
+}
+
+// Exports what the filters show; cells that start like a formula are neutralised for spreadsheets.
 export async function exportActivityLog(){
+  const cell=v=>{const t=String(v??'');return `"${(/^[=+\-@]/.test(t)?"'":'')+t.replace(/"/g,'""')}"`;};
   const rows=[['Timestamp','User','Role','Action','Target Type','Target ID','Details','IP Address'],
-    ...(appState.data.DB.activityLogs||[]).map(x=>[
-      x.timestamp,x.userName,x.role,x.action,x.targetType||'',x.targetId??'',x.details||'',x.ipAddress||''
+    ...filteredActivity().map(x=>[
+      x.timestamp,x.userName,x.role,friendlyAction(x.action),x.targetType||'',x.targetId??'',x.details||'',x.ipAddress||''
     ])];
 
-  const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const csv='﻿'+rows.map(r=>r.map(cell).join(',')).join('\r\n');
   const a=document.createElement('a');
   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
   a.href=url;

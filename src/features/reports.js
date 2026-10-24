@@ -14,6 +14,7 @@ import {refreshHealthIntelligence,renderHealthIntelligenceCard} from './predicti
 import {generateReport,updateReportMetricOptions} from './reportCharts.js';
 import {openReportDateRange} from './datePicker.js';
 import {bindAction} from '../dependencies.js';
+import {unitFilterOptionsHtml} from './patientManagement.js';
 // ================================================================
 // REPORTS
 // ================================================================
@@ -69,12 +70,10 @@ export async function renderReports(){
           <input type="hidden" id="rpt-from" value="${defaultFrom}"><input type="hidden" id="rpt-to" value="${defaultTo}">
           <button type="button" class="modern-date-btn" ${bindAction('click',openReportDateRange)}><i class="bi bi-calendar3"></i><span id="rpt-range-label">${fmtDate(defaultFrom)} – ${fmtDate(defaultTo)}</span></button>
         </div>
-        <div class="form-group"><label for="rpt-college">College</label><select id="rpt-college" ${bindAction('change',()=>{markReportStale();markForecastStale();refreshHealthIntelligence();})}><option value="">All Colleges</option>
-          ${[...new Set(['CCICT','COE','COED','CME','CAS','COT','Unknown',...appState.data.DB.users.map(u=>u.college).filter(Boolean)])].sort().map(college=>`<option value="${escapeHtml(college)}">${escapeHtml(college)}</option>`).join('')}
-        </select></div>
+        <div class="form-group"><label for="rpt-college">College / Department</label><select id="rpt-college" ${bindAction('change',()=>{markReportStale();markForecastStale();refreshHealthIntelligence();})}>${unitFilterOptionsHtml('')}<option value="Unknown">Not recorded</option></select></div>
       </div>
       <div class="report-presets"><span>Quick dates</span>${[['Month to date','month'],['Last 30 days','30'],['Last 90 days','90'],['Year to date','year']].map(([label,key])=>`<button type="button" class="btn btn-sm" ${bindAction('click',()=>setReportPreset(key))}>${label}</button>`).join('')}</div>
-      <p class="form-note">Activity dates and college apply to the overview and dated reports. Forecasts have their own history dates.</p>
+      <p class="form-note">Activity dates and college/department apply to the overview and dated reports. Forecasts have their own history dates.</p>
     </div>
     <div class="report-tabs" role="tablist" aria-label="Analytics views">${[['overview','Overview','bi-grid'],['builder','Custom Reports','bi-sliders'],['forecast','Forecast','bi-graph-up-arrow']].map(([id,label,icon])=>`<button type="button" role="tab" id="report-tab-${id}" data-report-view="${id}" aria-controls="report-panel-${id}" aria-selected="${id==='overview'}" ${bindAction('click',()=>switchReportView(id))}><i class="bi ${icon}" aria-hidden="true"></i>${label}</button>`).join('')}</div>
     <section id="report-panel-overview" role="tabpanel" aria-labelledby="report-tab-overview">
