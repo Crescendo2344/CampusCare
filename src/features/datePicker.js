@@ -2,7 +2,7 @@ import {resolveCallback} from '../app/callbacks.js';
 // datePicker: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {fmtDate} from './inputValidation.js';
-import {closeAllModals,openModal} from './modals.js';
+import {closeAllModals,closeTopModal,openModal} from './modals.js';
 import {escapeHtml} from './issueReports.js';
 import {initModernCalendar,renderModernCalendar} from './calendar.js';
 import {toast} from './theme.js';
@@ -28,11 +28,14 @@ export function campusDateFieldHtml(id,value,title,minDate='',maxDate='',onChang
 export function openCampusDatePicker(inputId,title,minDate='',maxDate='',onChange=''){
   const input=document.getElementById(inputId);
   if(!input)return;
-  appState.datePicker.campusDatePickerTarget={inputId,onChange};
+  // From inside a form dialog, the calendar opens over it and returns to it with the form intact.
+  const layered=Boolean(appState.clinicInformation.activeModal?.isConnected);
+  const dismiss=()=>{appState.datePicker.campusDatePickerTarget=null;if(layered)closeTopModal();else closeAllModals();};
+  appState.datePicker.campusDatePickerTarget={inputId,onChange,layered};
   const selected=input.value||((minDate&&minDate>appState.clinicInformation.TODAY)?minDate:appState.clinicInformation.TODAY);
-  openModal(`<div class="modal"><div class="modal-header"><div><h3>${escapeHtml(title||'Select Date')}</h3><div class="text-muted">Choose a month, year, and date.</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+  openModal(`<div class="modal"><div class="modal-header"><div><h3>${escapeHtml(title||'Select Date')}</h3><div class="text-muted">Choose a month, year, and date.</div></div><button class="close-btn" ${bindAction('click',()=>dismiss())}>✕</button></div>
     <div class="modal-body"><div id="campus-single-date-calendar"></div></div>
-    <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button></div></div>`);
+    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>dismiss())}>Cancel</button></div></div>`,{preserveParent:layered});
   const isDob=/dob|birth/i.test(inputId);
   initModernCalendar(
     'campus-single-date-calendar',
@@ -47,7 +50,7 @@ export function openCampusDatePicker(inputId,title,minDate='',maxDate='',onChang
 }
 export function applyCampusDateSelection(date){
   if(!appState.datePicker.campusDatePickerTarget)return;
-  const {inputId,onChange}=appState.datePicker.campusDatePickerTarget;
+  const {inputId,onChange,layered}=appState.datePicker.campusDatePickerTarget;
   const input=document.getElementById(inputId),label=document.getElementById(inputId+'-label');
   if(input)input.value=date;
   if(label)label.textContent=fmtDate(date);
@@ -55,7 +58,7 @@ export function applyCampusDateSelection(date){
   input?.dispatchEvent(new window.Event('change',{bubbles:true}));
   const cb=onChange&&resolveCallback(onChange);
   appState.datePicker.campusDatePickerTarget=null;
-  closeAllModals();
+  if(layered)closeTopModal();else closeAllModals();
   if(typeof cb==='function')cb();
 }
 

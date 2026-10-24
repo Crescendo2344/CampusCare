@@ -255,8 +255,9 @@ try{
     assert.equal(await page.getByText('Resend verification email',{exact:false}).count(),0);
     await page.evaluate(()=>window.__fixtureApp.features.loginLockout.openPrivacyNotice());
     await page.locator('.privacy-notice').waitFor();
-    assert.equal(await page.locator('.privacy-notice .alert-success').evaluate(el=>getComputedStyle(el).display),'block');
-    assert(await page.locator('.privacy-notice .alert-success strong').evaluate(el=>el.getBoundingClientRect().width>150),'Privacy heading must not collapse to a narrow column');
+    assert.equal(await page.locator('.privacy-notice .pn-statement').evaluate(el=>getComputedStyle(el).display),'block');
+    assert(await page.locator('.privacy-notice .pn-section h4').first().evaluate(el=>el.getBoundingClientRect().width>150),'Privacy headings must not collapse to a narrow column');
+    assert(await page.locator('.privacy-notice').evaluate(el=>el.scrollWidth<=el.clientWidth),'Privacy notice must not scroll sideways');
     await page.locator('.privacy-notice .modal-header .close-btn').click();
     // CAPTCHA appears before consent in both visual and keyboard reading order.
     assert(await page.evaluate(()=>document.getElementById('registration-captcha-section').compareDocumentPosition(document.querySelector('.privacy-agree'))&Node.DOCUMENT_POSITION_FOLLOWING));
@@ -636,6 +637,43 @@ try{
     await page.locator('tr.req-row').first().getByRole('button',{name:'Reject',exact:true}).click();
     assert.equal(await page.locator('.req-review').count(),0);
     await page.evaluate(()=>{window.__fixtureApp.features.modals.closeAllModals();window.__fixtureApp.state.userManagement.tab='users';});
+    // Doctor schedules: a weekly coverage board, and an editor that checks bookings before applying.
+    await page.evaluate(()=>{window.__fixtureApp.state.userManagement.tab='schedules';window.__fixtureApp.features.navigationRaceProtection.navTo('users');});
+    await page.locator('tr.dsb-row').first().waitFor();
+    await page.waitForFunction(()=>document.querySelector('tr.dsb-row')?.querySelectorAll('.dsb-cell.work').length===5);
+    assert.match(await page.locator('tr.dsb-row').first().innerText(),/8 AM – 5 PM/);
+    assert.equal(await page.locator('.dsb-stat').count(),4);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/doctor-schedules-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+    await page.locator('tr.dsb-row').first().click();
+    await page.locator('.dse-modal').waitFor();
+    assert.equal(await page.locator('#dse-max').inputValue(),'9','A daily limit above the available slots is lowered to fit');
+    assert(await page.locator('#dse-save').isDisabled(),'Nothing to save until something changes');
+    await page.locator('.dse-day[data-day="Sat"] .dse-switch').click();
+    await page.locator('.dse-day[data-day="Sat"] .dse-end').fill('12:00');
+    assert.match(await page.locator('.dse-day[data-day="Sat"] .dse-slots').innerText(),/4 slots · 4 patients max/);
+    assert.match(await page.locator('#dse-summary').innerText(),/reason/i);
+    // The date picker opens over the editor and returns to it with the edits intact.
+    await page.locator('#dse-reason').fill('Saturday clinic for exams');
+    await page.locator('.dse-modal .modern-date-btn').first().click();
+    await page.locator('#campus-single-date-calendar').waitFor();
+    await page.locator('#active-modal .close-btn').click();
+    await page.locator('.dse-modal').waitFor();
+    assert.equal(await page.locator('#dse-reason').inputValue(),'Saturday clinic for exams');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.dse-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/schedule-editor-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#dse-save').click();
+    await page.locator('#dse-apply').click();
+    await page.waitForFunction(()=>!document.querySelector('.dse-modal'));
+    const preview=requests.filter(r=>r.path.endsWith('/workflow-actions')&&r.body?.action==='preview_schedule').at(-1);
+    const update=requests.filter(r=>r.path.endsWith('/workflow-actions')&&r.body?.action==='admin_schedule_update').at(-1);
+    assert(preview,'Bookings are checked before saving');
+    assert.equal(update.body.max_patients,9);
+    assert.deepEqual(update.body.weekly_schedule.find(d=>d.day==='Sat'),{day:'Sat',is_working:true,start_time:'08:00',end_time:'12:00',slot_duration:60,max_patients:4});
+    assert.equal(update.body.weekly_schedule.find(d=>d.day==='Mon').max_patients,9);
+    await page.evaluate(()=>{window.__fixtureApp.state.userManagement.tab='users';});
+    await page.evaluate(()=>window.__fixtureApp.features.loginLockout.openPrivacyNotice());
+    await page.locator('.privacy-notice .pn-rights').waitFor();
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.privacy-notice').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/privacy-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('.privacy-notice').getByRole('button',{name:'I understand'}).click();
     // Use synthetic registration images to exercise the real review/preview controls without patient data.
     await page.evaluate(()=>{
       const {state,features}=window.__fixtureApp,canvas=document.createElement('canvas');canvas.width=40;canvas.height=60;

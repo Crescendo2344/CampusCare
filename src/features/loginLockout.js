@@ -205,36 +205,58 @@ export async function openPrivacyNotice(){
   }
 
   const v=appState.data.DB.settings?.privacyPolicyVersion||'1.0';
-  openModal(`<div class="modal modal-lg privacy-notice">
-    <div class="modal-header"><h3>CampusCare Privacy Notice &amp; Consent</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-    <div class="modal-body" style="font-size:.8rem;line-height:1.65">
-      <div class="alert alert-info show">CampusCare is designed to support responsible processing of personal and health information under the Data Privacy Act of 2012 (RA 10173). Actual institutional compliance also depends on CTU policies, personnel, security controls, and lawful records-management procedures.</div>
-      <div class="alert alert-success show" style="margin-top:.55rem">
-        <strong>Clinic-posted privacy statement:</strong> Personal and sensitive information provided during consultation is collected,
-        stored, and processed by the CTU Medical/Dental Clinic for the purpose of providing medical or dental care. The posted notice
-        states that information is kept confidential and is not shared with third parties except when required by law or to fulfill medical
-        and legal obligations, and that patients may request access, correction, or deletion in accordance with the Data Privacy Act.
+  const updated=fmtDate(appState.data.DB.settings?.privacyPolicyUpdated||appState.clinicInformation.TODAY);
+  const sections=[
+    ['collect','bi-clipboard2-data','Information we collect',`<ul class="pn-list">
+      <li><strong>Identity &amp; contact</strong> — name, username, email, mobile number, birth date and sex.</li>
+      <li><strong>School or work details</strong> — college or department, ID number, class session.</li>
+      <li><strong>Verification images</strong> — profile photo, selfie and Student/Employee ID photos.</li>
+      <li><strong>Health records</strong> — appointments, consultation findings, diagnoses, prescriptions, procedures, dental records and certificates.</li>
+      <li><strong>Communication &amp; security</strong> — secure clinic messages, consent records, sign-in and audit events.</li></ul>`],
+    ['purpose','bi-bullseye','Why we use it',`<p>To identify and verify patients, register clinic accounts, schedule appointments, provide medical and dental care, document treatment, process certificates, send authorized clinic notices, and keep patients safe. It is also used for audit and accountability, operational reports, inventory planning, system security and service improvement.</p>`],
+    ['protect','bi-lock','Who can see it and how it is protected',`<p>Access is role-based and limited to what each person needs for their work. CampusCare uses:</p>
+      <div class="pn-chips"><span><i class="bi bi-person-check"></i> Authenticated accounts</span><span><i class="bi bi-diagram-3"></i> Row-level access rules</span><span><i class="bi bi-folder-lock"></i> Private file storage</span><span><i class="bi bi-journal-check"></i> Server-side audit logs</span><span><i class="bi bi-hdd-stack"></i> Protected backups</span></div>
+      <p class="pn-muted">Please avoid sending confidential details through channels outside CampusCare.</p>`],
+    ['retention','bi-archive','How long records are kept',`<p>Records are kept as required by CTU clinic, medical-record, safety and legal rules. Withdrawing consent does not automatically erase clinical records when another lawful basis or retention requirement applies.</p>`],
+    ['rights','bi-person-badge','Your rights under the Data Privacy Act',`<div class="pn-rights">
+      <div><i class="bi bi-info-circle"></i><strong>Be informed</strong><span>Know how your data is used.</span></div>
+      <div><i class="bi bi-eye"></i><strong>Access</strong><span>Request a copy of your records.</span></div>
+      <div><i class="bi bi-pencil-square"></i><strong>Correct</strong><span>Fix inaccurate details.</span></div>
+      <div><i class="bi bi-hand-thumbs-down"></i><strong>Object</strong><span>Object to processing based on consent.</span></div>
+      <div><i class="bi bi-eraser"></i><strong>Erase or block</strong><span>Where no lawful basis remains.</span></div>
+      <div><i class="bi bi-box-arrow-up-right"></i><strong>Data portability</strong><span>Get your data in a usable format.</span></div>
+      <div><i class="bi bi-cash-coin"></i><strong>Damages</strong><span>Claim for misuse of your data.</span></div>
+      <div><i class="bi bi-megaphone"></i><strong>File a complaint</strong><span>With the National Privacy Commission.</span></div></div>
+      <p class="pn-muted">Requests are reviewed by authorized CTU personnel. Contact the CTU Medical/Dental Clinic to make one.</p>`],
+    ['consent','bi-check2-circle','Consent and acknowledgement',`<p>Acknowledging this notice confirms it was shown to you and that you agree to processing that relies on consent. It does not waive any right you have under privacy law.</p>`]
+  ];
+  openModal(`<div class="modal modal-lg privacy-notice" aria-labelledby="pn-title">
+    <div class="modal-header pn-header"><div class="pn-title"><span class="pn-badge" aria-hidden="true"><i class="bi bi-shield-lock"></i></span><div><h3 id="pn-title">Privacy Notice &amp; Consent</h3><p>Version ${escapeHtml(v)} · Updated ${escapeHtml(updated)} · Republic Act 10173</p></div></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body pn-body">
+      <div class="pn-glance" role="list" aria-label="At a glance">
+        <div role="listitem"><i class="bi bi-clipboard2-data"></i><strong>What</strong><span>Identity, school and health records</span></div>
+        <div role="listitem"><i class="bi bi-bullseye"></i><strong>Why</strong><span>To provide and document your clinic care</span></div>
+        <div role="listitem"><i class="bi bi-lock"></i><strong>Who</strong><span>Only authorized clinic personnel</span></div>
+        <div role="listitem"><i class="bi bi-person-badge"></i><strong>Your rights</strong><span>Access, correct, object and more</span></div>
       </div>
-
-      <h4 style="margin:.7rem 0 .25rem">Information collected</h4>
-      <p>Identity and contact information, school or employee information, profile and verification images, appointment information, medical and dental records, consultation findings, diagnoses, prescriptions, procedures, certificates, secure clinic messages, consent records, and security or audit events relevant to clinic operations.</p>
-
-      <h4 style="margin:.7rem 0 .25rem">Purpose of processing</h4>
-      <p>Patient identification and verification, clinic registration, appointment scheduling, medical and dental care, treatment documentation, certificate processing, authorized clinic communication, operational reporting, patient safety, audit and accountability, inventory planning, system security, and service improvement.</p>
-
-      <h4 style="margin:.7rem 0 .25rem">Access and protection</h4>
-      <p>Access is role-based and should follow the minimum-necessary principle. CampusCare uses authenticated accounts, row-level access controls, private file storage for sensitive uploads, server-side audit logs, and protected database backups. Users should not send unnecessary confidential information through channels outside CampusCare.</p>
-
-      <h4 style="margin:.7rem 0 .25rem">Retention and data-subject requests</h4>
-      <p>Records may need to be retained according to applicable CTU clinic, medical-record, contractual, safety, or legal requirements. A request to withdraw consent does not automatically erase clinical records when another lawful basis or retention requirement applies. Appropriate access, correction, objection, or privacy requests should be reviewed by authorized CTU personnel.</p>
-
-      <h4 style="margin:.7rem 0 .25rem">Consent and acknowledgement</h4>
-      <p>By acknowledging the current notice, the user confirms that this information has been presented and agrees to processing that relies on consent. This acknowledgement does not waive rights provided by applicable privacy law.</p>
-
-      <div class="tech-note" style="margin-top:.7rem">Privacy Notice version ${escapeHtml(v)} · Updated ${fmtDate(appState.data.DB.settings?.privacyPolicyUpdated||appState.clinicInformation.TODAY)}</div>
+      <blockquote class="pn-statement"><span class="pn-statement-label"><i class="bi bi-hospital"></i> Posted at the CTU Medical/Dental Clinic</span>
+        Personal and sensitive information provided during consultation is collected, stored, and processed by the CTU Medical/Dental Clinic to provide medical or dental care. It is kept confidential and is not shared with third parties except when required by law or to fulfill medical and legal obligations. Patients may request access, correction, or deletion in accordance with the Data Privacy Act.</blockquote>
+      <nav class="pn-toc" aria-label="Sections">${sections.map(([id,,title],i)=>`<button type="button" ${bindAction('click',()=>document.getElementById('pn-'+id)?.scrollIntoView({behavior:'smooth',block:'start'}))}>${i+1}. ${title}</button>`).join('')}</nav>
+      ${sections.map(([id,icon,title,body],i)=>`<section class="pn-section" id="pn-${id}"><h4><span class="pn-num">${i+1}</span><i class="bi ${icon}" aria-hidden="true"></i>${title}</h4>${body}</section>`).join('')}
+      <p class="pn-disclaimer"><i class="bi bi-info-circle"></i> CampusCare supports responsible processing of personal and health information under the Data Privacy Act of 2012. Actual institutional compliance also depends on CTU policies, personnel, security controls and lawful records-management procedures.</p>
     </div>
-    <div class="modal-footer"><button class="btn btn-primary" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button></div>
+    <div class="modal-footer pn-footer"><button type="button" class="btn" ${bindAction('click',()=>printPrivacyNotice())}><i class="bi bi-printer"></i> Print</button><button type="button" class="btn btn-primary" ${bindAction('click',()=>closeAllModals())}>I understand</button></div>
   </div>`);
+}
+
+function printPrivacyNotice(){
+  const body=document.querySelector('.privacy-notice .pn-body');
+  if(!body)return;
+  const win=window.open('','_blank','noopener=no,width=820,height=900');
+  if(!win){toast('Allow pop-ups to print the privacy notice.','warning');return;}
+  const title=document.querySelector('.privacy-notice .pn-title')?.innerText||'Privacy Notice';
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>CampusCare Privacy Notice</title><style>body{font:14px/1.6 system-ui,sans-serif;color:#111;max-width:720px;margin:2rem auto;padding:0 1rem}h4{margin:1.2rem 0 .3rem}.pn-toc,i{display:none}.pn-glance,.pn-rights{display:grid;grid-template-columns:repeat(2,1fr);gap:.4rem}.pn-glance div,.pn-rights div{border:1px solid #ccc;border-radius:6px;padding:.4rem .6rem;display:flex;flex-direction:column}.pn-chips span{display:inline-block;border:1px solid #ccc;border-radius:99px;padding:.1rem .5rem;margin:.15rem}blockquote{border-left:3px solid #2a7;margin:1rem 0;padding:.3rem .9rem;background:#f4faf6}.pn-num{font-weight:700;margin-right:.4rem}</style></head><body><h2>${escapeHtml(title)}</h2>${body.innerHTML}</body></html>`);
+  win.document.close();win.focus();win.print();
 }
 
 export function dataUrlToRegistrationFile(dataUrl, filename='capture.jpg'){

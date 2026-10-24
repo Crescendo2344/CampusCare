@@ -5,21 +5,22 @@ import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {closeAllModals,openModal,showFilePreview} from './modals.js';
 import {formatLastLogin} from './accountSettings.js';
-import {openAddUserModal,openDoctorScheduleEdit,openEditUserModal} from './userForm.js';
+import {openAddUserModal,openEditUserModal} from './userForm.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
-import {getDoctors,getUserById} from './documentScanner.js';
+import {getUserById} from './documentScanner.js';
 import {docName} from './messaging.js';
 import {collegeBadge,fmtDate,fmtTime,statusBadge} from './inputValidation.js';
 import {approveScheduleChange,rejectScheduleChange} from './workflowRequests.js';
-import {approveLeaveRequest,rejectLeaveRequest,removeDoctorLeave} from './doctorSchedule.js';
+import {approveLeaveRequest,rejectLeaveRequest} from './doctorSchedule.js';
 import {approveNameChange,rejectNameChange} from './nameChangeRequests.js';
 import {navTo} from './navigationRaceProtection.js';
 import {showConfirmDialog,toast} from './theme.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
 import {requestAttachmentBadge,requestAttachmentViewHtml} from './requestAttachments.js';
 import {appointmentRecords} from './appointmentService.js';
+import {doctorSchedulesHtml,hydrateDoctorSchedules,needsDoctorScheduleHydration,renderDoctorScheduleRows} from './doctorSchedules.js';
 // ================================================================
 // USERS
 // ================================================================
@@ -256,28 +257,9 @@ export async function renderUsers(){
     return;
   }
   if(ui.tab==='schedules'){
-    c.innerHTML=tabBar+`
-    <div class="card">
-      <div class="card-header"><h3>Doctor Work Schedules</h3></div>
-      <div class="table-wrap"><table><thead><tr><th>Doctor</th><th>Specialty</th><th>Work Days</th><th>Hours</th><th>Max Patients</th><th>Actions</th></tr></thead><tbody>${(appState.auth.currentUser?.role==='Administrator'?getDoctors().filter(d=>d._realSupabase):getDoctors()).map(d=>`<tr>
-          <td>${docName(d)}</td>
-          <td>${d.specialty||'General'}</td>
-          <td>${(d.workDays||[]).join(', ')}</td>
-          <td>${d.startTime||'08:00'} – ${d.endTime||'17:00'}</td>
-          <td>${d.maxPatients||20}</td>
-          <td><button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openDoctorScheduleEdit((d.id))})}>Edit</button></td>
-        </tr>`).join('')}</tbody></table></div>
-    </div>
-    <div class="card">
-      <div class="card-header"><h3>Upcoming Doctor Leave</h3></div>
-      ${(()=>{const all=appState.data.DB.doctorLeaves.filter(l=>l.date>=appState.clinicInformation.TODAY).sort((a,b)=>a.date.localeCompare(b.date));
-        if(!all.length)return '<p class="text-muted">No doctors have approved upcoming days off.</p>';
-        return `<div class="table-wrap"><table><thead><tr><th>Doctor</th><th>Date</th><th>Reason</th><th></th></tr></thead><tbody>${
-          all.map(l=>{const d=getUserById(l.doctorId);return `<tr><td>${d?docName(d):'—'}</td><td>${fmtDate(l.date)}</td><td>${l.reason?escapeHtml(l.reason):'<span class="text-muted">—</span>'}</td><td><button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{removeDoctorLeave((l.id))})}>Cancel</button></td></tr>`;}).join('')
-        }</tbody></table></div>`;
-      })()}
-    </div>
-`;
+    c.innerHTML=tabBar+doctorSchedulesHtml();
+    renderDoctorScheduleRows();
+    if(needsDoctorScheduleHydration())void hydrateDoctorSchedules();
     return;
   }
   c.innerHTML=tabBar+`

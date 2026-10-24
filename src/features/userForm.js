@@ -3,12 +3,10 @@ import {canEditApprovedUser,buildUserEditPatch} from '../../supabase/functions/_
 import {escapeHtml} from './issueReports.js';
 import {state as appState} from '../app/state.js';
 import {closeAllModals,openModal} from './modals.js';
-import {showAlert,showConfirmDialog,toast} from './theme.js';
+import {showAlert,toast} from './theme.js';
 import {adminUserAction,renderUsers} from './userManagement.js';
-import {clinicToday,setScheduleDays,validateSchedule} from './scheduleAndDrafts.js';
-import {docName} from './messaging.js';
-import {persistDB} from './persistence.js';
 import {bindAction} from '../dependencies.js';
+import {openDoctorScheduleEditor} from './doctorSchedules.js';
 // ── Add User Modal ──
 export function openAddUserModal(){
   openModal(`<div class="modal">
@@ -132,69 +130,7 @@ export async function saveEditUser(id){
   })}>Confirm Changes</button>`;
 }
 
-export function openDoctorScheduleEdit(docId){
-  const doc=appState.data.DB.users.find(u=>u.id===docId);if(!doc)return;
-  if(appState.auth.currentUser?.role!=='Administrator'||!canEditApprovedUser(doc)){toast('Approve or restore this account before editing its schedule.','warning');return;}
-  openModal(`<div class="modal">
-    <div class="modal-header"><h3>Edit Schedule – Dr. ${doc.fname} ${doc.lname}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-    <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group"><label>Start Time</label><input type="time" id="ds-start" value="${doc.startTime||'08:00'}"></div>
-        <div class="form-group"><label>End Time</label><input type="time" id="ds-end" value="${doc.endTime||'17:00'}"></div>
-        <div class="form-group"><label>Slot Duration (min)</label><input type="number" id="ds-slot" value="${doc.slotDuration||60}" min="15" max="120"></div>
-        <div class="form-group"><label>Max Patients/Day</label><input type="number" id="ds-max" value="${doc.maxPatients||20}" min="1"></div>
-      </div>
-      <div class="form-group"><label>Repeats every week on</label><div style="display:flex;gap:.5rem;margin-bottom:.6rem"><button class="btn btn-sm" ${bindAction('click',(event,element)=>{setScheduleDays('weekdays')})}>Mon–Fri</button><button class="btn btn-sm" ${bindAction('click',(event,element)=>{setScheduleDays('current')})}>Current pattern</button><button class="btn btn-sm" ${bindAction('click',(event,element)=>{setScheduleDays('clear')})}>Clear</button></div>
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer"><input type="checkbox" class="ds-day" value="${d}" ${(doc.workDays||[]).includes(d)?'checked':''}> ${d}</label>`).join('')}
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
-      <button class="btn btn-primary" ${bindAction('click',(event,element)=>{saveDoctorSched((docId))})}>Save</button>
-    </div>
-  </div>`);
-}
-
-export function saveDoctorSched(docId){
-  const doc=appState.data.DB.users.find(u=>u.id===docId);if(!doc)return;
-  const newVals={
-    startTime:document.getElementById('ds-start').value,
-    endTime:document.getElementById('ds-end').value,
-    slotDuration:parseInt(document.getElementById('ds-slot').value)||60,
-    maxPatients:parseInt(document.getElementById('ds-max').value)||20,
-    workDays:Array.from(document.querySelectorAll('.ds-day:checked')).map(cb=>cb.value)
-  };
-  if(appState.auth.currentUser?.role!=='Administrator'){toast('Administrator access required.','warning');return;}
-  const error=validateSchedule(newVals,clinicToday(),doc,false);
-  if(error){toast(error,'warning');return;}
-  showConfirmDialog({
-    title:'Update Work Schedule',
-    message:`Update <strong>${docName(doc)}</strong>'s work schedule? This changes their availability for new bookings immediately.`,
-    confirmLabel:'Update Schedule',
-    onConfirm:async()=>{
-      if(doc._realSupabase){
-        try{
-          await adminUserAction({
-            action:'schedule',
-            user_id:doc.dbUserId,
-            start_time:newVals.startTime,end_time:newVals.endTime,
-            slot_duration:newVals.slotDuration,max_patients:newVals.maxPatients,
-            work_days:newVals.workDays
-          });
-          toast('Schedule updated.','success');
-          await renderUsers();
-        }catch(e){toast(e?.message||'Unable to update schedule.','error');}
-        return;
-      }
-      Object.assign(doc,newVals);
-      persistDB();
-      toast('Schedule updated.','success');
-      if(document.getElementById('user-table'))renderUsers();
-    }
-  });
-}
+export function openDoctorScheduleEdit(docId){return openDoctorScheduleEditor(docId);}
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
