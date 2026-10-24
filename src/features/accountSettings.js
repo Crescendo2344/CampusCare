@@ -11,6 +11,8 @@ import {openPrivacyNotice} from './loginLockout.js';
 import {openPrivacyRequestModal} from './privacy.js';
 import {setThemePreference,showConfirmDialog,themePreference,toast} from './theme.js';
 import {bindAction} from '../dependencies.js';
+import {logout} from './passwordRecovery.js';
+import {patientDisplayId} from './patientService.js';
 // ================================================================
 // MY ACCOUNT
 // ================================================================
@@ -24,35 +26,60 @@ export function formatLastLogin(value){
   });
 }
 
+// A quick account card: who you are, how the clinic identifies you, and the most common account actions.
 export function openProfileDetails(){
   const u=appState.auth.currentUser;
   const pt=appState.auth.currentPatient;
-  const photoHtml = u.profilePhoto
-    ? `<img src="${u.profilePhoto}" style="width:84px;height:84px;border-radius:50%;object-fit:cover;cursor:pointer" ${bindAction('click',(event,element)=>{showFilePreview((String(u.fname)+" "+String(u.lname)+" - Photo"),(String(u.profilePhoto)))})} title="Click to view full size">`
-    : `<div class="sb-avatar" style="width:84px;height:84px;font-size:1.8rem">${(u.fname[0]||'')}${(u.lname[0]||'')}</div>`;
-  openModal(`<div class="modal modal-sm">
-    <div class="modal-header"><h3>Profile Details</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+  const initials=escapeHtml(`${u.fname?.[0]||''}${u.lname?.[0]||''}`);
+  const photoHtml=u.profilePhoto
+    ? `<button type="button" class="profile-card-photo" aria-label="View your photo" ${bindAction('click',()=>showFilePreview(`${u.fname} ${u.lname} - Photo`,String(u.profilePhoto)))}><img src="${escapeHtml(u.profilePhoto)}" alt=""></button>`
+    : `<div class="sb-avatar profile-card-photo">${initials}</div>`;
+  const row=(label,value,copy='')=>`<div class="info-row"><span class="info-label">${label}</span><span class="info-val">${value}${copy?` <button type="button" class="profile-copy" aria-label="Copy ${label.toLowerCase()}" title="Copy" ${bindAction('click',()=>copyProfileValue(copy,label))}><i class="bi bi-copy" aria-hidden="true"></i></button>`:''}</span></div>`;
+  const verified=u.emailVerificationSkipped?'<span class="badge badge-info">Verification skipped</span>':u.emailConfirmedAt||u._realSupabase===false?'<span class="badge badge-success">Verified</span>':'<span class="badge badge-warning">Not verified</span>';
+  const memberSince=u.createdAt?new Date(u.createdAt).toLocaleDateString('en-PH',{month:'long',year:'numeric'}):'';
+  const section=(title,body)=>body?`<h4 class="profile-card-section">${title}</h4>${body}`:'';
+  const clinic=pt?[
+    row('Patient no.',`P-${escapeHtml(patientDisplayId(pt))}`),
+    pt.idNo?row(pt.personType==='Student'?'Student ID':'Employee ID',escapeHtml(pt.idNo)):'',
+    pt.college?row(pt.personType==='Non-Teaching Personnel'?'Department':'College',escapeHtml(pt.college)):'',
+    pt.personType==='Student'&&pt.classSession?row('Class session',escapeHtml(pt.classSession)):'',
+    row('Blood type',escapeHtml(pt.blood||'Unknown')),
+    row('Allergies',pt.allergies?.trim()?`<span class="text-danger">${escapeHtml(pt.allergies)}</span>`:'None recorded')
+  ].join(''):u.role==='Doctor'?[
+    row('Specialty',escapeHtml(u.specialty||'General Medicine')),
+    row('Work days',escapeHtml((u.workDays||[]).join(', ')||'—')),
+    row('Hours',`${fmtTime(u.startTime||'08:00')} – ${fmtTime(u.endTime||'17:00')}`)
+  ].join(''):'';
+  openModal(`<div class="modal modal-sm profile-card">
+    <div class="modal-header"><h3>Profile</h3><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
-      <div style="display:flex;flex-direction:column;align-items:center;gap:.6rem;margin-bottom:1rem">
+      <div class="profile-card-head">
         ${photoHtml}
-        <div style="text-align:center">
-          <strong style="font-size:1.05rem">${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>
-          <div><span class="badge badge-info">${u.role}</span></div>
+        <div>
+          <strong class="profile-card-name">${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>
+          <div class="profile-card-badges"><span class="badge badge-info">${escapeHtml(pt?.personType||u.role)}</span>${statusBadge(u.status)}</div>
+          ${memberSince?`<div class="text-muted profile-card-since">Member since ${escapeHtml(memberSince)}</div>`:''}
         </div>
       </div>
-      <div class="info-row"><span class="info-label">Username</span><span class="info-val">${escapeHtml(u.username)}</span></div>
-      <div class="info-row"><span class="info-label">Email</span><span class="info-val">${escapeHtml(u.email)}</span></div>
-      <div class="info-row"><span class="info-label">Contact</span><span class="info-val">${u.contact?escapeHtml(u.contact):'—'}</span></div>
-      ${pt?`<div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
-      <div class="info-row"><span class="info-label">Type</span><span class="info-val">${priorityBadge(pt.personType)}</span></div>`:''}
-      <div class="info-row"><span class="info-label">Status</span><span class="info-val">${statusBadge(u.status)}</span></div>
-      <div class="info-row"><span class="info-label">Last Login</span><span class="info-val">${formatLastLogin(u.lastLogin)}</span></div>
+      ${section('Account',[
+        row('Username',`@${escapeHtml(u.username||'')}`,u.username||''),
+        row('Email',`${escapeHtml(u.email||'—')} ${verified}`,u.email||''),
+        row('Contact',u.contact?escapeHtml(u.contact):'<span class="text-muted">Not added</span>'),
+        row('Last sign-in',escapeHtml(formatLastLogin(u.lastLogin)))
+      ].join(''))}
+      ${section(pt?'Clinic record':'Work',clinic)}
     </div>
-    <div class="modal-footer">
-      <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
-      <button class="btn btn-primary" ${bindAction('click',(event,element)=>{closeAllModals();navTo('my-account')})}>Go to Account Settings</button>
+    <div class="modal-footer profile-card-actions">
+      <button class="btn btn-sm" ${bindAction('click',()=>{closeAllModals();logout();})}><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Log out</button>
+      <button class="btn btn-sm" ${bindAction('click',()=>{closeAllModals();navTo('my-account');setTimeout(()=>{const el=document.getElementById('pw-cur');el?.scrollIntoView({block:'center',behavior:'smooth'});el?.focus({preventScroll:true});},150);})}><i class="bi bi-key" aria-hidden="true"></i> Change password</button>
+      <button class="btn btn-sm btn-primary" ${bindAction('click',()=>{closeAllModals();navTo('my-account');})}>Account Settings</button>
     </div>
   </div>`);
+}
+
+export async function copyProfileValue(value,label){
+  try{await navigator.clipboard.writeText(value);toast(`${label} copied.`,'success');}
+  catch{toast('Copying is not available in this browser.','warning');}
 }
 
 export function renderMyAccount(){

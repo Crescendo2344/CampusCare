@@ -573,6 +573,8 @@ try{
   }
   await page.evaluate(()=>window.__fixtureApp.features.accountSettings.openProfileDetails());
   assert.equal(await page.locator('#active-modal .modal-header .close-btn').count(),1);
+  assert.equal(await page.locator('#active-modal').getByRole('button',{name:/Change password/}).count(),1);
+  if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/profile-${role}.png`});
   assert.equal(await page.locator('#active-modal .modal-footer').getByRole('button',{name:'Close',exact:true}).count(),0);
   await page.locator('#active-modal .close-btn').click();
   if(role==='Doctor'){
