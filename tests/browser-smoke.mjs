@@ -320,15 +320,20 @@ try{
       await page.getByText('Position your face inside the face guide',{exact:true}).waitFor();
       // Actual fake-device color bars have no face; assert guidance before injecting known geometry.
       assert(await page.locator('#camera-capture-button').isDisabled());
-      const geometry={x:234,y:70,width:172,height:196,keypoints:[{x:.45,y:.3},{x:.55,y:.3},{x:.5,y:.35}]};
+      // Place the synthetic face inside the oval as drawn (the preview is mirrored, the camera frame is not).
+      const oval=await page.locator('.selfie-guide-square').evaluate(el=>{const s=el.parentElement.getBoundingClientRect(),r=el.getBoundingClientRect();return {cx:1-((r.left+r.width/2)-s.left)/s.width,cy:(r.top-s.top+r.height*.55)/s.height};});
+      const geometry={x:Math.round(oval.cx*640-86),y:Math.round(oval.cy*480-98),width:172,height:196,keypoints:[{x:.45,y:.3},{x:.55,y:.3},{x:.5,y:.35}]};
+      await page.evaluate(data=>window.__fixtureGuidance=data,{faces:[{...geometry,x:20,y:250}],width:640,height:480,brightness:120,sharpness:80,documentVisible:true});
+      await page.getByText('Move your face into the oval',{exact:true}).waitFor();
+      assert(await page.locator('#camera-capture-button').isDisabled(),'A face outside the oval must block capture');
       const feed=async(changes,expected)=>{
         await page.evaluate(data=>window.__fixtureGuidance=data,{faces:[geometry],width:640,height:480,brightness:120,sharpness:80,documentVisible:true,...changes});
         await page.getByText(expected,{exact:true}).waitFor();
       };
-      await feed({faces:[{...geometry,width:70,height:80}]},'Move closer to the camera');
-      await feed({faces:[{...geometry,width:470,height:400}]},'Move back a little');
+      await feed({faces:[{...geometry,width:70,height:80}]},'Move closer so your face fills the oval');
+      await feed({faces:[{...geometry,width:470,height:400}]},'Move back a little so your face fits the oval');
       await feed({brightness:25},'Move to brighter, even lighting');
-      await feed({documentVisible:false},'Hold the front of your ID beside your face, with all corners visible');
+      await feed({documentVisible:false},'Hold the front of your ID inside the ID box, with all corners visible');
       assert(await page.locator('#camera-capture-button').isDisabled(),'Face without a held document must block capture');
       await feed({},'Good position — keep your ID visible');
       assert(await page.locator('#camera-capture-button').isEnabled());

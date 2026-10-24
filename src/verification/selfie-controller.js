@@ -50,6 +50,13 @@ export function startSelfieGuidance({video,root,captureButton,manualButton,statu
     };
     worker.postMessage({type:'init',origin:location.origin});
   }catch{fallback();}
+  // Read the guides as drawn, then undo the preview mirror so they match the camera's own pixels.
+  const guideGeometry=()=>{
+    const stage=root.getBoundingClientRect(),face=root.querySelector('.selfie-guide-square'),card=root.querySelector('.selfie-id-guide');
+    if(!stage.width||!stage.height||!face)return null;
+    const norm=el=>{const r=el.getBoundingClientRect();const w=r.width/stage.width,h=r.height/stage.height;let x=(r.left-stage.left)/stage.width;if(root.dataset.mirrored==='true')x=1-x-w;return {x,y:(r.top-stage.top)/stage.height,w,h};};
+    return {face:norm(face),document:card?norm(card):null};
+  };
   const timer=setInterval(async()=>{
     if(disposed)return;
     const now=performance.now();
@@ -58,10 +65,11 @@ export function startSelfieGuidance({video,root,captureButton,manualButton,statu
     if(!available||busy||video.readyState<2||!video.videoWidth||video.currentTime===lastTime)return;
     lastTime=video.currentTime;busy=true;lastSent=now;
     try{
-      if(mainDetector){onResult(mainDetector.detect(video,now));return;}
+      const guide=guideGeometry();
+      if(mainDetector){onResult(mainDetector.detect(video,now,guide));return;}
       const bitmap=await createImageBitmap(video,{resizeWidth:640,resizeHeight:Math.round(640*video.videoHeight/video.videoWidth)});
       if(disposed||!worker){bitmap.close();busy=false;return;}
-      worker.postMessage({type:'frame',bitmap,timestamp:performance.now()},[bitmap]);
+      worker.postMessage({type:'frame',bitmap,timestamp:performance.now(),guide},[bitmap]);
     }catch{if(mainDetector){mainDetector.dispose();mainDetector=null;unavailable();}else fallback();}
   },350);
   return {canCapture:()=>!disposed&&available&&video.readyState>=2&&performance.now()-lastResult<2000&&readiness.canCapture(performance.now()),canUseManual:()=>false,
