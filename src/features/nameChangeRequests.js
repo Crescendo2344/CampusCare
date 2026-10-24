@@ -14,6 +14,7 @@ import {renderMyAccount} from './accountSettings.js';
 import {checkPasswordStrength} from './loginLockout.js';
 import {authTab} from './authentication.js';
 import {bindAction} from '../dependencies.js';
+import {requestAttachmentFieldHtml,requestAttachmentLocal,requestAttachmentPayload} from './requestAttachments.js';
 // ================================================================
 // NAME CHANGE REQUESTS — names can't be self-edited; must go through admin
 // ================================================================
@@ -28,6 +29,7 @@ export function openNameChangeRequest(){
         <div class="form-group"><label>Requested Last Name</label><input id="ncr-lname" value="${appState.auth.currentUser.lname}" ${bindAction('input',(event,element)=>{sanitizeInput(element,'name')})}></div>
       </div>
       <div class="form-group"><label>Reason</label><textarea id="ncr-reason" rows="3" placeholder="e.g. legal name change, misspelling on record"></textarea></div>
+      ${requestAttachmentFieldHtml('ncr-attach','e.g. PSA birth or marriage certificate, school ID')}
     </div>
     <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{submitNameChangeRequest()})}>Submit Request</button></div>
   </div>`);
@@ -53,7 +55,8 @@ export async function submitNameChangeRequest(){
         request_type:'Name Change',
         requested_first_name:fname,
         requested_last_name:lname,
-        reason
+        reason,
+        ...requestAttachmentPayload('ncr-attach')
       });
       await syncRealWorkflowRequests();
     }else{
@@ -62,7 +65,8 @@ export async function submitNameChangeRequest(){
       appState.data.DB.nameChangeRequests.push({
         id:appState.data.DB.nextNameReqId++,userId:appState.auth.currentUser.id,
         currentFname:appState.auth.currentUser.fname,currentLname:appState.auth.currentUser.lname,
-        requestedFname:fname,requestedLname:lname,reason,status:'Pending',createdAt:appState.clinicInformation.TODAY
+        requestedFname:fname,requestedLname:lname,reason,status:'Pending',createdAt:appState.clinicInformation.TODAY,
+        ...requestAttachmentLocal('ncr-attach')
       });
       appState.data.DB.users.filter(a=>a.role==='Administrator').forEach(a=>
         addNotif(a.id,'Name Change Request',`${appState.auth.currentUser.fname} ${appState.auth.currentUser.lname} requests to change their name to "${fname} ${lname}".`,'info')
@@ -77,7 +81,7 @@ export async function submitNameChangeRequest(){
   }
 }
 
-export function approveNameChange(reqId){
+export function approveNameChange(reqId,note=''){
   const req=(appState.data.DB.nameChangeRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
 
@@ -88,7 +92,7 @@ export function approveNameChange(reqId){
     onConfirm:async()=>{
       try{
         if(req._realSupabase){
-          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve'});
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve',admin_note:note});
           await Promise.all([syncAdminDirectoryFromSupabase(),syncRealWorkflowRequests()]);
         }else{
           const user=appState.data.DB.users.find(u=>u.id===req.userId);
@@ -99,7 +103,7 @@ export function approveNameChange(reqId){
         }
 
         toast('Name change approved.','success');
-        if(document.getElementById('user-table'))await renderUsers();
+        if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to approve the name change.','error');
       }
@@ -107,7 +111,7 @@ export function approveNameChange(reqId){
   });
 }
 
-export function rejectNameChange(reqId){
+export function rejectNameChange(reqId,note=''){
   const req=(appState.data.DB.nameChangeRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
 
@@ -119,17 +123,17 @@ export function rejectNameChange(reqId){
     onConfirm:async()=>{
       try{
         if(req._realSupabase){
-          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject'});
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject',admin_note:note});
           await syncRealWorkflowRequests();
         }else{
-          req.status='Rejected';
+          req.status='Rejected';req.adminNote=note;
           const user=appState.data.DB.users.find(u=>u.id===req.userId);
           if(user)addNotif(user.id,'Name Change Request Declined','Your name change request was declined by an administrator. Please contact the clinic office for more information.','warning');
           persistDB();
         }
 
         toast('Request rejected.','success');
-        if(document.getElementById('user-table'))await renderUsers();
+        if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to reject the name change.','error');
       }

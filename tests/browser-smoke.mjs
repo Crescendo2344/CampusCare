@@ -113,6 +113,12 @@ try{
       ?{ok:true,copilot:{summary:'Two clinic visits in the last 90 days.',alerts:[{type:'warning',title:'Repeat complaint',detail:'Headache recorded at two consecutive visits.'}],recent_history:['2026-03-02 — Tension headache; treatment: Paracetamol 500 mg'],record_counts:{treatments:2,appointments:3},draft_note:'S: Headache for two days.\nO: BP 110/70, T 36.8 C.\nA: Tension headache.\nP: Rest, fluids, paracetamol as needed.',method:'Explainable clinical-record summarization'}}
       :{ok:true,bundle:{resourceType:'Bundle',type:'collection',entry:[{resource:{resourceType:'Patient',id:'patient-10',name:[{family:'Fixture',given:['Morning']}],gender:'female'}},{resource:{resourceType:'Encounter',id:'encounter-1',status:'finished',period:{start:'2026-03-02T09:00:00+08:00'}}},{resource:{resourceType:'Condition',id:'condition-1',code:{text:'Tension headache'},recordedDate:'2026-03-02'}}]}};
    }
+   else if(path.endsWith('/workflow-actions')){
+    // One pending day off with a supporting photo, as the function returns it to admins and the requester.
+    const pixel='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const owner=role==='Doctor'?1:2;
+    response={ok:true,doctor_leaves:[],requests:[{request_id:9,request_type:'Day Off',requester_id:owner,target_user_id:owner,payload:{leaveDate:'2026-12-01',attachment:{path:'requests/2/fixture.png',name:'medical-certificate.png',mime:'image/png',size:2048}},reason:'Scheduled minor procedure',effective_date:'2026-12-01',status:'Pending',created_at:'2026-10-20T01:00:00Z',attachment_url:pixel}]};
+   }
    else if(path.includes('/functions/v1/'))response={ok:true,notifications:[],requests:[],doctor_leaves:[],messages:[],contacts:[doctor],resources:[],surveys:[],users:[],doctors:[doctor],counts:{},items:{}};
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(response)});
   });
@@ -601,6 +607,30 @@ try{
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/treatments-${mobile?'mobile':'desktop'}.png`,fullPage:true});
   }
   if(role==='Administrator'){
+    // Request rows open a review with the requester, the change, the reason and the supporting file.
+    await page.evaluate(()=>{window.__fixtureApp.state.userManagement.tab='requests';window.__fixtureApp.features.navigationRaceProtection.navTo('users');});
+    await page.locator('tr.req-row').first().waitFor();
+    assert.equal(await page.locator('tr.req-row .req-attach-badge').count(),1);
+    await page.locator('tr.req-row').first().click();
+    await page.locator('.req-review').waitFor();
+    assert.match(await page.locator('.req-review').innerText(),/Scheduled minor procedure/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.req-review').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/request-review-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('.req-review .req-attach-view').click();
+    await page.locator('#preview-img').waitFor();
+    await page.locator('#active-modal .close-btn').click();
+    await page.locator('.req-review').waitFor();
+    await page.locator('#req-review-note').fill('Approved, get well soon');
+    await page.locator('.req-review').getByRole('button',{name:'Approve',exact:true}).click();
+    await page.locator('#cc-confirm-ok-btn').click();
+    await page.waitForFunction(()=>!document.getElementById('cc-confirm-ok-btn'));
+    await page.waitForTimeout(300);
+    const decision=requests.filter(r=>r.path.endsWith('/workflow-actions')&&r.body?.action==='decision').at(-1);
+    assert.equal(decision?.body.admin_note,'Approved, get well soon');
+    assert.equal(decision.body.request_id,9);
+    // Action buttons inside a row act directly without opening the review.
+    await page.locator('tr.req-row').first().getByRole('button',{name:'Reject',exact:true}).click();
+    assert.equal(await page.locator('.req-review').count(),0);
+    await page.evaluate(()=>{window.__fixtureApp.features.modals.closeAllModals();window.__fixtureApp.state.userManagement.tab='users';});
     // Use synthetic registration images to exercise the real review/preview controls without patient data.
     await page.evaluate(()=>{
       const {state,features}=window.__fixtureApp,canvas=document.createElement('canvas');canvas.width=40;canvas.height=60;
@@ -923,6 +953,28 @@ try{
     await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='health_education');
   }
   if(role==='Doctor'){
+    // Day-off requests carry an optional supporting file to the workflow API.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('schedule'));
+    await page.locator('#leave-attach-file').waitFor({state:'attached'});
+    await page.locator('.req-row').first().click();
+    await page.locator('.req-review').waitFor();
+    assert.match(await page.locator('.req-review').innerText(),/medical-certificate\.png/);
+    assert.equal(await page.locator('.req-review').getByRole('button',{name:'Approve',exact:true}).count(),0,'Requesters only view their request');
+    await page.locator('#active-modal .close-btn').click();
+    await page.locator('#leave-attach-file').setInputFiles({name:'clinic-note.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\n%fixture\n')});
+    await page.locator('#leave-attach-chosen').getByText('clinic-note.pdf').waitFor();
+    await page.locator('#leave-attach-file').setInputFiles({name:'notes.txt',mimeType:'text/plain',buffer:Buffer.from('x')});
+    await page.locator('.toast',{hasText:/JPG, PNG, WebP/}).first().waitFor();
+    assert(await page.locator('#leave-attach-chosen').getByText('clinic-note.pdf').isVisible(),'A rejected file keeps the earlier choice');
+    const leaveDay=await page.evaluate(()=>{const {state}=window.__fixtureApp,d=new Date(state.clinicInformation.TODAY+'T12:00:00Z');do d.setUTCDate(d.getUTCDate()+1);while(!(state.auth.currentUser.workDays||[]).includes(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]));return d.toISOString().slice(0,10);});
+    await page.locator('#leave-date').evaluate((el,v)=>{el.value=v;},leaveDay);
+    await page.locator('#leave-reason').fill('Conference');
+    await page.getByRole('button',{name:'Request Day Off',exact:true}).click();
+    await page.waitForTimeout(400);
+    const dayOff=requests.filter(r=>r.path.endsWith('/workflow-actions')&&r.body?.action==='create').at(-1);
+    assert(dayOff,'Day off request must reach the workflow API');
+    assert.equal(dayOff.body.attachment_name,'clinic-note.pdf');
+    assert.match(dayOff.body.attachment_data_url,/^data:application\/pdf;base64,/);
     await page.evaluate(()=>window.__fixtureApp.features.workflowRequests.openScheduleChangeRequest());
     await page.getByRole('button',{name:'Clear',exact:true}).click();assert.equal(await page.locator('.scr-day:checked').count(),0);
     // Empty days must be explained in the preview, and tiles must work through real clicks.

@@ -41,4 +41,5 @@ export const state={
   surveyResults:{},
   settingsPage:{},
   activityLog:{},
+  requestAttachments:{},
 };

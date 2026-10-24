@@ -20,6 +20,7 @@ import {renderMyAccount} from './accountSettings.js';
 import {initializeSupabaseClient} from './supabaseClient.js';
 import {escapeHtml} from './issueReports.js';
 import {bindAction,createOperationalService,workflowData} from '../dependencies.js';
+import {requestAttachmentFieldHtml,requestAttachmentLocal,requestAttachmentPayload} from './requestAttachments.js';
 // ================================================================
 // REAL ACCOUNT / DOCTOR WORKFLOW REQUESTS
 // ================================================================
@@ -69,6 +70,7 @@ export function openScheduleChangeRequest(){
       <fieldset class="schedule-section"><legend><span>3</span> Choose when and explain why</legend>
         <div class="form-group"><label for="scr-effective">Requested start date <span class="required">*</span></label>${campusDateFieldHtml('scr-effective',clinicToday(),'Choose start date',clinicToday())}<p class="form-note">Repeats weekly from this date onward, once approved. Your current schedule stays active while this request is pending.</p></div>
         <div class="form-group"><label for="scr-reason">Reason for change <span class="required">*</span></label><textarea id="scr-reason" rows="3" placeholder="Explain why you need these new days or hours." required></textarea></div>
+        ${requestAttachmentFieldHtml('scr-attach','e.g. memo, class load, or training schedule')}
       </fieldset>
       <section class="schedule-review" aria-labelledby="schedule-review-title"><h4 id="schedule-review-title">Review your change</h4>
         <div class="schedule-comparison"><div><strong>Current schedule</strong><p id="schedule-current-summary"></p></div><div><strong>Requested schedule</strong><p id="schedule-proposed-summary"></p></div></div>
@@ -117,7 +119,8 @@ export async function submitScheduleChangeRequest(){
         max_patients:maxPatients,
         work_days:workDays,
         effective_date:effectiveDate,
-        reason
+        reason,
+        ...requestAttachmentPayload('scr-attach')
       });
       await syncRealWorkflowRequests();
     }else{
@@ -127,7 +130,8 @@ export async function submitScheduleChangeRequest(){
         id:appState.data.DB.nextScheduleReqId++,doctorId:u.id,
         currentSchedule:{startTime:u.startTime,endTime:u.endTime,slotDuration:u.slotDuration,maxPatients:u.maxPatients,workDays:u.workDays},
         requested:{startTime,endTime,slotDuration,maxPatients,workDays},
-        effectiveDate,reason,status:'Pending',createdAt:appState.clinicInformation.TODAY
+        effectiveDate,reason,status:'Pending',createdAt:appState.clinicInformation.TODAY,
+        ...requestAttachmentLocal('scr-attach')
       });
       appState.data.DB.users.filter(a=>a.role==='Administrator').forEach(a=>addNotif(a.id,'Schedule Change Request',`${docName(u)} has requested a work schedule change effective ${fmtDate(effectiveDate)}.`,'info'));
       persistDB();
@@ -142,7 +146,7 @@ export async function submitScheduleChangeRequest(){
   }finally{appState.workflowRequests.campusScheduleSubmitting=false;}
 }
 
-export function approveScheduleChange(reqId){
+export function approveScheduleChange(reqId,note=''){
   const req=(appState.data.DB.scheduleChangeRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
   const doc=getUserById(req.doctorId);
@@ -161,7 +165,7 @@ export function approveScheduleChange(reqId){
         if(req._realSupabase){
           await syncRealAppointments();
           if(scheduleConflicts(doc,req.requested,effDate).length)throw new Error('Bookings changed. Resolve schedule conflicts before approval.');
-          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve'});
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve',admin_note:note});
           await Promise.all([syncAdminDirectoryFromSupabase(),syncRealWorkflowRequests()]);
           toast(effDate<=appState.clinicInformation.TODAY?'Schedule change approved and applied.':`Approved — will take effect automatically on ${fmtDate(effDate)}.`,'success');
         }else{
@@ -176,7 +180,7 @@ export function approveScheduleChange(reqId){
           persistDB();
           toast('Schedule change approved.','success');
         }
-        if(document.getElementById('user-table'))await renderUsers();
+        if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to approve the schedule change.','error');
       }
@@ -204,7 +208,7 @@ export function applyDueScheduleChanges(){
   });
 }
 
-export function rejectScheduleChange(reqId){
+export function rejectScheduleChange(reqId,note=''){
   const req=(appState.data.DB.scheduleChangeRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
   const doc=getUserById(req.doctorId);
@@ -218,15 +222,15 @@ export function rejectScheduleChange(reqId){
     onConfirm:async()=>{
       try{
         if(req._realSupabase){
-          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject'});
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject',admin_note:note});
           await syncRealWorkflowRequests();
         }else{
-          req.status='Rejected';
+          req.status='Rejected';req.adminNote=note;
           if(doc)addNotif(doc.id,'Schedule Change Declined','Your requested work schedule change was declined by an administrator. Please reach out for more details.','warning');
           persistDB();
         }
         toast('Request rejected.','success');
-        if(document.getElementById('user-table'))await renderUsers();
+        if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to reject the request.','error');
       }

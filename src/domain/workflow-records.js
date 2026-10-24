@@ -69,6 +69,10 @@ export function realWorkflowToUi(r){
     appliedAt:r.applied_at||'',
     createdAt:r.created_at||'',
     payload:r.payload||{},
+    attachmentUrl:r.attachment_url||'',
+    attachmentName:r.payload?.attachment?.name||'',
+    attachmentMime:r.payload?.attachment?.mime||'',
+    attachmentSize:Number(r.payload?.attachment?.size)||0,
     _realSupabase:true
   };
 

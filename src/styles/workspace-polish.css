@@ -613,3 +613,50 @@ div.profile-card-photo{cursor:default;display:flex;align-items:center;justify-co
 .profile-copy{border:0;background:none;color:var(--ink-muted);cursor:pointer;padding:0 .15rem;font-size:.8rem}
 .profile-copy:hover{color:var(--primary)}
 .profile-card-actions{justify-content:space-between;flex-wrap:wrap}
+
+/* Supporting files on staff requests */
+.req-attach-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.req-attach-drop{display:flex!important;align-items:center;gap:.7rem;padding:.7rem .85rem;border:1.5px dashed var(--line);border-radius:12px;background:var(--overlay);cursor:pointer;color:var(--ink);transition:border-color .15s,background .15s;margin:0!important;font-weight:400!important}
+.req-attach-drop:hover,.req-attach-input:focus-visible+.req-attach-drop{border-color:var(--primary);background:var(--overlay-strong)}
+.req-attach-drop svg{color:var(--primary);flex-shrink:0}
+.req-attach-drop span,.req-attach-file>span{display:flex;flex-direction:column;gap:.1rem;min-width:0;text-align:left}
+.req-attach-drop small,.req-attach-file small{color:var(--ink-muted);font-size:.74rem}
+.req-attach-chosen{display:flex;align-items:center;gap:.5rem}
+.req-attach-file{display:flex;align-items:center;gap:.7rem;flex:1;min-width:0;padding:.5rem .65rem;border:1px solid var(--line);border-radius:12px;background:var(--overlay);color:var(--ink);cursor:pointer;font:inherit}
+.req-attach-file:hover{background:var(--overlay-strong)}
+.req-attach-file strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.85rem}
+.req-attach-file img{width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--line-soft)}
+.req-attach-icon{width:48px;height:48px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.75rem;letter-spacing:.04em;background:rgba(220,60,60,.12);color:#c0392b}
+.req-attach-view{width:100%}
+.req-attach-view img{width:64px;height:64px}
+.req-attach-badge{display:inline-flex;vertical-align:middle;color:var(--primary);margin-left:.15rem}
+tr.req-row{cursor:pointer}
+tr.req-row:hover td{background:var(--overlay-strong)}
+tr.req-row:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+.req-reason-cell{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Request review dialog */
+.req-review{max-width:600px}
+.req-person{display:flex;align-items:center;gap:.75rem;padding:.7rem .8rem;border:1px solid var(--line-soft);border-radius:12px;background:var(--overlay);margin-bottom:.9rem}
+.req-person>div:last-child{display:flex;flex-direction:column;min-width:0}
+.req-person span{font-size:.78rem;color:var(--ink-muted);overflow:hidden;text-overflow:ellipsis}
+.req-section{margin-bottom:.95rem}
+.req-section h4{font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-muted);margin:0 0 .45rem;font-weight:700}
+.req-reason{white-space:pre-wrap;margin:0;padding:.6rem .75rem;border-radius:10px;background:var(--line-soft);line-height:1.5;font-size:.88rem}
+.req-compare{display:grid;grid-template-columns:1fr auto 1fr;gap:.6rem;align-items:stretch}
+.req-compare>div:not(.req-compare-arrow){padding:.65rem .75rem;border:1px solid var(--line-soft);border-radius:12px;display:flex;flex-direction:column;gap:.25rem;min-width:0}
+.req-compare span{font-size:.74rem;color:var(--ink-muted)}
+.req-compare-new{border-color:var(--primary)!important;background:var(--overlay-strong)}
+.req-compare-arrow{align-self:center;color:var(--ink-muted);font-size:1.1rem}
+.req-sched{margin:0;display:grid;gap:.2rem}
+.req-sched div{display:flex;justify-content:space-between;gap:.5rem;font-size:.82rem}
+.req-sched dt{color:var(--ink-muted)}
+.req-sched dd{margin:0;font-weight:600;text-align:right}
+.req-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.5rem;margin-top:.6rem}
+.req-facts>div{padding:.55rem .7rem;border-radius:10px;background:var(--line-soft);display:flex;flex-direction:column;gap:.15rem}
+.req-facts span{font-size:.74rem;color:var(--ink-muted)}
+.req-conflicts{margin-top:.6rem}
+.req-conflicts ul{margin:.35rem 0 0 1rem;padding:0;font-size:.8rem}
+@media (max-width:560px){.req-compare{grid-template-columns:1fr}.req-compare-arrow{transform:rotate(90deg);justify-self:center}}
+.req-section textarea{width:100%;box-sizing:border-box;padding:.5rem .75rem;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:.87rem;background:var(--overlay);color:var(--ink);resize:vertical}
+.req-section label h4{display:block}

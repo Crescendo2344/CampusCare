@@ -15,8 +15,9 @@ import {syncRealWorkflowRequests,workflowAction} from './workflowRequests.js';
 import {addNotif} from './notifications.js';
 import {docName} from './messaging.js';
 import {persistDB} from './persistence.js';
-import {renderUsers} from './userManagement.js';
+import {openWorkflowRequestReview,renderUsers} from './userManagement.js';
 import {bindAction} from '../dependencies.js';
+import {requestAttachmentBadge,requestAttachmentFieldHtml,requestAttachmentLocal,requestAttachmentPayload} from './requestAttachments.js';
 // ================================================================
 // DOCTOR – SCHEDULE
 // ================================================================
@@ -76,10 +77,11 @@ export async function renderDoctorSchedule(){
         <div class="form-group"><label>Date</label>${campusDateFieldHtml('leave-date','','Select Day Off',appState.clinicInformation.TODAY)}</div>
         <div class="form-group"><label>Reason (optional)</label><input type="text" id="leave-reason" placeholder="e.g. Conference, sick leave"></div>
       </div>
+      ${requestAttachmentFieldHtml('leave-attach','e.g. medical certificate or conference invite')}
       <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{requestDoctorLeave()})}>Request Day Off</button>
       <div class="divider"></div>
       ${getDoctorLeaveRequests(appState.auth.currentUser.id).length?`<div class="section-label">Pending Requests</div><div class="table-wrap" style="margin-bottom:.8rem"><table><thead><tr><th>Date</th><th>Reason</th><th>Status</th></tr></thead><tbody>${
-        getDoctorLeaveRequests(appState.auth.currentUser.id).map(l=>`<tr><td>${fmtDate(l.date)}</td><td>${l.reason?escapeHtml(l.reason):'<span class="text-muted">—</span>'}</td><td><span class="badge badge-warning">Pending</span></td></tr>`).join('')
+        getDoctorLeaveRequests(appState.auth.currentUser.id).map(l=>`<tr class="req-row" tabindex="0" title="View request" ${bindAction('click',()=>openWorkflowRequestReview('Day Off',l.id))} ${bindAction('keydown',event=>{if(event.key==='Enter'){event.preventDefault();openWorkflowRequestReview('Day Off',l.id);}})}><td>${fmtDate(l.date)} ${requestAttachmentBadge(l)}</td><td>${l.reason?escapeHtml(l.reason):'<span class="text-muted">—</span>'}</td><td><span class="badge badge-warning">Pending</span></td></tr>`).join('')
       }</tbody></table></div>`:''}
       <div class="section-label">Approved Days Off</div>
       ${getDoctorLeaves(appState.auth.currentUser.id).length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reason</th></tr></thead><tbody>${
@@ -121,7 +123,8 @@ export async function requestDoctorLeave(){
         action:'create',
         request_type:'Day Off',
         leave_date:date,
-        reason
+        reason,
+        ...requestAttachmentPayload('leave-attach')
       });
       await syncRealWorkflowRequests();
     }else{
@@ -129,7 +132,8 @@ export async function requestDoctorLeave(){
       appState.data.DB.nextLeaveReqId=appState.data.DB.nextLeaveReqId||1;
       appState.data.DB.leaveRequests.push({
         id:appState.data.DB.nextLeaveReqId++,doctorId:appState.auth.currentUser.id,
-        date,reason,status:'Pending',createdAt:appState.clinicInformation.TODAY
+        date,reason,status:'Pending',createdAt:appState.clinicInformation.TODAY,
+        ...requestAttachmentLocal('leave-attach')
       });
       appState.data.DB.users.filter(a=>a.role==='Administrator').forEach(a=>
         addNotif(a.id,'Day Off Request',`${docName(appState.auth.currentUser)} requested ${fmtDate(date)} off.`,'info')
@@ -146,7 +150,7 @@ export async function requestDoctorLeave(){
   }
 }
 
-export function approveLeaveRequest(reqId){
+export function approveLeaveRequest(reqId,note=''){
   const req=(appState.data.DB.leaveRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
   const doc=getUserById(req.doctorId);
@@ -160,7 +164,7 @@ export function approveLeaveRequest(reqId){
     onConfirm:async()=>{
       try{
         if(req._realSupabase){
-          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve'});
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve',admin_note:note});
           await Promise.all([syncRealWorkflowRequests(),syncRealAppointments()]);
         }else{
           appState.data.DB.doctorLeaves=appState.data.DB.doctorLeaves||[];
@@ -172,7 +176,7 @@ export function approveLeaveRequest(reqId){
         }
 
         toast('Day off approved.','success');
-        if(document.getElementById('user-table'))await renderUsers();
+        if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to approve the day off.','error',6500);
       }
@@ -180,7 +184,7 @@ export function approveLeaveRequest(reqId){
   });
 }
 
-export function rejectLeaveRequest(reqId){
+export function rejectLeaveRequest(reqId,note=''){
   const req=(appState.data.DB.leaveRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
   const doc=getUserById(req.doctorId);
@@ -194,16 +198,16 @@ export function rejectLeaveRequest(reqId){
     onConfirm:async()=>{
       try{
         if(req._realSupabase){
-          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject'});
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject',admin_note:note});
           await syncRealWorkflowRequests();
         }else{
-          req.status='Rejected';
+          req.status='Rejected';req.adminNote=note;
           if(doc)addNotif(doc.id,'Day Off Request Declined',`Your day off request for ${fmtDate(req.date)} was declined.`,'warning');
           persistDB();
         }
 
         toast('Request rejected.','success');
-        if(document.getElementById('user-table'))await renderUsers();
+        if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to reject the request.','error');
       }
@@ -233,7 +237,7 @@ export function removeDoctorLeave(id){
         }
 
         toast('Day off cancelled.','warning');
-        if(document.getElementById('user-table'))await renderUsers();
+        if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to cancel the approved day off.','error');
       }

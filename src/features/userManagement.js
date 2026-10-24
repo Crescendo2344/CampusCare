@@ -18,6 +18,8 @@ import {approveNameChange,rejectNameChange} from './nameChangeRequests.js';
 import {navTo} from './navigationRaceProtection.js';
 import {showConfirmDialog,toast} from './theme.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
+import {requestAttachmentBadge,requestAttachmentViewHtml} from './requestAttachments.js';
+import {appointmentRecords} from './appointmentService.js';
 // ================================================================
 // USERS
 // ================================================================
@@ -215,14 +217,14 @@ export async function renderUsers(){
       ${(()=>{const reqs=(appState.data.DB.scheduleChangeRequests||[]).filter(r=>['Pending','Approved-Pending'].includes(r.status)).sort((a,b)=>b.id-a.id);
         if(!reqs.length)return '<p class="text-muted">No pending schedule change requests.</p>';
         return `<div class="table-wrap"><table><thead><tr><th>Doctor</th><th>Requested Hours</th><th>Work Days</th><th>Max/Day</th><th>Effective</th><th>Reason</th><th>Actions</th></tr></thead><tbody>${
-          reqs.map(r=>{const doc=getUserById(r.doctorId);return `<tr>
-            <td>${doc?docName(doc):'—'}</td>
+          reqs.map(r=>{const doc=getUserById(r.doctorId);return `<tr class="req-row" tabindex="0" title="Open request" ${reviewRowActions('Schedule Change',r.id)}>
+            <td>${doc?docName(doc):'—'} ${requestAttachmentBadge(r)}</td>
             <td>${fmtTime(r.requested.startTime)} – ${fmtTime(r.requested.endTime)}</td>
             <td>${(r.requested.workDays||[]).join(', ')}</td>
             <td>${r.requested.maxPatients}</td>
             <td>${fmtDate(r.effectiveDate||r.createdAt)}</td>
-            <td>${r.reason?escapeHtml(r.reason):'<span class="text-muted">—</span>'}</td>
-            <td><div class="td-actions">
+            <td class="req-reason-cell">${r.reason?escapeHtml(r.reason):'<span class="text-muted">—</span>'}</td>
+            <td><div class="td-actions" ${stopRowClick()}>
               ${r.status==='Pending'
                 ? `<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{approveScheduleChange((r.id))})}>Approve</button>
                    <button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{rejectScheduleChange((r.id))})}>Reject</button>`
@@ -237,11 +239,11 @@ export async function renderUsers(){
       ${(()=>{const reqs=(appState.data.DB.leaveRequests||[]).filter(r=>r.status==='Pending').sort((a,b)=>a.date.localeCompare(b.date));
         if(!reqs.length)return '<p class="text-muted">No pending day off requests.</p>';
         return `<div class="table-wrap"><table><thead><tr><th>Doctor</th><th>Date</th><th>Reason</th><th>Actions</th></tr></thead><tbody>${
-          reqs.map(r=>{const doc=getUserById(r.doctorId);return `<tr>
-            <td>${doc?docName(doc):'—'}</td>
+          reqs.map(r=>{const doc=getUserById(r.doctorId);return `<tr class="req-row" tabindex="0" title="Open request" ${reviewRowActions('Day Off',r.id)}>
+            <td>${doc?docName(doc):'—'} ${requestAttachmentBadge(r)}</td>
             <td>${fmtDate(r.date)}</td>
-            <td>${r.reason?escapeHtml(r.reason):'<span class="text-muted">—</span>'}</td>
-            <td><div class="td-actions">
+            <td class="req-reason-cell">${r.reason?escapeHtml(r.reason):'<span class="text-muted">—</span>'}</td>
+            <td><div class="td-actions" ${stopRowClick()}>
               <button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{approveLeaveRequest((r.id))})}>Approve</button>
               <button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{rejectLeaveRequest((r.id))})}>Reject</button>
             </div></td>
@@ -299,19 +301,81 @@ export async function renderUsers(){
   renderUserTable();
 }
 
+function reviewRowActions(type,id){
+  return bindAction('click',()=>openWorkflowRequestReview(type,id))+' '+
+    bindAction('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openWorkflowRequestReview(type,id);}});
+}
+function stopRowClick(){return bindAction('click',event=>event.stopPropagation())+' '+bindAction('keydown',event=>event.stopPropagation());}
+
+const REVIEW_SOURCES={
+  'Name Change':{list:()=>appState.data.DB.nameChangeRequests,approve:approveNameChange,reject:rejectNameChange,icon:'🪪'},
+  'Schedule Change':{list:()=>appState.data.DB.scheduleChangeRequests,approve:approveScheduleChange,reject:rejectScheduleChange,icon:'🗓️'},
+  'Day Off':{list:()=>appState.data.DB.leaveRequests,approve:approveLeaveRequest,reject:rejectLeaveRequest,icon:'🌴'}
+};
+
+function scheduleSummaryHtml(s){
+  if(!s||!Object.keys(s).length)return '<span class="text-muted">Not recorded</span>';
+  return `<dl class="req-sched">
+    <div><dt>Days</dt><dd>${escapeHtml((s.workDays||[]).join(', ')||'—')}</dd></div>
+    <div><dt>Hours</dt><dd>${s.startTime?fmtTime(s.startTime)+' – '+fmtTime(s.endTime):'—'}</dd></div>
+    <div><dt>Slot</dt><dd>${Number(s.slotDuration)||'—'} min</dd></div>
+    <div><dt>Max / day</dt><dd>${Number(s.maxPatients)||'—'}</dd></div>
+  </dl>`;
+}
+
+function requestStatusLabel(status){
+  return status==='Approved-Pending'?'<span class="badge badge-info">Approved · not yet active</span>':statusBadge(status==='Applied'?'Approved':status);
+}
+
+// One review surface for every staff request: who asked, what changes, why, and the evidence.
+export function openWorkflowRequestReview(type,id){
+  const source=REVIEW_SOURCES[type];
+  const r=(source?.list()||[]).find(x=>x.id===Number(id));
+  if(!r){toast('That request is no longer available. Refresh and try again.','warning');return;}
+  const requester=getUserById(r.userId||r.doctorId);
+  const isAdmin=appState.auth.currentUser?.role==='Administrator';
+  const reviewable=isAdmin&&r.status==='Pending';
+  let details='';
+  if(type==='Name Change'){
+    details=`<div class="req-compare"><div><span>Current name</span><strong>${escapeHtml(r.currentFname)} ${escapeHtml(r.currentLname)}</strong></div><div class="req-compare-arrow" aria-hidden="true">→</div><div class="req-compare-new"><span>Requested name</span><strong>${escapeHtml(r.requestedFname)} ${escapeHtml(r.requestedLname)}</strong></div></div>`;
+  }else if(type==='Schedule Change'){
+    const req=r.requested||{},conflicts=r.payload?.conflictPreview||[];
+    details=`<div class="req-compare req-compare-sched"><div><span>Current schedule</span>${scheduleSummaryHtml(r.currentSchedule)}</div><div class="req-compare-arrow" aria-hidden="true">→</div><div class="req-compare-new"><span>Requested schedule</span>${scheduleSummaryHtml(req)}</div></div>
+      <div class="req-facts"><div><span>Effective</span><strong>${fmtDate(r.effectiveDate||r.createdAt)}</strong></div><div><span>Type</span><strong>${req.scheduleScope==='Temporary'?'Temporary · until '+fmtDate(req.effectiveEnd):'Permanent'}</strong></div></div>
+      ${conflicts.length?`<div class="alert alert-warning show req-conflicts"><strong>${conflicts.length} booked appointment${conflicts.length===1?'':'s'} conflict${conflicts.length===1?'s':''}</strong> with the requested hours. Reschedule them before approving.<ul>${conflicts.slice(0,5).map(c=>`<li>${fmtDate(c.date)}${c.time?' · '+fmtTime(c.time):''} — ${escapeHtml(c.reason)}</li>`).join('')}</ul></div>`:''}`;
+  }else{
+    const booked=appointmentRecords().filter(a=>a.doctorId===r.doctorId&&a.date===r.date&&['Scheduled','Pending','Confirmed'].includes(a.status)).length;
+    details=`<div class="req-facts"><div><span>Day off</span><strong>${fmtDate(r.date)}</strong></div><div><span>Booked patients that day</span><strong>${booked}</strong></div></div>
+      ${booked?`<div class="alert alert-warning show">This doctor still has ${booked} booked appointment${booked===1?'':'s'} on that date. Reschedule them before approving.</div>`:''}`;
+  }
+  const decide=(fn)=>{const note=document.getElementById('req-review-note')?.value.trim()||'';fn(r.id,note);};
+  openModal(`<div class="modal req-review" role="dialog" aria-labelledby="req-review-title">
+    <div class="modal-header"><div><h3 id="req-review-title">${source.icon} ${escapeHtml(type)} request</h3><p class="form-note">Submitted ${fmtDate(r.createdAt)} · ${requestStatusLabel(r.status)}</p></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body">
+      <div class="req-person">${requester?userAvatarHtml(requester,42):''}<div><strong>${requester?(requester.role==='Doctor'?docName(requester):escapeHtml(requester.fname+' '+requester.lname)):'Unknown user'}</strong><span>${escapeHtml(requester?.role||'')}${requester?.email?' · '+escapeHtml(requester.email):''}</span></div></div>
+      <section class="req-section"><h4>What's requested</h4>${details}</section>
+      <section class="req-section"><h4>Reason</h4>${r.reason?`<p class="req-reason">${escapeHtml(r.reason)}</p>`:'<p class="text-muted">No reason given.</p>'}</section>
+      <section class="req-section"><h4>Supporting file</h4>${requestAttachmentViewHtml(r)}</section>
+      ${r.adminNote&&!reviewable?`<section class="req-section"><h4>Administrator note</h4><p class="req-reason">${escapeHtml(r.adminNote)}</p></section>`:''}
+      ${reviewable?`<section class="req-section"><label for="req-review-note"><h4>Note to requester <span class="text-muted">(optional)</span></h4></label><textarea id="req-review-note" rows="2" maxlength="2000" placeholder="Shown to the requester with your decision"></textarea></section>`:''}
+    </div>
+    ${reviewable?`<div class="modal-footer"><button class="btn btn-danger" ${bindAction('click',()=>decide(source.reject))}>Reject</button><button class="btn btn-success" ${bindAction('click',()=>decide(source.approve))}>Approve</button></div>`:''}
+  </div>`);
+}
+
 export function renderNameChangeTable(){
   const el=document.getElementById('name-change-table');
   if(!el)return;
   const reqs=(appState.data.DB.nameChangeRequests||[]).slice().sort((a,b)=>b.id-a.id);
   if(!reqs.length){el.innerHTML='<p class="text-muted">No name change requests yet.</p>';return;}
   el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Current Name</th><th>Requested Name</th><th>Reason</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
-    reqs.map(r=>`<tr>
-      <td>${escapeHtml(r.currentFname)} ${escapeHtml(r.currentLname)}</td>
+    reqs.map(r=>`<tr class="req-row" tabindex="0" title="Open request" ${reviewRowActions('Name Change',r.id)}>
+      <td>${escapeHtml(r.currentFname)} ${escapeHtml(r.currentLname)} ${requestAttachmentBadge(r)}</td>
       <td><strong>${escapeHtml(r.requestedFname)} ${escapeHtml(r.requestedLname)}</strong></td>
-      <td>${r.reason?escapeHtml(r.reason):'<span class="text-muted">—</span>'}</td>
+      <td class="req-reason-cell">${r.reason?escapeHtml(r.reason):'<span class="text-muted">—</span>'}</td>
       <td>${fmtDate(r.createdAt)}</td>
       <td>${r.status==='Pending'?'<span class="badge badge-warning">Pending</span>':r.status==='Approved'?'<span class="badge badge-success">Approved</span>':'<span class="badge badge-danger">Rejected</span>'}</td>
-      <td><div class="td-actions">
+      <td><div class="td-actions" ${stopRowClick()}>
         ${r.status==='Pending'?`<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{approveNameChange((r.id))})}>Approve</button><button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{rejectNameChange((r.id))})}>Reject</button>`:'<span class="text-muted">—</span>'}
       </div></td>
     </tr>`).join('')
