@@ -9,7 +9,7 @@ import {toast} from './theme.js';
 import {refreshHealthIntelligence} from './predictiveAnalytics.js';
 import {renderApptTable} from './appointments.js';
 import {getPatientById} from './documentScanner.js';
-import {checkDentalWarn} from './bookingForm.js';
+import {checkDentalWarn,patientPriority} from './bookingForm.js';
 import {openCamera} from '../app/optional-features.js';
 import {bindAction} from '../dependencies.js';
 // ── Reusable CampusCare date picker ─────────────────────────────
@@ -149,7 +149,7 @@ export function filterBookPatients(q=''){
  box.innerHTML=pts.length?pts.map(p=>`<button type="button" class="patient-combobox-option" ${bindAction('click',(event,element)=>{selectBookPatient((p.id))})}><strong>${escapeHtml(p.fname+' '+p.lname)}</strong><span class="text-muted" style="display:block">${escapeHtml(p.idNo||'No ID')} · ${escapeHtml(p.college||'')}</span></button>`).join(''):'<div class="text-muted" style="padding:.65rem">No matching patient.</div>';
  box.classList.add('show');
 }
-export function selectBookPatient(id){const p=getPatientById(id);if(!p)return;document.getElementById('b-pt').value=id;document.getElementById('b-pt-search').value=`${p.fname} ${p.lname}`;document.getElementById('b-pt-results').classList.remove('show');checkDentalWarn()}
+export function selectBookPatient(id){const p=getPatientById(id);if(!p)return;document.getElementById('b-pt').value=id;document.getElementById('b-pt-search').value=`${p.fname} ${p.lname}`;const priority=document.getElementById('b-priority');if(priority)priority.value=patientPriority(p);document.getElementById('b-pt-results').classList.remove('show');checkDentalWarn()}
 
 export function assistedFile(input,kind){
  const f=input.files?.[0];if(!f)return;const r=new FileReader();

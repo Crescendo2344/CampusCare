@@ -489,7 +489,10 @@ try{
   assert.equal(await page.locator('#landing-navbar').evaluate(nav=>getComputedStyle(nav).backgroundColor),'rgb(10, 20, 32)');
   assert.equal(await page.locator('#auth-theme-toggle-btn').count(),0);
   await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).click();
-  await page.getByText('Enter your username/email and password.',{exact:true}).waitFor();
+  // Empty fields are flagged beside the inputs, not in a toast.
+  await page.locator('#li-user-error').getByText('Enter your username or email.',{exact:true}).waitFor();
+  assert(await page.locator('#li-pass-error').isVisible());
+  assert.equal(await page.locator('#toast-wrap .toast',{hasText:/username|password/i}).count(),0);
   await page.locator('#li-user').fill(profile.email);await page.locator('#li-pass').fill('Fixture-only-password1!');
   await page.getByLabel('Remember me').check();
   await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).click();
@@ -577,6 +580,12 @@ try{
       await page.waitForFunction(date=>document.getElementById('b-date')?.value===date,page.__bookingDate);
       assert.equal(await page.locator('#b-reason').inputValue(),'Kept while managing slots');
       await page.locator('#slot-grid button[data-time="08:00"]').click();
+    }
+    if(role!=='Patient'){
+      // Priority follows the chosen patient's record and cannot be edited.
+      await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const p=state.data.DB.patients.find(x=>x.id===200004)||state.data.DB.patients[0];features.datePicker.selectBookPatient(p.id);});
+      assert(await page.locator('#b-priority').evaluate(el=>el.readOnly&&el.tagName==='INPUT'),'Priority is read-only');
+      assert.match(await page.locator('#b-priority').inputValue(),/^(Student|Teaching|Non-Teaching)$/);
     }
     if(role!=='Patient')await page.locator('#b-pt').evaluate(el=>el.value='200004');
     await page.locator('#b-reason').fill('Synthetic booking flow verification');
@@ -731,6 +740,23 @@ try{
     await page.locator('.privacy-notice .pn-rights').waitFor();
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.privacy-notice').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/privacy-${mobile?'mobile':'desktop'}.png`});
     await page.locator('.privacy-notice').getByRole('button',{name:'I understand'}).click();
+    // Clinic-side cancellation: a reason the patient sees, then typing CANCEL to confirm.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const pt=state.data.DB.patients.find(p=>p._realSupabase)||state.data.DB.patients[0];const doc=state.data.DB.users.find(u=>u.role==='Doctor'&&u._realSupabase);
+      state.data.DB.appointments.push({id:990077,dbAppointmentId:77,_realSupabase:true,patientId:pt.id,doctorId:doc?.id,clinic:'Medical Clinic',service:'General Checkup',date:'2026-12-01',time:'09:00',status:'Scheduled'});
+      features.appointments.cancelAppt(990077);});
+    await page.locator('.cancel-flow').waitFor();
+    assert(await page.locator('#cancel-next').isDisabled(),'A reason is required');
+    await page.locator('#cancel-reason-choice').selectOption('Doctor unavailable');
+    await page.locator('#cancel-appt-reason').fill('Please rebook next week.');
+    await page.locator('#cancel-next').click();
+    assert(await page.locator('#cancel-final').isDisabled(),'Typing CANCEL is required');
+    await page.locator('#cancel-confirm-text').fill('cancel');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.cancel-flow').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/cancel-confirm-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#cancel-final').click();
+    await page.waitForFunction(()=>!document.querySelector('.cancel-flow'));
+    await page.waitForTimeout(300);
+    const cancelled=requests.filter(r=>r.path.endsWith('/appointment-actions')&&r.body?.action==='cancel').at(-1);
+    assert.equal(cancelled.body.appointment_id,77);assert.equal(cancelled.body.reason,'Doctor unavailable. Please rebook next week.');
     // Use synthetic registration images to exercise the real review/preview controls without patient data.
     await page.evaluate(()=>{
       const {state,features}=window.__fixtureApp,canvas=document.createElement('canvas');canvas.width=40;canvas.height=60;

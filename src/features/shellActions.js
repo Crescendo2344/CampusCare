@@ -1,8 +1,8 @@
 // shellActions: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {authTab,landingNavTo,showAuthPage,showLandingPage} from './authentication.js';
-import {toggleTheme} from './theme.js';
-import {sanitizeInput,validateRegistrationContact,validateRegistrationField} from './inputValidation.js';
+import {hideAlert,toggleTheme} from './theme.js';
+import {sanitizeInput,setRegistrationFieldError,validateRegistrationContact,validateRegistrationField} from './inputValidation.js';
 import {closePendingPanel,doLogin,doRegister,hidePasswordChecklist,openPrivacyNotice,openResendVerification,showPasswordChecklist,updatePasswordStrength} from './loginLockout.js';
 import {closeForgotPassword,hideRecoveryPasswordChecklist,logout,openForgotPassword,sendPasswordResetEmail,showForgotStep,showRecoveryPasswordChecklist,submitNewPassword,updateRecoveryPasswordStrength} from './passwordRecovery.js';
 import {recheckNameMatch,sanitizeRegistrationId,updateRegistrationIdentityFields} from './documentScanner.js';
@@ -38,7 +38,8 @@ export function initializeFeature(){
   registerNamedAction('shell-9',(event,element)=>{showLandingPage()});
   registerNamedAction('shell-11',(event,element)=>{event.preventDefault();authTab('login')});
   registerNamedAction('shell-12',(event,element)=>{event.preventDefault();authTab('reg')});
-  registerNamedAction('shell-13',(event,element)=>{sanitizeInput(element,'password')});
+  registerNamedAction('shell-13',(event,element)=>{sanitizeInput(element,'password');clearLoginFieldError(element)});
+  registerNamedAction('login-field-input',(event,element)=>clearLoginFieldError(element));
   registerNamedAction('shell-14',(event,element)=>{if(event.key==='Enter')doLogin()});
   registerNamedAction('shell-16',(event,element)=>{openForgotPassword();return false;});
   registerNamedAction('shell-17',(event,element)=>{doLogin()});
@@ -88,4 +89,10 @@ export function initializeFeature(){
   registerNamedAction('shell-57',(event,element)=>{markAllRead()});
   registerNamedAction('notif-filter-all',()=>setNotificationFilter('all'));
   registerNamedAction('notif-filter-unread',()=>setNotificationFilter('unread'));
+}
+
+// Typing in a login field clears that field's message and the sign-in banner.
+function clearLoginFieldError(element){
+  if(element.value)setRegistrationFieldError(element.id,'');
+  hideAlert(document.getElementById('login-err'));
 }

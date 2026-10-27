@@ -122,8 +122,9 @@ export function openBookApptModal(apptId=null){
                 <div class="patient-combobox-list" id="b-pt-results"></div>
               </div>`}
         </div>
-        ${!isPt?`<div class="form-group"><label>Priority</label>
-          <select id="b-priority"><option>Student</option><option>Teaching</option><option>Non-Teaching</option></select>
+        ${!isPt?`<div class="form-group"><label for="b-priority">Priority</label>
+          <div class="booking-locked-field"><input id="b-priority" readonly aria-readonly="true" tabindex="-1" placeholder="Choose a patient first" value="${escapeHtml(editing?patientPriority(getPatientById(editing.patientId))||'':'')}"><i class="bi bi-lock" aria-hidden="true"></i></div>
+          <p class="form-note">Set from the patient's record (student or personnel).</p>
         </div>`:''}
       </div>
 
@@ -418,7 +419,7 @@ export async function saveAppt(editId){
     showAlert(msg,'Dental Clinic booking denied: Semester limit reached.');return;
   }
 
-  const priority=pt?pt.personType==='Student'?'Student':pt.personType==='Teaching Personnel'?'Teaching':'Non-Teaching':'Student';
+  const priority=patientPriority(pt)||'Student';
   const existing=editId?appointmentRecords().find(a=>a.id===Number(editId)):null;
   if(editId&&(!existing||existing.status!=='Scheduled'||(appState.auth.currentUser.role==='Patient'&&existing.patientId!==appState.auth.currentPatient?.id))){showAlert(msg,'Only an existing scheduled appointment you can access may be rescheduled.');return;}
 
@@ -467,6 +468,12 @@ export async function saveAppt(editId){
   }finally{
     if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm Booking';}
   }
+}
+
+// Booking priority comes from who the patient is, never from a choice at booking time.
+export function patientPriority(pt){
+  if(!pt)return '';
+  return pt.personType==='Teaching Personnel'?'Teaching':pt.personType==='Non-Teaching Personnel'?'Non-Teaching':'Student';
 }
 
 // Name the term the visit falls in so the patient brings the right Certificate of Registration.
