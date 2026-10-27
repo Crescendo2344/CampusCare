@@ -347,7 +347,7 @@ export async function checkReminders(){
       const existing=notificationRecords().find(n=>n.userId===appState.auth.currentUser.id&&n.title.includes(a.date)&&!n.read);
       if(!existing){
         addNotif(appState.auth.currentUser.id,'Upcoming Appointment Reminder',
-          `You have a ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}. Please bring your COR (Certificate of Registration) when you come to the clinic.`,'warning');
+          `You have a ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}. Please bring your signed COR (Certificate of Registration) for this semester when you come to the clinic.`,'warning');
       }
     }
   });

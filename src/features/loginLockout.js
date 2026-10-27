@@ -2,7 +2,7 @@
 import {normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {state as appState} from '../app/state.js';
 import {initializeSupabaseClient,setRememberSessionPreference,setRememberedLogin} from './supabaseClient.js';
-import {registrationToast,showAlert,toast} from './theme.js';
+import {clearToasts,registrationToast,showAlert,toast} from './theme.js';
 import {normalizeSupabaseUser} from './patientService.js';
 import {auditAction} from './emailDelivery.js';
 import {syncCampusCareSessionUI} from './authSession.js';
@@ -84,6 +84,7 @@ export async function doLogin(){
     appState.auth.currentUser.emailConfirmedAt=data.user?.email_confirmed_at||null;
     appState.auth.currentUser.emailVerificationSkipped=data.user?.app_metadata?.email_verification_skipped===true;
     try{await auditAction({action:'record_session',event:'LOGIN'});}catch(e){console.error('Login audit:',e);}
+    clearToasts();
     await syncCampusCareSessionUI();
     if(profile.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
       setTimeout(refreshRealApprovalQueue,300);
@@ -361,15 +362,7 @@ export async function doRegister() {
       throw Object.assign(new Error(result.error||'Registration failed. Please try again.'),{fieldErrors:result.field_errors});
     }
 
-    registrationToast(
-      result.email_confirmation_required
-        ? 'Registration submitted. Check your email, then wait for administrator approval.'
-        : 'Registration submitted. Please wait for administrator approval.',
-      'success',
-      6500
-    );
-
-    // Show the existing pending-registration screen without storing the account locally.
+    // The pending screen itself confirms the submission and lists the next steps.
     showPendingPanel({
       fname,lname,username:uname,email,personType:ptype,college,idNo,
       dob,sex,status:'Pending'
@@ -399,6 +392,7 @@ export async function doRegister() {
 }
 
 export function showPendingPanel(user){
+  clearToasts();
   appState.loginLockout.pendingRegistrationEmail=String(user?.email||'').trim();
   document.getElementById('login-section').style.display='none';
   document.getElementById('reg-section').style.display='none';

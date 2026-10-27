@@ -3,7 +3,7 @@ import {state as appState} from '../app/state.js';
 import {authTab,landingNavTo,showAuthPage,showLandingPage} from './authentication.js';
 import {toggleTheme} from './theme.js';
 import {sanitizeInput,validateRegistrationContact,validateRegistrationField} from './inputValidation.js';
-import {closePendingPanel,doLogin,doRegister,hidePasswordChecklist,openPrivacyNotice,showPasswordChecklist,updatePasswordStrength} from './loginLockout.js';
+import {closePendingPanel,doLogin,doRegister,hidePasswordChecklist,openPrivacyNotice,openResendVerification,showPasswordChecklist,updatePasswordStrength} from './loginLockout.js';
 import {closeForgotPassword,hideRecoveryPasswordChecklist,logout,openForgotPassword,sendPasswordResetEmail,showForgotStep,showRecoveryPasswordChecklist,submitNewPassword,updateRecoveryPasswordStrength} from './passwordRecovery.js';
 import {recheckNameMatch,sanitizeRegistrationId,updateRegistrationIdentityFields} from './documentScanner.js';
 import {openCampusDatePicker} from './datePicker.js';
@@ -66,6 +66,7 @@ export function initializeFeature(){
   // Submitting the form (button or Enter) always runs client checks before any network request.
   registerNamedAction('registration-submit',(event,element)=>{event.preventDefault();doRegister()});
   registerNamedAction('shell-38',(event,element)=>{closePendingPanel()});
+  registerNamedAction('pending-resend',()=>openResendVerification(appState.loginLockout.pendingRegistrationEmail));
   registerNamedAction('shell-39',(event,element)=>{sendPasswordResetEmail()});
   registerNamedAction('shell-40',(event,element)=>{closeForgotPassword()});
   registerNamedAction('shell-41',(event,element)=>{closeForgotPassword()});

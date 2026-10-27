@@ -467,6 +467,12 @@ try{
       await page.locator('#fixture-captcha-solve').click();
     }else assert(await page.locator('#registration-captcha-section').isHidden(),'Unconfigured CAPTCHA must not pretend to be active');
     await page.locator('#registration-submit-button').click();await page.locator('#pending-section').waitFor({state:'visible'});
+    // Pending verification follows the recovery layout: illustration, steps, one centered Close and no top exit.
+    assert.equal(await page.locator('#pending-section .auth-illustration svg').count(),1);
+    assert.equal(await page.locator('#pending-section .pending-steps li').count(),4);
+    assert.equal(await page.locator('#pending-section .close-btn').count(),0);
+    assert.equal(await page.locator('#pending-section').getByRole('button',{name:'Close',exact:true}).evaluate(el=>getComputedStyle(el).justifyContent),'center');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#pending-section').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/pending-${mobile?'mobile':'desktop'}.png`});
     assert(requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'),'OCR 25% must reach staff review submission');
     // Confirmation links always end at login, even for an already active account.
     await page.goto(baseUrl+'/?auth=confirmed#access_token='+token+'&refresh_token=fixture-refresh&expires_in=3600&token_type=bearer&type=signup');
@@ -581,6 +587,21 @@ try{
     await page.waitForFunction(()=>document.getElementById('b-time')?.value==='08:00');
     await page.getByRole('button',{name:'Confirm Booking',exact:true}).click();
     await page.waitForFunction(()=>!document.getElementById('b-time'));
+    if(role==='Patient'){
+      // Patients get a confirmation that asks for a signed COR; staff get a toast reminder instead.
+      await page.locator('.booking-done').waitFor();
+      assert.match(await page.locator('.booking-done .cor-reminder').innerText(),/signed/i);
+      assert.equal(await page.locator('.booking-done .cor-checklist li').count(),3);
+      if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.booking-done').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/booking-done-${mobile?'mobile':'desktop'}.png`});
+      await page.getByRole('button',{name:'Got it',exact:true}).click();
+    }else{
+      const reminder=page.locator('#toast-wrap .toast',{hasText:/signed COR/});
+      await reminder.waitFor();
+      assert.equal(await reminder.locator('.toast-close').count(),1,'Toasts can be dismissed');
+      if(process.env.CAMPUSCARE_VISUAL_DIR&&role==='Staff')await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/toast-${mobile?'mobile':'desktop'}.png`});
+      await reminder.locator('.toast-close').click();
+      await page.waitForFunction(()=>![...document.querySelectorAll('#toast-wrap .toast')].some(t=>/signed COR/.test(t.textContent)&&!t.classList.contains('leaving')));
+    }
     assert(requests.some(request=>request.path.endsWith('/appointment-actions')&&request.body?.action==='create'),'A real slot click must reach the booking API');
   }
   await page.evaluate(()=>window.__fixtureApp.features.accountSettings.openProfileDetails());

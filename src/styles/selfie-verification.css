@@ -208,3 +208,15 @@ ol.selfie-prep-grid{list-style:none;padding:0}
 .patient-form .registration-group .form-row{align-items:start}
 .patient-form #pm-session-group[hidden]{display:none}
 .patient-form .privacy-agree{margin-top:.4rem}
+/* Pending verification: what happens after registering, step by step. */
+.pending-steps{list-style:none;margin:0 0 1rem;padding:0;display:grid;gap:0}
+.pending-steps li{display:flex;gap:.75rem;position:relative;padding-bottom:.85rem}
+.pending-steps li:not(:last-child)::before{content:'';position:absolute;left:13px;top:28px;bottom:2px;width:2px;background:var(--line)}
+.pending-steps li.done:not(:last-child)::before{background:var(--success)}
+.pending-dot{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;border:2px solid var(--line);color:var(--ink-muted);background:var(--glass-surface-soft,var(--overlay))}
+.pending-steps li.done .pending-dot{background:var(--success);border-color:var(--success);color:#fff}
+.pending-steps li.current .pending-dot{border-color:var(--primary);color:var(--primary);box-shadow:0 0 0 4px var(--info-bg)}
+.pending-steps strong{display:block;font-size:.86rem;color:var(--ink)}
+.pending-steps li:not(.done):not(.current) strong{color:var(--ink-muted)}
+.pending-steps small{display:block;font-size:.76rem;color:var(--ink-muted);line-height:1.45;margin-top:.1rem}
+.auth-inline-link{border:0;background:none;padding:0;color:var(--primary);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline}

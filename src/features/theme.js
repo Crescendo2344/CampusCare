@@ -2,7 +2,6 @@
 import {state as appState} from '../app/state.js';
 import {persistDB} from './persistence.js';
 import {closeAllModals,openModal} from './modals.js';
-import {escapeHtml} from './issueReports.js';
 import {bindAction} from '../dependencies.js';
 // ================================================================
 // THEME (light / dark)
@@ -86,17 +85,68 @@ export function startAutomaticThemeClock(){
   appState.theme.campusThemeClockTimer=setInterval(applyAutomaticTheme,60000);
 }
 
-export function toast(msg, type='info', dur=3000){
+const TOAST_KINDS={
+  success:{icon:'M5 13l4 4L19 7'},
+  error:{icon:'M12 8v5m0 3.5h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z'},
+  warning:{icon:'M12 9v4m0 3.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z'},
+  info:{icon:'M12 16v-4m0-3.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z'}
+};
+const MAX_TOASTS=3;
+
+// One toast component for every surface: icon, title, message, optional action, close and a timer bar.
+// Reading time grows with the message; errors stay longer. Hovering or focusing its buttons pauses the timer.
+export function showToast(wrap,msg,type='info',dur=3000,{title='',action=null}={}){
+  const kind=type==='danger'?'error':TOAST_KINDS[type]?type:'info',meta=TOAST_KINDS[kind],text=String(msg??'');
+  const existing=[...wrap.children].find(el=>el.dataset.message===text&&!el.classList.contains('leaving'));
+  if(existing){existing.restartTimer?.();return existing;}
+  const t=document.createElement('div');
+  t.className=`toast ${kind}`;t.dataset.message=text;
+  t.setAttribute('role',kind==='error'||kind==='warning'?'alert':'status');
+  t.innerHTML=`<span class="toast-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${meta.icon}"/></svg></span>
+    <div class="toast-body"><strong class="toast-title"></strong><span class="toast-msg"></span></div>
+    <button type="button" class="toast-close" aria-label="Dismiss notification"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    <span class="toast-timer" aria-hidden="true"></span>`;
+  // A title only when the caller has a specific one; otherwise the message is the headline.
+  const heading=t.querySelector('.toast-title');
+  if(title)heading.textContent=title;else{heading.remove();t.classList.add('toast-plain');}
+  t.querySelector('.toast-msg').textContent=text;
+  if(action){
+    const btn=document.createElement('button');btn.type='button';btn.className='toast-action';btn.textContent=action.label;
+    btn.addEventListener('click',()=>{action.onClick();dismiss();});
+    t.querySelector('.toast-body').append(btn);
+  }
+  const ms=Math.min(10000,Math.max(dur,(kind==='error'?4500:2500)+text.length*45));
+  let remaining=ms,started=0,timer=0;
+  const bar=t.querySelector('.toast-timer');
+  const dismiss=()=>{
+    if(t.classList.contains('leaving'))return;
+    clearTimeout(timer);t.classList.add('leaving');
+    setTimeout(()=>t.remove(),220);
+  };
+  const run=()=>{started=Date.now();timer=setTimeout(dismiss,remaining);bar.style.animationDuration=ms+'ms';bar.style.animationPlayState='running';};
+  const pause=()=>{if(!started)return;clearTimeout(timer);remaining-=Date.now()-started;started=0;bar.style.animationPlayState='paused';};
+  t.restartTimer=()=>{clearTimeout(timer);remaining=ms;bar.style.animation='none';void bar.offsetWidth;bar.style.animation='';run();};
+  t.addEventListener('pointerover',pause);t.addEventListener('pointerout',event=>{if(!t.contains(event.relatedTarget))run();});
+  t.addEventListener('focusin',pause);t.addEventListener('focusout',()=>{if(!t.contains(document.activeElement))run();});
+  t.querySelector('.toast-close').addEventListener('click',dismiss);
+  // Newest first; only the most recent few stay on screen.
+  wrap.prepend(t);
+  [...wrap.children].filter(el=>!el.classList.contains('leaving')).slice(MAX_TOASTS).forEach(el=>{el.classList.add('leaving');setTimeout(()=>el.remove(),220);});
+  run();
+  return t;
+}
+
+// Clear notices that a new screen or result has made stale.
+export function clearToasts(){
+  for(const id of ['toast-wrap','registration-toast-wrap'])
+    for(const el of document.getElementById(id)?.children||[]){el.classList.add('leaving');setTimeout(()=>el.remove(),220);}
+}
+
+export function toast(msg, type='info', dur=3000, options={}){
   persistDB();
   const w=document.getElementById('toast-wrap');
-  // The same message already on screen is not stacked again.
-  if([...w.children].some(existing=>existing.dataset.message===String(msg)&&existing.style.opacity!=='0'))return;
-  const t=document.createElement('div');
-  t.className=`toast ${type}`;
-  t.dataset.message=String(msg);
-  t.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="${type==='success'?'M5 13l4 4L19 7':type==='error'?'M6 18L18 6M6 6l12 12':'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'}"/></svg>${msg}`;
-  w.appendChild(t);
-  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300)},dur);
+  if(!w)return;
+  return showToast(w,msg,type,dur,options);
 }
 
 // Second layer of safety for reversible-but-sensitive actions: shows a
@@ -143,51 +193,17 @@ export function showConfirmDialog(opts){
 }
 
 export function toastWithUndo(msg, undoFn, dur=6000){
-  persistDB();
-  const w=document.getElementById('toast-wrap');
-  const t=document.createElement('div');
-  t.className='toast warning';
-  t.style.gap='.6rem';
-  const label=document.createElement('span');
-  label.textContent=msg;
-  const btn=document.createElement('button');
-  btn.textContent='Undo';
-  btn.style.cssText='margin-left:auto;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.3);color:#fff;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:.76rem;font-weight:600;flex-shrink:0';
   let undone=false;
-  btn.onclick=()=>{
+  toast(msg,'warning',dur,{action:{label:'Undo',onClick:()=>{
     if(undone)return;
-    undone=true;
-    undoFn();
-    t.remove();
-    toast('Action undone.','info');
-  };
-  t.appendChild(label);
-  t.appendChild(btn);
-  w.appendChild(t);
-  setTimeout(()=>{
-    if(!t.isConnected)return;
-    t.style.opacity='0';t.style.transition='opacity .3s';
-    setTimeout(()=>t.remove(),300);
-  },dur);
+    undone=true;undoFn();toast('Action undone.','info');
+  }}});
 }
 
 export function registrationToast(msg,type='error',dur=4500){
   const wrap=document.getElementById('registration-toast-wrap');
   if(!wrap)return toast(msg,type,dur);
-
-  const normalizedType=type==='danger'?'error':type;
-  const t=document.createElement('div');
-  t.className=`toast ${normalizedType}`;
-  t.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0">
-    <path stroke-linecap="round" stroke-linejoin="round" d="${normalizedType==='success'?'M5 13l4 4L19 7':normalizedType==='error'?'M6 18L18 6M6 6l12 12':'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'}"/>
-  </svg><span>${escapeHtml(String(msg||''))}</span>`;
-  wrap.appendChild(t);
-
-  setTimeout(()=>{
-    t.style.opacity='0';
-    t.style.transition='opacity .3s';
-    setTimeout(()=>t.remove(),300);
-  },dur);
+  return showToast(wrap,msg,type,dur);
 }
 
 export function showAlert(el,msg,type='danger'){

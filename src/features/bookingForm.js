@@ -9,7 +9,7 @@ import {docName} from './messaging.js';
 import {closeAllModals,closeTopModal,openModal} from './modals.js';
 import {filterBookPatients} from './datePicker.js';
 import {initModernCalendar,renderModernCalendar} from './calendar.js';
-import {hideAlert,showAlert,toast} from './theme.js';
+import {clearToasts,hideAlert,showAlert,toast} from './theme.js';
 import {persistDB} from './persistence.js';
 import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {renderMyAppointments} from './patientAppointments.js';
@@ -441,7 +441,6 @@ export async function saveAppt(editId){
         priority
       });
       await syncRealAppointments();
-      toast(existing?'Appointment rescheduled.':'Appointment booked. Please bring your COR when you arrive.','success');
     }else{
       // Legacy demo fallback.
       if(existing){
@@ -451,20 +450,64 @@ export async function saveAppt(editId){
         appState.data.DB.appointments.push({id:newId,patientId:ptId,doctorId:docId,clinic,service:svc,date,time,reason,status:'Scheduled',priority,college:pt?pt.college:'',createdBy:appState.auth.currentUser.id,notes:'',createdAt:appState.clinicInformation.TODAY});
         persistDB();
       }
-      toast(existing?'Appointment rescheduled.':'Appointment booked.','success');
     }
 
     persistDB();
     discardCampusDraft('booking',false);
     void refreshTaskBadges(true);
     closeAllModals();
-    if(appState.auth.currentUser.role==='Patient')await renderMyAppointments();
+    const forSelf=appState.auth.currentUser.role==='Patient';
+    if(forSelf)await renderMyAppointments();
     else await renderAppointments();
+    // Patients get a confirmation that spells out what to bring; staff get a reminder to pass on.
+    if(forSelf)showBookingConfirmation({rescheduled:Boolean(existing),clinic,service:svc,doctor:doc,date,time,patient:pt});
+    else toast(existing?`Rescheduled for ${fmtDate(date)} at ${fmtTime(time)}. Remind the patient to bring a signed COR.`:`Booked for ${fmtDate(date)} at ${fmtTime(time)}. Remind the patient to bring a signed COR.`,'success',6000,{title:existing?'Appointment rescheduled':'Appointment booked'});
   }catch(e){
     showAlert(msg,e?.message||'Unable to save appointment.');
   }finally{
     if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm Booking';}
   }
+}
+
+// Name the term the visit falls in so the patient brings the right Certificate of Registration.
+function registrationTermLabel(date){
+  const st=appState.data.DB.settings||{};
+  const within=(from,to)=>from&&to&&date>=from&&date<=to;
+  const term=within(st.semester2Start,st.semester2End)?'2nd Semester':within(st.semesterStart,st.semesterEnd)?'1st Semester':'';
+  if(!term)return 'the current semester';
+  const year=Number(String(st.semesterStart||date).slice(0,4));
+  return `${term}, SY ${year}–${year+1}`;
+}
+
+export function corChecklistHtml(date,personType='Student'){
+  const student=personType!=='Teaching Personnel'&&personType!=='Non-Teaching Personnel';
+  return `<section class="cor-reminder" aria-labelledby="cor-reminder-title">
+    <div class="cor-reminder-head"><span class="cor-badge" aria-hidden="true"><svg viewBox="0 0 64 76" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="56" height="70" rx="5"/><circle cx="15" cy="13" r="5"/><path d="M25 11h24M25 16h16"/><path d="M11 27h42M11 34h42M11 41h42M11 48h30"/><path d="M11 63c3-5 6 1 9-3s5 2 8-1" class="cor-sign"/><path d="M38 64h15" class="cor-sign"/></svg></span>
+      <div><h4 id="cor-reminder-title">Bring this when you arrive</h4><p>${student?`Your <strong>signed</strong> Certificate of Registration (COR) for ${escapeHtml(registrationTermLabel(date))}.`:'Your Employee ID so the clinic can confirm your record.'}</p></div></div>
+    ${student?`<ul class="cor-checklist">
+      <li><span aria-hidden="true">✓</span><div><strong>Signed on the Student Signature line</strong><small>Sign your COR before you come. An unsigned COR may not be accepted.</small></div></li>
+      <li><span aria-hidden="true">✓</span><div><strong>Current semester, with the Registrar's signature</strong><small>Your ID number and name must match your CampusCare account.</small></div></li>
+      <li><span aria-hidden="true">✓</span><div><strong>Printed copy or a clear photo on your phone</strong><small>Bring your Student ID too.</small></div></li>
+    </ul>`:''}
+  </section>`;
+}
+
+export function showBookingConfirmation({rescheduled,clinic,service,doctor,date,time,patient}){
+  clearToasts();
+  openModal(`<div class="modal booking-done" role="dialog" aria-labelledby="booking-done-title">
+    <div class="modal-body">
+      <div class="booking-done-head"><span class="booking-done-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>
+        <h3 id="booking-done-title">${rescheduled?'Appointment rescheduled':'Appointment booked'}</h3>
+        <p>We'll remind you before your visit.</p></div>
+      <dl class="booking-done-summary">
+        <div><dt>When</dt><dd>${escapeHtml(dayOfWeek(date))}, ${escapeHtml(fmtDate(date))} · ${escapeHtml(fmtTime(time))}</dd></div>
+        <div><dt>Where</dt><dd>${escapeHtml(clinic)}${service?' · '+escapeHtml(service):''}</dd></div>
+        ${doctor?`<div><dt>With</dt><dd>${escapeHtml(docName(doctor))}</dd></div>`:''}
+      </dl>
+      ${corChecklistHtml(date,patient?.personType)}
+    </div>
+    <div class="modal-footer booking-done-actions"><button type="button" class="btn btn-primary" ${bindAction('click',()=>closeAllModals())}>Got it</button></div>
+  </div>`);
 }
 
 export function openRescheduleModal(id){

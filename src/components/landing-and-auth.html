@@ -496,22 +496,24 @@
       <p class="auth-switch">Already on CampusCare? <a href="#" data-action-click="shell-11">Log in</a></p>
     </form>
 
-    <!-- PENDING VERIFICATION -->
+    <!-- PENDING VERIFICATION — same illustrated step layout as password recovery. -->
     <div id="pending-section" style="display:none">
-      <div style="text-align:center;padding:.5rem 0 1rem">
-        <div style="width:56px;height:56px;border-radius:50%;background:var(--warning-bg);display:flex;align-items:center;justify-content:center;margin:0 auto .75rem;font-size:26px">🕐</div>
-        <h3 style="font-size:1rem;margin-bottom:.5rem">Account Pending Verification</h3>
-        <p style="font-size:.83rem;color:var(--ink-muted);line-height:1.6">
-          Thanks for registering, <strong id="pending-name">there</strong>! We sent a verification link to <strong id="pending-email">your email</strong>. Open it to confirm your address — it will bring you back to the CampusCare login page.
-        </p>
+      <div class="auth-illustration" aria-hidden="true">
+        <svg viewBox="0 0 120 90" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="22" y="26" width="58" height="40" rx="5"/><path d="M22 31l29 20 29-20"/>
+          <circle cx="86" cy="62" r="15"/><path d="M86 54v8l5 4"/><path d="M30 76h40"/>
+        </svg>
       </div>
-      <div class="demo-accounts" style="font-size:.76rem">
-        <strong>What happens next?</strong>
-        Confirm your email first, then clinic staff will cross-check your front and back ID photos against your selfie and details. You can log in once your email is confirmed and the clinic approves your registration.
-      </div>
-      <div style="display:grid;gap:.5rem;margin-top:.9rem">
-        <button class="btn btn-primary" style="width:100%" data-action-click="shell-38">Close</button>
-      </div>
+      <h3 class="auth-step-title">Verify your email</h3>
+      <p class="auth-step-subtitle">Thanks for registering, <strong id="pending-name">there</strong>! We sent a verification link to <strong id="pending-email">your email</strong>.</p>
+      <ol class="pending-steps" aria-label="What happens next">
+        <li class="done"><span class="pending-dot" aria-hidden="true">✓</span><div><strong>Registration submitted</strong><small>Your details, selfie and ID photos were received.</small></div></li>
+        <li class="current"><span class="pending-dot" aria-hidden="true">2</span><div><strong>Confirm your email</strong><small>Open the link in the email. It brings you back to the login page.</small></div></li>
+        <li><span class="pending-dot" aria-hidden="true">3</span><div><strong>Clinic review</strong><small>Staff check your ID photos against your selfie and details.</small></div></li>
+        <li><span class="pending-dot" aria-hidden="true">4</span><div><strong>Log in</strong><small>You can sign in once the clinic approves your registration.</small></div></li>
+      </ol>
+      <p class="auth-step-note">Can't find the email? Check your spam folder or <button type="button" class="auth-inline-link" data-action-click="pending-resend">send it again</button>.</p>
+      <button class="btn btn-primary auth-submit" data-action-click="shell-38">Close</button>
     </div>
 
     <!-- FORGOT PASSWORD — each step has its own illustration and heading. -->

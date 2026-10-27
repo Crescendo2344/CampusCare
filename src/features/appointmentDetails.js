@@ -12,7 +12,7 @@ import {patientDisplayId} from './patientService.js';
 import {clinicToday} from './scheduleAndDrafts.js';
 import * as listData from '../domain/appointment-list.js';
 import {openAddTreatmentModal} from './treatmentForm.js';
-import {openRescheduleModal} from './bookingForm.js';
+import {corChecklistHtml,openRescheduleModal} from './bookingForm.js';
 import {bindAction} from '../dependencies.js';
 // ── View Appointment ──
 // Summary first (who, when, where), then the visit details and its history, with the same actions as the list.
@@ -56,6 +56,7 @@ export function viewAppt(id){
       ${row('Priority',priorityBadge(a.priority||pt?.personType||''))}
       ${row('Reason for visit',escapeHtml(a.reason||'—'))}
       ${a.notes?row('Notes',escapeHtml(a.notes)):''}
+      ${role==='Patient'&&a.status==='Scheduled'&&a.date>=today?corChecklistHtml(a.date,pt?.personType):''}
       ${history.length?`<h4 class="appt-detail-section">History</h4><ul class="appt-history">${history.map(item=>`<li>${item}</li>`).join('')}</ul>`:''}
     </div>
     <div class="modal-footer appt-detail-actions">

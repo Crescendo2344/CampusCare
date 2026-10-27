@@ -854,3 +854,63 @@ tr.dsb-row:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
 .au-creds dt{color:var(--ink-muted);font-size:.8rem}
 .au-creds dd{margin:0;font-weight:600;overflow-wrap:anywhere}
 @media (max-width:600px){.au-roles,.au-pw-modes{grid-template-columns:1fr}.au-doctor .form-row{max-width:none}}
+
+/* Toasts: readable cards at the top centre where people are already looking, newest first.
+   The card lets clicks through to the page; only its own buttons take the pointer. */
+:root{--toast-surface:#ffffff;--toast-ink:#14232e;--toast-muted:#4c5d6b;--toast-border:rgba(20,50,70,.12)}
+[data-theme="dark"]{--toast-surface:#1d242c;--toast-ink:#eef3f7;--toast-muted:#a9b6c1;--toast-border:rgba(255,255,255,.1)}
+#toast-wrap,#registration-toast-wrap{position:fixed;top:calc(var(--header-h,56px) + .6rem);left:50%;right:auto;bottom:auto;transform:translateX(-50%);z-index:100200;display:flex;flex-direction:column;gap:.55rem;width:min(380px,calc(100vw - 2rem));pointer-events:none}
+#registration-toast-wrap{top:1rem;left:50%;right:auto;transform:translateX(-50%);width:min(420px,calc(100vw - 2rem));align-items:stretch}
+#toast-wrap .toast,#registration-toast-wrap .toast{position:relative;overflow:hidden;display:flex;align-items:flex-start;gap:.7rem;width:100%;max-width:none;padding:.8rem .75rem .85rem .85rem;border-radius:14px;background:var(--toast-surface);color:var(--toast-ink);border:1px solid var(--toast-border);border-left:4px solid var(--toast-accent,var(--primary));box-shadow:0 12px 32px rgba(10,25,40,.18),0 2px 6px rgba(10,25,40,.08);backdrop-filter:none;-webkit-backdrop-filter:none;font-size:.84rem;pointer-events:none;animation:toastIn .26s cubic-bezier(.2,.8,.3,1);transition:opacity .2s,transform .2s}
+.toast.success{--toast-accent:var(--success)}
+.toast.error{--toast-accent:var(--danger)}
+.toast.warning{--toast-accent:var(--warning)}
+.toast.info{--toast-accent:var(--primary)}
+.toast.leaving{opacity:0;transform:translateY(-6px) scale(.98)}
+.toast-icon{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--toast-accent);background:color-mix(in srgb,var(--toast-accent) 14%,transparent)}
+.toast-icon svg{width:16px;height:16px}
+.toast-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:.1rem;padding-top:.15rem}
+.toast-title{font-size:.84rem;font-weight:700;line-height:1.3}
+.toast-msg{color:var(--toast-muted);line-height:1.45;overflow-wrap:anywhere}
+.toast-action{align-self:flex-start;margin-top:.4rem;border:1px solid var(--toast-border);background:transparent;color:var(--toast-accent);font:inherit;font-size:.78rem;font-weight:700;padding:.25rem .7rem;border-radius:8px;cursor:pointer}
+.toast-action:hover{background:color-mix(in srgb,var(--toast-accent) 10%,transparent)}
+.toast-close,.toast-action{pointer-events:auto}
+.toast-close{flex-shrink:0;width:26px;height:26px;border:0;border-radius:8px;background:transparent;color:var(--toast-muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.toast-close svg{width:14px;height:14px}
+.toast-close:hover,.toast-close:focus-visible{background:var(--line-soft);color:var(--toast-ink)}
+.toast-timer{position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--toast-accent);opacity:.45;transform-origin:left;animation:toastTimer linear forwards}
+@keyframes toastIn{from{opacity:0;transform:translateY(-10px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes toastTimer{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+@media (max-width:640px){
+  #toast-wrap{top:calc(var(--header-h,56px) + .5rem);width:calc(100vw - 1.5rem)}
+  #registration-toast-wrap{top:.6rem;width:calc(100vw - 1.5rem)}
+}
+@media (prefers-reduced-motion:reduce){#toast-wrap .toast,#registration-toast-wrap .toast{animation:none}.toast-timer{display:none}}
+
+/* Booking confirmation and the signed-COR reminder */
+.booking-done{max-width:480px}
+.booking-done-head{text-align:center;margin-bottom:1rem}
+.booking-done-icon{width:56px;height:56px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);animation:toastIn .3s ease}
+.booking-done-icon svg{width:28px;height:28px}
+.booking-done-head h3{margin:.6rem 0 .15rem;font-size:1.2rem}
+.booking-done-head p{margin:0;color:var(--ink-muted);font-size:.84rem}
+.booking-done-summary{margin:0 0 1rem;display:grid;gap:.35rem}
+.booking-done-summary div{display:flex;gap:.8rem;padding:.5rem .75rem;border-radius:10px;background:var(--overlay);border:1px solid var(--line-soft)}
+.booking-done-summary dt{width:52px;flex-shrink:0;color:var(--ink-muted);font-size:.8rem}
+.booking-done-summary dd{margin:0;font-weight:600;font-size:.86rem}
+.booking-done-actions{justify-content:center}
+.booking-done-actions .btn{min-width:160px;justify-content:center}
+.cor-reminder{border:1.5px solid var(--warning-border);background:var(--warning-bg);border-radius:14px;padding:.85rem .9rem;margin-top:.6rem}
+.cor-reminder-head{display:flex;gap:.8rem;align-items:center}
+.cor-badge{width:46px;height:54px;flex-shrink:0;color:var(--warning)}
+.cor-badge svg{width:100%;height:100%}
+.cor-badge .cor-sign{stroke:var(--danger);stroke-width:2.4}
+.cor-reminder h4{margin:0 0 .15rem;font-size:.92rem;color:var(--ink)}
+.cor-reminder-head p{margin:0;font-size:.82rem;color:var(--ink);line-height:1.45}
+.cor-checklist{list-style:none;margin:.75rem 0 0;padding:0;display:grid;gap:.45rem}
+.cor-checklist li{display:flex;gap:.55rem;align-items:flex-start}
+.cor-checklist li>span{width:20px;height:20px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;background:var(--warning);color:#fff;margin-top:.05rem}
+.cor-checklist strong{display:block;font-size:.83rem;color:var(--ink)}
+.cor-checklist small{display:block;font-size:.76rem;color:var(--ink-muted);line-height:1.4}
+.toast-plain .toast-msg{color:var(--toast-ink);font-weight:500}
+.toast-plain .toast-body{padding-top:.3rem}

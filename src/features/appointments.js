@@ -257,7 +257,7 @@ export async function sendApptNotif(id){
     }else{
       const u=appState.data.DB.users.find(x=>x.id===pt.userId);
       if(!u){toast(`${name} has no CampusCare account to notify.`,'warning');return;}
-      addNotif(u.id,'Appointment reminder',`Reminder: ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}. Please bring your COR (Certificate of Registration) when you arrive at the clinic.`,'warning');
+      addNotif(u.id,'Appointment reminder',`Reminder: ${a.clinic} appointment on ${fmtDate(a.date)} at ${fmtTime(a.time)}. Please bring your signed COR (Certificate of Registration) for this semester when you arrive at the clinic.`,'warning');
     }
     toast(`Reminder sent to ${name}. They will see it in their CampusCare notifications.`,'success');
   }catch(e){toast(e?.message||'Unable to send the reminder.','error');}
