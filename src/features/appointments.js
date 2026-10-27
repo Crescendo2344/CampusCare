@@ -23,6 +23,7 @@ import {addNotif} from './notifications.js';
 import {bindAction} from '../dependencies.js';
 import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {canManageSlots,openSlotManager} from './slotManager.js';
+import {csvDate,csvFileName,csvTime,downloadCsv} from '../shared/csv.js';
 // ================================================================
 // APPOINTMENTS PAGE (Staff/Admin/Doctor)
 // ================================================================
@@ -94,15 +95,12 @@ function filteredAppointments(){
 
 function describeAppointment(a){
   const pt=getPatientById(a.patientId),doc=getUserById(a.doctorId);
-  return [appointmentDisplayId(a),a.date,a.time,pt?`${pt.lname}, ${pt.fname}`:'Unknown',pt?`P-${patientDisplayId(pt)}`:'',a.college||pt?.college||'',a.clinic,a.service||'',doc?`Dr. ${doc.fname} ${doc.lname}`:'',a.priority||pt?.personType||'',a.status,a.reason||''];
+  return [appointmentDisplayId(a),csvDate(a.date),csvTime(a.time),pt?`${pt.lname}, ${pt.fname}`:'Unknown',pt?`P-${patientDisplayId(pt)}`:'',a.college||pt?.college||'',a.clinic,a.service||'',doc?`Dr. ${doc.fname} ${doc.lname}`:'',a.priority||pt?.personType||'',a.status,a.reason||''];
 }
 export function exportAppointmentsCsv(){
   const view=appState.appointments?.view||'upcoming',today=clinicToday();
   const rows=listData.sortAppointments(filteredAppointments().filter(a=>view==='all'||listData.appointmentView(a,today)===view),view);
-  const url=URL.createObjectURL(new Blob(['﻿'+listData.appointmentsCsv(rows,describeAppointment)],{type:'text/csv;charset=utf-8'}));
-  const link=Object.assign(document.createElement('a'),{href:url,download:`campuscare-appointments-${view}-${today}.csv`});
-  document.body.append(link);link.click();link.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  downloadCsv(csvFileName(`appointments ${view}`,today),listData.appointmentsCsv(rows,describeAppointment));
 }
 
 function apptActionButtons(a,allowed,{compact=true}={}){

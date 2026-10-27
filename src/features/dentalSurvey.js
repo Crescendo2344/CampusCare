@@ -11,6 +11,7 @@ import {showAlert,toast} from './theme.js';
 import {persistDB} from './persistence.js';
 import * as surveyData from '../domain/survey-analysis.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
+import {csvFileName,downloadCsv} from '../shared/csv.js';
 // ================================================================
 // DENTAL CLINIC PATIENT SURVEY / CLIENT SATISFACTION MEASUREMENT
 // Based on the paper survey and CSM forms provided from the clinic.
@@ -340,7 +341,7 @@ export async function renderSurveyResults(){
       ${select('sv-period','Period',ui.period,[['','All time'],['30','Last 30 days'],['90','Last 90 days'],['365','Last 12 months']],'period')}
       ${select('sv-group','Client type',ui.group,[['','All client types'],...groups.map(g=>[g,g])],'group')}
       ${select('sv-service','Service',ui.service,[['','All services'],...services.map(v=>[v,v])],'service')}
-      <button class="btn btn-sm" ${bindAction('click',()=>{const url=URL.createObjectURL(new Blob(['﻿'+surveyData.surveysCsv(rows)],{type:'text/csv;charset=utf-8'}));const a=Object.assign(document.createElement('a'),{href:url,download:`campuscare-dental-survey-${today}.csv`});document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);})}><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>
+      <button class="btn btn-sm" ${bindAction('click',()=>{downloadCsv(csvFileName('dental survey',today),surveyData.surveysCsv(rows));})}><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>
       <button class="btn btn-sm" ${bindAction('click',()=>renderSurveyResults())}><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button>
     </div>
     <div class="approval-summary survey-summary">

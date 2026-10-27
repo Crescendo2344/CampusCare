@@ -979,3 +979,35 @@ th .bi-caret-up-fill,th .bi-caret-down-fill,th .bi-arrow-down-up{font-size:.7em;
 .art-icon-choice input:checked+span{border-color:var(--primary);background:var(--info-bg);color:var(--primary);box-shadow:0 0 0 2px var(--info-bg)}
 .art-icon-choice input:focus-visible+span{outline:2px solid var(--primary);outline-offset:2px}
 .form-label-text{display:block;font-size:.8rem;font-weight:600;color:var(--ink);margin-bottom:.3rem}
+
+/* Inventory forecast: period picker, readable cells and a plan column */
+.fc-controls{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin:.3rem 0 .8rem}
+.fc-presets{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.fc-preset{border:0;border-right:1px solid var(--line);background:var(--overlay);color:var(--ink);font:inherit;font-size:.8rem;padding:.38rem .7rem;cursor:pointer}
+.fc-preset:last-child{border-right:0}
+.fc-preset.active{background:var(--primary);color:#fff;font-weight:600}
+.fc-custom{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;color:var(--ink-muted)}
+.fc-custom input{width:76px;padding:.35rem .5rem;border:1px solid var(--line);border-radius:9px;background:var(--overlay);color:var(--ink);font:inherit;font-size:.82rem}
+.fc-controls .btn{margin-left:auto}
+.forecast-table td{vertical-align:top}
+.forecast-table td strong{display:block;font-size:.88rem}
+.forecast-table td small{display:block;font-size:.7rem;color:var(--ink-muted);margin-top:-.1rem}
+.forecast-table td>span{display:block;font-size:.76rem;color:var(--ink-muted);margin-top:.2rem}
+.forecast-table .fc-out{color:var(--danger)!important;font-weight:600}
+.forecast-table .fc-low{color:var(--warning)!important;font-weight:600}
+.forecast-table .fc-item span{display:block;font-size:.74rem;color:var(--ink-muted)}
+.forecast-table .fc-plan{min-width:170px;border-left:3px solid var(--line)}
+.forecast-table .fc-plan.ok{border-left-color:var(--success)}
+.forecast-table .fc-plan.ok strong{color:var(--success)}
+.forecast-table .fc-plan.watch{border-left-color:var(--warning)}
+.forecast-table .fc-plan.watch strong{color:var(--warning)}
+.forecast-table .fc-plan.risk{border-left-color:var(--danger)}
+.forecast-table .fc-plan.risk strong{color:var(--danger)}
+.fc-missing{font-size:.78rem;color:var(--ink-muted);margin:.5rem 0 0}
+.fc-field{border:0;padding:0;margin:0 0 .9rem}
+.fc-field legend{font-size:.8rem;font-weight:700;margin-bottom:.35rem;padding:0}
+.fc-field>label,.fc-columns label{display:flex;align-items:center;gap:.45rem;font-size:.84rem;padding:.2rem 0}
+.fc-columns{display:grid;grid-template-columns:1fr 1fr;gap:0 .8rem}
+@media (max-width:560px){.fc-columns{grid-template-columns:1fr}.fc-controls .btn{margin-left:0}}
+.forecast-table .fc-item{min-width:180px}
+.forecast-table td:not(.fc-item):not(.fc-plan){min-width:96px}

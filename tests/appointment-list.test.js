@@ -30,6 +30,6 @@ test('day headings and CSV export',()=>{
   assert.equal(appointmentDayHeading('2026-10-22',today),'Yesterday, Oct 22, 2026');
   assert.equal(appointmentDayHeading('2026-12-16',today),'Wednesday, Dec 16, 2026');
   const csv=appointmentsCsv([appt(1,'2026-10-23','08:00')],a=>[a.id,a.date,a.time,'Cruz, Ana','P-1','CCICT','Medical Clinic','Check-up','Dr. Reyes','Student',a.status,'=cmd']);
-  assert.match(csv,/^Appointment #,Date/);
-  assert.match(csv,/"'=cmd"$/);
+  assert.match(csv,/^\ufeffAppointment #,Date,Time \(PH\)/);
+  assert.match(csv,/"'=cmd"\r\n$/);
 });

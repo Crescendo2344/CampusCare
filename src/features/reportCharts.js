@@ -6,6 +6,7 @@ import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {toast} from './theme.js';
 import {bindAction} from '../dependencies.js';
+import {csvFileName,objectsToCsv} from '../shared/csv.js';
 // ================================================================
 // REPORT DATA VISUALIZATION (Chart.js, loaded on demand) + EXPORT
 // ================================================================
@@ -145,17 +146,14 @@ export function downloadBlob(content,filename,mime){
   setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},100);
 }
 
+// Report tables keep their column labels as the header row, in the shared CampusCare CSV format.
 export function rowsToCSV(rows){
-  if(!rows.length)return '';
-  const headers=Object.keys(rows[0]);
-  // Text beginning with a spreadsheet formula marker remains literal on CSV import.
-  const esc=v=>{let text=String(v??'');if(typeof v==='string'&&/^[=+@\-\t\r]/.test(text))text="'"+text;return `"${text.replace(/"/g,'""')}"`;};
-  return [headers.map(esc).join(','),...rows.map(r=>headers.map(h=>esc(r[h])).join(','))].join('\n');
+  return rows.length?objectsToCsv(rows):'';
 }
 
 export function exportReportCSV(){
   if(!appState.reportCharts.lastReportRows.length){toast('Generate a report first.','error');return;}
-  downloadBlob(rowsToCSV(appState.reportCharts.lastReportRows),`${appState.reportCharts.lastReportTitle.replace(/\s+/g,'_')}.csv`,'text/csv;charset=utf-8;');
+  downloadBlob(rowsToCSV(appState.reportCharts.lastReportRows),csvFileName(appState.reportCharts.lastReportTitle,appState.clinicInformation.TODAY),'text/csv;charset=utf-8;');
   toast('CSV exported.','success');
 }
 

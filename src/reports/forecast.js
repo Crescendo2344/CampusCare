@@ -5,6 +5,7 @@ import {escapeHtml} from '../features/issueReports.js';
 import {buildForecast,offsetDay} from '../domain/report-analysis.js';
 import {reportData} from './report-data.js';
 import {reportSelect,reportBars} from './custom-report.js';
+import {csvFileName} from '../shared/csv.js';
 const esc=v=>escapeHtml(String(v??''));
 const read=id=>document.getElementById(id)?.value||'';
 export function forecastControls(){
@@ -43,7 +44,7 @@ export function runForecast(){
       <div class="report-forecast-key"><span><i></i> Recorded history (last 8 weeks of selected range)</span><span><i class="projected"></i> Estimated future demand</span></div>
       <div class="report-two-column"><div><h4>Recorded history</h4>${reportBars(f.history.map(r=>({label:r.start,value:r.amount})))}</div><div class="report-projection"><h4>Weekly estimate</h4>${reportBars(f.rows.map(r=>({label:r.start,value:r.amount})),{forecast:true})}</div></div>
       <details class="report-details"><summary>View weekly forecast table</summary><div class="table-wrap"><table><thead><tr><th>From</th><th>To</th><th>Estimated ${esc(unit)}</th></tr></thead><tbody>${f.rows.map(r=>`<tr><td>${r.start}</td><td>${r.end}</td><td>${r.amount}</td></tr>`).join('')}</tbody></table></div></details>
-      <button type="button" class="btn btn-sm" ${bindAction('click',()=>downloadBlob(rowsToCSV(f.rows.map(r=>({'History from':f.from,'History to':f.to,'Target':name,'College':medicine?'Campus inventory':college||'All colleges','Clinic':medicine?'Not applicable':clinic||'All clinics','Method':f.method,'From':r.start,'To':r.end,'Estimated demand':r.amount,'Unit':unit}))),`Forecast_${f.from}_${f.to}.csv`,'text/csv;charset=utf-8;'))}>Export forecast CSV</button>
+      <button type="button" class="btn btn-sm" ${bindAction('click',()=>downloadBlob(rowsToCSV(f.rows.map(r=>({'History from':f.from,'History to':f.to,'Target':name,'College':medicine?'Campus inventory':college||'All colleges','Clinic':medicine?'Not applicable':clinic||'All clinics','Method':f.method,'From':r.start,'To':r.end,'Estimated demand':r.amount,'Unit':unit}))),csvFileName(`forecast ${f.from} to ${f.to}`),'text/csv;charset=utf-8;'))}>Export forecast CSV</button>
       <p class="form-note">Estimates use only the selected history. They do not account for holidays, enrollment changes or unexpected events. These are planning estimates, not guaranteed totals or statistical confidence intervals.</p>`}
     </div>`;
   }catch(error){host.innerHTML=`<div class="alert alert-danger show" role="alert">${esc(error.message)}</div>`;}

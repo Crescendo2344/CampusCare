@@ -1,3 +1,4 @@
+import {toCsv} from '../shared/csv.js';
 // Appointment list rules: which tab a booking belongs to, which actions are allowed, ordering and export.
 // Everything works on supplied records and the clinic's current date/time (Asia/Manila).
 const OPEN='Scheduled';
@@ -53,8 +54,7 @@ export function appointmentDayHeading(date,today){
   return `${appointmentRelativeDay(date,today)||d.toLocaleDateString('en-US',{weekday:'long',timeZone:'UTC'})}, ${day}`;
 }
 
-const csvCell=value=>{const text=String(value??'');return /[",\n\r]/.test(text)||/^[=+\-@]/.test(text)?`"${(/^[=+\-@]/.test(text)?"'":'')+text.replace(/"/g,'""')}"`:text;};
 export function appointmentsCsv(rows,describe){
-  const header=['Appointment #','Date','Time','Patient','Patient ID','College/Department','Clinic','Service','Doctor','Priority','Status','Reason'];
-  return [header,...rows.map(describe)].map(row=>row.map(csvCell).join(',')).join('\r\n');
+  const header=['Appointment #','Date','Time (PH)','Patient','Patient ID','College/Department','Clinic','Service','Doctor','Priority','Status','Reason for visit'];
+  return toCsv([header,...rows.map(describe)]);
 }

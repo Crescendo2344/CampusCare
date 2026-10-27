@@ -8,6 +8,7 @@ import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {auditLog} from './auditAndBackups.js';
 import {loadDB,persistDB} from './persistence.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
+import {csvDate,csvFileName,csvTime,downloadCsv,toCsv} from '../shared/csv.js';
 // ================================================================
 // OPERATIONAL EMAIL DELIVERY
 // ================================================================
@@ -298,23 +299,13 @@ export function renderActivityLogTable(){
   </table></div>${all.length>rows.length?`<div class="pt-pager"><span>Showing ${rows.length} of ${all.length}</span><div><button class="btn btn-xs" ${bindAction('click',()=>{ui.limit+=100;renderActivityLogTable();})}>Show more</button></div></div>`:''}`:'<div class="empty-state"><p>No activity matches the selected filters.</p></div>';
 }
 
-// Exports what the filters show; cells that start like a formula are neutralised for spreadsheets.
+// Exports what the filters show, with date and time (Philippine time) in their own columns.
 export async function exportActivityLog(){
-  const cell=v=>{const t=String(v??'');return `"${(/^[=+\-@]/.test(t)?"'":'')+t.replace(/"/g,'""')}"`;};
-  const rows=[['Timestamp','User','Role','Action','Target Type','Target ID','Details','IP Address'],
+  const rows=[['Date','Time (PH)','User','Role','Action','Record type','Record #','Details','IP address'],
     ...filteredActivity().map(x=>[
-      x.timestamp,x.userName,x.role,friendlyAction(x.action),x.targetType||'',x.targetId??'',x.details||'',x.ipAddress||''
+      csvDate(x.timestamp),csvTime(x.timestamp),x.userName,x.role,friendlyAction(x.action),x.targetType||'',x.targetId??'',x.details||'',x.ipAddress||''
     ])];
-
-  const csv='﻿'+rows.map(r=>r.map(cell).join(',')).join('\r\n');
-  const a=document.createElement('a');
-  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.href=url;
-  a.download=`CampusCare_Activity_Log_${appState.clinicInformation.TODAY}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  downloadCsv(csvFileName('activity log',appState.clinicInformation.TODAY),toCsv(rows));
 
   if(appState.auth.currentUser?._realSupabase){
     try{

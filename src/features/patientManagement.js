@@ -12,6 +12,7 @@ import {collegeBadge,fmtDate,priorityBadge} from './inputValidation.js';
 import {bindAction,patientData} from '../dependencies.js';
 import {appointmentRecords} from './appointmentService.js';
 import {treatmentRecords} from './treatmentService.js';
+import {csvFileName,downloadCsv} from '../shared/csv.js';
 // ================================================================
 // PATIENTS PAGE (Staff/Admin)
 // ================================================================
@@ -123,10 +124,7 @@ function filteredPatients(){
 export function exportPatientCsv(){
   const sort=appState.patientForm.patientSort||{key:'name',direction:'asc'};
   const rows=patientData.sortPatients(filteredPatients(),sort.key,sort.direction,patientLastVisit);
-  const url=URL.createObjectURL(new Blob(['\ufeff'+patientData.patientsCsv(rows,patientLastVisit)],{type:'text/csv;charset=utf-8'}));
-  const link=Object.assign(document.createElement('a'),{href:url,download:`campuscare-patients-${appState.clinicInformation.TODAY}.csv`});
-  document.body.append(link);link.click();link.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  downloadCsv(csvFileName('patients',appState.clinicInformation.TODAY),patientData.patientsCsv(rows,patientLastVisit));
 }
 
 const PATIENT_PAGE_SIZE=25;

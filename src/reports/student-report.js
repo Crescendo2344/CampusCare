@@ -4,6 +4,7 @@ import {buildStudentReport} from '../domain/student-report.js';
 import {bindAction} from '../ui/events.js';
 import {escapeHtml as escapeText} from '../features/issueReports.js';
 import {captureCampusPageToken,isCampusPageCurrent} from '../features/navigationRaceProtection.js';
+import {csvFileName,toCsv} from '../shared/csv.js';
 const escapeHtml=value=>escapeText(String(value??''));
 const choices=(id,label,values)=>`<div class="form-group"><label for="${id}">${label}</label><select id="${id}">${values.map(([value,text])=>`<option value="${value}">${text}</option>`).join('')}</select></div>`;
 export function studentFilterMarkup(){
@@ -58,10 +59,8 @@ export async function generateStudentReport(exportToolbar,download){
   const columns=['ID','Name','College','Class Session','Sex','Age','Status','Verified','Registered','Dental Visits','Medical Visits','Last Dental','Coverage'];
   state.reportCharts.lastReportRows=report.rows.map(r=>Object.fromEntries(columns.map((key,i)=>[key,[r.idNumber||r.userId,r.name,r.college,r.classSession==='Unknown'?'Not recorded':r.classSession,r.sex,r.age??'Not recorded',r.status,r.verified?'Yes':'No',r.registered||'Not recorded',r.dentalVisits,r.medicalVisits,r.lastDental||'',r.coverageKnown?'Recorded patient':'No linked patient record'][i]])));
   state.reportCharts.lastReportTitle=`Student Coverage ${filters.from} to ${filters.to}`;
-  // College labels are text, including labels beginning with spreadsheet formula markers.
-  const csvCell=value=>{let text=String(value??'');if(typeof value==='string'&&/^[=+@\-\t\r]/.test(text))text="'"+text;return '"'+text.replaceAll('"','""')+'"';};
-  const collegeColumns=['college','registered','dentalUsed','dentalNotUsed','unknownCoverage','morning','evening','mixed','unknownSession'];
-  const summaryExport=()=>download([collegeColumns,...report.colleges.map(c=>collegeColumns.map(k=>c[k]))].map(row=>row.map(csvCell).join(',')).join('\r\n'),'Student_College_Summary.csv','text/csv');
+  const collegeColumns=[['college','College/Department'],['registered','Registered students'],['dentalUsed','Used dental care'],['dentalNotUsed','No dental care recorded'],['unknownCoverage','Coverage unknown'],['morning','Morning session'],['evening','Evening session'],['mixed','Mixed sessions'],['unknownSession','Session not recorded']];
+  const summaryExport=()=>download(toCsv([collegeColumns.map(([,label])=>label),...report.colleges.map(c=>collegeColumns.map(([k])=>c[k]))]),csvFileName(`student college summary ${filters.from} to ${filters.to}`),'text/csv;charset=utf-8');
   target.innerHTML=`<div class="card"><div class="card-header"><h3>Student Coverage &amp; Registration</h3></div>
     <p class="form-note">${escapeHtml(filters.history==='all'?'Service use: all recorded history through '+filters.to:'Service use: '+filters.from+' to '+filters.to)}. ${filters.registration==='range'?'New registrations in this range':'Accounts registered by the end date'}. College totals apply demographic filters before dental/medical-use filters.</p>
     <p class="form-note">Applied filters: ${escapeHtml(Object.entries(filters).filter(([,v])=>v!=='').map(([k,v])=>`${k}: ${v}`).join(' · '))}</p>

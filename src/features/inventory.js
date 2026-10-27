@@ -10,6 +10,7 @@ import {archiveInv,openDisbursementModal,openInvModal,openUpdateQtyModal,restore
 import {showFilePreview} from './modals.js';
 import {fmtDate} from './inputValidation.js';
 import {bindAction} from '../dependencies.js';
+import {csvFileName,downloadCsv} from '../shared/csv.js';
 // ================================================================
 // INVENTORY
 // ================================================================
@@ -117,9 +118,7 @@ function filteredItems(){
 
 export function exportInventoryCsv(){
   const rows=filteredItems().map(i=>({...i,displayId:inventoryDisplayId(i)}));
-  const url=URL.createObjectURL(new Blob(['﻿'+stockData.inventoryCsv(rows,appState.clinicInformation.TODAY)],{type:'text/csv;charset=utf-8'}));
-  const link=Object.assign(document.createElement('a'),{href:url,download:`campuscare-inventory-${appState.clinicInformation.TODAY}.csv`});
-  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  downloadCsv(csvFileName('inventory',appState.clinicInformation.TODAY),stockData.inventoryCsv(rows,appState.clinicInformation.TODAY));
 }
 
 export function itemAvatarHtml(item,size=36){

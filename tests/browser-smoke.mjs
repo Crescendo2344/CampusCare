@@ -778,6 +778,36 @@ try{
     await page.waitForTimeout(300);
     const cancelled=requests.filter(r=>r.path.endsWith('/appointment-actions')&&r.body?.action==='cancel').at(-1);
     assert.equal(cancelled.body.appointment_id,77);assert.equal(cancelled.body.reason,'Doctor unavailable. Please rebook next week.');
+    // Inventory forecast: 3 months by default, presets and custom days (7–365), a plan column and a CSV with options.
+    await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp,today=state.clinicInformation.TODAY,anchor=features.predictiveAnalytics.healthAnalyticsAnchorDate().date,back=n=>{const d=new Date(anchor+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-n);return d.toISOString().slice(0,10);};
+      state.data.DB.inventory=[{id:500001,dbItemId:1,_realSupabase:true,name:'Gauze pads',category:'Supplies',qty:100,threshold:20,unit:'pcs',unitCost:2}];
+      state.data.DB.inventoryTransactions=[{id:1,_realSupabase:true,itemId:500001,type:'Disbursement',qty:5,date:back(3)}];
+      state.data.DB.inventoryForecasts=[{itemId:500001,forecastMonth:today.slice(0,7)+'-01',predictedUsage:150}];
+      state.inventoryList.forecastDays=undefined;
+      document.getElementById('app-content').innerHTML='<div id="inv-forecast"></div>';
+      document.getElementById('inv-forecast').innerHTML=features.inventoryService.forecastSectionHtml();
+    });
+    assert.equal(await page.locator('.fc-preset.active').innerText(),'3 months');
+    assert.match(await page.locator('.forecast-table thead').innerText(),/Plan for 3 months/);
+    assert.match(await page.locator('.fc-plan').innerText(),/Order \d+ pcs/);
+    await page.locator('.fc-preset',{hasText:'30 days'}).click();
+    assert.equal(await page.locator('.forecast-table thead th').count(),7,'Item, five weeks and the plan');
+    await page.locator('#fc-days').fill('400');await page.locator('#fc-days').press('Enter');
+    assert.match(await page.locator('.forecast-table thead').innerText(),/Plan for 1 year/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#inv-forecast').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/inventory-forecast-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('.fc-preset',{hasText:'3 months'}).click();
+    await page.getByRole('button',{name:'Download CSV'}).click();
+    await page.locator('.fc-csv').waitFor();
+    await page.locator('input[name="fc-layout"][value="detailed"]').check();
+    await page.locator('input[name="fc-col"][value="category"]').uncheck();
+    const [forecastCsv]=await Promise.all([page.waitForEvent('download'),page.locator('.fc-csv').getByRole('button',{name:'Download',exact:true}).click()]);
+    assert.match(forecastCsv.suggestedFilename(),/^campuscare-inventory-forecast-90-days-from-\d{4}-\d{2}-\d{2}\.csv$/);
+    const forecastText=(await import('node:fs')).readFileSync(await forecastCsv.path(),'utf8');
+    assert(forecastText.startsWith('\ufeff'),'UTF-8 marker for Excel');
+    const forecastLines=forecastText.slice(1).trimEnd().split('\r\n');
+    assert.match(forecastLines[0],/^Item,Item #,Unit,Quantity on hand,Reorder level,Period start,Period end,Projected use,Stock left at period end$/);
+    assert(forecastLines.length>=4,'One row per item per month');
     // Use synthetic registration images to exercise the real review/preview controls without patient data.
     await page.evaluate(()=>{
       const {state,features}=window.__fixtureApp,canvas=document.createElement('canvas');canvas.width=40;canvas.height=60;
@@ -1015,7 +1045,7 @@ try{
     assert.match(await page.locator('#forecast-result').innerText(),/Expected next 8 weeks/i);
     assert.equal(await page.locator('#forecast-result tbody tr').count(),8);
     const forecastDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Export forecast CSV',exact:true}).click();
-    assert.equal((await forecastDownload).suggestedFilename(),'Forecast_2026-01-01_2026-03-31.csv');
+    assert.equal((await forecastDownload).suggestedFilename(),'campuscare-forecast-2026-01-01-to-2026-03-31.csv');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reports-forecast-${mobile?'mobile':'desktop'}.png`,fullPage:true});
     await page.locator('#forecast-from').fill('2026-04-01');
     await page.getByRole('button',{name:'Update forecast',exact:true}).click();
@@ -1033,7 +1063,10 @@ try{
     await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).waitFor();
     const downloaded=page.waitForEvent('download');
     await page.getByRole('button',{name:'Export college summary CSV',exact:true}).click();
-    assert.equal((await downloaded).suggestedFilename(),'Student_College_Summary.csv');
+    const summaryFile=await downloaded;
+    assert.match(summaryFile.suggestedFilename(),/^campuscare-student-college-summary-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.csv$/);
+    const summaryText=(await import('node:fs')).readFileSync(await summaryFile.path(),'utf8');
+    assert.match(summaryText,/^\ufeffCollege\/Department,Registered students,/,'Readable headers in the shared CSV format');
   }
   if(role==='Administrator'){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('settings'));

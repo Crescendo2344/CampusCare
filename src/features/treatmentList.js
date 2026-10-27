@@ -13,6 +13,7 @@ import {viewPatient} from './patientForm.js';
 import {fmtDate} from './inputValidation.js';
 import {docName} from './messaging.js';
 import {bindAction} from '../dependencies.js';
+import {csvDate,csvFileName,downloadCsv,toCsv} from '../shared/csv.js';
 // ================================================================
 // TREATMENTS
 // ================================================================
@@ -80,14 +81,11 @@ function filteredTreatments(){
 
 export function exportTreatmentsCsv(){
   const rows=filteredTreatments();
-  const cell=v=>{const t=String(v??'');return /[",\n\r]/.test(t)||/^[=+\-@]/.test(t)?`"${(/^[=+\-@]/.test(t)?"'":'')+t.replace(/"/g,'""')}"`:t;};
-  const lines=[['Record #','Visit date','Patient','Patient ID','College/Department','Clinic','Diagnosis','Doctor','Follow-up','Status']].concat(rows.map(t=>{
+  const lines=[['Record #','Visit date','Patient','Patient ID','College/Department','Clinic','Diagnosis','Doctor','Follow-up date','Record status']].concat(rows.map(t=>{
     const pt=getPatientById(t.patientId),doc=getUserById(t.doctorId);
-    return [treatmentDisplayId(t),t.date,pt?`${pt.lname}, ${pt.fname}`:'',pt?`P-${patientDisplayId(pt)}`:'',pt?.college||'',clinicOf(t),t.diagnosis||'',doc?docName(doc):'',t.followupDate||'',t.archived?'Archived':'Active'];
+    return [treatmentDisplayId(t),csvDate(t.date),pt?`${pt.lname}, ${pt.fname}`:'',pt?`P-${patientDisplayId(pt)}`:'',pt?.college||'',clinicOf(t),t.diagnosis||'',doc?docName(doc):'',csvDate(t.followupDate),t.archived?'Archived':'Active'];
   }));
-  const url=URL.createObjectURL(new Blob(['﻿'+lines.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));
-  const link=Object.assign(document.createElement('a'),{href:url,download:`campuscare-treatments-${appState.clinicInformation.TODAY}.csv`});
-  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  downloadCsv(csvFileName('treatments',appState.clinicInformation.TODAY),toCsv(lines));
 }
 
 export function renderTreatTable(){

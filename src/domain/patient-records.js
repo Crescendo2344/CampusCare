@@ -1,3 +1,4 @@
+import {csvDate,toCsv} from '../shared/csv.js';
 // Profile and patient mapping use explicit records; no application globals are read.
 export function normalizeSupabaseUser(profile){
   if(!profile)return profile;
@@ -172,12 +173,6 @@ export function sortPatients(rows,key,direction='asc',lastVisit=()=>''){
 
 // Spreadsheet-safe CSV of the filtered list; formula-like cells are neutralised.
 export function patientsCsv(rows,lastVisit=()=>''){
-  const cell=value=>{
-    let text=String(value??'');
-    if(/^[=+\-@]/.test(text))text="'"+text;
-    return /[",\n]/.test(text)?`"${text.replace(/"/g,'""')}"`:text;
-  };
-  const header=['Patient No.','ID No.','Last Name','First Name','Age','Sex','College','Type','Class Session','Blood Type','Allergies','Contact','Last Visit','Status'];
-  const lines=rows.map(p=>[`P-${patientDisplayId(p)}`,p.idNo,p.lname,p.fname,p.age,p.gender,p.college,p.personType,p.personType==='Student'?p.classSession:'',p.blood,p.allergies,p.contact,lastVisit(p),p.archived?'Archived':'Active'].map(cell).join(','));
-  return [header.join(','),...lines].join('\r\n');
+  const header=['Patient No.','ID No.','Last Name','First Name','Age (years)','Sex','College/Department','Patient type','Class session','Blood type','Allergies','Contact number','Last visit','Record status'];
+  return toCsv([header,...rows.map(p=>[`P-${patientDisplayId(p)}`,p.idNo,p.lname,p.fname,p.age,p.gender,p.college,p.personType,p.personType==='Student'?p.classSession:'',p.blood,p.allergies,p.contact,csvDate(lastVisit(p)),p.archived?'Archived':'Active'])]);
 }

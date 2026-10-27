@@ -1,3 +1,4 @@
+import {csvDate,toCsv} from '../shared/csv.js';
 // Client Satisfaction Measurement (CSM) reporting, as used for Philippine government offices:
 // a response counts as satisfied when rated 4 (Agree) or 5 (Strongly agree); N/A and blank answers are
 // left out of the base. The overall score pools SQD0–SQD8.
@@ -42,9 +43,9 @@ export function countBy(rows,pick){
 export function filterSurveys(rows,{from='',group='',service=''}={}){
   return rows.filter(r=>(!from||String(r.createdAt).slice(0,10)>=from)&&(!group||r.groupType===group)&&(!service||r.service===service));
 }
-const cell=v=>{const t=String(v??'');return /[",\n\r]/.test(t)||/^[=+\-@]/.test(t)?`"${(/^[=+\-@]/.test(t)?"'":'')+t.replace(/"/g,'""')}"`:t;};
 // Export without names or email addresses: CSM responses are confidential.
 export function surveysCsv(rows){
-  const header=['Date','Client type','Department','Service','Overall rating','CC1','CC2','CC3',...SQD_LABELS.map(([k])=>k.toUpperCase()),'Suggestion'];
-  return [header,...rows.map(r=>[String(r.createdAt).slice(0,10),r.groupType,r.department,r.service,r.ratings?.overall,r.citizensCharter?.cc1,r.citizensCharter?.cc2,r.citizensCharter?.cc3,...SQD_LABELS.map(([k])=>r.sqd?.[k]??''),r.suggestions])].map(row=>row.map(cell).join(',')).join('\r\n');
+  // Citizen's Charter and SQD columns keep their official codes and add what each one asks.
+  const header=['Date','Client type','Department','Service','Overall rating (1-5)','CC1 Aware of the Citizen\'s Charter','CC2 Saw the Citizen\'s Charter','CC3 Charter helped',...SQD_LABELS.map(([k,label])=>`${k.toUpperCase()} ${label} (1-5)`),'Suggestion'];
+  return toCsv([header,...rows.map(r=>[csvDate(r.createdAt),r.groupType,r.department,r.service,r.ratings?.overall,r.citizensCharter?.cc1,r.citizensCharter?.cc2,r.citizensCharter?.cc3,...SQD_LABELS.map(([k])=>r.sqd?.[k]??''),r.suggestions])]);
 }

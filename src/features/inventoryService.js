@@ -13,6 +13,8 @@ import {patientDisplayId} from './patientService.js';
 import {toast} from './theme.js';
 import {databaseSkeletonHtml} from './loadingSkeletons.js';
 import {bindAction,createInventoryService,inventoryData} from '../dependencies.js';
+import {DEFAULT_HORIZON,FORECAST_PRESETS,MAX_HORIZON,MIN_HORIZON,clampHorizon,projectItem} from '../domain/inventory-projection.js';
+import {csvDate,csvFileName,csvReadableDate,downloadCsv,toCsv} from '../shared/csv.js';
 // Compatibility adapters own application state; the data modules receive explicit dependencies.
 export function inventoryRecords(){return inventoryData.inventoryRecords(appState.data.DB,appState.auth.currentUser);}
 export function inventoryTransactionRecords(){return inventoryData.inventoryTransactionRecords(appState.data.DB,appState.auth.currentUser);}
@@ -150,52 +152,126 @@ export function inventoryForecastBadge(f){
   return `<span class="badge ${cls}">${f.risk==='high'?'High risk':f.risk==='medium'?'Watch':'Stable'}</span>`;
 }
 
-export function getThreeMonthForecast(item){
-  if(appState.auth.currentUser?._realSupabase&&item._realSupabase){
-    return inventoryForecastRecords()
-      .filter(f=>f.itemId===item.id)
-      .slice()
-      .sort((a,b)=>String(a.forecastMonth).localeCompare(String(b.forecastMonth)))
-      .slice(0,3)
-      .map(f=>{
-        const d=new Date((f.forecastMonth||appState.clinicInformation.TODAY)+'T12:00:00');
-        return {
-          label:d.toLocaleDateString('en-PH',{month:'long',year:'numeric'}),
-          projected:Number(f.predictedUsage||0),
-          remaining:f.predictedRemainingStock,
-          reorder:Number(f.recommendedReorderQty||0)
-        };
-      });
-  }
-
-  const f=getInventoryForecast(item);if(!f.hasData)return [];
-  const base=new Date((healthAnalyticsAnchorDate().date||appState.clinicInformation.TODAY)+'T12:00:00');
-  const rows=[];
-  for(let i=1;i<=3;i++){
-    const d=new Date(base.getFullYear(),base.getMonth()+i,1,12);
-    const year=d.getFullYear(),month=d.getMonth();
-    const days=new Date(year,month+1,0).getDate();
-    const projected=Math.max(0,Math.round(f.adjustedDaily*days*Math.pow(1.02,i-1)));
-    rows.push({label:d.toLocaleDateString('en-PH',{month:'long',year:'numeric'}),projected,remaining:null,reorder:f.reorderQty});
-  }
-  return rows;
+// ---------- Adjustable inventory forecast ----------
+function forecastDays(){return clampHorizon(appState.inventoryList.forecastDays??DEFAULT_HORIZON);}
+function horizonLabel(days){
+  const preset=FORECAST_PRESETS.find(([d])=>d===days);
+  return preset?preset[1]:`${days} days`;
 }
 
-export function threeMonthForecastTableHtml(){
-  const items=inventoryRecords()
-    .filter(i=>!i.archived&&i.category!=='Equipment')
-    .map(i=>({i,rows:getThreeMonthForecast(i)}))
-    .filter(x=>x.rows.length);
+// One projection per active consumable with usage history; items without history are counted, not guessed.
+export function inventoryForecastProjections(days=forecastDays()){
+  const start=appState.clinicInformation.TODAY;
+  const items=inventoryRecords().filter(i=>!i.archived&&i.category!=='Equipment');
+  const rows=[],missing=[];
+  for(const item of items){
+    const f=getInventoryForecast(item);
+    if(!f.hasData){missing.push(item);continue;}
+    const monthlyUsage={};
+    if(appState.auth.currentUser?._realSupabase&&item._realSupabase){
+      for(const r of inventoryForecastRecords().filter(x=>x.itemId===item.id))monthlyUsage[String(r.forecastMonth).slice(0,7)]=Number(r.predictedUsage||0);
+    }
+    rows.push({item,p:projectItem({qty:Number(item.qty??0),threshold:Number(item.threshold||0),start,days,dailyRate:f.adjustedDaily,monthlyUsage})});
+  }
+  // Items that need action soonest come first.
+  rows.sort((a,b)=>(a.p.reorderBy||'9999').localeCompare(b.p.reorderBy||'9999')||a.item.name.localeCompare(b.item.name));
+  return {rows,missing,days,start};
+}
 
-  if(!items.length)return '<div class="tech-note">Add inventory items and record disbursements to generate the 3-month forecast.</div>';
+function forecastCellHtml(period,item){
+  const unit=escapeHtml(item.unit||'');
+  const after=period.stockAfter<0
+    ?`<span class="fc-out">Short by ${Math.abs(period.stockAfter)} ${unit}</span>`
+    :period.stockAfter<=Number(item.threshold||0)?`<span class="fc-low">${period.stockAfter} ${unit} left · below reorder level</span>`
+    :`<span>${period.stockAfter} ${unit} left</span>`;
+  return `<td><strong>${period.use} ${unit}</strong><small>used</small>${after}</td>`;
+}
 
-  return `<div class="table-wrap"><table class="forecast-table">
-    <thead><tr><th>Item</th>${items[0].rows.map(r=>`<th>${escapeHtml(r.label)}</th>`).join('')}</tr></thead>
-    <tbody>${items.map(x=>`<tr>
-      <td>${escapeHtml(x.i.name)}<div class="text-muted">${escapeHtml(x.i.unit)}</div></td>
-      ${x.rows.map(r=>`<td><strong>${r.projected}</strong><div class="text-muted">projected use${r.remaining!=null?` · ${r.remaining} left`:''}${r.reorder?` · reorder ${r.reorder}`:''}</div></td>`).join('')}
+function forecastPlanHtml({item,p}){
+  const unit=escapeHtml(item.unit||'');
+  if(!p.reorderQty)return `<td class="fc-plan ok"><strong>Enough stock</strong><span>${p.stockAtEnd} ${unit} left on ${escapeHtml(fmtDate(p.end))}</span></td>`;
+  return `<td class="fc-plan ${p.stockoutDate?'risk':'watch'}"><strong>Order ${p.reorderQty} ${unit}</strong><span>by ${escapeHtml(fmtDate(p.reorderBy))}${p.stockoutDate?` · runs out ${escapeHtml(fmtDate(p.stockoutDate))}`:''}</span></td>`;
+}
+
+export function forecastSectionHtml(){
+  const {rows,missing,days}=inventoryForecastProjections();
+  const isPreset=FORECAST_PRESETS.some(([d])=>d===days);
+  const controls=`<div class="fc-controls">
+    <div class="fc-presets" role="group" aria-label="Forecast period">${FORECAST_PRESETS.map(([d,label])=>`<button type="button" class="fc-preset ${d===days?'active':''}" aria-pressed="${d===days}" ${bindAction('click',()=>setForecastDays(d))}>${label}</button>`).join('')}</div>
+    <label class="fc-custom">Custom <input type="number" id="fc-days" min="${MIN_HORIZON}" max="${MAX_HORIZON}" value="${isPreset?'':days}" placeholder="${MIN_HORIZON}–${MAX_HORIZON}" aria-label="Custom forecast period in days" ${bindAction('change',(event,element)=>setForecastDays(element.value))} ${bindAction('keydown',(event,element)=>{if(event.key==='Enter'){event.preventDefault();setForecastDays(element.value);}})}> days</label>
+    <button type="button" class="btn btn-sm" ${rows.length?'':'disabled'} ${bindAction('click',()=>openForecastCsvDialog())}><i class="bi bi-download" aria-hidden="true"></i> Download CSV</button>
+  </div>`;
+  if(!rows.length)return controls+'<div class="tech-note">Add inventory items and record disbursements to generate a forecast.</div>';
+  const periods=rows[0].p.periods;
+  return controls+`<div class="table-wrap"><table class="forecast-table">
+    <thead><tr><th>Item</th>${periods.map(p=>`<th>${escapeHtml(p.label)}</th>`).join('')}<th>Plan for ${escapeHtml(horizonLabel(days))}</th></tr></thead>
+    <tbody>${rows.map(({item,p})=>`<tr>
+      <td class="fc-item"><strong>${escapeHtml(item.name)}</strong><span>${Number(item.qty??0)} ${escapeHtml(item.unit||'')} in stock · reorder at ${Number(item.threshold||0)}</span><span>About ${p.averageDaily.toFixed(1)} ${escapeHtml(item.unit||'')} a day</span></td>
+      ${p.periods.map(period=>forecastCellHtml(period,item)).join('')}
+      ${forecastPlanHtml({item,p})}
     </tr>`).join('')}</tbody>
-  </table></div>`;
+  </table></div>${missing.length?`<p class="fc-missing">${missing.length} item${missing.length===1?'':'s'} not shown because there is no usage history yet: ${missing.slice(0,5).map(i=>escapeHtml(i.name)).join(', ')}${missing.length>5?' and more':''}.</p>`:''}`;
+}
+
+export function setForecastDays(value){
+  const raw=Number(value);
+  if(!Number.isFinite(raw)||raw<=0){toast(`Enter a forecast period between ${MIN_HORIZON} and ${MAX_HORIZON} days.`,'warning');return;}
+  const days=clampHorizon(raw);
+  if(days!==Math.round(raw))toast(`Forecasts cover ${MIN_HORIZON} to ${MAX_HORIZON} days, so ${days} days is shown.`,'info');
+  appState.inventoryList.forecastDays=days;
+  const host=document.getElementById('inv-forecast');if(host)host.innerHTML=forecastSectionHtml();
+  const badge=document.getElementById('inv-forecast-badge');if(badge)badge.textContent=`${horizonLabel(days)} forecast`;
+}
+
+// ---------- Forecast CSV with chosen layout, columns and date style ----------
+const FORECAST_COLUMNS=[
+  ['itemNo','Item #',true],['category','Category',true],['unit','Unit',true],['onHand','Quantity on hand',true],['reorderLevel','Reorder level',true],
+  ['dailyUse','Average daily use',true],['totalUse','Projected use',true],['stockAtEnd','Stock at end of period',true],
+  ['runsOut','Runs out on',true],['orderQty','Suggested order quantity',true],['orderBy','Order by',true]
+];
+
+export function openForecastCsvDialog(){
+  const days=forecastDays();
+  openModal(`<div class="modal modal-sm fc-csv" role="dialog" aria-labelledby="fc-csv-title">
+    <div class="modal-header"><h3 id="fc-csv-title">Download forecast CSV</h3><button class="close-btn" ${bindAction('click',()=>closeTopModal())}>✕</button></div>
+    <div class="modal-body">
+      <fieldset class="fc-field"><legend>Layout</legend>
+        <label><input type="radio" name="fc-layout" value="summary" checked> One row per item</label>
+        <label><input type="radio" name="fc-layout" value="detailed"> One row per item for each ${days<=31?'week':'month'}</label></fieldset>
+      <fieldset class="fc-field"><legend>Columns</legend><div class="fc-columns">${FORECAST_COLUMNS.map(([key,label,on])=>`<label><input type="checkbox" name="fc-col" value="${key}" ${on?'checked':''}> ${label}</label>`).join('')}</div></fieldset>
+      <fieldset class="fc-field"><legend>Dates</legend>
+        <label><input type="radio" name="fc-dates" value="iso" checked> 2026-10-27 (sorts correctly)</label>
+        <label><input type="radio" name="fc-dates" value="readable"> Oct 27, 2026</label></fieldset>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" ${bindAction('click',()=>downloadForecastCsv())}><i class="bi bi-download" aria-hidden="true"></i> Download</button></div>
+  </div>`,{preserveParent:Boolean(appState.clinicInformation.activeModal?.isConnected)});
+}
+
+export function downloadForecastCsv(){
+  const {rows,days,start}=inventoryForecastProjections();
+  const layout=document.querySelector('input[name="fc-layout"]:checked')?.value||'summary';
+  const readable=document.querySelector('input[name="fc-dates"]:checked')?.value==='readable';
+  const chosen=new Set([...document.querySelectorAll('input[name="fc-col"]:checked')].map(el=>el.value));
+  const date=v=>v?(readable?csvReadableDate(v):csvDate(v)):'';
+  const value={
+    itemNo:({item})=>inventoryDisplayId(item),category:({item})=>item.category||'',unit:({item})=>item.unit||'',
+    onHand:({item})=>Number(item.qty??0),reorderLevel:({item})=>Number(item.threshold||0),
+    dailyUse:({p})=>p.averageDaily.toFixed(2),totalUse:({p})=>p.totalUse,stockAtEnd:({p})=>p.stockAtEnd,
+    runsOut:({p})=>date(p.stockoutDate),orderQty:({p})=>p.reorderQty,orderBy:({p})=>date(p.reorderBy)
+  };
+  const columns=FORECAST_COLUMNS.filter(([key])=>chosen.has(key));
+  let table;
+  if(layout==='detailed'){
+    // Per-period rows keep the item's identifying columns and add the period's own figures.
+    const idCols=columns.filter(([key])=>['itemNo','category','unit','onHand','reorderLevel'].includes(key));
+    table=[['Item',...idCols.map(([,label])=>label),'Period start','Period end','Projected use','Stock left at period end']];
+    for(const r of rows)for(const period of r.p.periods)table.push([r.item.name,...idCols.map(([key])=>value[key](r)),date(period.start),date(period.end),period.use,period.stockAfter]);
+  }else{
+    table=[['Item',...columns.map(([,label])=>label)],...rows.map(r=>[r.item.name,...columns.map(([key])=>value[key](r))])];
+  }
+  downloadCsv(csvFileName(`inventory forecast ${days} days from ${start}`),toCsv(table));
+  closeTopModal();
+  toast('Forecast CSV downloaded.','success');
 }
 
 export function predictiveInventorySummaryHtml(){
@@ -206,8 +282,8 @@ export function predictiveInventorySummaryHtml(){
 
   return `<div class="card">
     <div class="card-header">
-      <div><h3>Predictive Inventory</h3><div class="tech-note">Forecast consumption for the next 3 months using recorded disbursements.</div></div>
-      <span class="intel-badge">3-month forecast</span>
+      <div><h3>Predictive Inventory</h3><div class="tech-note">Projected use and stock from recorded disbursements.</div></div>
+      <span class="intel-badge" id="inv-forecast-badge">${escapeHtml(horizonLabel(forecastDays()))} forecast</span>
     </div>
     <div class="intel-grid">
       <div class="intel-card ${atRisk.length?'intel-risk-medium':'intel-risk-low'}"><div class="intel-kicker">At risk in 14 days</div><div class="intel-value">${atRisk.length}</div><div class="intel-meta">Consumable item${atRisk.length===1?'':'s'} projected to run low soon</div></div>
@@ -215,8 +291,8 @@ export function predictiveInventorySummaryHtml(){
       <div class="intel-card"><div class="intel-kicker">Forecast coverage</div><div class="intel-value">${forecasts.length}/${items.length}</div><div class="intel-meta">Active items with usable demand history</div></div>
     </div>
     ${atRisk.length?`<div class="intel-alert-list">${atRisk.slice(0,4).map(({item,f})=>`<div class="intel-alert-item"><div class="intel-alert-icon ${f.risk==='high'?'danger':'warning'}">${f.risk==='high'?'<i class="bi bi-exclamation-triangle" aria-hidden="true"></i>':'<i class="bi bi-box-seam" aria-hidden="true"></i>'}</div><div class="intel-alert-copy"><strong>${escapeHtml(item.name)} — ${f.daysRemaining} days remaining</strong><span>Projected depletion ${fmtDate(f.stockoutDate)}. Suggested reorder: ${f.reorderQty} ${escapeHtml(item.unit)}. Current forecast usage ≈ ${f.adjustedDaily.toFixed(1)} ${escapeHtml(item.unit)}/day.</span></div></div>`).join('')}</div>`:`<div class="tech-note">No item with sufficient usage history is forecast to deplete within 14 days.</div>`}
-    <div class="section-label" style="margin-top:1rem">3-Month Consumption Forecast</div>
-    ${threeMonthForecastTableHtml()}
+    <div class="section-label" style="margin-top:1rem">Consumption forecast</div>
+    <div id="inv-forecast">${forecastSectionHtml()}</div>
     <div class="section-label" style="margin-top:1rem">Monthly Usage Analytics</div>
     ${inventoryMonthlyUsageHtml()}
     <div class="tech-note" style="margin-top:.5rem">Forecasts are planning estimates based on recorded disbursements. They are not guaranteed future demand.</div>
