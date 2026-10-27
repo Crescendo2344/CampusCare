@@ -65,6 +65,9 @@ import * as feature62 from '../features/userForm.js';
 import * as feature63 from '../features/startup.js';
 import * as feature64 from '../features/scheduleAndDrafts.js';
 import * as feature65 from '../features/shellActions.js';
+import * as feature66 from '../features/doctorSchedules.js';
+import * as feature67 from '../features/requestAttachments.js';
+import * as feature68 from '../features/slotManager.js';
 export const features={
 analyticsDisplay,
   authSession:feature0,
@@ -133,6 +136,9 @@ analyticsDisplay,
   startup:feature63,
   scheduleAndDrafts:feature64,
   shellActions:feature65,
+  doctorSchedules:feature66,
+  requestAttachments:feature67,
+  slotManager:feature68,
 };
 import {initializeOptionalState} from './optional-state.js';
 import * as analyticsDisplay from '../features/analyticsDisplay.js';
@@ -204,4 +210,7 @@ initializeOptionalState();
   feature63.initializeFeature();
   feature64.initializeFeature();
   feature65.initializeFeature();
+  feature66.initializeFeature();
+  feature67.initializeFeature();
+  feature68.initializeFeature();
 }

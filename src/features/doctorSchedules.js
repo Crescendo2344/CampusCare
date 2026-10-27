@@ -14,6 +14,7 @@ import {renderUsers,userAvatarHtml} from './userManagement.js';
 import {persistDB} from './persistence.js';
 import {toast} from './theme.js';
 import {bindAction} from '../dependencies.js';
+import {openSlotManager} from './slotManager.js';
 import {WEEK_DAYS,WEEK_DAY_NAMES,assessWeekly,dayLimit,sameWeekly,shiftLabel,shortTime,weekDates,weeklyFromServer,weeklyFromSummary} from '../domain/doctor-coverage.js';
 
 const SLOT_CHOICES=[15,20,30,45,60,90,120];
@@ -60,7 +61,7 @@ export function doctorSchedulesHtml(){
     </div>
     <div class="card">
       <div class="card-header dsb-head"><div><h3>Weekly coverage</h3><p class="form-note">Week of ${escapeHtml(fmtDate(dates[0]))} · click a doctor to edit their hours</p></div>
-        <div class="dsb-tools"><input type="search" id="dsb-search" placeholder="Search doctor" aria-label="Search doctor" value="${escapeHtml(s.scheduleSearch)}" ${bindAction('input',(event,element)=>{ui().scheduleSearch=element.value;renderDoctorScheduleRows();})}>
+        <div class="dsb-tools"><button type="button" class="btn btn-sm" ${bindAction('click',()=>openSlotManager())}><i class="bi bi-sliders" aria-hidden="true"></i> Manage time slots</button><input type="search" id="dsb-search" placeholder="Search doctor" aria-label="Search doctor" value="${escapeHtml(s.scheduleSearch)}" ${bindAction('input',(event,element)=>{ui().scheduleSearch=element.value;renderDoctorScheduleRows();})}>
         <select id="dsb-specialty" aria-label="Specialty" ${bindAction('change',(event,element)=>{ui().scheduleSpecialty=element.value;renderDoctorScheduleRows();})}><option value="">All specialties</option>${specialties.map(x=>`<option ${x===s.scheduleSpecialty?'selected':''}>${escapeHtml(x)}</option>`).join('')}</select></div></div>
       <div class="table-wrap"><table class="dsb-table"><colgroup><col class="dsb-col-doc">${WEEK_DAYS.map(()=>'<col>').join('')}<col class="dsb-col-cap"></colgroup><thead><tr><th>Doctor</th>${WEEK_DAYS.map((day,i)=>`<th class="${dates[i]===today?'dsb-today':''}">${day}<small>${Number(dates[i].slice(8))}</small></th>`).join('')}<th>Bookings</th></tr></thead><tbody id="dsb-rows"></tbody></table></div>
       <div class="dsb-legend"><span><i class="dsb-dot work"></i>Working hours</span><span><i class="dsb-dot leave"></i>Approved leave</span><span><i class="dsb-dot off"></i>Not scheduled</span><span><i class="dsb-dot today"></i>Today</span></div>
@@ -288,4 +289,9 @@ async function applySchedule(){
     document.getElementById('dse-msg').innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to save the schedule.')}</div>`;
     refreshEditor(false);
   }
+}
+
+// Run side effects only after every feature's function exports are available.
+export function initializeFeature(){
+
 }

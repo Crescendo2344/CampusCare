@@ -931,3 +931,16 @@ tr.dsb-row:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
 .cancel-warning div{display:flex;flex-direction:column;gap:.15rem;font-size:.82rem;line-height:1.45}
 .cancel-reason-preview{font-size:.8rem;color:var(--ink-muted);margin:0 0 .7rem;overflow-wrap:anywhere}
 #cancel-confirm-text{letter-spacing:.08em;text-transform:uppercase}
+
+/* Time slot manager: doctor and day on the left, that day's times on the right */
+.appt-head-actions{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.slot-manager-modal{max-width:920px}
+.sm-layout{display:grid;grid-template-columns:minmax(280px,340px) 1fr;gap:1.1rem;align-items:start}
+.sm-picker .booking-calendar-wrap{margin-top:.2rem}
+.sm-day{min-height:280px;border:1px solid var(--line-soft);border-radius:14px;padding:.9rem;background:var(--overlay)}
+.sm-day-head{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem}
+.sm-day-head h4{margin:0;font-size:1rem}
+.sm-day-head span{font-size:.78rem;color:var(--ink-muted)}
+.sm-empty{height:100%;min-height:250px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6rem;text-align:center;color:var(--ink-muted);font-size:.86rem}
+.sm-empty i{font-size:1.6rem;opacity:.7}
+@media (max-width:760px){.sm-layout{grid-template-columns:1fr}.sm-day{min-height:0}.sm-empty{min-height:120px}}

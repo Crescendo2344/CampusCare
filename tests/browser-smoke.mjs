@@ -489,10 +489,7 @@ try{
   assert.equal(await page.locator('#landing-navbar').evaluate(nav=>getComputedStyle(nav).backgroundColor),'rgb(10, 20, 32)');
   assert.equal(await page.locator('#auth-theme-toggle-btn').count(),0);
   await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).click();
-  // Empty fields are flagged beside the inputs, not in a toast.
-  await page.locator('#li-user-error').getByText('Enter your username or email.',{exact:true}).waitFor();
-  assert(await page.locator('#li-pass-error').isVisible());
-  assert.equal(await page.locator('#toast-wrap .toast',{hasText:/username|password/i}).count(),0);
+  await page.locator('#toast-wrap .toast.error').getByText('Enter your username/email and password.',{exact:true}).waitFor();
   await page.locator('#li-user').fill(profile.email);await page.locator('#li-pass').fill('Fixture-only-password1!');
   await page.getByLabel('Remember me').check();
   await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).click();
@@ -563,24 +560,7 @@ try{
     assert.equal(await page.locator('#b-time').inputValue(),'08:00');
     assert.equal(await page.locator('#slot-grid button.selected').getAttribute('aria-pressed'),'true');
     for(const time of ['09:00','10:00','12:00'])assert(await page.locator('#slot-grid button[data-time="'+time+'"]').isDisabled());
-    if(role!=='Patient'){
-      // Managing slots opens over the booking form, saves only the changes, and returns to the same date.
-      await page.locator('#b-reason').fill('Kept while managing slots');
-      await page.locator('#b-manage-slots').click();
-      await page.locator('.slot-manager-modal').waitFor();
-      assert(await page.locator('.slot-toggle.locked').first().isDisabled(),'Booked times cannot be changed');
-      assert(await page.locator('#slot-manager-save').isDisabled());
-      await page.locator('.slot-toggle',{hasText:'11:00'}).click();
-      assert.match(await page.locator('#slot-manager-summary').innerText(),/1 unsaved change/);
-      if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.slot-manager-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/slot-manager-${mobile?'mobile':'desktop'}.png`});
-      await page.locator('#slot-manager-save').click();
-      await page.waitForFunction(()=>!document.querySelector('.slot-manager-modal'));
-      const manage=requests.filter(r=>r.path.endsWith('/appointment-actions')&&r.body?.action==='manage_slots').at(-1);
-      assert(manage.body.slots.some(x=>x.time==='11:00'&&x.is_available===false),'Closing a time sends it as unavailable');
-      await page.waitForFunction(date=>document.getElementById('b-date')?.value===date,page.__bookingDate);
-      assert.equal(await page.locator('#b-reason').inputValue(),'Kept while managing slots');
-      await page.locator('#slot-grid button[data-time="08:00"]').click();
-    }
+    assert.equal(await page.locator('#b-manage-slots').count(),0,'Slot management lives outside the booking form');
     if(role!=='Patient'){
       // Priority follows the chosen patient's record and cannot be edited.
       await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const p=state.data.DB.patients.find(x=>x.id===200004)||state.data.DB.patients[0];features.datePicker.selectBookPatient(p.id);});
@@ -610,6 +590,27 @@ try{
       if(process.env.CAMPUSCARE_VISUAL_DIR&&role==='Staff')await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/toast-${mobile?'mobile':'desktop'}.png`});
       await reminder.locator('.toast-close').click();
       await page.waitForFunction(()=>![...document.querySelectorAll('#toast-wrap .toast')].some(t=>/signed COR/.test(t.textContent)&&!t.classList.contains('leaving')));
+    }
+    if(['Staff','Administrator'].includes(role)){
+      // Time slots are managed from the Appointments page: pick a doctor and a day, toggle times, save.
+      await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('appointments'));
+      await page.locator('#appt-manage-slots').click();
+      await page.locator('.slot-manager-modal').waitFor();
+      assert(await page.locator('#slot-manager-save').isDisabled());
+      const doctorId=await page.evaluate(()=>String(window.__fixtureApp.state.data.DB.users.find(u=>u.role==='Doctor'&&u._realSupabase).id));
+      await page.locator('#sm-doc').selectOption(doctorId);
+      await page.locator('#sm-calendar .modern-calendar-day.available').first().click();
+      await page.locator('#slot-manager-grid .slot-toggle').first().waitFor();
+      assert(await page.locator('.slot-toggle.locked').first().isDisabled(),'Booked times cannot be changed');
+      await page.locator('.slot-toggle',{hasText:'11:00'}).click();
+      assert.match(await page.locator('#slot-manager-summary').innerText(),/1 unsaved change/);
+      if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.slot-manager-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/slot-manager-${mobile?'mobile':'desktop'}.png`});
+      await page.locator('#slot-manager-save').click();
+      await page.locator('#slot-manager-summary').filter({hasNotText:'unsaved'}).waitFor();
+      const manage=requests.filter(r=>r.path.endsWith('/appointment-actions')&&r.body?.action==='manage_slots').at(-1);
+      assert(manage.body.slots.some(x=>x.time==='11:00'&&x.is_available===false),'Closing a time sends it as unavailable');
+      assert(await page.locator('.slot-manager-modal').isVisible(),'The manager stays open for the next day');
+      await page.locator('.slot-manager-modal .close-btn').click();
     }
     assert(requests.some(request=>request.path.endsWith('/appointment-actions')&&request.body?.action==='create'),'A real slot click must reach the booking API');
   }

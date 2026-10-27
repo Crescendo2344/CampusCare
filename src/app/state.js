@@ -30,6 +30,7 @@ export const state={
   calendar:{},
   datePicker:{},
   bookingForm:{},
+  slotManager:{},
   patientForm:{},
   inventoryForms:{},
   scheduleAndDrafts:{},

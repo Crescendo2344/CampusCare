@@ -88,3 +88,8 @@ export function requestAttachmentViewHtml(r){
     <span><strong>${escapeHtml(name)}</strong><small>${r.attachmentSize?formatFileSize(r.attachmentSize)+' · ':''}Open preview</small></span>
   </button>`;
 }
+
+// Run side effects only after every feature's function exports are available.
+export function initializeFeature(){
+
+}

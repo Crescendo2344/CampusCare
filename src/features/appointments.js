@@ -22,6 +22,7 @@ import {closeAllModals,openModal} from './modals.js';
 import {addNotif} from './notifications.js';
 import {bindAction} from '../dependencies.js';
 import {refreshTaskBadges} from './topbarAndNavigation.js';
+import {canManageSlots,openSlotManager} from './slotManager.js';
 // ================================================================
 // APPOINTMENTS PAGE (Staff/Admin/Doctor)
 // ================================================================
@@ -45,7 +46,8 @@ export async function renderAppointments(){
   const doctors=role==='Doctor'?[]:(appState.data.DB.users||[]).filter(u=>u.role==='Doctor'&&(!appState.auth.currentUser._realSupabase||u._realSupabase));
   c.innerHTML=`
     <div class="appt-head"><div class="appt-views" role="tablist" aria-label="Appointment lists" id="appt-views"></div>
-      ${role!=='Doctor'?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>{openBookApptModal()})}>+ Book Appointment</button>`:''}</div>
+      <div class="appt-head-actions">${canManageSlots()?`<button class="btn btn-sm" id="appt-manage-slots" ${bindAction('click',()=>openSlotManager())}><i class="bi bi-sliders" aria-hidden="true"></i> Manage time slots</button>`:''}
+      ${role!=='Doctor'?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>{openBookApptModal()})}>+ Book Appointment</button>`:''}</div></div>
     <div class="toolbar appt-toolbar">
       <input type="search" placeholder="Search patient, ID, appointment #, doctor or service" aria-label="Search appointments" id="appt-search" ${bindAction('input',()=>{ui.page=1;renderApptTable()})}>
       <select id="appt-status" aria-label="Status" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>

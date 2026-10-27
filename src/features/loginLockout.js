@@ -2,7 +2,7 @@
 import {normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {state as appState} from '../app/state.js';
 import {initializeSupabaseClient,setRememberSessionPreference,setRememberedLogin} from './supabaseClient.js';
-import {clearToasts,hideAlert,registrationToast,showAlert,toast} from './theme.js';
+import {clearToasts,registrationToast,showAlert,toast} from './theme.js';
 import {normalizeSupabaseUser} from './patientService.js';
 import {auditAction} from './emailDelivery.js';
 import {syncCampusCareSessionUI} from './authSession.js';
@@ -38,11 +38,7 @@ export async function doLogin(){
   // Function resolves the CampusCare username to its associated email first.
   const identifier=document.getElementById('li-user').value.trim();
   const password=document.getElementById('li-pass').value;
-  // Problems are shown next to the form, where the person is looking, rather than in a toast.
-  const loginErr=document.getElementById('login-err');hideAlert(loginErr);
-  setRegistrationFieldError('li-user',identifier?'':'Enter your username or email.');
-  setRegistrationFieldError('li-pass',password?'':'Enter your password.');
-  if(!identifier||!password){document.getElementById(identifier?'li-pass':'li-user')?.focus();return;}
+  if(!identifier||!password){toast('Enter your username/email and password.','error');document.getElementById(identifier?'li-pass':'li-user')?.focus();return;}
   setRememberSessionPreference(Boolean(document.getElementById('li-remember')?.checked));
   const loginBtn=document.querySelector('#login-section .btn-primary');
   const loginBtnText=loginBtn?.textContent;
@@ -94,7 +90,9 @@ export async function doLogin(){
       setTimeout(refreshRealApprovalQueue,300);
     }
   }catch(e){
-    showAlert(loginErr,escapeHtml(e?.message||'Invalid username/email or password.'));
+    // Auth's own wording ("Invalid login credentials") is replaced with the same message used everywhere else.
+    const message=String(e?.message||'');
+    toast(!message||/invalid login credentials/i.test(message)?'Invalid username/email or password.':message,'error');
   }finally{
     if(loginBtn){loginBtn.disabled=false;loginBtn.textContent=loginBtnText||'Login';}
   }
