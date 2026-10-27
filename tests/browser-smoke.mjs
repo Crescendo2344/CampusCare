@@ -99,7 +99,7 @@ try{
     const body=request.postDataJSON();let date=addBookingDays(body.from,45);
     while([0,6].includes(new Date(date+'T12:00:00Z').getUTCDay()))date=addBookingDays(date,1);
     page.__bookingDate=date;
-    const days=buildDoctorAvailability({doctor:{workDays:['Mon','Tue','Wed','Thu','Fri'],startTime:'08:00',endTime:'17:00',slotDuration:60,maxPatients:20},from:date,to:date,today:body.from,appointments:[{date,time:'09:00',status:'Scheduled'}],overrides:[{date,time:'10:00',available:false}]});
+    const days=buildDoctorAvailability({doctor:{workDays:['Mon','Tue','Wed','Thu','Fri'],startTime:'08:00',endTime:'17:00',slotDuration:60,maxPatients:20},from:date,to:page.__wideAvailability?addBookingDays(date,14):date,today:body.from,appointments:[{date,time:'09:00',status:'Scheduled'}],overrides:[{date,time:'10:00',available:false}]});
     response={ok:true,days};
    }else if(path.endsWith('/appointment-actions')){
     const body=request.postDataJSON();
@@ -594,6 +594,7 @@ try{
     if(['Staff','Administrator'].includes(role)){
       // Time slots are managed from the Appointments page: pick a doctor and a day, toggle times, save.
       await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('appointments'));
+      page.__wideAvailability=true;
       await page.locator('#appt-manage-slots').click();
       await page.locator('.slot-manager-modal').waitFor();
       assert(await page.locator('#slot-manager-save').isDisabled());
@@ -604,12 +605,27 @@ try{
       assert(await page.locator('.slot-toggle.locked').first().isDisabled(),'Booked times cannot be changed');
       await page.locator('.slot-toggle',{hasText:'11:00'}).click();
       assert.match(await page.locator('#slot-manager-summary').innerText(),/1 unsaved change/);
+      // A custom time outside the regular grid, then the same pattern on the next same weekdays.
+      await page.locator('#sm-custom-time').fill('07:30');
+      await page.locator('.sm-custom').getByRole('button',{name:'Add'}).click();
+      assert.match(await page.locator('#slot-manager-grid .slot-toggle').first().innerText(),/7:30 AM[\s\S]*Custom time/);
+      await page.locator('#sm-batch-toggle').click();
+      await page.locator('.sm-batch').getByRole('button',{name:/Next 4/}).click();
+      const extra=await page.locator('.sm-chip').count();
+      assert(extra>=1,'Same weekdays are added to the batch');
+      assert.equal(await page.locator('#slot-manager-save').innerText(),`Save to ${extra+1} dates`);
       if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.slot-manager-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/slot-manager-${mobile?'mobile':'desktop'}.png`});
+      const before=requests.length;
       await page.locator('#slot-manager-save').click();
       await page.locator('#slot-manager-summary').filter({hasNotText:'unsaved'}).waitFor();
-      const manage=requests.filter(r=>r.path.endsWith('/appointment-actions')&&r.body?.action==='manage_slots').at(-1);
-      assert(manage.body.slots.some(x=>x.time==='11:00'&&x.is_available===false),'Closing a time sends it as unavailable');
+      const saves=requests.slice(before).filter(r=>r.path.endsWith('/appointment-actions')&&r.body?.action==='manage_slots');
+      assert.equal(saves.length,extra+1,'One save per selected date');
+      for(const save of saves){
+        assert(save.body.slots.some(x=>x.time==='11:00'&&x.is_available===false),'Closing a time sends it as unavailable');
+        assert(save.body.slots.some(x=>x.time==='07:30'&&x.is_available===true),'Custom times are saved as open');
+      }
       assert(await page.locator('.slot-manager-modal').isVisible(),'The manager stays open for the next day');
+      page.__wideAvailability=false;
       await page.locator('.slot-manager-modal .close-btn').click();
     }
     assert(requests.some(request=>request.path.endsWith('/appointment-actions')&&request.body?.action==='create'),'A real slot click must reach the booking API');

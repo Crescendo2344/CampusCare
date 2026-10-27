@@ -31,3 +31,13 @@ test('long lunch-overlapping appointments and invalid ranges are blocked',()=>{
 test('browser and authenticated server calculations stay identical',()=>{
  assert.equal(fs.readFileSync('src/domain/booking-availability.js','utf8'),fs.readFileSync('supabase/functions/_shared/booking-availability.js','utf8'));
 });
+
+test('a custom time opened by staff is added to that day only, in time order',async()=>{
+  const {buildDoctorAvailability}=await import('../src/domain/booking-availability.js');
+  const doctor={workDays:['Mon','Tue','Wed','Thu','Fri'],startTime:'08:00',endTime:'12:00',slotDuration:60,maxPatients:9};
+  const days=buildDoctorAvailability({doctor,from:'2026-11-02',to:'2026-11-03',today:'2026-11-01',overrides:[{date:'2026-11-02',time:'07:30',available:true},{date:'2026-11-02',time:'09:00',available:false}]});
+  const monday=days[0].slots.map(s=>[s.time,s.kind,!!s.custom]);
+  assert.deepEqual(monday[0],['07:30','available',true]);
+  assert.deepEqual(monday.find(s=>s[0]==='09:00'),['09:00','blocked',false]);
+  assert(!days[1].slots.some(s=>s.custom),'Other days keep the regular grid');
+});

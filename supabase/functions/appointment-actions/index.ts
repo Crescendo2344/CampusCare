@@ -114,8 +114,14 @@ Deno.serve(async(req)=>{
       const maxPatients=Math.max(1,Number(rule?.max_patients||20));
       const start=mins(scheduleStart),end=mins(scheduleEnd),t=mins(time);
 
-      if(t<start||t+slotDuration>end)return json({error:"Selected appointment would extend outside the doctor's work schedule."},400);
-      if((t-start)%slotDuration!==0)return json({error:"Selected time does not align with this doctor's appointment interval."},400);
+      const {data:override}=await admin.from("appointment_slot_overrides")
+        .select("is_available,reason").eq("doctor_id",doctorId).eq("override_date",date).eq("slot_time",time).maybeSingle();
+      if(override&&override.is_available===false)
+        return json({error:override.reason||"That time slot is unavailable."},409);
+      // A time staff explicitly opened for this date (a custom time) is valid even off the regular grid.
+      const openedByStaff=override?.is_available===true;
+      if(!openedByStaff&&(t<start||t+slotDuration>end))return json({error:"Selected appointment would extend outside the doctor's work schedule."},400);
+      if(!openedByStaff&&(t-start)%slotDuration!==0)return json({error:"Selected time does not align with this doctor's appointment interval."},400);
 
       const {data:leave}=await admin.from("doctor_leaves").select("leave_id").eq("doctor_id",doctorId).eq("leave_date",date).maybeSingle();
       if(leave)return json({error:"The selected doctor is on leave on that date."},400);
@@ -128,11 +134,6 @@ Deno.serve(async(req)=>{
         .neq("appointment_id",appointmentId||-1);
       if(dailyErr)throw dailyErr;
       if((dailyCount||0)>=maxPatients)return json({error:"The selected doctor has reached the maximum patient capacity for that date."},409);
-
-      const {data:override}=await admin.from("appointment_slot_overrides")
-        .select("is_available,reason").eq("doctor_id",doctorId).eq("override_date",date).eq("slot_time",time).maybeSingle();
-      if(override&&override.is_available===false)
-        return json({error:override.reason||"That time slot is unavailable."},409);
 
       const {data:settings}=await admin.from("system_settings")
         .select("lunch_start,lunch_end")

@@ -258,8 +258,6 @@ export function slotAvailabilityState(doc,date,time){
   return {blocked:false,label:'Available',kind:'available'};
 }
 
-// Staff can open or close individual time slots for one doctor and date. The dialog sits on top of the
-// booking form so nothing typed there is lost, and it works from the same availability the form shows.
 export function loadTimeSlots(){
   const docId=parseInt((document.getElementById('b-doc')||{}).value);
   const date=(document.getElementById('b-date')||{}).value;

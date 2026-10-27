@@ -28,7 +28,9 @@ export function validateCampusBooking(doc,pt,date,time,editId,clinic,scheduleOve
   if((clinic==='Dental Clinic')!==(doc.specialty==='Dental'))return 'Choose a doctor for the selected clinic.';
   if(!(doc.workDays||[]).includes(dayOfWeek(date)))return 'The doctor does not work on this day.';
   if((appState.data.DB.doctorLeaves||[]).some(l=>l.doctorId===doc.id&&l.date===date))return 'The doctor is on leave on this date.';
-  if(!appointmentSlotBaseTimes(doc).includes(time))return 'Choose a complete slot within the doctor’s work hours.';
+  // Custom times added by staff for this date sit outside the regular grid but are bookable.
+  const customTime=(appState.bookingForm.availabilityDays||[]).find(d=>d.date===date)?.slots?.some(s=>s.custom&&s.time===time);
+  if(!customTime&&!appointmentSlotBaseTimes(doc).includes(time))return 'Choose a complete slot within the doctor’s work hours.';
   const active=appointmentRecords().filter(a=>a.id!==Number(editId)&&a.date===date&&!['Cancelled','Rejected'].includes(a.status));
   if(active.some(a=>a.doctorId===doc.id&&a.time===time))return 'This time has already been booked. Choose another slot.';
   if(active.some(a=>a.patientId===pt.id&&a.time===time))return 'The patient already has an appointment at this time.';
