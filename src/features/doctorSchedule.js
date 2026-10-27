@@ -64,7 +64,7 @@ export async function renderDoctorSchedule(){
           <td>${collegeBadge(a.college)}</td><td>${priorityBadge(a.priority)}</td>
           <td>${a.service}</td><td>${statusBadge(a.status)}</td>
           <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
-            ${a.status==='Scheduled'&&a.date<=appState.clinicInformation.TODAY?`<button class="btn btn-xs btn-primary" ${bindAction('click',(event,element)=>{openAddTreatmentModal((a.id))})}>📝 Add Notes &amp; Complete</button>`:''}
+            ${a.status==='Scheduled'&&a.date<=appState.clinicInformation.TODAY?`<button class="btn btn-xs btn-primary" ${bindAction('click',(event,element)=>{openAddTreatmentModal((a.id))})}><i class="bi bi-pencil-square" aria-hidden="true"></i> Add Notes &amp; Complete</button>`:''}
           </div></td>
         </tr>`;}).join('')
       }</tbody></table></div>`:'<div class="empty-state"><p>No upcoming appointments.</p></div>'}

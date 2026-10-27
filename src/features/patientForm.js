@@ -367,7 +367,7 @@ export async function viewPatient(id){
     <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap">
       <div class="fhir-toolbar">
         <button class="btn btn-sm" ${bindAction('click',()=>printPatientSummary(id))}><i class="bi bi-printer" aria-hidden="true"></i> Print summary</button>
-        ${appState.auth.currentUser.role==='Doctor'||appState.auth.currentUser.role==='Administrator'?`<button class="btn btn-purple btn-sm" ${bindAction('click',(event,element)=>{openClinicalCopilot((id))})}>✦ Clinical Copilot</button>`:''}
+        ${appState.auth.currentUser.role==='Doctor'||appState.auth.currentUser.role==='Administrator'?`<button class="btn btn-purple btn-sm" ${bindAction('click',(event,element)=>{openClinicalCopilot((id))})}><i class="bi bi-stars" aria-hidden="true"></i> Clinical Copilot</button>`:''}
         ${appState.auth.currentUser.role==='Doctor'&&!pt.archived?`<button class="btn btn-sm" ${bindAction('click',()=>{closeAllModals();openNewCertificateModal(id)})}><i class="bi bi-file-earmark-medical" aria-hidden="true"></i> Issue Certificate</button>`:''}
         ${appState.auth.currentUser.role!=='Patient'?`<button class="btn btn-info btn-sm" ${bindAction('click',(event,element)=>{viewPatientFHIR((id))})}>FHIR Preview</button>
         <button class="btn btn-sm" ${bindAction('click',(event,element)=>{downloadPatientFHIR((id))})}>Export FHIR</button>`:''}

@@ -157,7 +157,7 @@ export function dashboardTarget(text=''){
 export function dashboardStatCard(label,value,meta,trend,icon='•',tone=''){
   const arrow={up:'▲',down:'▼',flat:'–'}[trend?.direction]||'';
   const trendHtml=trend?`<div class="das-trend ${trend.direction||'info'} ${trend.sentiment||'neutral'}">${arrow?`<span class="das-trend-arrow" aria-hidden="true">${arrow}</span>`:''}<span>${escapeHtml(trend.text)}</span></div>`:'';
-  return `<div class="dashboard-a-stat ${tone}"><div class="das-top"><div class="das-label">${label}</div><div class="das-icon" aria-hidden="true">${icon}</div></div><div class="das-value">${value}</div><div class="das-meta">${meta||'&nbsp;'}</div>${trendHtml}</div>`;
+  return `<div class="dashboard-a-stat ${tone}"><div class="das-top"><div class="das-label">${label}</div><div class="das-icon" aria-hidden="true">${/^bi-[a-z0-9-]+$/.test(icon)?`<i class="bi ${icon}"></i>`:icon}</div></div><div class="das-value">${value}</div><div class="das-meta">${meta||'&nbsp;'}</div>${trendHtml}</div>`;
 }
 export function dashboardAttentionItem(title,detail,tone=''){
   const target=dashboardTarget(title+' '+detail);return `<div class="dashboard-attn-item ${target?'clickable':''}" ${target?`role="button" tabindex="0" ${bindAction('click',(event,element)=>{navTo((String(target)))})} ${bindAction('keydown',(event,element)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();navTo((String(target)))}})}`:''}><span class="dashboard-attn-dot ${tone}"></span><div class="dashboard-attn-copy"><strong>${title}</strong><span>${detail}</span></div></div>`;

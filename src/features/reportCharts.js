@@ -26,7 +26,7 @@ export function updateReportMetricOptions(){
 export function vizCardHtml(type){
   const metrics=appState.reportCharts.REPORT_METRICS[type];
   return `<div class="card">
-    <div class="card-header"><h3>📊 Data Visualization</h3></div>
+    <div class="card-header"><h3><i class="bi bi-bar-chart" aria-hidden="true"></i> Data Visualization</h3></div>
     <div class="toolbar" style="margin-bottom:.9rem">
       <select id="rpt-charttype" ${bindAction('change',(event,element)=>{renderReportChart()})}>
         <option value="bar">Bar Chart</option>
@@ -130,9 +130,9 @@ export function exportToolbarHtml(){
     <div class="card-header"><h3>Export Report</h3></div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
       <button class="btn btn-sm" ${bindAction('click',(event,element)=>{exportReportCSV()})}>⬇️ CSV</button>
-      <button class="btn btn-sm btn-success" ${bindAction('click',(event,element)=>{exportReportExcel()})}>📊 Excel (.xlsx)</button>
-      <button class="btn btn-sm btn-info" ${bindAction('click',(event,element)=>{exportReportWord()})}>📄 Word (.doc)</button>
-      <button class="btn btn-sm btn-danger" ${bindAction('click',(event,element)=>{exportReportPDF()})}>🖨️ PDF (Print)</button>
+      <button class="btn btn-sm btn-success" ${bindAction('click',(event,element)=>{exportReportExcel()})}><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel (.xlsx)</button>
+      <button class="btn btn-sm btn-info" ${bindAction('click',(event,element)=>{exportReportWord()})}><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word (.doc)</button>
+      <button class="btn btn-sm btn-danger" ${bindAction('click',(event,element)=>{exportReportPDF()})}><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF (Print)</button>
     </div>
   </div>`;
 }

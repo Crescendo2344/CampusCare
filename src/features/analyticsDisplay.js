@@ -109,8 +109,8 @@ export function renderLiveAnalyticsCard(summary){
     <div class="section-label" style="margin-top:1rem">Health Trend Alerts</div>
     <div class="intel-alert-list">
       ${(summary.alerts||[]).length
-        ? summary.alerts.map(a=>`<div class="intel-alert-item"><div class="intel-alert-icon">${a.severity==='high'?'⚠️':'📈'}</div><div class="intel-alert-copy"><strong>${escapeHtml(a.title)}</strong><span>${escapeHtml(a.detail)}</span></div></div>`).join('')
-        : `<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No unusual increase detected</strong><span>No clinical trend met the review threshold for this selected range.</span></div></div>`}
+        ? summary.alerts.map(a=>`<div class="intel-alert-item"><div class="intel-alert-icon ${a.severity==='high'?'danger':'info'}">${a.severity==='high'?'<i class="bi bi-exclamation-triangle" aria-hidden="true"></i>':'<i class="bi bi-graph-up-arrow" aria-hidden="true"></i>'}</div><div class="intel-alert-copy"><strong>${escapeHtml(a.title)}</strong><span>${escapeHtml(a.detail)}</span></div></div>`).join('')
+        : `<div class="intel-alert-item"><div class="intel-alert-icon success"><i class="bi bi-check2-circle" aria-hidden="true"></i></div><div class="intel-alert-copy"><strong>No unusual increase detected</strong><span>No clinical trend met the review threshold for this selected range.</span></div></div>`}
     </div>
 
     <div class="section-label" style="margin-top:1rem">Medicine usage in selected range</div>

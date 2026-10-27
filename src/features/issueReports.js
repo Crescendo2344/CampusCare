@@ -14,6 +14,7 @@ import {userAvatarHtml} from './userManagement.js';
 import {docName,fmtShortTime} from './messaging.js';
 import {openCamera} from '../app/optional-features.js';
 import {bindAction,workflowData} from '../dependencies.js';
+import {ARTICLE_ICONS,articleIconName,biIcon} from '../ui/app-icons.js';
 // ================================================================
 // REPORT AN ISSUE / FEEDBACK — REAL SUPABASE TRACKING
 // ================================================================
@@ -66,7 +67,7 @@ export async function renderReportIssue(){
     <div class="card">
       <div class="card-header">
         <div>
-          <h3>🐞 Report an Issue or Share Feedback</h3>
+          <h3><i class="bi bi-chat-square-text" aria-hidden="true"></i> Report an Issue or Share Feedback</h3>
           <div class="tech-note">Reports are stored securely and can be followed as a conversation with CampusCare administrators.</div>
         </div>
       </div>
@@ -75,9 +76,9 @@ export async function renderReportIssue(){
       <div class="form-row">
         <div class="form-group"><label>Type</label>
           <select id="ri-type">
-            <option value="Bug">🐞 Bug / Something's broken</option>
-            <option value="Suggestion">💡 Suggestion / Feature idea</option>
-            <option value="Feedback">💬 General feedback</option>
+            <option value="Bug">Bug / Something's broken</option>
+            <option value="Suggestion">Suggestion / Feature idea</option>
+            <option value="Feedback">General feedback</option>
           </select>
         </div>
         <div class="form-group"><label>Page affected (optional)</label><input id="ri-page" maxlength="160" placeholder="e.g. Appointments, Messages"></div>
@@ -107,7 +108,7 @@ export async function renderReportIssue(){
           <td style="max-width:280px">${escapeHtml(r.description.substring(0,90))}${r.description.length>90?'…':''}</td>
           <td>${issueStatusBadge(r.status)}</td>
           <td>${fmtDate(r.createdAt)}</td>
-          <td>${(r.replies||[]).length?`<span class="badge badge-info">💬 ${(r.replies||[]).length}</span>`:''}</td>
+          <td>${(r.replies||[]).length?`<span class="badge badge-info"><i class="bi bi-chat-dots" aria-hidden="true"></i> ${(r.replies||[]).length}</span>`:''}</td>
         </tr>`).join('')}</tbody>
       </table></div>`:'<p class="text-muted">You haven\'t submitted any reports yet.</p>'}
     </div>`;
@@ -203,7 +204,7 @@ export async function submitIssueReport(){
     await renderReportIssue();
     openModal(`<div class="modal modal-sm">
       <div class="modal-body" style="text-align:center;padding:2rem 1.5rem">
-        <div style="width:60px;height:60px;border-radius:50%;background:var(--success-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:28px">🙏</div>
+        <div style="width:60px;height:60px;border-radius:50%;background:var(--success-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:28px"><i class="bi bi-heart" aria-hidden="true"></i></div>
         <h3 style="margin-bottom:.5rem">Thank you for letting us know!</h3>
         <p style="font-size:.87rem;color:var(--ink-muted);line-height:1.6">Your ${type.toLowerCase()} report was sent to CampusCare administrators. You can return to this page to see its status and any replies.</p>
       </div>
@@ -409,7 +410,7 @@ export function openIssueDecisionModal(id,decision){
   const isResolve=decision==='Resolved';
 
   openModal(`<div class="modal modal-sm">
-    <div class="modal-header"><h3>${isResolve?'Mark as Resolved':'⚠️ Dismiss Report'}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+    <div class="modal-header"><h3>${isResolve?'Mark as Resolved':'<i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Dismiss Report'}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
     <div class="modal-body">
       <p style="font-size:.87rem;margin-bottom:.7rem">${isResolve?'Mark this report as resolved?':'Are you sure you want to dismiss this report?'} The reporter will be notified.</p>
       <div class="form-group"><label>Note for the reporter (optional)</label><textarea id="issue-decision-note" maxlength="3000" rows="2" placeholder="e.g. Fixed in the latest update. Thank you for reporting it."></textarea></div>
@@ -481,8 +482,8 @@ export function openArticleModal(id=null) {
             <input id="art-category" maxlength="120" list="art-category-list" value="${art?escapeHtml(art.category||''):''}" placeholder="Type or pick a category">
             <datalist id="art-category-list">${existingCategories.map(cat=>`<option value="${escapeHtml(cat)}">`).join('')}</datalist>
           </div>
-          <div class="form-group"><label>Icon (used if no photo)</label>
-            <select id="art-icon">${['📰','🧘','🥗','💧','🩹','💉','😴','🛡️','🏃','❤️','🧠','🦷'].map(icon=>`<option ${art&&art.icon===icon?'selected':''}>${icon}</option>`).join('')}</select>
+          <div class="form-group"><span class="form-label-text" id="art-icon-label">Icon (used if no photo)</span>
+            <div class="art-icon-grid" role="radiogroup" aria-labelledby="art-icon-label">${ARTICLE_ICONS.map(([name,label])=>`<label class="art-icon-choice" title="${label}"><input type="radio" name="art-icon" value="${name}" ${articleIconName(art?.icon)===name?'checked':''}><span>${biIcon(name)}<span class="sr-only">${label}</span></span></label>`).join('')}</div>
           </div>
         </div>
 
@@ -551,7 +552,7 @@ export function clearArticlePhoto(){
 export async function saveArticle(id){
   const title=document.getElementById('art-title').value.trim();
   const category=document.getElementById('art-category').value.trim();
-  const icon=document.getElementById('art-icon').value;
+  const icon=document.querySelector('input[name="art-icon"]:checked')?.value||'bi-newspaper';
   const teaser=document.getElementById('art-teaser').value.trim();
   const content=document.getElementById('art-content').value.trim();
   const sourceName=document.getElementById('art-source-name').value.trim();

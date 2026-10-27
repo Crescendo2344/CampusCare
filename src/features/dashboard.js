@@ -52,10 +52,10 @@ export function renderDashboard(){
     c.innerHTML=`<div class="dashboard-a">
       <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Here is your personal CampusCare health overview.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap">${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
-        ${dashboardStatCard('Next appointment',upcoming[0]?fmtDate(upcoming[0].date):'None',upcoming[0]?`${fmtTime(upcoming[0].time)} · ${escapeHtml(upcoming[0].clinic)}`:'Book a visit whenever you need one',note(upcoming.length?`${plural(upcoming.length,'upcoming appointment')} in total`:'Nothing scheduled yet'),'📅')}
-        ${dashboardStatCard('Clinic visits',rangeMine.length,`${rangeMine.filter(a=>a.status==='Completed').length} completed · ${rangeLabel}`,trend(mine.filter(a=>a.status!=='Cancelled')),'✓')}
-        ${dashboardStatCard('Dental visits',`${dental.length}/${appState.data.DB.settings.dentalLimitPerSemester}`,'Used this semester',note(dental.length>=appState.data.DB.settings.dentalLimitPerSemester?'Semester limit reached':`${appState.data.DB.settings.dentalLimitPerSemester-dental.length} remaining this semester`),'🦷',dental.length>=appState.data.DB.settings.dentalLimitPerSemester?'attention':'')}
-        ${dashboardStatCard('Medication reminders',reminders.length,'Active reminders',note(reminders.length?'Keep taking them as scheduled':'No active reminders'),'💊',reminders.length?'attention':'')}
+        ${dashboardStatCard('Next appointment',upcoming[0]?fmtDate(upcoming[0].date):'None',upcoming[0]?`${fmtTime(upcoming[0].time)} · ${escapeHtml(upcoming[0].clinic)}`:'Book a visit whenever you need one',note(upcoming.length?`${plural(upcoming.length,'upcoming appointment')} in total`:'Nothing scheduled yet'),'bi-calendar-event')}
+        ${dashboardStatCard('Clinic visits',rangeMine.length,`${rangeMine.filter(a=>a.status==='Completed').length} completed · ${rangeLabel}`,trend(mine.filter(a=>a.status!=='Cancelled')),'bi-check2-circle')}
+        ${dashboardStatCard('Dental visits',`${dental.length}/${appState.data.DB.settings.dentalLimitPerSemester}`,'Used this semester',note(dental.length>=appState.data.DB.settings.dentalLimitPerSemester?'Semester limit reached':`${appState.data.DB.settings.dentalLimitPerSemester-dental.length} remaining this semester`),'bi-emoji-smile',dental.length>=appState.data.DB.settings.dentalLimitPerSemester?'attention':'')}
+        ${dashboardStatCard('Medication reminders',reminders.length,'Active reminders',note(reminders.length?'Keep taking them as scheduled':'No active reminders'),'bi-capsule',reminders.length?'attention':'')}
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
@@ -89,10 +89,10 @@ export function renderDashboard(){
     c.innerHTML=`<div class="dashboard-a">
       <div class="dashboard-a-head"><div><h3>${greeting}, Dr. ${escapeHtml(appState.auth.currentUser.lname)}.</h3><p>Your patient load and clinic activity at a glance.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-sm" ${bindAction('click',(event,element)=>{navTo('schedule')})}>Full Schedule</button>${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
-        ${dashboardStatCard("Today's patients",todayMine.length,`${todayCompleted} seen · ${todayMine.filter(a=>a.status==='Scheduled').length} waiting`,note(next?`Next at ${fmtTime(next.time)}`:'No one waiting right now'),'🩺')}
-        ${dashboardStatCard('Upcoming appointments',scheduled.length,'Scheduled from today onward',note(scheduled.length?`${plural(todayMine.filter(a=>a.status==='Scheduled').length,'appointment')} left today`:'Schedule is clear'),'📅',scheduled.length>8?'attention':'')}
-        ${dashboardStatCard('Consultations completed',rangeMine.filter(a=>a.status==='Completed').length,rangeLabel,trend(completed,'good'),'✓')}
-        ${dashboardStatCard('Patients under your care',uniquePatients,'Unique patients you have seen or booked',trend(firstVisits,'neutral',r=>r.date,'new'),'👥')}
+        ${dashboardStatCard("Today's patients",todayMine.length,`${todayCompleted} seen · ${todayMine.filter(a=>a.status==='Scheduled').length} waiting`,note(next?`Next at ${fmtTime(next.time)}`:'No one waiting right now'),'bi-clipboard2-pulse')}
+        ${dashboardStatCard('Upcoming appointments',scheduled.length,'Scheduled from today onward',note(scheduled.length?`${plural(todayMine.filter(a=>a.status==='Scheduled').length,'appointment')} left today`:'Schedule is clear'),'bi-calendar-event',scheduled.length>8?'attention':'')}
+        ${dashboardStatCard('Consultations completed',rangeMine.filter(a=>a.status==='Completed').length,rangeLabel,trend(completed,'good'),'bi-check2-circle')}
+        ${dashboardStatCard('Patients under your care',uniquePatients,'Unique patients you have seen or booked',trend(firstVisits,'neutral',r=>r.date,'new'),'bi-people')}
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
@@ -115,10 +115,10 @@ export function renderDashboard(){
     c.innerHTML=`<div class="dashboard-a">
       <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Monitor clinic flow and operational tasks for the selected date.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{navTo('appointments')})}>Manage Appointments</button>${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
-        ${dashboardStatCard("Today's appointments",allToday.length,`${allToday.filter(a=>a.status==='Completed').length} completed · ${allToday.filter(a=>a.status==='Scheduled').length} remaining`,note('Across all clinics today'),'🕐')}
-        ${dashboardStatCard('Appointments in range',allRange.length,`<strong>${todayCompleted}</strong> completed · ${rangeLabel}`,trend(appointmentRecords().filter(a=>a.status!=='Cancelled')),'📅')}
-        ${dashboardStatCard('Pending approvals',pendingUsers.length,pendingUsers.length?'Registrations awaiting review':'No registrations waiting',trend(pendingUsers,'bad',r=>r.createdAt,'new'),'⏳',pendingUsers.length?'attention':'')}
-        ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory needs review':'Inventory levels healthy',note(lowStock.length?`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`:'All items above their thresholds'),'⚠',lowStock.length?'critical':'')}
+        ${dashboardStatCard("Today's appointments",allToday.length,`${allToday.filter(a=>a.status==='Completed').length} completed · ${allToday.filter(a=>a.status==='Scheduled').length} remaining`,note('Across all clinics today'),'bi-clock')}
+        ${dashboardStatCard('Appointments in range',allRange.length,`<strong>${todayCompleted}</strong> completed · ${rangeLabel}`,trend(appointmentRecords().filter(a=>a.status!=='Cancelled')),'bi-calendar-event')}
+        ${dashboardStatCard('Pending approvals',pendingUsers.length,pendingUsers.length?'Registrations awaiting review':'No registrations waiting',trend(pendingUsers,'bad',r=>r.createdAt,'new'),'bi-hourglass-split',pendingUsers.length?'attention':'')}
+        ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory needs review':'Inventory levels healthy',note(lowStock.length?`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`:'All items above their thresholds'),'bi-exclamation-triangle',lowStock.length?'critical':'')}
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
@@ -144,10 +144,10 @@ export function renderDashboard(){
   c.innerHTML=`<div class="dashboard-a">
     <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>CampusCare clinic activity, priorities, and service load.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-sm" ${bindAction('click',(event,element)=>{navTo('reports')})}>Open Reports & Analytics</button>${dashboardControlsHtml()}</div></div>
     <div class="dashboard-a-grid">
-      ${dashboardStatCard('Appointments in range',allRange.length,`<strong>${completedToday}</strong> completed · ${rangeLabel}`,trend(appointmentRecords().filter(a=>a.status!=='Cancelled'),'good'),'📅')}
-      ${dashboardStatCard('Active patients',activePatients,'Registered, not archived',trend(patientCohort,'good',r=>r.createdAt,'new'),'👥')}
-      ${dashboardStatCard('Pending approvals',pendingUsers.length,pendingUsers.length?'Registrations awaiting review':'No registrations waiting',trend(pendingUsers,'bad',r=>r.createdAt,'new'),'⏳',pendingUsers.length?'attention':'')}
-      ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory action required':'Inventory levels healthy',note(lowStock.length?`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`:'All items above their thresholds'),'⚠',lowStock.length?'critical':'')}
+      ${dashboardStatCard('Appointments in range',allRange.length,`<strong>${completedToday}</strong> completed · ${rangeLabel}`,trend(appointmentRecords().filter(a=>a.status!=='Cancelled'),'good'),'bi-calendar-event')}
+      ${dashboardStatCard('Active patients',activePatients,'Registered, not archived',trend(patientCohort,'good',r=>r.createdAt,'new'),'bi-people')}
+      ${dashboardStatCard('Pending approvals',pendingUsers.length,pendingUsers.length?'Registrations awaiting review':'No registrations waiting',trend(pendingUsers,'bad',r=>r.createdAt,'new'),'bi-hourglass-split',pendingUsers.length?'attention':'')}
+      ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory action required':'Inventory levels healthy',note(lowStock.length?`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`:'All items above their thresholds'),'bi-exclamation-triangle',lowStock.length?'critical':'')}
     </div>
     ${dashboardMobileQuickLinks(role)}
     <div class="dashboard-a-main">

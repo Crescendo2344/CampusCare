@@ -156,7 +156,7 @@ export function renderPatientTable(){
   if(!all.length){el.innerHTML='<div class="empty-state"><p>No patients match these filters.</p></div>';return;}
   const header=(key,label)=>{
     const active=sort.key===key;
-    return `<th aria-sort="${active?(sort.direction==='asc'?'ascending':'descending'):'none'}"><button type="button" class="th-sort ${active?'active':''}" ${bindAction('click',()=>sortPatientTable(key))}>${label}<span aria-hidden="true">${active?(sort.direction==='asc'?' ▲':' ▼'):' ↕'}</span></button></th>`;
+    return `<th aria-sort="${active?(sort.direction==='asc'?'ascending':'descending'):'none'}"><button type="button" class="th-sort ${active?'active':''}" ${bindAction('click',()=>sortPatientTable(key))}>${label}<span aria-hidden="true">${active?(sort.direction==='asc'?' <i class="bi bi-caret-up-fill" aria-hidden="true"></i>':' <i class="bi bi-caret-down-fill" aria-hidden="true"></i>'):' <i class="bi bi-arrow-down-up" aria-hidden="true"></i>'}</span></button></th>`;
   };
   const pager=pages>1?`<div class="pt-pager"><span>Showing ${(page-1)*PATIENT_PAGE_SIZE+1}–${(page-1)*PATIENT_PAGE_SIZE+pts.length} of ${all.length}</span>
     <div><button class="btn btn-xs" ${page===1?'disabled':''} ${bindAction('click',()=>{appState.patientForm.patientPage=page-1;renderPatientTable();})}>‹ Previous</button>
@@ -173,7 +173,7 @@ export function renderPatientTable(){
       <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
         <button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewPatient((p.id))})}>View</button>
         ${canEdit&&!p.archived?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openPatientModal((p.id))})}>Edit</button>`:''}
-        ${appState.auth.currentUser.role==='Administrator'?(p.archived?`<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{restorePatient((p.id))})}>Restore</button>`:`<button class="btn btn-xs btn-warning" ${bindAction('click',(event,element)=>{archivePatient((p.id))})}>🗄️ Archive</button>`):''}
+        ${appState.auth.currentUser.role==='Administrator'?(p.archived?`<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{restorePatient((p.id))})}>Restore</button>`:`<button class="btn btn-xs btn-warning" ${bindAction('click',(event,element)=>{archivePatient((p.id))})}><i class="bi bi-archive" aria-hidden="true"></i> Archive</button>`):''}
       </div></td>
     </tr>`;}).join('')
   }</tbody></table></div>${pager}`;

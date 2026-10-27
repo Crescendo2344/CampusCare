@@ -9,6 +9,7 @@ import {closeAllModals,openModal} from './modals.js';
 import {showConfirmDialog,toast} from './theme.js';
 import {persistDB} from './persistence.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
+import {articleIconHtml} from '../ui/app-icons.js';
 // ================================================================
 // NAVIGATION RACE PROTECTION
 // ================================================================
@@ -94,7 +95,7 @@ export function realHealthResourceToUi(r){
     teaser:r.teaser||'',
     sourceName:r.source_name||'',
     sourceUrl:r.source_url||'',
-    icon:r.icon||'📰',
+    icon:r.icon||'bi-newspaper',
     photo:r.image_url||'',
     imagePath:r.image_path||'',
     authorId:r.author_id?100000+Number(r.author_id):null,
@@ -137,7 +138,7 @@ export function articleBannerHtml(art,height=140){
   const [c1,c2]=articleCategoryColor(art.category);
   return `<div style="height:${height}px;border-radius:14px 14px 0 0;background:linear-gradient(135deg,${c1},${c2});display:flex;align-items:center;justify-content:center;font-size:${Math.round(height*0.4)}px;position:relative;overflow:hidden">
     <div style="position:absolute;width:180%;height:180%;border-radius:50%;background:rgba(255,255,255,.08);top:-60%;left:-40%"></div>
-    <span style="filter:drop-shadow(0 2px 6px rgba(0,0,0,.15))">${art.icon||'📰'}</span>
+    <span class="article-banner-icon" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,.15))">${articleIconHtml(art.icon)}</span>
   </div>`;
 }
 
@@ -166,7 +167,7 @@ export async function renderHealthEducation() {
     <div class="card" style="background:linear-gradient(135deg,rgba(10,126,168,.14),rgba(91,79,214,.1));border:none">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
         <div>
-          <h2 style="font-size:1.15rem;margin-bottom:.25rem">📚 Health &amp; Wellness Library</h2>
+          <h2 style="font-size:1.15rem;margin-bottom:.25rem"><i class="bi bi-book" aria-hidden="true"></i> Health &amp; Wellness Library</h2>
           <p class="text-muted" style="max-width:560px">Clinic-curated educational resources with source links. Articles are general information and do not replace individualized medical or dental advice.</p>
         </div>
         ${isEditor?`<button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{openArticleModal()})}>+ Add Article</button>`:''}
@@ -229,7 +230,7 @@ export function renderArticlesList() {
         <p style="font-size:.79rem;color:var(--ink-muted);flex:1">${escapeHtml((art.teaser||art.content).substring(0,110))}${(art.teaser||art.content).length>110?'…':''}</p>
         <div style="font-size:.7rem;color:var(--ink-muted);display:flex;justify-content:space-between;align-items:center;padding-top:.4rem;border-top:1px solid var(--line-soft)">
           <span>${fmtDate(art.publishedAt||art.createdAt)}</span>
-          ${art.sourceName?`<span>📎 ${escapeHtml(art.sourceName)}</span>`:''}
+          ${art.sourceName?`<span><i class="bi bi-paperclip" aria-hidden="true"></i> ${escapeHtml(art.sourceName)}</span>`:''}
         </div>
       </div>
     </div>`).join('')}</div>`;
@@ -259,7 +260,7 @@ export function viewArticle(id) {
           ${art.sourceName&&art.sourceUrl?`
             <div class="card" style="background:var(--overlay);margin-top:1.1rem;padding:.9rem 1rem">
               <div style="font-size:.78rem;color:var(--ink-muted);margin-bottom:.4rem">Source / further reading</div>
-              <a href="${escapeHtml(art.sourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">📎 Open ${escapeHtml(art.sourceName)} →</a>
+              <a href="${escapeHtml(art.sourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open ${escapeHtml(art.sourceName)}</a>
             </div>`:''}
 
           <div class="alert alert-info show" style="font-size:.73rem;margin-top:1rem">
@@ -277,7 +278,7 @@ export function viewArticle(id) {
       </div>
       <div class="modal-footer no-print">
         <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
-        <button class="btn btn-info" ${bindAction('click',(event,element)=>{window.print()})}>🖨️ Print</button>
+        <button class="btn btn-info" ${bindAction('click',(event,element)=>{window.print()})}><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
       </div>
     </div>`);
 }

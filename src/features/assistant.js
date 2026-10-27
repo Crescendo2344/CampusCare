@@ -205,7 +205,7 @@ export function getAssistantReply(raw){
     {keys:['upload id','upload photo id','verify identity'],ans:"During registration you'll upload a selfie and a valid ID/COR — you can also use your camera directly instead of a file upload."},
     {keys:['register','create account','sign up'],ans:"On the login screen, click Register, fill in your details including date of birth, upload a selfie and ID, then submit. An admin approves it within 24–48 hours."},
     {keys:['pending account','account not approved','still pending'],ans:"New accounts are reviewed by an administrator, usually within 24–48 hours. Try logging in again later, or check with the clinic office if it's been a while."},
-    {keys:['print prescription','print treatment','print record'],ans:"Open a treatment record and click the 🖨️ Print button in the footer."},
+    {keys:['print prescription','print treatment','print record'],ans:"Open a treatment record and click the Print button in the footer."},
     {keys:['zoom photo','zoom image','view photo larger'],ans:"Click any photo (profile picture, ID, or shared image) to open it full-size — then click again, or use the zoom in/out buttons, to zoom."},
     {keys:['undo','undid','undo that'],ans:"After certain actions like archiving or suspending, a toast appears at the bottom with an \"Undo\" button — click it within a few seconds to reverse the change."},
     {keys:['strong password','password requirement'],ans:"Passwords need at least 8 characters, including an uppercase letter, a lowercase letter, and a number."},

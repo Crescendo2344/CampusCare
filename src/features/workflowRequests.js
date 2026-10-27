@@ -385,7 +385,7 @@ export async function openAccountUpdateVerification(){
       <div class="modal-body">
         <div id="acc-verify-msg"></div>
         <div class="alert alert-info show" style="font-size:.78rem">
-          🔐 We sent a 6-digit verification code to your current verified ${channel}: <strong>${escapeHtml(destination)}</strong>.
+          <i class="bi bi-shield-lock" aria-hidden="true"></i> We sent a 6-digit verification code to your current verified ${channel}: <strong>${escapeHtml(destination)}</strong>.
         </div>
         <p class="form-note" style="margin:.65rem 0">
           Enter that code before CampusCare starts changing your account information.
@@ -490,7 +490,7 @@ export function openPhoneChangeVerification(){
     <div class="modal-body">
       <div id="phone-change-msg"></div>
       <div class="alert alert-info show" style="font-size:.78rem">
-        📱 Supabase sent a 6-digit SMS code to <strong>${escapeHtml(maskPhone(phone))}</strong>.
+        <i class="bi bi-phone" aria-hidden="true"></i> Supabase sent a 6-digit SMS code to <strong>${escapeHtml(maskPhone(phone))}</strong>.
       </div>
       ${appState.workflowRequests.pendingAccountUpdate?.emailChanged
         ? `<p class="form-note">Your email change was also started. Check the verification message sent to <strong>${escapeHtml(appState.workflowRequests.pendingAccountUpdate.email)}</strong> to complete that change.</p>`

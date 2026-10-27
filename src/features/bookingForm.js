@@ -235,7 +235,7 @@ export function checkDentalWarn(){
   if(clinicEl.value==='Dental Clinic'){
     const ptId=parseInt(ptEl.value);
     if(ptId&&checkDentalQuota(ptId)){
-      warnEl.innerHTML='⚠️ This patient has already used their Dental Clinic quota for this semester. Booking will be blocked.';
+      warnEl.innerHTML='<i class="bi bi-exclamation-triangle" aria-hidden="true"></i> This patient has already used their Dental Clinic quota for this semester. Booking will be blocked.';
       warnEl.classList.add('show');
     }
   }

@@ -290,9 +290,9 @@ function reviewRowActions(type,id){
 function stopRowClick(){return bindAction('click',event=>event.stopPropagation())+' '+bindAction('keydown',event=>event.stopPropagation());}
 
 const REVIEW_SOURCES={
-  'Name Change':{list:()=>appState.data.DB.nameChangeRequests,approve:approveNameChange,reject:rejectNameChange,icon:'🪪'},
-  'Schedule Change':{list:()=>appState.data.DB.scheduleChangeRequests,approve:approveScheduleChange,reject:rejectScheduleChange,icon:'🗓️'},
-  'Day Off':{list:()=>appState.data.DB.leaveRequests,approve:approveLeaveRequest,reject:rejectLeaveRequest,icon:'🌴'}
+  'Name Change':{list:()=>appState.data.DB.nameChangeRequests,approve:approveNameChange,reject:rejectNameChange,icon:'<i class="bi bi-person-vcard" aria-hidden="true"></i>'},
+  'Schedule Change':{list:()=>appState.data.DB.scheduleChangeRequests,approve:approveScheduleChange,reject:rejectScheduleChange,icon:'<i class="bi bi-calendar-week" aria-hidden="true"></i>'},
+  'Day Off':{list:()=>appState.data.DB.leaveRequests,approve:approveLeaveRequest,reject:rejectLeaveRequest,icon:'<i class="bi bi-calendar2-x" aria-hidden="true"></i>'}
 };
 
 function scheduleSummaryHtml(s){

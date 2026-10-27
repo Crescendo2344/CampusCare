@@ -335,7 +335,7 @@ export async function renderMessages(){
       </div>
 
       <div class="msgr-chat" id="msgr-chat">
-        <div class="empty-state" style="margin-top:4rem"><p>👋 Select a conversation, or start a new one.</p></div>
+        <div class="empty-state" style="margin-top:4rem"><p class="msgr-empty-icon"><i class="bi bi-chat-square-text" aria-hidden="true"></i></p><p>Select a conversation, or start a new one.</p></div>
       </div>
     </div>`;
 

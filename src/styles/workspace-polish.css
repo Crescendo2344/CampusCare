@@ -960,3 +960,22 @@ tr.dsb-row:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
 .sm-chip button{border:0;background:none;color:var(--ink-muted);cursor:pointer;font-size:.95rem;line-height:1;padding:0 .2rem}
 .sm-batch-empty{margin:.4rem 0 0;font-size:.78rem;color:var(--ink-muted)}
 .modern-calendar-day.marked{background:var(--info-bg);color:var(--primary);font-weight:800;box-shadow:inset 0 0 0 2px var(--primary)}
+
+/* Icons that replaced emoji: tinted chips for alerts and tiles, inline glyphs elsewhere */
+.intel-alert-icon{color:var(--primary);font-size:1rem}
+.intel-alert-icon.danger{background:var(--danger-bg);color:var(--danger)}
+.intel-alert-icon.warning{background:var(--warning-bg);color:var(--warning)}
+.intel-alert-icon.info{background:var(--info-bg);color:var(--info)}
+.intel-alert-icon.success{background:var(--success-bg);color:var(--success)}
+.das-icon .bi{font-size:1.05rem;line-height:1}
+.confirm-danger-icon{color:var(--danger)}
+.article-banner-icon .bi{color:#fff}
+.msgr-empty-icon{font-size:2rem;color:var(--ink-muted);margin-bottom:.3rem}
+.btn .bi,.badge .bi,h2 .bi,h3 .bi,.hero-contact-pill .bi{line-height:1}
+th .bi-caret-up-fill,th .bi-caret-down-fill,th .bi-arrow-down-up{font-size:.7em;opacity:.75}
+.art-icon-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.4rem}
+.art-icon-choice input{position:absolute;opacity:0;width:1px;height:1px}
+.art-icon-choice>span{display:flex;align-items:center;justify-content:center;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--overlay);font-size:1.15rem;color:var(--ink-muted);cursor:pointer}
+.art-icon-choice input:checked+span{border-color:var(--primary);background:var(--info-bg);color:var(--primary);box-shadow:0 0 0 2px var(--info-bg)}
+.art-icon-choice input:focus-visible+span{outline:2px solid var(--primary);outline-offset:2px}
+.form-label-text{display:block;font-size:.8rem;font-weight:600;color:var(--ink);margin-bottom:.3rem}

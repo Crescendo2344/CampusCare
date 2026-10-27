@@ -190,13 +190,13 @@ export function certEditorToolbarHtml(){
     <button type="button" title="Italic" ${bindAction('mousedown',(event,element)=>{event.preventDefault();formatCertDocument('italic')})}><em>I</em></button>
     <button type="button" title="Underline" ${bindAction('mousedown',(event,element)=>{event.preventDefault();formatCertDocument('underline')})}><u>U</u></button>
     <span class="toolbar-sep"></span>
-    <button type="button" title="Align left" ${bindAction('mousedown',(event,element)=>{event.preventDefault();formatCertDocument('justifyLeft')})}>☰</button>
+    <button type="button" title="Align left" ${bindAction('mousedown',(event,element)=>{event.preventDefault();formatCertDocument('justifyLeft')})}><i class="bi bi-justify-left" aria-hidden="true"></i></button>
     <button type="button" title="Center" ${bindAction('mousedown',(event,element)=>{event.preventDefault();formatCertDocument('justifyCenter')})}>≡</button>
-    <button type="button" title="Align right" ${bindAction('mousedown',(event,element)=>{event.preventDefault();formatCertDocument('justifyRight')})}>☷</button>
+    <button type="button" title="Align right" ${bindAction('mousedown',(event,element)=>{event.preventDefault();formatCertDocument('justifyRight')})}><i class="bi bi-justify-right" aria-hidden="true"></i></button>
     <span class="toolbar-sep"></span>
     <select ${bindAction('change',(event,element)=>{formatCertDocument('fontSize',element.value);element.value=''})} title="Text size"><option value="">Text size</option><option value="2">Small</option><option value="3">Normal</option><option value="4">Large</option><option value="5">Larger</option></select>
-    <button type="button" title="Undo" ${bindAction('mousedown',(event,element)=>{event.preventDefault();formatCertDocument('undo')})}>↶</button>
-    <button type="button" title="Redo" ${bindAction('mousedown',(event,element)=>{event.preventDefault();formatCertDocument('redo')})}>↷</button>
+    <button type="button" title="Undo" ${bindAction('mousedown',(event,element)=>{event.preventDefault();formatCertDocument('undo')})}><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></button>
+    <button type="button" title="Redo" ${bindAction('mousedown',(event,element)=>{event.preventDefault();formatCertDocument('redo')})}><i class="bi bi-arrow-clockwise" aria-hidden="true"></i></button>
   </div>`;
 }
 

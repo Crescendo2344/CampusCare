@@ -169,7 +169,7 @@ export function showConfirmDialog(opts){
 
   openModal(`<div class="modal modal-sm">
     <div class="modal-header">
-      <h3>${danger?'⚠️ ':''}${title}</h3>
+      <h3>${danger?'<span class="confirm-danger-icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span> ':''}${title}</h3>
       <button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals();if(onCancel)onCancel()})}>✕</button>
     </div>
     <div class="modal-body">

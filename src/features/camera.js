@@ -83,7 +83,7 @@ async function startCamera(target){
         <canvas id="camera-canvas" style="display:none"></canvas>
         <p class="form-note" style="margin-top:.6rem">${isId?'Use the '+(target==='id-front'?'front':'back')+' of your Student or Employee ID. Keep the ID visible and hold it comfortably still.':target==='selfie'?'Hold the front of the same Student or Employee ID beside your face, with its text readable.':`Center your ${target==='id'||target==='assisted-id'?'ID / COR':'face'} in the frame, then capture.`}</p>
       </div>
-      <div class="modal-footer"><button class="btn" ${bindAction('click',()=>{stopCamera();closeVerificationModal();})}>Cancel</button><button class="btn btn-primary" id="camera-capture-button" ${guided?'disabled':''} ${bindAction('click',()=>captureCameraPhoto(target))}>${guided?'Follow the guide':'📸 Capture'}</button></div>
+      <div class="modal-footer"><button class="btn" ${bindAction('click',()=>{stopCamera();closeVerificationModal();})}>Cancel</button><button class="btn btn-primary" id="camera-capture-button" ${guided?'disabled':''} ${bindAction('click',()=>captureCameraPhoto(target))}>${guided?'Follow the guide':'<i class="bi bi-camera" aria-hidden="true"></i> Capture'}</button></div>
       ${guided?`<div style="padding:0 1rem 1rem;text-align:center">${!isId?`<button class="btn btn-sm selfie-manual" id="selfie-manual-button" hidden ${bindAction('click',()=>captureCameraPhoto(target,true))}>Having trouble? Capture for staff review</button>`:''}<p class="selfie-privacy">The guide checks photo positioning only. Clinic staff verify your identity and ID.</p></div>`:''}
     </div>`,target);
     const video=document.getElementById('camera-video');
