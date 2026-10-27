@@ -131,10 +131,6 @@ export function demoTaskBadgeSnapshot(){
       (appState.data.DB.users||[]).filter(u=>u.role==='Patient'&&u.status==='Pending'),
       u=>`approval:${u.id}:${u.createdAt||''}`
     );
-    set('fitness',
-      fitnessRecords().filter(r=>r.status==='Requested'),
-      r=>`fitness:${r.id}:${r.updatedAt||r.requestedAt||''}`
-    );
     set('inventory',
       inventoryRecords().filter(i=>!i.archived&&Number(i.quantity??i.qty)<=Number(i.threshold)),
       i=>`inventory:${i.id}:${i.updatedAt||i.quantity||i.qty}`
@@ -198,7 +194,7 @@ function taskBadgeLabel(id,n,role){
   switch(id){
     case 'approvals':return plural(n,'registration')+' awaiting approval';
     case 'cert-requests':return plural(n,'certificate draft')+' to finish';
-    case 'fitness':return role==='Doctor'?plural(n,'fitness assessment')+' to claim or finish':plural(n,'fitness assessment request')+' waiting';
+    case 'fitness':return plural(n,'fitness assessment')+' to claim or finish';
     case 'inventory':return plural(n,'item')+' at or below reorder level';
     case 'feedback-issues':return plural(n,'open issue report');
     case 'users':return plural(n,'account request')+' pending review';
@@ -436,7 +432,6 @@ export function initializeFeature(){
     {id:'my-appointments',label:'My Appointments'},
     {id:'my-records',label:'My Health Records'},
     {id:'my-certificates',label:'Medical Certificates'},
-    {id:'fitness',label:'Fitness to Compete'},
     {id: 'health_education', label: 'Health Education' },
     {id:'dental-survey',label:'Dental Clinic Survey'},
     {section:'Account'},
@@ -464,7 +459,6 @@ export function initializeFeature(){
     {id:'patients',label:'Patient Records'},
     {id:'appointments',label:'Appointments'},
     {id:'approvals',label:'Approval Queue'},
-    {id:'fitness',label:'Fitness Assessments'},
     {id:'inventory',label:'Inventory'},
     {id:'health_education',label:'Health Education'},
     {section:'Insights'},
@@ -481,7 +475,6 @@ export function initializeFeature(){
     {id:'appointments',label:'Appointments'},
     {id:'approvals',label:'Approval Queue'},
     {id:'treatments',label:'Treatments'},
-    {id:'fitness',label:'Fitness Assessments'},
     {id:'inventory',label:'Inventory'},
     {section:'Management'},
     {id:'users',label:'User Management'},

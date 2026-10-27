@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Fitness-to-compete clearance is a clinical decision recorded by the assessing doctor only.
+// Fitness-to-compete assessments are created and recorded by doctors only.
 const cors={
   "Access-Control-Allow-Origin":"*",
   "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
@@ -47,13 +47,10 @@ Deno.serve(async(req)=>{
     };
 
     if(action==="create"){
-      let patientId=Number(body.patient_id||0);
-
-      if(actor.role==="Patient"){
-        patientId=Number(await ownPatientId()||0);
-      }else if(!["Staff","Administrator"].includes(actor.role)){
-        return json({error:"Only Patients, Staff, or Administrators can submit fitness assessment requests."},403);
-      }
+      // Fitness-to-compete is handled by doctors only; requests are no longer taken from other roles.
+      if(actor.role!=="Doctor")
+        return json({error:"Fitness assessments are handled by the clinic doctor."},403);
+      const patientId=Number(body.patient_id||0);
 
       const sportEvent=clean(body.sport_event,255);
       const eventDate=body.event_date?String(body.event_date):null;

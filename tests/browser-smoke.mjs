@@ -757,6 +757,10 @@ try{
     await page.locator('.privacy-notice .pn-rights').waitFor();
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.privacy-notice').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/privacy-${mobile?'mobile':'desktop'}.png`});
     await page.locator('.privacy-notice').getByRole('button',{name:'I understand'}).click();
+    // Fitness assessments are doctor-only: no menu entry, and the page redirects to the dashboard.
+    assert.equal(await page.locator('#nav-fitness').count(),0);
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('fitness'));
+    await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
     // Clinic-side cancellation: a reason the patient sees, then typing CANCEL to confirm.
     await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const pt=state.data.DB.patients.find(p=>p._realSupabase)||state.data.DB.patients[0];const doc=state.data.DB.users.find(u=>u.role==='Doctor'&&u._realSupabase);
       state.data.DB.appointments.push({id:990077,dbAppointmentId:77,_realSupabase:true,patientId:pt.id,doctorId:doc?.id,clinic:'Medical Clinic',service:'General Checkup',date:'2026-12-01',time:'09:00',status:'Scheduled'});
@@ -942,7 +946,9 @@ try{
     for(const label of ['Allergies','Medical History'])assert.equal(await page.locator('.info-row').filter({has:page.locator('.info-label',{hasText:label})}).locator('.info-val').innerText(),'—');
     // Chart layout: identity banner, no allergy alert without allergies, and five keyboard-navigable tabs.
     assert.equal(await page.locator('#pt-chart .pt-allergy-alert').count(),0);
-    assert.equal(await page.locator('#pt-chart [role="tab"]').count(),4);
+    // Certificates and fitness are doctor-only, so staff and administrators see three tabs.
+    assert.equal(await page.locator('#pt-chart [role="tab"]').count(),3);
+    assert.equal(await page.locator('#pt-chart [data-pt-tab="fitness"]').count(),0);
     await page.locator('#pt-chart [role="tab"]').first().focus();await page.keyboard.press('ArrowRight');
     assert.equal(await page.locator('#pt-chart [role="tab"][aria-selected="true"]').innerText(),'Treatments (0)');
     assert(await page.locator('#pt-chart [data-pt-panel="treatments"]').isVisible());

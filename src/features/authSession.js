@@ -110,7 +110,7 @@ async function restoreAuthenticatedAccount(){
           if(typeof syncRealCertificates==='function'){
             try{await syncRealCertificates();}catch(err){console.error('Certificate sync:',err);}
           }
-          if(typeof syncRealFitnessAssessments==='function'){
+          if(syncOwner.role==='Doctor'&&typeof syncRealFitnessAssessments==='function'){
             try{await syncRealFitnessAssessments();}catch(err){console.error('Fitness sync:',err);}
           }
           guard();
@@ -140,7 +140,6 @@ async function restoreAuthenticatedAccount(){
         .then(()=>syncRealWorkflowRequests())
         .then(()=>syncRealMedicationReminders())
         .then(()=>syncRealCertificates())
-        .then(()=>syncRealFitnessAssessments())
         .then(()=>{guard();refreshActivePageAfterSync();})
         .catch(err=>{if(err!==cancelled&&stillCurrent())console.error('Patient background sync:',err);});
     }

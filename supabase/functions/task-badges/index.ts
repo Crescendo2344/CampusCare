@@ -50,15 +50,11 @@ Deno.serve(async(req)=>{
     };
 
     if(["Administrator","Staff"].includes(actor.role)){
-      const [approvalRes,fitnessRes,inventoryRes,appointmentRes]=await Promise.all([
+      const [approvalRes,inventoryRes,appointmentRes]=await Promise.all([
         admin.from("users")
           .select("user_id,created_at")
           .eq("role","Patient").eq("status","Pending")
           .order("created_at",{ascending:true}),
-        admin.from("fitness_assessments")
-          .select("assessment_id,updated_at")
-          .eq("status","Requested")
-          .order("updated_at",{ascending:true}),
         admin.from("inventory_items")
           .select("item_id,item_name,quantity,threshold,updated_at")
           .eq("archived",false)
@@ -71,18 +67,15 @@ Deno.serve(async(req)=>{
           .order("appointment_date",{ascending:true})
       ]);
       if(approvalRes.error)throw approvalRes.error;
-      if(fitnessRes.error)throw fitnessRes.error;
       if(inventoryRes.error)throw inventoryRes.error;
       if(appointmentRes.error)throw appointmentRes.error;
 
       set("approvals",approvalRes.data||[],r=>`approval:${r.user_id}:${r.created_at||""}`);
-      set("fitness",fitnessRes.data||[],r=>`fitness:${r.assessment_id}:${r.updated_at||""}`);
       const low=(inventoryRes.data||[]).filter((r:any)=>Number(r.quantity)<=Number(r.threshold));
       set("inventory",low,r=>`inventory:${r.item_id}:${r.updated_at||r.quantity}`);
       set("appointments",appointmentRes.data||[],r=>`appointment:${r.appointment_id}:${r.appointment_date}`);
 
       addCenter("approvals",counts.approvals||0,"Registration approvals","Review newly registered patients and their verification documents.","warning");
-      addCenter("fitness",counts.fitness||0,"Fitness assessment requests","Review patients waiting for a fitness assessment.","warning");
       addCenter("inventory",counts.inventory||0,"Low-stock inventory","Restock or review items at or below their threshold.","danger");
       addCenter("appointments",counts.appointments||0,"Appointments awaiting an outcome","Past appointments are still marked Scheduled. Record a no-show or ask the doctor to complete the visit.","warning");
     }
