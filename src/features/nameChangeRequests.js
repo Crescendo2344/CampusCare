@@ -3,7 +3,7 @@ import {state as appState} from '../app/state.js';
 import {closeAllModals,openModal} from './modals.js';
 import {readFileAsDataURL,resizeImageDataUrl,sanitizeInput} from './inputValidation.js';
 import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
-import {syncRealWorkflowRequests,workflowAction} from './workflowRequests.js';
+import {offerDecisionUndo,syncRealWorkflowRequests,workflowAction} from './workflowRequests.js';
 import {addNotif} from './notifications.js';
 import {persistDB} from './persistence.js';
 import {escapeHtml} from './issueReports.js';
@@ -102,7 +102,10 @@ export function approveNameChange(reqId,note=''){
           persistDB();
         }
 
-        toast('Name change approved.','success');
+        offerDecisionUndo(req,'Name change approved.',()=>{
+          const user=appState.data.DB.users.find(u=>u.id===req.userId);
+          if(user){user.fname=req.currentFname;user.lname=req.currentLname;}
+        });
         if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to approve the name change.','error');
@@ -132,7 +135,7 @@ export function rejectNameChange(reqId,note=''){
           persistDB();
         }
 
-        toast('Request rejected.','success');
+        offerDecisionUndo(req,'Request rejected.',()=>{});
         if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to reject the name change.','error');

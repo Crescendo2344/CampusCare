@@ -1,7 +1,7 @@
 // patientForm: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {getUserById} from './documentScanner.js';
-import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
+import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {ageFromBirthDate,patientAction,patientDisplayId,patientMeasurementNumber,syncAdminDirectoryFromSupabase} from './patientService.js';
 import {closeAllModals,openModal} from './modals.js';
 import {campusDateFieldHtml} from './datePicker.js';
@@ -424,18 +424,8 @@ export function archivePatient(id){
     danger:true,
     onConfirm:async()=>{
       try{
-        if(p._realSupabase){
-          await patientAction({action:'archive',patient_id:p.dbPatientId});
-          await syncAdminDirectoryFromSupabase();
-        }else{
-          p.archived=true;
-          p.archivedAt=new Date().toLocaleString();
-          p.archivedBy=appState.auth.currentUser.id;
-          persistDB();
-        }
-
-        toast('Patient record archived.','success');
-        if(appState.navigationRaceProtection.campusActivePageId==='patients')await renderPatients();
+        await setPatientArchived(p,true);
+        toastWithUndo(`${p.fname} ${p.lname}'s record archived.`,()=>setPatientArchived(p,false,{undo:true}),{undoneMessage:'Patient record restored.'});
       }catch(e){
         toast(e?.message||'Unable to archive the patient record.','error',7000);
       }
@@ -453,22 +443,27 @@ export function restorePatient(id){
     confirmLabel:'Restore',
     onConfirm:async()=>{
       try{
-        if(p._realSupabase){
-          await patientAction({action:'restore',patient_id:p.dbPatientId});
-          await syncAdminDirectoryFromSupabase();
-        }else{
-          p.archived=false;
-          p.archivedAt=null;
-          persistDB();
-        }
-
-        toast('Patient record restored.','success');
-        if(appState.navigationRaceProtection.campusActivePageId==='patients')await renderPatients();
+        await setPatientArchived(p,false);
+        toastWithUndo(`${p.fname} ${p.lname}'s record restored.`,()=>setPatientArchived(p,true),{undoneMessage:'Patient record archived again.'});
       }catch(e){
         toast(e?.message||'Unable to restore the patient record.','error');
       }
     }
   });
+}
+
+// Archive or restore, then refresh the list. Undoing an archive restores quietly (no "restored" notice to the patient).
+async function setPatientArchived(p,archived,{undo=false}={}){
+  if(p._realSupabase){
+    await patientAction({action:archived?'archive':'restore',patient_id:p.dbPatientId,undo});
+    await syncAdminDirectoryFromSupabase();
+  }else{
+    p.archived=archived;
+    p.archivedAt=archived?new Date().toLocaleString():null;
+    if(archived)p.archivedBy=appState.auth.currentUser.id;
+    persistDB();
+  }
+  if(appState.navigationRaceProtection.campusActivePageId==='patients')await renderPatients();
 }
 
 export function dentalToothInputsHtml(numbers,values={},primary=false){

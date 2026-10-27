@@ -1,7 +1,7 @@
 // inventoryForms: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {inventoryAction,inventoryRecords,syncRealInventory} from './inventoryService.js';
-import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
+import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {closeAllModals,openModal} from './modals.js';
 import {openCamera} from '../app/optional-features.js';
 import {escapeHtml} from './issueReports.js';
@@ -211,13 +211,15 @@ export async function updateQty(id){
   if(btn){btn.disabled=true;btn.textContent='Updating…';}
 
   try{
+    const previousQty=Number(it.qty);
+    let transactionId=null;
     if(it._realSupabase){
-      await inventoryAction({
+      ({transaction_id:transactionId}=await inventoryAction({
         action:'set_quantity',
         item_id:it.dbItemId,
         quantity:newQty,
         reason
-      });
+      }));
       await syncRealInventory(false);
     }else{
       it.qty=newQty;
@@ -226,8 +228,8 @@ export async function updateQty(id){
     }
 
     closeAllModals();
-    toast(`${it.name} updated to ${newQty} ${it.unit}.`,'success');
     await renderInventory();
+    offerStockUndo(it,`${it.name} updated to ${newQty} ${it.unit}.`,transactionId,()=>{it.qty=previousQty;});
   }catch(e){
     showAlert(msg,e?.message||'Unable to update inventory quantity.');
   }finally{
@@ -236,6 +238,17 @@ export async function updateQty(id){
       btn.textContent=old||'Update';
     }
   }
+}
+
+async function setInventoryArchived(it,archived){
+  if(it._realSupabase){
+    await inventoryAction({action:archived?'archive':'restore',item_id:it.dbItemId});
+    await syncRealInventory(false);
+  }else{
+    it.archived=archived;
+    persistDB();
+  }
+  await renderInventory();
 }
 
 export function archiveInv(id){
@@ -247,17 +260,9 @@ export function archiveInv(id){
     confirmLabel:'Archive',
     danger:true,
     onConfirm:async()=>{
-      try{
-        if(it._realSupabase){
-          await inventoryAction({action:'archive',item_id:it.dbItemId});
-          await syncRealInventory(false);
-        }else{
-          it.archived=true;
-          persistDB();
-        }
-        toast('Inventory item archived.','success');
-        await renderInventory();
-      }catch(e){toast(e?.message||'Unable to archive inventory item.','error');}
+      try{await setInventoryArchived(it,true);}
+      catch(e){toast(e?.message||'Unable to archive inventory item.','error');return;}
+      toastWithUndo(`${it.name} archived.`,()=>setInventoryArchived(it,false),{undoneMessage:`${it.name} restored.`});
     }
   });
 }
@@ -270,19 +275,28 @@ export function restoreInv(id){
     message:`Restore <strong>${escapeHtml(it.name)}</strong> to the active inventory list?`,
     confirmLabel:'Restore',
     onConfirm:async()=>{
-      try{
-        if(it._realSupabase){
-          await inventoryAction({action:'restore',item_id:it.dbItemId});
-          await syncRealInventory(false);
-        }else{
-          it.archived=false;
-          persistDB();
-        }
-        toast('Inventory item restored.','success');
-        await renderInventory();
-      }catch(e){toast(e?.message||'Unable to restore inventory item.','error');}
+      try{await setInventoryArchived(it,false);}
+      catch(e){toast(e?.message||'Unable to restore inventory item.','error');return;}
+      toastWithUndo(`${it.name} restored.`,()=>setInventoryArchived(it,true),{undoneMessage:`${it.name} archived again.`});
     }
   });
+}
+
+// A stock change just saved can be taken back: online the server reverses its transaction,
+// in the offline demo the local change is reverted.
+function offerStockUndo(it,message,transactionId,revertLocal){
+  if(it._realSupabase&&!transactionId){toast(message,'success');return;}
+  toastWithUndo(message,async()=>{
+    if(it._realSupabase){
+      await inventoryAction({action:'undo_transaction',transaction_id:transactionId});
+      await syncRealInventory(false);
+    }else{
+      revertLocal();
+      auditLog('INVENTORY_CHANGE_UNDONE',`Undid a stock change for ${it.name}.`,'Inventory',it.id);
+      persistDB();
+    }
+    await renderInventory();
+  },{undoneMessage:`${it.name} stock change undone.`});
 }
 
 // Keep the old function name from stale buttons/bookmarks but use Archive.
@@ -333,14 +347,15 @@ export async function saveDisbursement(){
   if(btn){btn.disabled=true;btn.textContent='Recording…';}
 
   try{
+    let transactionId=null;
     if(it._realSupabase){
-      await inventoryAction({
+      ({transaction_id:transactionId}=await inventoryAction({
         action:'disburse',
         item_id:it.dbItemId,
         quantity:qty,
         transaction_date:date,
         notes
-      });
+      }));
       await syncRealInventory(false);
     }else{
       it.qty-=qty;
@@ -348,10 +363,14 @@ export async function saveDisbursement(){
       appState.data.DB.disbursements.push({id:appState.data.DB.nextDisbId++,itemId,qty,date,notes,userId:appState.auth.currentUser.id});
       persistDB();
     }
+    const localDisbursement=appState.data.DB.disbursements?.at(-1);
 
     closeAllModals();
-    toast(`Disbursed ${qty} ${it.unit} of ${it.name}.`,'success');
     await renderInventory();
+    offerStockUndo(it,`Disbursed ${qty} ${it.unit} of ${it.name}.`,transactionId,()=>{
+      it.qty+=qty;
+      appState.data.DB.disbursements=appState.data.DB.disbursements.filter(d=>d!==localDisbursement);
+    });
   }catch(e){
     showAlert(msg,e?.message||'Unable to record disbursement.');
   }finally{

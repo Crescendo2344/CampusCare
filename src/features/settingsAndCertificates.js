@@ -12,7 +12,7 @@ import {escapeHtml} from './issueReports.js';
 import {campusDateFieldHtml} from './datePicker.js';
 import {createDailyBackup} from './auditAndBackups.js';
 import {persistDB} from './persistence.js';
-import {showConfirmDialog,toast} from './theme.js';
+import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {bindAction} from '../dependencies.js';
 // ================================================================
 // RESTORED SETTINGS + PATIENT CERTIFICATE RENDERERS
@@ -218,7 +218,9 @@ export function confirmCriticalSettings(kind,candidate){
  openModal(`<div class="modal"><div class="modal-header"><h3>Confirm Critical ${kind==='clinic'?'Clinic':'Semester'} Changes</h3><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div><div class="modal-body"><p class="settings-danger-notice">These changes apply across CampusCare. Confirm only after checking the values below.</p>${kind==='semester'?`<p><strong>School Year ${escapeHtml(candidate.academicYear)}</strong></p>`:''}<dl class="settings-change-review">${keys.filter(key=>candidate[key]!==appState.data.DB.settings[key]).map(key=>`<div><dt>${labels[key]}</dt><dd>${escapeHtml(String(appState.data.DB.settings[key]??'—'))} → <strong>${escapeHtml(String(candidate[key]))}</strong></dd></div>`).join('')}</dl><label for="critical-settings-phrase">Type <strong>${phrase}</strong> to confirm</label><input id="critical-settings-phrase" autocomplete="off" ${bindAction('input',(event,element)=>{document.getElementById('critical-settings-save').disabled=element.value.trim()!==phrase})}><p id="critical-settings-error" role="alert"></p></div><div class="modal-footer"><button id="critical-settings-save" class="btn btn-danger" disabled ${bindAction('click',async(event,element)=>{
  if(document.getElementById('critical-settings-phrase')?.value.trim()!==phrase)return;
  element.disabled=true;
- try{if(appState.auth.currentUser?._realSupabase)await saveRealSystemSettings(candidate,true);else{Object.assign(appState.data.DB.settings,candidate);persistDB();}closeAllModals();toast('Settings updated.','success');}
+ const previous={...appState.data.DB.settings};
+ const apply=async values=>{if(appState.auth.currentUser?._realSupabase)await saveRealSystemSettings(values,true);else{Object.assign(appState.data.DB.settings,values);persistDB();}};
+ try{await apply(candidate);closeAllModals();await renderSettings();toastWithUndo('Settings updated.',async()=>{await apply(previous);await renderSettings();},{undoneMessage:'Previous settings restored.'});}
  catch(error){document.getElementById('critical-settings-error').textContent=error?.message||'Settings could not be saved.';element.disabled=false;}
  })}>Confirm Changes</button></div></div>`);
 }
@@ -242,13 +244,17 @@ export async function savePrivacySettings(){
     message:`Set the current CampusCare Privacy Notice to <strong>version ${escapeHtml(version)}</strong>? The version will be recorded with future registration acknowledgements; existing users will not be prompted to acknowledge it again automatically.`,
     confirmLabel:'Update Version',
     onConfirm:async()=>{
-      try{
-        appState.data.DB.settings.privacyPolicyVersion=version;
-        appState.data.DB.settings.privacyPolicyUpdated=updated;
+      const settings=appState.data.DB.settings,previous={version:settings.privacyPolicyVersion,updated:settings.privacyPolicyUpdated};
+      const apply=async(v,u)=>{
+        settings.privacyPolicyVersion=v;
+        settings.privacyPolicyUpdated=u;
         await saveRealSystemSettings();
         await syncPrivacyAdminSummary();
-        toast('Privacy notice version updated.','success');
         await renderSettings();
+      };
+      try{
+        await apply(version,updated);
+        toastWithUndo('Privacy notice version updated.',()=>apply(previous.version,previous.updated),{undoneMessage:'Previous privacy notice version restored.'});
       }catch(e){
         toast(e?.message||'Unable to update the privacy notice version.','error');
       }

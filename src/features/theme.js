@@ -97,7 +97,7 @@ const MAX_TOASTS=3;
 // Reading time grows with the message; errors stay longer. Hovering or focusing its buttons pauses the timer.
 export function showToast(wrap,msg,type='info',dur=3000,{title='',action=null}={}){
   const kind=type==='danger'?'error':TOAST_KINDS[type]?type:'info',meta=TOAST_KINDS[kind],text=String(msg??'');
-  const existing=[...wrap.children].find(el=>el.dataset.message===text&&!el.classList.contains('leaving'));
+  const existing=action?null:[...wrap.children].find(el=>el.dataset.message===text&&!el.classList.contains('leaving'));
   if(existing){existing.restartTimer?.();return existing;}
   const t=document.createElement('div');
   t.className=`toast ${kind}`;t.dataset.message=text;
@@ -192,12 +192,30 @@ export function showConfirmDialog(opts){
   };
 }
 
-export function toastWithUndo(msg, undoFn, dur=6000){
-  let undone=false;
-  toast(msg,'warning',dur,{action:{label:'Undo',onClick:()=>{
-    if(undone)return;
-    undone=true;undoFn();toast('Action undone.','info');
-  }}});
+// Critical changes stay reversible for a short window: the toast offers Undo (or Ctrl+Z) and the
+// undo function runs the inverse change. The change itself is already saved when this appears.
+let pendingUndo=null;
+export function toastWithUndo(msg,undoFn,{dur=10000,undoneMessage='Change undone.'}={}){
+  const entry={used:false};
+  entry.run=async()=>{
+    if(entry.used)return;
+    entry.used=true;if(pendingUndo===entry)pendingUndo=null;
+    entry.toast?.querySelector('.toast-close')?.click();
+    try{await undoFn();toast(undoneMessage,'info');}
+    catch(e){toast(e?.message||'That change could not be undone.','error');}
+  };
+  pendingUndo=entry;
+  entry.toast=toast(msg,'success',dur,{action:{label:'Undo',onClick:entry.run}});
+  return entry;
+}
+// Ctrl+Z (Cmd+Z) undoes the latest critical change while its toast is showing, unless the user is typing.
+function undoShortcut(event){
+  if(!(event.ctrlKey||event.metaKey)||event.shiftKey||event.key.toLowerCase()!=='z')return;
+  const target=event.target;
+  if(target?.closest?.('input,textarea,select,[contenteditable="true"]'))return;
+  const entry=pendingUndo;
+  if(!entry||entry.used||!entry.toast?.isConnected||entry.toast.classList.contains('leaving'))return;
+  event.preventDefault();entry.run();
 }
 
 export function registrationToast(msg,type='error',dur=4500){
@@ -234,4 +252,5 @@ export function initializeFeature(){
   appState.theme.campusThemeClockTimer=null;
   if(appState.theme.campusThemeManualOverride)setTheme(appState.theme.campusThemeManualOverride);
   startAutomaticThemeClock();
+  document.addEventListener('keydown',undoShortcut);
 }

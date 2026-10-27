@@ -7,7 +7,7 @@ import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtec
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {fmtDate,fmtDateTime} from './inputValidation.js';
 import {closeAllModals,openModal} from './modals.js';
-import {showConfirmDialog,toast} from './theme.js';
+import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {persistDB} from './persistence.js';
 import {getPatientById,getUserById} from './documentScanner.js';
 import {viewPatient} from './patientForm.js';
@@ -16,7 +16,9 @@ import {loadJsPDF} from './settingsAndCertificates.js';
 import {bindAction,certificateData,createCertificateService} from '../dependencies.js';
 import * as purposeData from '../domain/certificate-purpose.js';
 // Preserve legacy handlers while certificate data access lives in independent modules.
-export function certificateRecords(){return certificateData.certificateRecords(appState.data.DB,appState.auth.currentUser);}
+// Drafts being discarded stay hidden while their Undo is on offer, and are deleted only after it closes.
+const pendingDiscards=new Set();
+export function certificateRecords(){return certificateData.certificateRecords(appState.data.DB,appState.auth.currentUser).filter(r=>!pendingDiscards.has(r.id));}
 export function certificateDisplayId(r){return certificateData.certificateDisplayId(r);}
 export function certificateNumberFor(r){return certificateData.certificateNumberFor(r);}
 export function realCertificateToUi(r){return certificateData.realCertificateToUi(r);}
@@ -439,12 +441,25 @@ export async function saveCertificateDraft(){
 
 export function discardCertificateDraft(id){
   const r=certificateRecords().find(x=>x.id===Number(id));if(!r||r.status!=='Awaiting Signature')return;
-  showConfirmDialog({title:'Discard draft',message:'Delete this certificate draft? This cannot be undone.',confirmLabel:'Discard',danger:true,onConfirm:async()=>{
-    try{
-      if(r._realSupabase){await certificateAction({action:'discard',certificate_id:r.dbCertificateId});await syncRealCertificates();}
-      else{appState.data.DB.certRequests=appState.data.DB.certRequests.filter(x=>x.id!==r.id);persistDB();}
-      toast('Draft discarded.','info');await renderCertRequests('Awaiting Signature');
-    }catch(e){toast(e?.message||'Unable to discard the draft.','error');}
+  showConfirmDialog({title:'Discard draft',message:'Delete this certificate draft?',confirmLabel:'Discard',danger:true,onConfirm:async()=>{
+    pendingDiscards.add(r.id);
+    await renderCertRequests('Awaiting Signature');
+    const entry=toastWithUndo('Draft discarded.',async()=>{
+      pendingDiscards.delete(r.id);
+      await renderCertRequests('Awaiting Signature');
+    },{undoneMessage:'Draft kept.'});
+    // Delete for real once the Undo toast has gone without being used.
+    const commit=async()=>{
+      if(entry.used)return;
+      if(entry.toast?.isConnected){setTimeout(commit,500);return;}
+      entry.used=true;
+      try{
+        if(r._realSupabase){await certificateAction({action:'discard',certificate_id:r.dbCertificateId});await syncRealCertificates();}
+        else{appState.data.DB.certRequests=appState.data.DB.certRequests.filter(x=>x.id!==r.id);persistDB();}
+      }catch(e){toast(e?.message||'Unable to discard the draft.','error');}
+      finally{pendingDiscards.delete(r.id);}
+    };
+    setTimeout(commit,500);
   }});
 }
 
@@ -463,8 +478,13 @@ export async function voidCertificate(id){
   try{
     if(r._realSupabase){await certificateAction({action:'void',certificate_id:r.dbCertificateId,reason});await syncRealCertificates();}
     else{r.status='Cancelled';r.declineReason=reason;persistDB();}
-    closeAllModals();toast(`Certificate ${r.certNo} voided.`,'warning');await renderCertRequests('Cancelled');
-  }catch(e){toast(e?.message||'Unable to void the certificate.','error');}
+    closeAllModals();await renderCertRequests('Cancelled');
+  }catch(e){toast(e?.message||'Unable to void the certificate.','error');return;}
+  toastWithUndo(`Certificate ${r.certNo} voided.`,async()=>{
+    if(r._realSupabase){await certificateAction({action:'unvoid',certificate_id:r.dbCertificateId});await syncRealCertificates();}
+    else{r.status='Issued';r.declineReason='';persistDB();}
+    await renderCertRequests('Issued');
+  },{undoneMessage:`Certificate ${r.certNo} is valid again.`});
 }
 
 // Read certificate fields robustly from the visible editable document.

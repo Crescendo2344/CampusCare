@@ -9,6 +9,9 @@ const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{
   status,headers:{...cors,"Content-Type":"application/json"}
 });
 const clean=(v:unknown,max=4000)=>String(v??"").trim().slice(0,max);
+// An administrator can take back a decision or a cancelled day off for a short while afterwards.
+const UNDO_WINDOW_MS=15*60*1000;
+const withinUndoWindow=(at:string|null)=>!!at&&Date.now()-new Date(at).getTime()<=UNDO_WINDOW_MS;
 const allowedDays=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const dayIndex:Record<string,number>={Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
 const time5=(v:unknown)=>String(v??"").slice(0,5);
@@ -739,6 +742,7 @@ Deno.serve(async(req)=>{
         return json({ok:true,status:"Rejected"});
       }
 
+      let previousProfile:any=null;
       if(r.request_type==="Name Change"){
         const first=clean(r.payload?.requested?.firstName,120);
         const last=clean(r.payload?.requested?.lastName,120);
@@ -804,6 +808,10 @@ Deno.serve(async(req)=>{
         const summary=weeklySummary(weekly);
         const becomesActive=effective<=phToday;
         if(becomesActive&&scope==="Permanent"){
+          const {data:before}=await admin.from("users")
+            .select("work_days,start_time,end_time,slot_duration,max_patients")
+            .eq("user_id",r.target_user_id).maybeSingle();
+          previousProfile=before||null;
           const {error:updateErr}=await admin.from("users").update({
             work_days:summary.workDays,
             start_time:summary.startTime,
@@ -874,7 +882,7 @@ Deno.serve(async(req)=>{
       await admin.from("audit_logs").insert({
         user_id:actor.user_id,action:"WORKFLOW_REQUEST_APPROVED",
         entity_type:"workflow_requests",entity_id:requestId,
-        details:{request_type:r.request_type,effective_date:r.effective_date,admin_note:note||null}
+        details:{request_type:r.request_type,effective_date:r.effective_date,admin_note:note||null,previous_profile:previousProfile}
       });
 
       const data=await listData();
@@ -916,6 +924,100 @@ Deno.serve(async(req)=>{
 
       await admin.from("audit_logs").insert({
         user_id:actor.user_id,action:"DOCTOR_LEAVE_CANCELLED",
+        entity_type:"doctor_leaves",entity_id:leaveId,
+        details:{doctor_id:leave.doctor_id,leave_date:leave.leave_date,leave}
+      });
+
+      const data=await listData();
+      return json({ok:true,...data});
+    }
+
+    // Put back a request decision: the request returns to Pending and whatever the approval applied is removed.
+    if(action==="undo_decision"){
+      if(!isAdmin)return json({error:"Administrator access required."},403);
+      const requestId=Number(body.request_id||0);
+      const {data:r}=await admin.from("workflow_requests").select("*").eq("request_id",requestId).maybeSingle();
+      if(!r)return json({error:"Request not found."},404);
+      if(!["Rejected","Applied","Approved-Pending"].includes(r.status))return json({error:"This request has no decision to undo."},409);
+      if(Number(r.reviewed_by)!==Number(actor.user_id))return json({error:"Only the administrator who reviewed this request can undo the decision."},403);
+      if(!withinUndoWindow(r.reviewed_at))return json({error:"This decision can no longer be undone."},409);
+
+      if(r.status!=="Rejected"){
+        if(r.request_type==="Name Change"){
+          const first=clean(r.payload?.current?.firstName,120),last=clean(r.payload?.current?.lastName,120);
+          if(!first||!last)return json({error:"The previous name was not recorded, so this change can't be undone."},409);
+          const {data:target}=await admin.from("users").select("auth_user_id").eq("user_id",r.target_user_id).single();
+          const {error}=await admin.from("users").update({first_name:first,last_name:last}).eq("user_id",r.target_user_id);
+          if(error)throw error;
+          if(target?.auth_user_id)await admin.auth.admin.updateUserById(target.auth_user_id,{user_metadata:{first_name:first,last_name:last}});
+        }
+        if(r.request_type==="Schedule Change"){
+          // Bookings made under the new hours would lose their slot.
+          const {count}=await admin.from("appointments")
+            .select("appointment_id",{count:"exact",head:true})
+            .eq("doctor_id",r.target_user_id).gte("appointment_date",String(r.effective_date||phToday))
+            .gte("created_at",r.reviewed_at).in("status",["Scheduled","Confirmed"]);
+          if((count||0)>0)return json({error:"Patients have already booked under the new schedule, so it can't be undone."},409);
+          const {error}=await admin.from("doctor_schedule_rules").delete().eq("source_request_id",requestId);
+          if(error)throw error;
+          const {data:approval}=await admin.from("audit_logs").select("details")
+            .eq("action","WORKFLOW_REQUEST_APPROVED").eq("entity_type","workflow_requests").eq("entity_id",requestId)
+            .order("created_at",{ascending:false}).limit(1).maybeSingle();
+          const previous=approval?.details?.previous_profile;
+          if(previous){
+            const {error:profileErr}=await admin.from("users").update(previous).eq("user_id",r.target_user_id).eq("role","Doctor");
+            if(profileErr)throw profileErr;
+          }
+        }
+        if(r.request_type==="Day Off"){
+          const date=String(r.effective_date||r.payload?.leaveDate||"");
+          const {error}=await admin.from("doctor_leaves").delete().eq("doctor_id",r.target_user_id).eq("leave_date",date);
+          if(error)throw error;
+        }
+      }
+
+      const {error}=await admin.from("workflow_requests").update({
+        status:"Pending",admin_note:null,reviewed_by:null,reviewed_at:null,applied_at:null,updated_at:new Date().toISOString()
+      }).eq("request_id",requestId);
+      if(error)throw error;
+      // The requester's "approved" / "declined" notice no longer applies.
+      await admin.from("notifications").delete()
+        .eq("user_id",r.requester_id).eq("reference_type","workflow_requests").eq("reference_id",requestId)
+        .gte("created_at",r.reviewed_at);
+      await admin.from("audit_logs").insert({
+        user_id:actor.user_id,action:"WORKFLOW_DECISION_UNDONE",
+        entity_type:"workflow_requests",entity_id:requestId,
+        details:{request_type:r.request_type,undone_status:r.status}
+      });
+
+      const data=await listData();
+      return json({ok:true,...data});
+    }
+
+    // Put back a day off that was just cancelled.
+    if(action==="restore_leave"){
+      if(!isAdmin)return json({error:"Administrator access required."},403);
+      const leaveId=Number(body.leave_id||0);
+      const {data:log}=await admin.from("audit_logs").select("details,created_at")
+        .eq("action","DOCTOR_LEAVE_CANCELLED").eq("entity_type","doctor_leaves").eq("entity_id",leaveId).eq("user_id",actor.user_id)
+        .order("created_at",{ascending:false}).limit(1).maybeSingle();
+      const leave=log?.details?.leave;
+      if(!leave)return json({error:"That cancelled day off was not found."},404);
+      if(!withinUndoWindow(log.created_at))return json({error:"This cancellation can no longer be undone."},409);
+
+      const {count}=await admin.from("appointments")
+        .select("appointment_id",{count:"exact",head:true})
+        .eq("doctor_id",leave.doctor_id).eq("appointment_date",leave.leave_date).in("status",["Scheduled","Confirmed"]);
+      if((count||0)>0)return json({error:"Patients have already booked that day, so the day off can't be put back."},409);
+
+      const {leave_id:_id,created_at:_created,...row}=leave;
+      const {error}=await admin.from("doctor_leaves").upsert(row,{onConflict:"doctor_id,leave_date"});
+      if(error)throw error;
+      await admin.from("notifications").delete()
+        .eq("user_id",leave.doctor_id).eq("reference_type","doctor_leaves").eq("reference_id",leaveId)
+        .gte("created_at",new Date(new Date(log.created_at).getTime()-60000).toISOString());
+      await admin.from("audit_logs").insert({
+        user_id:actor.user_id,action:"DOCTOR_LEAVE_RESTORED",
         entity_type:"doctor_leaves",entity_id:leaveId,
         details:{doctor_id:leave.doctor_id,leave_date:leave.leave_date}
       });

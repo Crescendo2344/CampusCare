@@ -6,7 +6,7 @@ import {renderPage,showDatabaseSkeleton} from './loadingSkeletons.js';
 import {escapeHtml,openArticleModal} from './issueReports.js';
 import {fmtDate} from './inputValidation.js';
 import {closeAllModals,openModal} from './modals.js';
-import {showConfirmDialog,toast} from './theme.js';
+import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {persistDB} from './persistence.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
 import {articleIconHtml} from '../ui/app-icons.js';
@@ -80,7 +80,7 @@ export function navTo(id,{historyMode='push'}={}){
 
 export function healthResourceRecords(){
   if(appState.auth.currentUser?._realSupabase)return (appState.data.DB.healthResources||[]).filter(r=>r._realSupabase);
-  return appState.data.DB.healthResources||[];
+  return (appState.data.DB.healthResources||[]).filter(r=>!r.archived);
 }
 
 export async function healthResourceAction(payload){return createOperationalService({getClient:()=>appState.supabaseClient.supabaseClient,request:(...args)=>fetch(...args),baseUrl:appState.supabaseClient.SUPABASE_URL,publishableKey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY}).healthResourceAction(payload);}
@@ -283,6 +283,28 @@ export function viewArticle(id) {
     </div>`);
 }
 
+// publish / unpublish / archive / restore, then refresh the library.
+async function applyArticleAction(art,action){
+  if(art._realSupabase){
+    await healthResourceAction({action,resource_id:art.dbResourceId});
+    await syncRealHealthResources();
+  }else{
+    if(action==='publish'||action==='unpublish')art.published=action==='publish';
+    else art.archived=action==='archive';
+    persistDB();
+  }
+  renderArticlesList();
+}
+const ARTICLE_UNDO={publish:'unpublish',unpublish:'publish',archive:'restore'};
+const ARTICLE_DONE={publish:'Article published.',unpublish:'Article unpublished.',archive:'Article archived.'};
+const ARTICLE_UNDONE={publish:'Article unpublished again.',unpublish:'Article published again.',archive:'Article restored.'};
+async function changeArticle(art,action){
+  try{await applyArticleAction(art,action);}
+  catch(e){toast(e?.message||`Unable to ${action} the article.`,'error');return;}
+  closeAllModals();
+  toastWithUndo(ARTICLE_DONE[action],()=>applyArticleAction(art,ARTICLE_UNDO[action]),{undoneMessage:ARTICLE_UNDONE[action]});
+}
+
 export function deleteArticle(id){
   const art=healthResourceRecords().find(r=>r.id===Number(id));if(!art)return;
 
@@ -291,37 +313,13 @@ export function deleteArticle(id){
     message:`Unpublish <strong>${escapeHtml(art.title)}</strong>? It will be hidden from normal Health Education views but kept in the database.`,
     confirmLabel:'Unpublish',
     danger:true,
-    onConfirm:async()=>{
-      try{
-        if(art._realSupabase){
-          await healthResourceAction({action:'unpublish',resource_id:art.dbResourceId});
-          await syncRealHealthResources();
-        }else{
-          art.published=false;
-          persistDB();
-        }
-        closeAllModals();
-        toast('Article unpublished.','warning');
-        renderArticlesList();
-      }catch(e){toast(e?.message||'Unable to unpublish the article.','error');}
-    }
+    onConfirm:()=>changeArticle(art,'unpublish')
   });
 }
 
 export async function publishArticle(id){
   const art=healthResourceRecords().find(r=>r.id===Number(id));if(!art)return;
-  try{
-    if(art._realSupabase){
-      await healthResourceAction({action:'publish',resource_id:art.dbResourceId});
-      await syncRealHealthResources();
-    }else{
-      art.published=true;
-      persistDB();
-    }
-    closeAllModals();
-    toast('Article published.','success');
-    renderArticlesList();
-  }catch(e){toast(e?.message||'Unable to publish the article.','error');}
+  await changeArticle(art,'publish');
 }
 
 export function archiveArticle(id){
@@ -331,17 +329,7 @@ export function archiveArticle(id){
     message:`Archive <strong>${escapeHtml(art.title)}</strong>? It will be preserved in the database and removed from the active library.`,
     confirmLabel:'Archive',
     danger:true,
-    onConfirm:async()=>{
-      try{
-        if(art._realSupabase){
-          await healthResourceAction({action:'archive',resource_id:art.dbResourceId});
-          await syncRealHealthResources();
-        }
-        closeAllModals();
-        toast('Article archived.','success');
-        renderArticlesList();
-      }catch(e){toast(e?.message||'Unable to archive the article.','error');}
-    }
+    onConfirm:()=>changeArticle(art,'archive')
   });
 }
 

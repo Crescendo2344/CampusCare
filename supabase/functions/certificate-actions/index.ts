@@ -235,6 +235,35 @@ Deno.serve(async(req)=>{
       return json({ok:true});
     }
 
+    // Reinstate a certificate voided moments ago by the same doctor.
+    if(action==="unvoid"){
+      const certificateId=Number(body.certificate_id||0);
+      const existing=await loadOwn(certificateId);
+      if(!existing)return json({error:"Certificate not found."},404);
+      if(existing.status!=="Cancelled")return json({error:"This certificate is not voided."},409);
+      const {data:log}=await admin.from("audit_logs").select("user_id,created_at")
+        .eq("action","MEDICAL_CERTIFICATE_VOIDED").eq("entity_type","medical_certificates").eq("entity_id",certificateId)
+        .order("created_at",{ascending:false}).limit(1).maybeSingle();
+      if(!log||Number(log.user_id)!==Number(actor.user_id)||Date.now()-new Date(log.created_at).getTime()>15*60*1000)
+        return json({error:"This certificate can no longer be reinstated. Issue a new one instead."},409);
+      const {error}=await admin.from("medical_certificates")
+        .update({status:"Issued",decline_reason:null,updated_at:new Date().toISOString()})
+        .eq("certificate_id",certificateId);
+      if(error)throw error;
+      const patient=await getPatientUser(existing.patient_id);
+      if(patient){
+        await admin.from("notifications").delete()
+          .eq("user_id",patient.user_id).eq("title","Medical Certificate Voided")
+          .like("message",`Certificate ${existing.certificate_no} %`)
+          .gte("created_at",new Date(new Date(log.created_at).getTime()-60000).toISOString());
+      }
+      await admin.from("audit_logs").insert({
+        user_id:actor.user_id,action:"MEDICAL_CERTIFICATE_VOID_UNDONE",entity_type:"medical_certificates",
+        entity_id:certificateId,details:{certificate_no:existing.certificate_no}
+      });
+      return json({ok:true});
+    }
+
     return json({error:"Unsupported certificate action."},400);
   }catch(e){
     return json({error:e instanceof Error?e.message:"Certificate action failed."},500);

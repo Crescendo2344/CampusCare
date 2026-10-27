@@ -227,6 +227,36 @@ Deno.serve(async(req)=>{
       return json({ok:true});
     }
 
+    // Take back a cancellation made moments ago by the same person, if the slot is still free.
+    if(action==="undo_cancel"){
+      const id=Number(body.appointment_id||0);
+      const appt=await loadAppointment(id);
+      if(!appt)return json({error:"Appointment not found."},404);
+      if(appt.status!=="Cancelled")return json({error:"This appointment is not cancelled."},409);
+      const {data:log}=await admin.from("audit_logs").select("user_id")
+        .eq("action","APPOINTMENT_CANCELLED").eq("entity_type","appointments").eq("entity_id",id)
+        .order("created_at",{ascending:false}).limit(1).maybeSingle();
+      if(Number(log?.user_id)!==Number(actor.user_id))return json({error:"Only the person who cancelled this appointment can undo it."},403);
+      if(!appt.cancelled_at||Date.now()-new Date(appt.cancelled_at).getTime()>15*60*1000)
+        return json({error:"This cancellation can no longer be undone. Book a new appointment instead."},409);
+      if(hasStarted(appt))return json({error:"This appointment time has passed."},409);
+      const {data:taken}=await admin.from("appointments").select("appointment_id")
+        .eq("doctor_id",appt.doctor_id).eq("appointment_date",appt.appointment_date).eq("appointment_time",appt.appointment_time)
+        .neq("status","Cancelled").neq("appointment_id",id).limit(1);
+      if(taken?.length)return json({error:"Someone else has booked that time since, so the appointment can't be restored."},409);
+      const {data:leave}=await admin.from("doctor_leaves").select("leave_id").eq("doctor_id",appt.doctor_id).eq("leave_date",appt.appointment_date).maybeSingle();
+      if(leave)return json({error:"The doctor is now on leave that day, so the appointment can't be restored."},409);
+
+      const {error}=await admin.from("appointments").update({status:"Scheduled",cancelled_at:null,cancellation_reason:null}).eq("appointment_id",id);
+      if(error)throw error;
+      // The patient's "cancelled" notice no longer applies.
+      await admin.from("notifications").delete()
+        .eq("reference_type","appointments").eq("reference_id",id).eq("title","Appointment cancelled")
+        .gte("created_at",new Date(new Date(appt.cancelled_at).getTime()-60000).toISOString());
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"APPOINTMENT_CANCEL_UNDONE",entity_type:"appointments",entity_id:id,details:{}});
+      return json({ok:true});
+    }
+
     if(action==="status"){
       const id=Number(body.appointment_id||0);
       const status=String(body.status||"");

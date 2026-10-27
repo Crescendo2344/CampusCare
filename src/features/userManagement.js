@@ -16,7 +16,7 @@ import {approveScheduleChange,rejectScheduleChange} from './workflowRequests.js'
 import {approveLeaveRequest,rejectLeaveRequest} from './doctorSchedule.js';
 import {approveNameChange,rejectNameChange} from './nameChangeRequests.js';
 import {navTo} from './navigationRaceProtection.js';
-import {showConfirmDialog,toast} from './theme.js';
+import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
 import {requestAttachmentBadge,requestAttachmentViewHtml} from './requestAttachments.js';
 import {appointmentRecords} from './appointmentService.js';
@@ -402,111 +402,54 @@ export function renderUserTable(){
   limitTableRows(el.querySelector('.user-table-scroll'),10);
 }
 
-export function suspendUser(id){
-  if(appState.data.DB.users.find(x=>x.id===id)?.status!=='Active')return;
+// Status changes share one flow: confirm, save, then offer Undo back to the previous status.
+const STATUS_CHANGES={
+  Suspended:{title:'Suspend Account',verb:'suspend',done:'suspended',danger:true},
+  Reactivate:{title:'Reactivate Account',verb:'reactivate',done:'reactivated',status:'Active'},
+  Archived:{title:'Archive Account',verb:'archive',done:'archived',danger:true},
+  Restore:{title:'Restore Account',verb:'restore',done:'restored',status:'Active'}
+};
+async function saveUserStatus(u,status){
+  if(u._realSupabase){
+    await adminUserAction({action:'status',user_id:u.dbUserId,status});
+    await renderUsers();
+    return;
+  }
+  u.status=status;
+  u.archived=status==='Archived';
+  renderUserTable();
+}
+function changeUserStatus(id,change){
   const u=appState.data.DB.users.find(x=>x.id===id);if(!u)return;
-  if(appState.auth.currentUser?.role==='Administrator'&&id===appState.auth.currentUser.id&&'Suspended'!=='Active'){
+  const meta=STATUS_CHANGES[change],next=meta.status||change,previous=u.status;
+  if(appState.auth.currentUser?.role==='Administrator'&&id===appState.auth.currentUser.id&&next!=='Active'){
     toast('You cannot suspend or archive your own administrator account.','warning');return;
   }
   showConfirmDialog({
-    title:'Suspend Account',
-    message:`Are you sure you want to suspend <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account?`,
-    confirmLabel:'Suspend',danger:true,
+    title:meta.title,
+    message:`Are you sure you want to ${meta.verb} <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account?`,
+    confirmLabel:meta.title.split(' ')[0],danger:!!meta.danger,
     onConfirm:async()=>{
-      if(u._realSupabase){
-        try{
-          await adminUserAction({action:'status',user_id:u.dbUserId,status:'Suspended'});
-          toast(`${u.fname} ${u.lname} suspended.`,'success');
-          await renderUsers();
-        }catch(e){toast(e?.message||'Unable to update account.','error');}
-        return;
-      }
-      u.status='Suspended';
-      u.archived='Suspended'==='Archived';
-      toast(`${u.fname} ${u.lname} suspended.`,'success');
-      renderUserTable();
+      try{await saveUserStatus(u,next);}
+      catch(e){toast(e?.message||'Unable to update account.','error');return;}
+      toastWithUndo(`${u.fname} ${u.lname} ${meta.done}.`,()=>saveUserStatus(u,previous),{undoneMessage:`${u.fname} ${u.lname} is ${previous.toLowerCase()} again.`});
     }
   });
+}
+
+export function suspendUser(id){
+  if(appState.data.DB.users.find(x=>x.id===id)?.status!=='Active')return;
+  changeUserStatus(id,'Suspended');
 }
 
 export function reactivateUser(id){
   if(appState.data.DB.users.find(x=>x.id===id)?.status!=='Suspended')return;
-  const u=appState.data.DB.users.find(x=>x.id===id);if(!u)return;
-  if(appState.auth.currentUser?.role==='Administrator'&&id===appState.auth.currentUser.id&&'Active'!=='Active'){
-    toast('You cannot suspend or archive your own administrator account.','warning');return;
-  }
-  showConfirmDialog({
-    title:'Reactivate Account',
-    message:`Are you sure you want to reactivate <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account?`,
-    confirmLabel:'Reactivate',danger:false,
-    onConfirm:async()=>{
-      if(u._realSupabase){
-        try{
-          await adminUserAction({action:'status',user_id:u.dbUserId,status:'Active'});
-          toast(`${u.fname} ${u.lname} reactivated.`,'success');
-          await renderUsers();
-        }catch(e){toast(e?.message||'Unable to update account.','error');}
-        return;
-      }
-      u.status='Active';
-      u.archived='Active'==='Archived';
-      toast(`${u.fname} ${u.lname} reactivated.`,'success');
-      renderUserTable();
-    }
-  });
+  changeUserStatus(id,'Reactivate');
 }
 
-export function archiveUser(id){
-  const u=appState.data.DB.users.find(x=>x.id===id);if(!u)return;
-  if(appState.auth.currentUser?.role==='Administrator'&&id===appState.auth.currentUser.id&&'Archived'!=='Active'){
-    toast('You cannot suspend or archive your own administrator account.','warning');return;
-  }
-  showConfirmDialog({
-    title:'Archive Account',
-    message:`Are you sure you want to archive <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account?`,
-    confirmLabel:'Archive',danger:true,
-    onConfirm:async()=>{
-      if(u._realSupabase){
-        try{
-          await adminUserAction({action:'status',user_id:u.dbUserId,status:'Archived'});
-          toast(`${u.fname} ${u.lname} archived.`,'success');
-          await renderUsers();
-        }catch(e){toast(e?.message||'Unable to update account.','error');}
-        return;
-      }
-      u.status='Archived';
-      u.archived='Archived'==='Archived';
-      toast(`${u.fname} ${u.lname} archived.`,'success');
-      renderUserTable();
-    }
-  });
-}
+export function archiveUser(id){changeUserStatus(id,'Archived');}
 
-export function restoreUser(id){
-  const u=appState.data.DB.users.find(x=>x.id===id);if(!u)return;
-  if(appState.auth.currentUser?.role==='Administrator'&&id===appState.auth.currentUser.id&&'Active'!=='Active'){
-    toast('You cannot suspend or archive your own administrator account.','warning');return;
-  }
-  showConfirmDialog({
-    title:'Restore Account',
-    message:`Are you sure you want to restore <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account?`,
-    confirmLabel:'Restore',danger:false,
-    onConfirm:async()=>{
-      if(u._realSupabase){
-        try{
-          await adminUserAction({action:'status',user_id:u.dbUserId,status:'Active'});
-          toast(`${u.fname} ${u.lname} restored.`,'success');
-          await renderUsers();
-        }catch(e){toast(e?.message||'Unable to update account.','error');}
-        return;
-      }
-      u.status='Active';
-      u.archived='Active'==='Archived';
-      toast(`${u.fname} ${u.lname} restored.`,'success');
-      renderUserTable();
-    }
-  });
-}
+export function restoreUser(id){changeUserStatus(id,'Restore');}
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){

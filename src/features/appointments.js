@@ -15,7 +15,7 @@ import * as listData from '../domain/appointment-list.js';
 import {viewPatient} from './patientForm.js';
 import {fmtDate,fmtTime,priorityBadge,statusBadge} from './inputValidation.js';
 import {openAddTreatmentModal} from './treatmentForm.js';
-import {showConfirmDialog,toast} from './theme.js';
+import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {persistDB} from './persistence.js';
 import {renderMyAppointments} from './patientAppointments.js';
 import {closeAllModals,openModal} from './modals.js';
@@ -177,18 +177,7 @@ export function completeAppt(id){
     title:'Complete Appointment',
     message:`Mark appointment #${a.dbAppointmentId||id} as completed?`,
     confirmLabel:'Mark Completed',
-    onConfirm:async()=>{
-      try{
-        if(a._realSupabase){
-          await appointmentAction({action:'status',appointment_id:a.dbAppointmentId,status:'Completed'});
-          await syncRealAppointments();
-        }else{
-          a.status='Completed';persistDB();
-        }
-        toast('Appointment marked as completed.','success');refreshTaskBadges(true);
-        if(appState.auth.currentUser.role==='Patient')await renderMyAppointments();else await renderAppointments();
-      }catch(e){toast(e?.message||'Unable to complete appointment.','error');}
-    }
+    onConfirm:recordOutcome(a,'Completed','Appointment marked as completed.','Unable to complete appointment.')
   });
 }
 
@@ -198,17 +187,7 @@ export function noShowAppt(id){
     title:'Mark as No-show',
     message:`Mark appointment #${a.dbAppointmentId||id} as a no-show?`,
     confirmLabel:'Mark No-show',danger:true,
-    onConfirm:async()=>{
-      try{
-        if(a._realSupabase){
-          await appointmentAction({action:'status',appointment_id:a.dbAppointmentId,status:'No-show'});
-          await syncRealAppointments();
-        }else{a.status='No-show';persistDB();}
-        toast('Marked as no-show.','warning');refreshTaskBadges(true);
-        closeAllModals();
-        await renderAppointments();
-      }catch(e){toast(e?.message||'Unable to update appointment.','error');}
-    }
+    onConfirm:recordOutcome(a,'No-show','Marked as no-show.','Unable to update appointment.')
   });
 }
 
@@ -253,7 +232,7 @@ export function cancelAppt(id,patient=false){
         <p class="form-note"><i class="bi bi-bell" aria-hidden="true"></i> ${escapeHtml(ptName)} is notified with this reason.</p>
       </section>
       <section id="cancel-step-2" hidden>
-        <div class="cancel-warning"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><strong>This can't be undone.</strong><span>The appointment is cancelled, the time slot opens to other patients, and ${escapeHtml(ptName)} is notified. To see them again, book a new appointment.</span></div></div>
+        <div class="cancel-warning"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><strong>${escapeHtml(ptName)} is notified right away.</strong><span>The time slot opens to other patients. You can undo this for a few seconds afterwards; after that, book a new appointment to see them again.</span></div></div>
         <p class="cancel-reason-preview" id="cancel-reason-preview"></p>
         <div class="form-group"><label for="cancel-confirm-text">Type <strong>CANCEL</strong> to confirm</label>
           <input id="cancel-confirm-text" autocomplete="off" autocapitalize="characters" spellcheck="false" ${bindAction('input',(event,element)=>{document.getElementById('cancel-final').disabled=element.value.trim().toUpperCase()!=='CANCEL';})}></div>
@@ -303,9 +282,38 @@ export async function confirmCancelAppt(id,patient=false,givenReason=null){
     }else{
       a.status='Cancelled';a.cancellationReason=reason;persistDB();
     }
-    toast('Appointment cancelled.','warning');refreshTaskBadges(true);
-    if(patient||appState.auth.currentUser.role==='Patient')await renderMyAppointments();else await renderAppointments();
+    const rerender=()=>patient||appState.auth.currentUser.role==='Patient'?renderMyAppointments():renderAppointments();
+    refreshTaskBadges(true);
+    await rerender();
+    toastWithUndo('Appointment cancelled.',async()=>{
+      if(a._realSupabase){
+        await appointmentAction({action:'undo_cancel',appointment_id:a.dbAppointmentId});
+        await syncRealAppointments();
+      }else{
+        a.status='Scheduled';a.cancellationReason='';persistDB();
+      }
+      refreshTaskBadges(true);
+      await rerender();
+    },{undoneMessage:'Appointment restored.'});
   }catch(e){toast(e?.message||'Unable to cancel appointment.','error');}
+}
+
+// Record an outcome (or put the visit back to Scheduled when undoing one).
+async function setApptStatus(a,status){
+  if(a._realSupabase){
+    await appointmentAction({action:'status',appointment_id:a.dbAppointmentId,status});
+    await syncRealAppointments();
+  }else{a.status=status;persistDB();}
+  refreshTaskBadges(true);
+  if(appState.auth.currentUser.role==='Patient')await renderMyAppointments();else await renderAppointments();
+}
+function recordOutcome(a,status,done,failure){
+  return async()=>{
+    try{await setApptStatus(a,status);}
+    catch(e){toast(e?.message||failure,'error');return;}
+    closeAllModals();
+    toastWithUndo(done,()=>setApptStatus(a,'Scheduled'),{undoneMessage:'Appointment is scheduled again.'});
+  };
 }
 
 // Reminders are in-app notifications on the patient's account; the server allows one per appointment

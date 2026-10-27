@@ -1,7 +1,7 @@
 // treatmentForm: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {appointmentDisplayId,appointmentRecords,syncRealAppointments} from './appointmentService.js';
-import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
+import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {fmtDate,fmtTime} from './inputValidation.js';
 import {syncRealDentalRecords,syncRealMedicationReminders,syncRealTreatments,treatmentAction,treatmentDisplayId,treatmentRecords} from './treatmentService.js';
 import {getDoctors,getPatientById,getUserById} from './documentScanner.js';
@@ -570,6 +570,20 @@ export async function viewTreatmentForAppt(apptId){
   }
 }
 
+async function setTreatmentArchived(t,archived){
+  if(t._realSupabase){
+    await treatmentAction({action:archived?'archive':'restore',treatment_id:t.dbTreatmentId});
+    await syncRealTreatments();
+  }else{
+    t.archived=archived;
+    if(archived){t.archivedAt=new Date().toISOString();t.archivedBy=appState.auth.currentUser.id;}
+    else{t.restoredAt=new Date().toISOString();t.restoredBy=appState.auth.currentUser.id;}
+    auditLog(archived?'TREATMENT_ARCHIVED':'TREATMENT_RESTORED',`Treatment #${t.id} ${archived?'archived':'restored'}.`,'Treatment',t.id);
+    persistDB();
+  }
+  renderTreatTable();
+}
+
 export function archiveTreat(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
   showConfirmDialog({
@@ -578,18 +592,9 @@ export function archiveTreat(id){
     confirmLabel:'Archive',
     danger:true,
     onConfirm:async()=>{
-      try{
-        if(t._realSupabase){
-          await treatmentAction({action:'archive',treatment_id:t.dbTreatmentId});
-          await syncRealTreatments();
-        }else{
-          t.archived=true;t.archivedAt=new Date().toISOString();t.archivedBy=appState.auth.currentUser.id;
-          auditLog('TREATMENT_ARCHIVED',`Treatment #${id} archived.`,'Treatment',id);
-          persistDB();
-        }
-        toast('Treatment record archived.','success');
-        renderTreatTable();
-      }catch(e){toast(e?.message||'Unable to archive treatment record.','error');}
+      try{await setTreatmentArchived(t,true);}
+      catch(e){toast(e?.message||'Unable to archive treatment record.','error');return;}
+      toastWithUndo('Treatment record archived.',()=>setTreatmentArchived(t,false),{undoneMessage:'Treatment record restored.'});
     }
   });
 }
@@ -601,18 +606,9 @@ export function restoreTreat(id){
     message:`Restore treatment record <strong>#${treatmentDisplayId(t)}</strong> to the active treatment list?`,
     confirmLabel:'Restore',
     onConfirm:async()=>{
-      try{
-        if(t._realSupabase){
-          await treatmentAction({action:'restore',treatment_id:t.dbTreatmentId});
-          await syncRealTreatments();
-        }else{
-          t.archived=false;t.restoredAt=new Date().toISOString();t.restoredBy=appState.auth.currentUser.id;
-          auditLog('TREATMENT_RESTORED',`Treatment #${id} restored.`,'Treatment',id);
-          persistDB();
-        }
-        toast('Treatment record restored.','success');
-        renderTreatTable();
-      }catch(e){toast(e?.message||'Unable to restore treatment record.','error');}
+      try{await setTreatmentArchived(t,false);}
+      catch(e){toast(e?.message||'Unable to restore treatment record.','error');return;}
+      toastWithUndo('Treatment record restored.',()=>setTreatmentArchived(t,true),{undoneMessage:'Treatment record archived again.'});
     }
   });
 }

@@ -9,9 +9,9 @@ import {getPatientById,getUserById} from './documentScanner.js';
 import {viewAppt} from './appointmentDetails.js';
 import {openAddTreatmentModal} from './treatmentForm.js';
 import {campusDateFieldHtml} from './datePicker.js';
-import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
+import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {clinicToday} from './scheduleAndDrafts.js';
-import {syncRealWorkflowRequests,workflowAction} from './workflowRequests.js';
+import {offerDecisionUndo,syncRealWorkflowRequests,workflowAction} from './workflowRequests.js';
 import {addNotif} from './notifications.js';
 import {docName} from './messaging.js';
 import {persistDB} from './persistence.js';
@@ -175,7 +175,9 @@ export function approveLeaveRequest(reqId,note=''){
           persistDB();
         }
 
-        toast('Day off approved.','success');
+        offerDecisionUndo(req,'Day off approved.',()=>{
+          appState.data.DB.doctorLeaves=appState.data.DB.doctorLeaves.filter(l=>!(l.doctorId===req.doctorId&&l.date===req.date));
+        });
         if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to approve the day off.','error',6500);
@@ -206,7 +208,7 @@ export function rejectLeaveRequest(reqId,note=''){
           persistDB();
         }
 
-        toast('Request rejected.','success');
+        offerDecisionUndo(req,'Request rejected.',()=>{});
         if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to reject the request.','error');
@@ -236,8 +238,17 @@ export function removeDoctorLeave(id){
           persistDB();
         }
 
-        toast('Day off cancelled.','warning');
         if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
+        toastWithUndo('Day off cancelled.',async()=>{
+          if(l._realSupabase){
+            await workflowAction({action:'restore_leave',leave_id:l.dbLeaveId});
+            await syncRealWorkflowRequests();
+          }else{
+            appState.data.DB.doctorLeaves.push(l);
+            persistDB();
+          }
+          if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
+        },{undoneMessage:'Day off restored.'});
       }catch(e){
         toast(e?.message||'Unable to cancel the approved day off.','error');
       }

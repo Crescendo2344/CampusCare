@@ -3,7 +3,7 @@ import {createFeatureSyncService} from '../services/feature-sync.js';
 import {maskEmail,maskPhone} from '../shared/privacy-formatting.js';
 // workflowRequests: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
-import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
+import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {closeAllModals,openModal} from './modals.js';
 import {canonicalSchedule,clinicToday,discardCampusDraft,scheduleConflicts,setScheduleDays,validateSchedule} from './scheduleAndDrafts.js';
 import {campusDateFieldHtml} from './datePicker.js';
@@ -167,8 +167,9 @@ export function approveScheduleChange(reqId,note=''){
           if(scheduleConflicts(doc,req.requested,effDate).length)throw new Error('Bookings changed. Resolve schedule conflicts before approval.');
           await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve',admin_note:note});
           await Promise.all([syncAdminDirectoryFromSupabase(),syncRealWorkflowRequests()]);
-          toast(effDate<=appState.clinicInformation.TODAY?'Schedule change approved and applied.':`Approved — will take effect automatically on ${fmtDate(effDate)}.`,'success');
+          offerDecisionUndo(req,effDate<=appState.clinicInformation.TODAY?'Schedule change approved and applied.':`Approved — takes effect on ${fmtDate(effDate)}.`);
         }else{
+          const before={...doc};
           if(effDate<=appState.clinicInformation.TODAY){
             Object.assign(doc,canonicalSchedule(req.requested));
             req.status='Approved';
@@ -178,7 +179,7 @@ export function approveScheduleChange(reqId,note=''){
             addNotif(doc.id,'Schedule Change Approved',`Your requested work schedule change has been approved and will take effect on ${fmtDate(effDate)}.`,'success');
           }
           persistDB();
-          toast('Schedule change approved.','success');
+          offerDecisionUndo(req,'Schedule change approved.',()=>Object.assign(doc,before));
         }
         if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
@@ -229,13 +230,30 @@ export function rejectScheduleChange(reqId,note=''){
           if(doc)addNotif(doc.id,'Schedule Change Declined','Your requested work schedule change was declined by an administrator. Please reach out for more details.','warning');
           persistDB();
         }
-        toast('Request rejected.','success');
+        offerDecisionUndo(req,'Request rejected.',()=>{});
         if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to reject the request.','error');
       }
     }
   });
+}
+
+// After approving or rejecting a request, offer Undo: the request goes back to Pending and whatever the
+// approval applied (new name, schedule, day off) is reversed. revertLocal handles the offline demo.
+export function offerDecisionUndo(req,message,revertLocal){
+  toastWithUndo(message,async()=>{
+    if(req._realSupabase){
+      await workflowAction({action:'undo_decision',request_id:req.dbRequestId});
+      await Promise.all([syncAdminDirectoryFromSupabase(),syncRealWorkflowRequests(),syncRealAppointments()]);
+    }else{
+      revertLocal();
+      req.status='Pending';req.adminNote='';
+      persistDB();
+    }
+    refreshTaskBadges(true);
+    if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
+  },{undoneMessage:'Decision undone. The request is pending again.'});
 }
 
 export function normalizePhilippinePhoneForAuth(localPhone){
