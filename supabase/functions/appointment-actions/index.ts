@@ -179,7 +179,7 @@ Deno.serve(async(req)=>{
       await admin.from("notifications").insert({
         user_id:(await admin.from("patients").select("user_id").eq("patient_id",patientId).single()).data?.user_id,
         title:action==="create"?"Appointment confirmed":"Appointment rescheduled",
-        message:`${clinic} appointment on ${date} at ${time}. Please bring your COR when you arrive at the clinic.`,
+        message:`${clinic} appointment on ${date} at ${time}. Please bring your signed COR (Certificate of Registration) for this semester when you arrive at the clinic.`,
         type:"Appointment",
         channel:"In-app",
         delivery_status:"Created",
@@ -273,7 +273,7 @@ Deno.serve(async(req)=>{
       const {error:notifyErr}=await admin.from("notifications").insert({
         user_id:patientUser.user_id,
         title:"Appointment reminder",
-        message:`Reminder: ${appt.clinic||"Clinic"} appointment on ${appt.appointment_date} at ${time5(appt.appointment_time)}. Please bring your COR when you arrive at the clinic.`,
+        message:`Reminder: ${appt.clinic||"Clinic"} appointment on ${appt.appointment_date} at ${time5(appt.appointment_time)}. Please bring your signed COR (Certificate of Registration) for this semester when you arrive at the clinic.`,
         type:"Appointment",
         channel:"In-app",
         delivery_status:"Created",
@@ -298,7 +298,7 @@ Deno.serve(async(req)=>{
         const rows=slots.map((s:any)=>({
           doctor_id:doctorId,override_date:date,slot_time:time5(String(s.time||"")),
           is_available:!!s.is_available,reason:String(s.reason||"").slice(0,255)||null,modified_by:actor.user_id
-        })).filter((r:any)=>r.slot_time);
+        })).filter((r:any)=>/^\d{2}:\d{2}$/.test(r.slot_time));
         if(rows.length){
           const {error}=await admin.from("appointment_slot_overrides").insert(rows);
           if(error)throw error;

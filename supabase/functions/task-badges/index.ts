@@ -173,7 +173,7 @@ Deno.serve(async(req)=>{
       if(entity==="appointments")return actor.role==="Patient"?"my-appointments":"appointments";
       if(entity==="treatments"||entity==="dental_records")return actor.role==="Patient"?"my-records":"treatments";
       if(entity==="medical_certificates")return actor.role==="Patient"?"my-certificates":actor.role==="Doctor"?"cert-requests":"";
-      if(entity==="fitness_assessments")return "fitness";
+      if(entity==="fitness_assessments")return actor.role==="Doctor"?"fitness":"";
       if(entity==="inventory_items"||entity==="inventory_transactions")return "inventory";
       if(entity==="workflow_requests")return actor.role==="Administrator"?"users":actor.role==="Doctor"?"schedule":"my-account";
       return "";
