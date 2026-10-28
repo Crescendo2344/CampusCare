@@ -1,9 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-// AI insights for forecasts: a free-tier model (Google Gemini, with Groq and xAI Grok as backups) reads the aggregated
+// AI insights for forecasts: a free-tier model (Google Gemini, with Groq as the backup) reads the aggregated
 // forecast (no patient details) and returns a structured briefing - headline, findings, risks, actions and
 // caveats - plus an answer to an optional question.
-// Secrets: any of GEMINI_API_KEY, GROQ_API_KEY, XAI_API_KEY (tried in that order); optional GEMINI_MODEL / GROQ_MODEL / GROK_MODEL.
+// Secrets: GEMINI_API_KEY and/or GROQ_API_KEY (tried in that order); optional GEMINI_MODEL / GROQ_MODEL.
 const cors={
   "Access-Control-Allow-Origin":"*",
   "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
@@ -114,7 +114,7 @@ async function askGemini(key:string,system:string,prompt:string,maxTokens:number
   throw last||new ProviderError("The AI service is unavailable.",502);
 }
 
-// Groq and xAI Grok both speak the OpenAI chat format.
+// Groq speaks the OpenAI chat format.
 async function askOpenAiCompatible(name:string,url:string,key:string,models:string[],system:string,prompt:string,maxTokens:number,deadline:number){
   let last:ProviderError|null=null;
   for(const model of [...new Set(models.filter(Boolean))]){
@@ -131,7 +131,7 @@ async function askOpenAiCompatible(name:string,url:string,key:string,models:stri
     }
     const message=String(body?.error?.message||body?.error||response.statusText);
     console.error("forecast-insights:",name,model,response.status,message);
-    if(response.status===401||response.status===403)throw new ProviderError(`The ${name} API key on the server is not valid or has no credit left.`,503,true);
+    if(response.status===401||response.status===403)throw new ProviderError(`The ${name} API key on the server is not valid.`,503,true);
     if(response.status===429)throw new ProviderError("The free AI quota is used up for now. Try again in a minute.",429);
     last=new ProviderError(`The AI service returned an error (${response.status}): ${message.slice(0,200)}`,502);
     // An unknown or retired model name: try the next one.
@@ -143,9 +143,7 @@ async function askOpenAiCompatible(name:string,url:string,key:string,models:stri
 const PROVIDERS=[
   {name:"Gemini",key:"GEMINI_API_KEY",ask:(key:string,system:string,prompt:string,max:number,deadline:number)=>askGemini(key,system,prompt,max,deadline)},
   {name:"Groq",key:"GROQ_API_KEY",ask:(key:string,system:string,prompt:string,max:number,deadline:number)=>
-    askOpenAiCompatible("Groq","https://api.groq.com/openai/v1/chat/completions",key,[Deno.env.get("GROQ_MODEL")||"","llama-3.3-70b-versatile"],system,prompt,max,deadline)},
-  {name:"Grok",key:"XAI_API_KEY",ask:(key:string,system:string,prompt:string,max:number,deadline:number)=>
-    askOpenAiCompatible("Grok","https://api.x.ai/v1/chat/completions",key,[Deno.env.get("GROK_MODEL")||"","grok-4.1-fast","grok-4.3"],system,prompt,max,deadline)}
+    askOpenAiCompatible("Groq","https://api.groq.com/openai/v1/chat/completions",key,[Deno.env.get("GROQ_MODEL")||"","llama-3.3-70b-versatile"],system,prompt,max,deadline)}
 ];
 
 Deno.serve(async(req)=>{
@@ -164,7 +162,7 @@ Deno.serve(async(req)=>{
 
     const available=PROVIDERS.map(p=>({...p,secret:Deno.env.get(p.key)||""})).filter(p=>p.secret);
     if(!available.length)
-      return json({error:"AI insights are not set up yet. Add a GEMINI_API_KEY, GROQ_API_KEY or XAI_API_KEY secret to the CampusCare server.",setup_required:true},503);
+      return json({error:"AI insights are not set up yet. Add a free GEMINI_API_KEY (Google AI Studio) or GROQ_API_KEY secret to the CampusCare server.",setup_required:true},503);
 
     const body=await req.json().catch(()=>({}));
     const kind=body.kind==="inventory"?"inventory":"reports";
@@ -182,7 +180,7 @@ Deno.serve(async(req)=>{
     const data=`${kind==="inventory"?"Inventory stock projection":"Clinic demand forecast"} (JSON):\n${context}`;
     const system=question?ASK_SYSTEM:SYSTEM,maxTokens=question?800:3072;
     const prompt=question?`${data}${history?`\n\nEarlier in this conversation:\n${history}`:""}\n\nQuestion: ${question}`:data;
-    // Each configured provider is tried in turn: a slow, failing or rate-limited one hands over to the next.
+    // Gemini first; if it is slow, failing or rate-limited, Groq answers instead.
     const deadline=Date.now()+TOTAL_BUDGET_MS;
     let provider="",reply:{output:string,model:string}|null=null,failure:ProviderError|null=null;
     for(const p of available){
