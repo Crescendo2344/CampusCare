@@ -425,7 +425,7 @@ export function archivePatient(id){
     onConfirm:async()=>{
       try{
         await setPatientArchived(p,true);
-        toastWithUndo(`${p.fname} ${p.lname}'s record archived.`,()=>setPatientArchived(p,false,{undo:true}),{undoneMessage:'Patient record restored.'});
+        toastWithUndo(`${p.fname} ${p.lname}'s record archived.`,()=>setPatientArchived(p,false),{undoneMessage:'Patient record restored.'});
       }catch(e){
         toast(e?.message||'Unable to archive the patient record.','error',7000);
       }
@@ -452,10 +452,10 @@ export function restorePatient(id){
   });
 }
 
-// Archive or restore, then refresh the list. Undoing an archive restores quietly (no "restored" notice to the patient).
-async function setPatientArchived(p,archived,{undo=false}={}){
+// Archive or restore, then refresh the list.
+async function setPatientArchived(p,archived){
   if(p._realSupabase){
-    await patientAction({action:archived?'archive':'restore',patient_id:p.dbPatientId,undo});
+    await patientAction({action:archived?'archive':'restore',patient_id:p.dbPatientId});
     await syncAdminDirectoryFromSupabase();
   }else{
     p.archived=archived;

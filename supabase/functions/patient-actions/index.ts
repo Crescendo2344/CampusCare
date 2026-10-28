@@ -388,8 +388,7 @@ Deno.serve(async(req)=>{
 
       await admin.from("users").update({status:previous}).eq("user_id",target.user_id);
 
-      // Undoing an archive a moment later needs no "restored" notice.
-      if(body.undo!==true)await admin.from("notifications").insert({
+      await admin.from("notifications").insert({
         user_id:target.user_id,
         title:"Patient Record Restored",
         message:"Your CampusCare patient record has been restored by an administrator.",
@@ -401,7 +400,7 @@ Deno.serve(async(req)=>{
         user_id:actor.user_id,
         action:"PATIENT_RECORD_RESTORED",
         entity_type:"patients",entity_id:patientId,
-        details:{target_user_id:target.user_id,restored_status:previous,undo:body.undo===true}
+        details:{target_user_id:target.user_id,restored_status:previous}
       });
 
       return json({ok:true,status:previous});

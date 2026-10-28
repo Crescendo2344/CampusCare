@@ -940,6 +940,7 @@ Deno.serve(async(req)=>{
       if(!r)return json({error:"Request not found."},404);
       if(!["Rejected","Applied","Approved-Pending"].includes(r.status))return json({error:"This request has no decision to undo."},409);
       if(Number(r.reviewed_by)!==Number(actor.user_id))return json({error:"Only the administrator who reviewed this request can undo the decision."},403);
+      if(Number(r.requester_id)===Number(r.reviewed_by))return json({error:"This schedule update was not a request decision."},409);
       if(!withinUndoWindow(r.reviewed_at))return json({error:"This decision can no longer be undone."},409);
 
       if(r.status!=="Rejected"){
