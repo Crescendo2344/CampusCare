@@ -1,15 +1,15 @@
-import Anthropic from "npm:@anthropic-ai/sdk";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-// AI insights for forecasts: Claude reads the aggregated forecast (no patient details) and returns a
-// structured briefing - headline, findings, risks, actions and caveats - plus an answer to an optional question.
+// AI insights for forecasts: a free-tier model (Google Gemini, or Groq as an alternative) reads the aggregated
+// forecast (no patient details) and returns a structured briefing - headline, findings, risks, actions and
+// caveats - plus an answer to an optional question.
+// Secrets: GEMINI_API_KEY (preferred) or GROQ_API_KEY; optional GEMINI_MODEL / GROQ_MODEL to pick a model.
 const cors={
   "Access-Control-Allow-Origin":"*",
   "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods":"POST, OPTIONS"
 };
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
-const MODEL="claude-opus-5-5";
 const HOURLY_LIMIT=40;
 const MAX_CONTEXT_CHARS=60000;
 
@@ -24,22 +24,87 @@ Rules:
 - For inventory, items without usage history have no projection: comment only on their stock against the reorder level and on expiry dates.
 - Do not give medical advice about individual patients.
 - Write plain, friendly English. Keep each field short; no markdown.
-- If a question is included, answer it in "answer" using the data; if the data cannot answer it, say what is missing. Otherwise set "answer" to an empty string.`;
+- If a question is included, answer it in "answer" using the data; if the data cannot answer it, say what is missing. Otherwise set "answer" to an empty string.
 
-const SCHEMA={
-  type:"object",
-  additionalProperties:false,
-  required:["headline","summary","highlights","risks","actions","caveats","answer"],
-  properties:{
-    headline:{type:"string",description:"One sentence, the single most important takeaway."},
-    summary:{type:"string",description:"Two to four sentences describing what the forecast shows."},
-    highlights:{type:"array",items:{type:"object",additionalProperties:false,required:["title","detail"],properties:{title:{type:"string"},detail:{type:"string"}}}},
-    risks:{type:"array",items:{type:"object",additionalProperties:false,required:["level","title","detail"],properties:{level:{type:"string",enum:["high","medium","low"]},title:{type:"string"},detail:{type:"string"}}}},
-    actions:{type:"array",items:{type:"object",additionalProperties:false,required:["priority","action","reason"],properties:{priority:{type:"string",enum:["now","soon","later"]},action:{type:"string"},reason:{type:"string"}}}},
-    caveats:{type:"array",items:{type:"string"}},
-    answer:{type:"string"}
+Reply with one JSON object and nothing else, in exactly this shape:
+{"headline": string (one sentence, the most important takeaway),
+ "summary": string (two to four sentences),
+ "highlights": [{"title": string, "detail": string}],
+ "risks": [{"level": "high" | "medium" | "low", "title": string, "detail": string}],
+ "actions": [{"priority": "now" | "soon" | "later", "action": string, "reason": string}],
+ "caveats": [string],
+ "answer": string}`;
+
+const text=(v:unknown,max=600)=>String(v??"").trim().slice(0,max);
+const list=(v:unknown)=>Array.isArray(v)?v.slice(0,8):[];
+const oneOf=(v:unknown,allowed:string[],fallback:string)=>allowed.includes(String(v))?String(v):fallback;
+// Free models follow the shape well but not perfectly; keep only well-formed fields.
+function normalize(raw:any){
+  return {
+    headline:text(raw?.headline,300),
+    summary:text(raw?.summary,1200),
+    highlights:list(raw?.highlights).map((h:any)=>({title:text(h?.title,160),detail:text(h?.detail)})).filter(h=>h.title||h.detail),
+    risks:list(raw?.risks).map((r:any)=>({level:oneOf(String(r?.level).toLowerCase(),["high","medium","low"],"medium"),title:text(r?.title,160),detail:text(r?.detail)})).filter(r=>r.title||r.detail),
+    actions:list(raw?.actions).map((a:any)=>({priority:oneOf(String(a?.priority).toLowerCase(),["now","soon","later"],"soon"),action:text(a?.action,240),reason:text(a?.reason)})).filter(a=>a.action),
+    caveats:list(raw?.caveats).map((c:any)=>text(c,300)).filter(Boolean),
+    answer:text(raw?.answer,1500)
+  };
+}
+// Model output sometimes arrives wrapped in a code fence.
+const parseJson=(output:string)=>JSON.parse(output.trim().replace(/^```(?:json)?\s*/i,"").replace(/```\s*$/,""));
+
+class ProviderError extends Error{constructor(message:string,public status:number,public setup=false){super(message);}}
+
+async function askGemini(key:string,prompt:string){
+  const models=[Deno.env.get("GEMINI_MODEL"),"gemini-flash-latest","gemini-2.5-flash"].filter(Boolean) as string[];
+  let last:ProviderError|null=null;
+  for(const model of [...new Set(models)]){
+    const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-goog-api-key":key},
+      body:JSON.stringify({
+        systemInstruction:{parts:[{text:SYSTEM}]},
+        contents:[{role:"user",parts:[{text:prompt}]}],
+        generationConfig:{responseMimeType:"application/json",temperature:0.3,maxOutputTokens:8192}
+      })
+    });
+    const body=await response.json().catch(()=>({}));
+    if(response.ok){
+      // Thinking models can return reasoning parts flagged as thoughts; only the answer text is used.
+      const output=(body?.candidates?.[0]?.content?.parts||[]).filter((p:any)=>!p.thought).map((p:any)=>p.text||"").join("");
+      if(!output)throw new ProviderError("The AI returned an empty answer. Try again.",502);
+      return {output,model};
+    }
+    const message=String(body?.error?.message||response.statusText);
+    console.error("forecast-insights: Gemini",model,response.status,message);
+    if(response.status===400&&/api key/i.test(message))throw new ProviderError("The Gemini API key on the server is not valid. Update the GEMINI_API_KEY secret.",503,true);
+    if(response.status===403)throw new ProviderError("The Gemini API key is not allowed to use this model. Check the key in Google AI Studio.",503,true);
+    if(response.status===429)throw new ProviderError("The free AI quota is used up for now. Try again in a minute, or tomorrow if the daily limit was reached.",429);
+    last=new ProviderError(`The AI service returned an error (${response.status}): ${message.slice(0,200)}`,502);
+    if(response.status!==404)break;// a retired model name: try the next one
   }
-};
+  throw last||new ProviderError("The AI service is unavailable.",502);
+}
+
+async function askGroq(key:string,prompt:string){
+  const model=Deno.env.get("GROQ_MODEL")||"llama-3.3-70b-versatile";
+  const response=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+    method:"POST",
+    headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},
+    body:JSON.stringify({model,temperature:0.3,max_tokens:4096,response_format:{type:"json_object"},messages:[{role:"system",content:SYSTEM},{role:"user",content:prompt}]})
+  });
+  const body=await response.json().catch(()=>({}));
+  if(!response.ok){
+    const message=String(body?.error?.message||response.statusText);
+    console.error("forecast-insights: Groq",model,response.status,message);
+    if(response.status===401)throw new ProviderError("The Groq API key on the server is not valid. Update the GROQ_API_KEY secret.",503,true);
+    if(response.status===429)throw new ProviderError("The free AI quota is used up for now. Try again in a minute.",429);
+    throw new ProviderError(`The AI service returned an error (${response.status}): ${message.slice(0,200)}`,502);
+  }
+  const output=String(body?.choices?.[0]?.message?.content||"");
+  if(!output)throw new ProviderError("The AI returned an empty answer. Try again.",502);
+  return {output,model};
+}
 
 Deno.serve(async(req)=>{
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
@@ -55,8 +120,9 @@ Deno.serve(async(req)=>{
     if(!actor||actor.status!=="Active")return json({error:"Active CampusCare account required."},403);
     if(!["Administrator","Staff","Doctor"].includes(actor.role))return json({error:"AI insights are available to clinic staff only."},403);
 
-    if(!Deno.env.get("ANTHROPIC_API_KEY"))
-      return json({error:"AI insights are not set up yet. An administrator needs to add the ANTHROPIC_API_KEY secret to the CampusCare server.",setup_required:true},503);
+    const geminiKey=Deno.env.get("GEMINI_API_KEY"),groqKey=Deno.env.get("GROQ_API_KEY");
+    if(!geminiKey&&!groqKey)
+      return json({error:"AI insights are not set up yet. Add a free GEMINI_API_KEY (Google AI Studio) or GROQ_API_KEY secret to the CampusCare server.",setup_required:true},503);
 
     const body=await req.json().catch(()=>({}));
     const kind=body.kind==="inventory"?"inventory":"reports";
@@ -69,45 +135,20 @@ Deno.serve(async(req)=>{
       .eq("user_id",actor.user_id).eq("action","AI_FORECAST_INSIGHTS").gte("created_at",since);
     if((count||0)>=HOURLY_LIMIT)return json({error:"You've reached the hourly limit for AI insights. Try again later."},429);
 
-    const client=new Anthropic();
-    const request={
-      model:MODEL,
-      max_tokens:16000,
-      output_config:{effort:"medium",format:{type:"json_schema",schema:SCHEMA}},
-      system:SYSTEM,
-      messages:[{role:"user",content:`${kind==="inventory"?"Inventory stock projection":"Clinic demand forecast"} (JSON):\n${context}${question?`\n\nQuestion from the user: ${question}`:""}`}]
-    };
-    // Prefer the server-side refusal fallback; if the account or SDK rejects that beta, send the plain request.
-    let response:any;
-    try{
-      response=await client.beta.messages.create({...request,betas:["server-side-fallback-2026-07-01"],fallbacks:"default"} as any);
-    }catch(e){
-      if(!(e instanceof Anthropic.BadRequestError)||/credit balance/i.test(e.message))throw e;
-      console.error("forecast-insights: fallback request rejected, retrying without it:",e.message);
-      response=await client.messages.create(request as any);
-    }
-
-    if(response.stop_reason==="refusal")return json({error:"The AI could not analyse this forecast. Try again with different settings."},422);
-    if(response.stop_reason==="max_tokens")return json({error:"The AI response was cut short. Try again."},502);
-    const text=response.content.filter((b:any)=>b.type==="text").map((b:any)=>b.text).join("");
+    const prompt=`${kind==="inventory"?"Inventory stock projection":"Clinic demand forecast"} (JSON):\n${context}${question?`\n\nQuestion from the user: ${question}`:""}`;
+    const {output,model}=geminiKey?await askGemini(geminiKey,prompt):await askGroq(groqKey!,prompt);
     let insights:any;
-    try{insights=JSON.parse(text);}catch(_){return json({error:"The AI returned an unreadable answer. Try again."},502);}
+    try{insights=normalize(parseJson(output));}catch(_){return json({error:"The AI returned an unreadable answer. Try again."},502);}
+    if(!insights.headline&&!insights.summary&&!insights.answer)return json({error:"The AI returned an empty answer. Try again."},502);
 
     await admin.from("audit_logs").insert({
       user_id:actor.user_id,action:"AI_FORECAST_INSIGHTS",entity_type:kind==="inventory"?"inventory_items":"reports",entity_id:null,
-      details:{kind,question:question||null,model:response.model,input_tokens:response.usage?.input_tokens??null,output_tokens:response.usage?.output_tokens??null}
+      details:{kind,question:question||null,provider:geminiKey?"Gemini":"Groq",model}
     });
 
-    return json({ok:true,insights,model:response.model,generated_at:new Date().toISOString()});
+    return json({ok:true,insights,model,generated_at:new Date().toISOString()});
   }catch(e){
-    if(e instanceof Anthropic.RateLimitError)return json({error:"The AI service is busy. Try again in a minute."},429);
-    if(e instanceof Anthropic.AuthenticationError)return json({error:"The AI key on the server is not valid. An administrator needs to update ANTHROPIC_API_KEY.",setup_required:true},503);
-    if(e instanceof Anthropic.APIError){
-      console.error("forecast-insights: Anthropic API error",e.status,e.message);
-      if(/credit balance/i.test(e.message))return json({error:"The Anthropic account has no credit left. Add credits in the Anthropic Console (Plans & Billing), then try again.",setup_required:true},503);
-      const reason=String((e as any).error?.error?.message||e.message||"").slice(0,240);
-      return json({error:`The AI service returned an error (${e.status})${reason?`: ${reason}`:""}`},502);
-    }
+    if(e instanceof ProviderError)return json({error:e.message,setup_required:e.setup},e.status);
     console.error("forecast-insights:",e);
     return json({error:e instanceof Error?e.message:"AI insights failed."},500);
   }
