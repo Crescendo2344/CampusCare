@@ -105,7 +105,8 @@ async function geminiOnce(key:string,model:string,system:string,prompt:string,ma
     },deadline);
     const body=await response.json().catch(()=>({}));
     const message=String(body?.error?.message||response.statusText);
-    if(response.status===400&&/thinking/i.test(message))continue;
+    // A model that rejects this thinking setting may only say "invalid argument": try the next setting.
+    if(response.status===400&&thinkingConfig&&!/api key/i.test(message))continue;
     return {response,body,message};
   }
   throw new ProviderError("The AI service rejected the request.",502);
