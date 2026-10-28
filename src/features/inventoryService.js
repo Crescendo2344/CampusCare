@@ -13,6 +13,7 @@ import {patientDisplayId} from './patientService.js';
 import {toast} from './theme.js';
 import {databaseSkeletonHtml} from './loadingSkeletons.js';
 import {bindAction,createInventoryService,inventoryData} from '../dependencies.js';
+import {aiInsightsPanelHtml,mountAiInsights} from '../reports/ai-insights.js';
 import {DEFAULT_HORIZON,FORECAST_PRESETS,MAX_HORIZON,MIN_HORIZON,clampHorizon,projectItem} from '../domain/inventory-projection.js';
 import {csvDate,csvFileName,csvReadableDate,downloadCsv,toCsv} from '../shared/csv.js';
 // Compatibility adapters own application state; the data modules receive explicit dependencies.
@@ -203,7 +204,7 @@ export function forecastSectionHtml(){
   </div>`;
   if(!rows.length)return controls+'<div class="tech-note">Add inventory items and record disbursements to generate a forecast.</div>';
   const periods=rows[0].p.periods;
-  return controls+`<div class="table-wrap"><table class="forecast-table">
+  return controls+aiInsightsPanelHtml('inv-forecast-ai','inventory')+`<div class="table-wrap"><table class="forecast-table">
     <thead><tr><th>Item</th>${periods.map(p=>`<th>${escapeHtml(p.label)}</th>`).join('')}<th>Plan for ${escapeHtml(horizonLabel(days))}</th></tr></thead>
     <tbody>${rows.map(({item,p})=>`<tr>
       <td class="fc-item"><strong>${escapeHtml(item.name)}</strong><span>${Number(item.qty??0)} ${escapeHtml(item.unit||'')} in stock · reorder at ${Number(item.threshold||0)}</span><span>About ${p.averageDaily.toFixed(1)} ${escapeHtml(item.unit||'')} a day</span></td>
@@ -213,13 +214,31 @@ export function forecastSectionHtml(){
   </table></div>${missing.length?`<p class="fc-missing">${missing.length} item${missing.length===1?'':'s'} not shown because there is no usage history yet: ${missing.slice(0,5).map(i=>escapeHtml(i.name)).join(', ')}${missing.length>5?' and more':''}.</p>`:''}`;
 }
 
+// The AI panel reads the same projection the table shows, limited to the items that need attention first.
+export function mountInventoryForecastAi(){
+  mountAiInsights('inv-forecast-ai','inventory',()=>{
+    const {rows,missing,days,start}=inventoryForecastProjections();
+    return {
+      today:start,period:horizonLabel(days),days,
+      items:rows.slice(0,60).map(({item,p})=>({
+        item:item.name,category:item.category,unit:item.unit,on_hand:Number(item.qty??0),reorder_level:Number(item.threshold||0),
+        average_daily_use:Math.round(p.averageDaily*10)/10,projected_use:p.totalUse,stock_at_end:p.stockAtEnd,
+        runs_out:p.stockoutDate||null,suggested_order:p.reorderQty,order_by:p.reorderBy||null,expiry:item.expiryDate||null,
+        periods:p.periods.map(x=>({period:x.label,use:x.use,left:x.stockAfter}))
+      })),
+      items_not_shown:Math.max(0,rows.length-60),
+      items_without_usage_history:missing.length
+    };
+  });
+}
+
 export function setForecastDays(value){
   const raw=Number(value);
   if(!Number.isFinite(raw)||raw<=0){toast(`Enter a forecast period between ${MIN_HORIZON} and ${MAX_HORIZON} days.`,'warning');return;}
   const days=clampHorizon(raw);
   if(days!==Math.round(raw))toast(`Forecasts cover ${MIN_HORIZON} to ${MAX_HORIZON} days, so ${days} days is shown.`,'info');
   appState.inventoryList.forecastDays=days;
-  const host=document.getElementById('inv-forecast');if(host)host.innerHTML=forecastSectionHtml();
+  const host=document.getElementById('inv-forecast');if(host){host.innerHTML=forecastSectionHtml();mountInventoryForecastAi();}
   const badge=document.getElementById('inv-forecast-badge');if(badge)badge.textContent=`${horizonLabel(days)} forecast`;
 }
 

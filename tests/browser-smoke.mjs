@@ -119,6 +119,11 @@ try{
     const owner=role==='Doctor'?1:2;
     response={ok:true,doctor_leaves:[],requests:[{request_id:9,request_type:'Day Off',requester_id:owner,target_user_id:owner,payload:{leaveDate:'2026-12-01',attachment:{path:'requests/2/fixture.png',name:'medical-certificate.png',mime:'image/png',size:2048}},reason:'Scheduled minor procedure',effective_date:'2026-12-01',status:'Pending',created_at:'2026-10-20T01:00:00Z',attachment_url:pixel}]};
    }
+   else if(path.endsWith('/forecast-insights')){
+    const body=request.postDataJSON();
+    assert(body.context&&!JSON.stringify(body.context).match(/patient_id|id_number/),'Only aggregated forecast data is sent to the AI');
+    response={ok:true,model:'claude-opus-5-5',generated_at:'2026-10-28T02:00:00Z',insights:{headline:body.question?'':'Visits stay low and steady over the next 3 months.',summary:'About 3 visits are expected.',highlights:[{title:'Low demand',detail:'Roughly 0.2 visits a week.'}],risks:[{level:'medium',title:'Old history',detail:'The latest event is from March.'}],actions:[{priority:'soon',action:'Review recent records',reason:'The history may be incomplete.'}],caveats:['Based on 3 events only.'],answer:body.question?'Early November needs the most attention.':''}};
+   }
    else if(path.includes('/functions/v1/'))response={ok:true,notifications:[],requests:[],doctor_leaves:[],messages:[],contacts:[doctor],resources:[],surveys:[],users:[],doctors:[doctor],counts:{},items:{}};
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(response)});
   });
@@ -1114,6 +1119,14 @@ try{
     // 3 months by default, week by week; longer periods switch to months; any 7–365 days can be typed.
     assert.match(await page.locator('#forecast-result').innerText(),/Expected in the next 3 months/i);
     assert.equal(await page.locator('#forecast-result tbody tr').count(),13);
+    // AI insights run only on request and summarise the forecast; follow-up questions get their own answer.
+    await page.locator('#forecast-ai .ai-generate').click();
+    await page.locator('#forecast-ai .ai-headline').waitFor();
+    assert.match(await page.locator('#forecast-ai').innerText(),/Visits stay low[\s\S]*Risks to watch[\s\S]*Recommended actions/);
+    await page.locator('#forecast-ai .ai-suggestion').first().click();
+    await page.locator('#forecast-ai .ai-answer').waitFor();
+    assert.match(await page.locator('#forecast-ai .ai-answer').innerText(),/Early November/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#forecast-ai').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/forecast-ai-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#forecast-horizon').getByRole('button',{name:'1 year',exact:true}).click();
     assert.equal(await page.locator('#forecast-result tbody tr').count(),13);
     assert.match(await page.locator('#forecast-result tbody tr').nth(1).textContent(),/\w{3} \d{4}/);

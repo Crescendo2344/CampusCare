@@ -2,7 +2,7 @@
 import {state as appState} from '../app/state.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
-import {getInventoryForecast,inventoryDisplayId,inventoryForecastBadge,inventoryRecords,inventoryTransactionRecords,predictiveInventorySummaryHtml,syncRealInventory} from './inventoryService.js';
+import {getInventoryForecast,inventoryDisplayId,inventoryForecastBadge,inventoryRecords,inventoryTransactionRecords,mountInventoryForecastAi,predictiveInventorySummaryHtml,syncRealInventory} from './inventoryService.js';
 import {escapeHtml} from './issueReports.js';
 import {getUserById} from './documentScanner.js';
 import * as stockData from '../domain/inventory-status.js';
@@ -111,6 +111,7 @@ export async function renderInventory(){
   });
   renderInvTable();
   renderDisbTable();
+  mountInventoryForecastAi();
 }
 
 export function switchInventoryView(view){

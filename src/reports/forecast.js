@@ -4,6 +4,7 @@ import {bindAction} from '../dependencies.js';
 import {escapeHtml} from '../features/issueReports.js';
 import {FORECAST_HORIZONS,buildForecast,offsetDay} from '../domain/report-analysis.js';
 import {chartTypeSwitchHtml,isChartType,reportChartHtml} from '../ui/report-chart.js';
+import {aiInsightsPanelHtml,mountAiInsights} from './ai-insights.js';
 import {reportData} from './report-data.js';
 import {reportSelect} from './custom-report.js';
 import {csvFileName} from '../shared/csv.js';
@@ -73,6 +74,7 @@ export function runForecast(){
         <div class="intel-card"><div class="intel-kicker">Most recent event used</div><div class="intel-value report-date-value">${f.lastDate||'—'}</div><div class="intel-meta">${f.method==='weekday'?'Average for each day of the week':'Total activity ÷ selected calendar days'}</div></div>
       </div>
       ${stale?'<p class="report-stale">The latest event used is over 30 days old. Check that this history still reflects current demand.</p>':''}
+      ${aiInsightsPanelHtml('forecast-ai','reports')}
       <div class="report-chart-head">
         <div class="report-forecast-key"><span><i></i> Recorded history (last 8 weeks)</span><span><i class="projected"></i> Estimate, ${f.horizon<=92?'week':'month'} by ${f.horizon<=92?'week':'month'}</span></div>
         ${chartTypeSwitchHtml(ui.forecastChart,type=>bindAction('click',()=>setForecastChart(type)))}
@@ -83,6 +85,13 @@ export function runForecast(){
       <button type="button" class="btn btn-sm" ${bindAction('click',()=>downloadBlob(rowsToCSV(f.rows.map(r=>({'Forecast for':name,'Period':r.label,'From':r.start,'To':r.end,'Estimated amount':r.amount,'Unit':unit,'College':medicine?'Campus inventory':college||'All colleges','Clinic':medicine?'Not applicable':clinic||'All clinics','Calculation':f.method==='weekday'?'Weekday pattern':'Daily average','History from':f.from,'History to':f.to}))),csvFileName(`forecast ${f.from} to ${f.to}`),'text/csv;charset=utf-8;'))}><i class="bi bi-download" aria-hidden="true"></i> Download CSV</button>
       <p class="form-note">Estimates use only the selected history. They do not account for holidays, enrollment changes or unexpected events. These are planning estimates, not guaranteed totals or statistical confidence intervals.</p>`}
     </div>`;
+    if(!f.reason)mountAiInsights('forecast-ai','reports',()=>({
+      forecast_of:name,unit,today:state.clinicInformation.TODAY,
+      scope:medicine?'Campus inventory disbursements':`${college||'All colleges'} · ${clinic||'All clinics'}`,
+      calculation:f.method==='weekday'?'Average for each day of the week':'Daily average over the history',
+      history:{from:f.from,to:f.to,calendar_days:f.days,recorded_events:f.records,total:f.total,last_event:f.lastDate,quality:f.historyQuality,last_8_weeks:f.history.map(r=>({week:r.label,amount:r.amount}))},
+      forecast:{period:period,days:f.horizon,total:f.projected,average_per_week:Math.round(f.dailyAverage*70)/10,periods:f.rows.map(r=>({period:r.label,from:r.start,to:r.end,amount:r.amount}))}
+    }));
   }catch(error){host.innerHTML=`<div class="alert alert-danger show" role="alert">${esc(error.message)}</div>`;}
 }
 export function markForecastStale(event){

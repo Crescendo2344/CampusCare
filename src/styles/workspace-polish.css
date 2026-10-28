@@ -1182,3 +1182,47 @@ button.fi-row.fi-open{padding:.75rem .9rem}
   .audit-item{align-items:flex-start}
 }
 .audit-changes tbody th{background:none;color:var(--ink);text-transform:none;letter-spacing:0;font-size:.82rem}
+
+/* AI forecast insights: a briefing card with findings, risks, actions and a follow-up question. */
+.ai-insights{margin:1rem 0;padding:1rem 1.1rem;border-radius:16px;border:1px solid rgba(140,121,218,.45);background:linear-gradient(135deg,rgba(140,121,218,.12),rgba(10,126,168,.08))}
+.ai-insights-head{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
+.ai-insights-head h4{margin:.25rem 0 0;font-size:.95rem}
+.ai-badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.68rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#8c79da}
+.ai-insights-body:empty{display:none}
+.ai-insights-body{margin-top:.8rem}
+.ai-loading{display:flex;align-items:center;gap:.35rem;font-size:.82rem;color:var(--ink-muted);padding:.4rem 0}
+.ai-dot{width:7px;height:7px;border-radius:50%;background:#8c79da;animation:ai-pulse 1s infinite ease-in-out}
+.ai-dot:nth-child(2){animation-delay:.15s}.ai-dot:nth-child(3){animation-delay:.3s}
+@keyframes ai-pulse{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.ai-dot{animation:none;opacity:.7}}
+.ai-headline{font-size:1rem;font-weight:700;margin:0 0 .35rem}
+.ai-summary{font-size:.85rem;line-height:1.6;margin:0 0 .8rem;color:var(--ink)}
+.ai-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem;margin-bottom:.8rem}
+.ai-block{padding:.7rem .8rem;border-radius:12px;background:var(--glass-surface-soft);border:1px solid var(--line-soft,var(--line));margin-bottom:.8rem}
+.ai-grid .ai-block{margin-bottom:0}
+.ai-block h5{display:flex;align-items:center;gap:.35rem;margin:0 0 .5rem;font-size:.8rem}
+.ai-block ul,.ai-block ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:.5rem}
+.ai-block li{display:flex;flex-direction:column;gap:.1rem;font-size:.8rem}
+.ai-block li span{color:var(--ink-muted);line-height:1.45}
+.ai-risk strong{display:flex;align-items:center;gap:.3rem}
+.ai-risk em{margin-left:auto;font-style:normal;font-size:.62rem;font-weight:800;text-transform:uppercase;padding:.05rem .4rem;border-radius:999px;border:1px solid currentColor}
+.ai-risk.high strong{color:var(--danger)}.ai-risk.medium strong{color:var(--warning)}.ai-risk.low strong{color:var(--info)}
+.ai-actions li{flex-direction:row;align-items:flex-start;gap:.6rem}
+.ai-actions li>div{display:flex;flex-direction:column;gap:.1rem}
+.ai-priority{flex:0 0 auto;font-size:.64rem;font-weight:800;text-transform:uppercase;padding:.15rem .45rem;border-radius:999px;background:var(--overlay);color:var(--ink-muted)}
+.ai-priority.now{background:var(--danger-bg);color:var(--danger)}.ai-priority.soon{background:var(--warning-bg);color:var(--warning)}
+.ai-caveats{font-size:.78rem;margin:.2rem 0 .7rem}
+.ai-caveats summary{cursor:pointer;color:var(--ink-muted)}
+.ai-caveats ul{margin:.4rem 0 0 1rem;color:var(--ink-muted)}
+.ai-ask{display:flex;gap:.5rem;margin-top:.4rem}
+.ai-ask input{flex:1;min-width:0}
+.ai-suggestions{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
+.ai-suggestion{border:1px solid var(--line);background:var(--overlay);color:var(--ink);font:inherit;font-size:.72rem;padding:.25rem .6rem;border-radius:999px;cursor:pointer}
+.ai-suggestion:hover{border-color:#8c79da}
+.ai-answer{margin:.5rem 0;padding:.6rem .75rem;border-radius:12px;background:var(--glass-surface-soft);border-left:3px solid #8c79da;font-size:.82rem}
+.ai-q{display:block;color:var(--ink-muted);font-size:.74rem;margin-bottom:.25rem}
+.ai-answer p{margin:0;line-height:1.55}
+.ai-foot{margin:.7rem 0 0;font-size:.68rem;color:var(--ink-muted)}
+.ai-error{display:flex;gap:.5rem;align-items:flex-start;font-size:.8rem;padding:.55rem .7rem;border-radius:10px;background:var(--danger-bg);color:var(--danger)}
+.ai-error.setup{background:var(--warning-bg);color:var(--warning)}
+@media(max-width:700px){.ai-grid{grid-template-columns:1fr}}
