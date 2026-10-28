@@ -930,6 +930,18 @@ try{
     await page.locator('#issue-thread .close-btn').click();
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/feedback-queue.png`,fullPage:true});
   }
+  if(['Staff','Administrator'].includes(role)){
+    // Inventory is split into tabs like Reports & Analytics; a summary card jumps back to the item list.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('inventory'));
+    await page.locator('#inv-tab-items').waitFor();
+    await page.locator('#inv-tab-movements').click();
+    assert(await page.locator('#inv-panel-movements').isVisible());assert(await page.locator('#inv-panel-items').isHidden());
+    await page.locator('#inv-tab-forecast').click();
+    assert(await page.locator('#inv-panel-forecast').isVisible());
+    await page.locator('.inv-stat:not([disabled])').first().click();
+    assert(await page.locator('#inv-panel-items').isVisible(),'A summary card opens the filtered item list');
+    if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/inventory-tabs-${role}.png`});
+  }
   // Walk every visible role route through its actual generated click callback.
   const navIds=await page.locator('#sidebar nav [id^="nav-"]').evaluateAll(elements=>elements.map(element=>element.id));
   assert(navIds.length>0);assert(!navIds.includes('nav-task-center'));
@@ -1068,12 +1080,26 @@ try{
     await page.getByRole('button',{name:'Last 90 days',exact:true}).click();
     await page.getByRole('tab',{name:'Forecast',exact:true}).click();
     await page.locator('#forecast-from').fill('2026-01-01');await page.locator('#forecast-to').fill('2026-03-31');
-    await page.locator('#forecast-weeks').selectOption('8');
     await page.getByRole('button',{name:'Update forecast',exact:true}).click();
     assert.match(await page.locator('#forecast-result').innerText(),/History: 2026-01-01 to 2026-03-31/);
-    assert.match(await page.locator('#forecast-result').innerText(),/Expected next 8 weeks/i);
-    assert.equal(await page.locator('#forecast-result tbody tr').count(),8);
-    const forecastDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Export forecast CSV',exact:true}).click();
+    // 3 months by default, week by week; longer periods switch to months; any 7–365 days can be typed.
+    assert.match(await page.locator('#forecast-result').innerText(),/Expected in the next 3 months/i);
+    assert.equal(await page.locator('#forecast-result tbody tr').count(),13);
+    await page.locator('#forecast-horizon').getByRole('button',{name:'1 year',exact:true}).click();
+    assert.equal(await page.locator('#forecast-result tbody tr').count(),13);
+    assert.match(await page.locator('#forecast-result tbody tr').nth(1).textContent(),/\w{3} \d{4}/);
+    await page.locator('#forecast-days').fill('30');await page.locator('#forecast-days').press('Enter');
+    assert.equal(await page.locator('#forecast-result tbody tr').count(),5);
+    // The same estimate can be drawn as columns, a line, an area, bars, a pie or a doughnut.
+    assert.equal(await page.locator('#forecast-result .chart-mark').count()>0,true,'Columns by default');
+    await page.locator('#forecast-result .chart-type-switch').getByRole('radio',{name:'Line'}).click();
+    assert(await page.locator('#forecast-result polyline.chart-line.projected').count());
+    await page.locator('#forecast-result .chart-type-switch').getByRole('radio',{name:'Doughnut'}).click();
+    assert.equal(await page.locator('#forecast-result .report-pie li').count(),5);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#forecast-result').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reports-forecast-doughnut-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#forecast-result .chart-type-switch').getByRole('radio',{name:'Column'}).click();
+    await page.locator('#forecast-horizon').getByRole('button',{name:'3 months',exact:true}).click();
+    const forecastDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV',exact:true}).click();
     assert.equal((await forecastDownload).suggestedFilename(),'campuscare-forecast-2026-01-01-to-2026-03-31.csv');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reports-forecast-${mobile?'mobile':'desktop'}.png`,fullPage:true});
     await page.locator('#forecast-from').fill('2026-04-01');

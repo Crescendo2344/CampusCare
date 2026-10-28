@@ -13,10 +13,10 @@ const daysInMonth=iso=>new Date(Date.UTC(Number(iso.slice(0,4)),Number(iso.slice
 const monthLabel=iso=>new Date(iso+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',year:'numeric',timeZone:'UTC'});
 const dayLabel=iso=>new Date(iso+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'});
 
-// Up to a month: weekly columns. Longer: calendar-month columns (the first and last may be partial).
-export function projectionPeriods(start,days){
+// Up to a month (or weeklyUpTo days): weekly columns. Longer: calendar-month columns (the first and last may be partial).
+export function projectionPeriods(start,days,weeklyUpTo=31){
   const end=addDays(start,days-1),periods=[];
-  if(days<=31){
+  if(days<=weeklyUpTo){
     for(let from=start;from<=end;from=addDays(from,7)){
       const to=addDays(from,6)<end?addDays(from,6):end;
       periods.push({start:from,end:to,label:from===to?dayLabel(from):`${dayLabel(from)} – ${dayLabel(to)}`});

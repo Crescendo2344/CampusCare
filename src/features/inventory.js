@@ -36,7 +36,9 @@ export async function renderInventory(){
   const today=appState.clinicInformation.TODAY;
   const sum=stockData.inventorySummary(inventoryRecords(),today);
   const ui=appState.inventoryList??={};ui.txLimit=20;
-  const stat=(label,value,tone='',filter='')=>`<button type="button" class="approval-stat inv-stat ${tone}" ${filter?bindAction('click',()=>{const el=document.getElementById('inv-stock');if(el){el.value=filter;renderInvTable();}}):'disabled'}><span>${label}</span><strong>${value}</strong></button>`;
+  const stat=(label,value,tone='',filter='')=>`<button type="button" class="approval-stat inv-stat ${tone}" ${filter?bindAction('click',()=>{switchInventoryView('items');const el=document.getElementById('inv-stock');if(el){el.value=filter;renderInvTable();}}):'disabled'}><span>${label}</span><strong>${value}</strong></button>`;
+  ui.view??='items';
+  const views=[['items','Items','bi-box-seam'],['movements','Stock movements','bi-arrow-left-right'],['forecast','Forecast & reorder','bi-graph-up-arrow']];
 
   c.innerHTML=`
     <div class="approval-summary inv-summary">
@@ -47,7 +49,8 @@ export async function renderInventory(){
       ${stat('Expired',sum.expired,sum.expired?'danger':'','expired')}
       ${stat('Stock value',`₱${sum.value.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}`)}
     </div>
-    ${predictiveInventorySummaryHtml()}
+    <div class="report-tabs inv-tabs" role="tablist" aria-label="Inventory views">${views.map(([id,label,icon])=>`<button type="button" role="tab" id="inv-tab-${id}" data-inv-view="${id}" aria-controls="inv-panel-${id}" aria-selected="${ui.view===id}" tabindex="${ui.view===id?0:-1}" ${bindAction('click',()=>switchInventoryView(id))}><i class="bi ${icon}" aria-hidden="true"></i>${label}</button>`).join('')}</div>
+    <section id="inv-panel-items" role="tabpanel" aria-labelledby="inv-tab-items" ${ui.view==='items'?'':'hidden'}>
     <div class="card">
       <div class="card-header">
         <h3>Items</h3>
@@ -85,6 +88,8 @@ export async function renderInventory(){
       <p class="patient-filter-summary" id="inv-summary-line" role="status" aria-live="polite"></p>
       <div id="inv-table"></div>
     </div>
+    </section>
+    <section id="inv-panel-movements" role="tabpanel" aria-labelledby="inv-tab-movements" ${ui.view==='movements'?'':'hidden'}>
     <div class="card">
       <div class="card-header"><h3>Stock movements</h3>
         <div class="toolbar" style="margin:0">
@@ -93,10 +98,28 @@ export async function renderInventory(){
         </div>
       </div>
       <div id="disb-table"></div>
-    </div>`;
+    </div>
+    </section>
+    <section id="inv-panel-forecast" role="tabpanel" aria-labelledby="inv-tab-forecast" ${ui.view==='forecast'?'':'hidden'}>${predictiveInventorySummaryHtml()}</section>`;
 
+  // Arrow keys move between the tabs, as on Reports & Analytics.
+  c.querySelector('.inv-tabs').addEventListener('keydown',event=>{
+    if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+    const tabs=[...c.querySelectorAll('[data-inv-view]')],index=tabs.indexOf(document.activeElement);
+    const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+    event.preventDefault();tabs[next].click();tabs[next].focus();
+  });
   renderInvTable();
   renderDisbTable();
+}
+
+export function switchInventoryView(view){
+  const ui=appState.inventoryList??={};ui.view=view;
+  for(const tab of document.querySelectorAll('[data-inv-view]')){
+    const selected=tab.dataset.invView===view;
+    tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;
+    const panel=document.getElementById('inv-panel-'+tab.dataset.invView);if(panel)panel.hidden=!selected;
+  }
 }
 
 function filteredItems(){

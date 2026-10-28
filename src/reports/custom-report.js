@@ -3,6 +3,7 @@ import {bindAction} from '../dependencies.js';
 import {escapeHtml} from '../features/issueReports.js';
 import {reportDefinitions,reportLabels,filterReportRows,groupReportRows} from '../domain/report-analysis.js';
 import {reportData} from './report-data.js';
+import {chartTypeSwitchHtml,reportChartHtml} from '../ui/report-chart.js';
 const esc=value=>escapeHtml(String(value??''));
 const value=id=>document.getElementById(id)?.value||'';
 export function reportSelect(id,label,options,callback){
@@ -55,9 +56,16 @@ export function buildCustomReport(exportToolbar){
   host.innerHTML=`<div class="card report-result"><div class="card-header"><div><h3>${esc(title)}</h3><p class="form-note">${esc(applied)}</p></div><span class="intel-badge">${rows.length} matching records</span></div>
     <p id="rpt-stale" class="report-stale" role="status" hidden>Filters changed. Generate the report again to update these results.</p>
     <div class="report-answer"><span>${esc(reportLabels[measure])}</span><strong>${measure==='value'?'₱':''}${total.toLocaleString(undefined,{maximumFractionDigits:2})}</strong><small>${groups.length} group${groups.length===1?'':'s'}${measure==='patients'?' · A patient can appear in more than one group.':''}</small></div>
-    ${reportBars(groups.map(r=>({label:r.group+(split?' · '+r.split:''),value:r.value})))}
+    <div id="rpt-chart-block"></div>
     <h4>Summary table</h4><div class="table-wrap report-table-scroll"><table><thead><tr>${columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${summaryRows.map(r=>`<tr>${columns.map(c=>`<td>${esc(r[c])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
     ${!rows.length?'<p>No records match these filters.</p>':`<details class="report-details"><summary>View ${rows.length} matching records</summary><div class="table-wrap report-table-scroll"><table><thead><tr>${detailColumns.map(c=>`<th>${esc(reportLabels[c]||c)}</th>`).join('')}</tr></thead><tbody>${details.map(r=>`<tr>${Object.values(r).map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>`}
     ${rows.length?reportSelect('rpt-export-scope','CSV / Excel / Word contents',[['summary','Summary table'],['details','Matching records']],()=>setExport(value('rpt-export-scope')==='details'?details:summaryRows)):''}
     </div>${rows.length?exportToolbar():''}`;
+  const chartRows=groups.map(r=>({label:r.group+(split?' · '+r.split:''),value:r.value}));
+  const drawChart=()=>{
+    const block=document.getElementById('rpt-chart-block');if(!block)return;
+    const type=state.reports.customChart||'bar';
+    block.innerHTML=`<div class="report-chart-head"><span class="form-note">Chart</span>${chartTypeSwitchHtml(type,id=>bindAction('click',()=>{state.reports.customChart=id;drawChart();}))}</div>${reportChartHtml(chartRows,{type,label:title})}`;
+  };
+  drawChart();
 }
