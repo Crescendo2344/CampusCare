@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Clinical notes are written only by the treating doctor, under their own name.
-// Administrators may archive or restore records but cannot author them.
+// Only that doctor can archive or restore them; other roles cannot read or change visit notes.
 const cors={
   "Access-Control-Allow-Origin":"*",
   "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
@@ -238,17 +238,20 @@ Deno.serve(async(req)=>{
       return json({ok:true,dental_record:saved});
     }
 
+    // Visit notes are clinical records: only the doctor who wrote one can archive or restore it.
     if(action==="archive"||action==="restore"){
-      if(actor.role!=="Administrator")
-        return json({error:"Administrator access required."},403);
+      if(actor.role!=="Doctor")
+        return json({error:"Only the treating doctor can archive or restore a treatment record."},403);
 
       const treatmentId=Number(body.treatment_id||0);
       if(!treatmentId)return json({error:"Treatment ID is required."},400);
 
       const {data:existing}=await admin.from("treatments")
-        .select("treatment_id,status")
+        .select("treatment_id,status,doctor_id")
         .eq("treatment_id",treatmentId).maybeSingle();
       if(!existing)return json({error:"Treatment record not found."},404);
+      if(Number(existing.doctor_id)!==Number(actor.user_id))
+        return json({error:"Only the treating doctor can archive or restore a treatment record."},403);
 
       const patch=action==="archive"
         ? {status:"Archived",archived_at:new Date().toISOString(),archived_by:actor.user_id}

@@ -1054,12 +1054,13 @@ try{
     for(const label of ['Allergies','Medical History'])assert.equal(await page.locator('.info-row').filter({has:page.locator('.info-label',{hasText:label})}).locator('.info-val').innerText(),'—');
     // Chart layout: identity banner, no allergy alert without allergies, and five keyboard-navigable tabs.
     assert.equal(await page.locator('#pt-chart .pt-allergy-alert').count(),0);
-    // Certificates and fitness are doctor-only, so staff and administrators see three tabs.
-    assert.equal(await page.locator('#pt-chart [role="tab"]').count(),3);
-    assert.equal(await page.locator('#pt-chart [data-pt-tab="fitness"]').count(),0);
+    // Treatments, certificates and fitness are doctor-only clinical records: staff and administrators see Overview and Appointments.
+    assert.equal(await page.locator('#pt-chart [role="tab"]').count(),2);
+    assert.equal(await page.locator('#pt-chart [data-pt-tab="treatments"]').count(),0);
+    assert.equal(await page.locator('#pt-chart').getByRole('button',{name:/Clinical Copilot|FHIR/}).count(),0);
     await page.locator('#pt-chart [role="tab"]').first().focus();await page.keyboard.press('ArrowRight');
-    assert.equal(await page.locator('#pt-chart [role="tab"][aria-selected="true"]').innerText(),'Treatments (0)');
-    assert(await page.locator('#pt-chart [data-pt-panel="treatments"]').isVisible());
+    assert.match(await page.locator('#pt-chart [role="tab"][aria-selected="true"]').innerText(),/^Appointments/);
+    assert(await page.locator('#pt-chart [data-pt-panel="appointments"]').isVisible());
     if(process.env.CAMPUSCARE_VISUAL_DIR){await page.locator('#pt-chart [role="tab"]').first().click();await page.locator('#pt-chart').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/patient-chart-${mobile?'mobile':'desktop'}.png`});}
     if(process.env.CAMPUSCARE_VISUAL_DIR){
       const dir=process.env.CAMPUSCARE_VISUAL_DIR,tag=mobile?'mobile':'desktop',shot=async name=>{await page.waitForTimeout(250);await page.locator('#active-modal .modal').first().screenshot({path:`${dir}/${name}-${tag}.png`});};

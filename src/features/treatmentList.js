@@ -137,7 +137,7 @@ export function renderTreatTable(){
         <td data-label="Follow-up">${followUp(t)}</td>
         <td data-label="Actions"><div class="td-actions" ${bindAction('click',(event)=>event.stopPropagation())}>
           <button class="btn btn-xs" ${bindAction('click',()=>viewTreatment(t.id))}>View</button>
-          ${appState.auth.currentUser.role==='Administrator'
+          ${appState.auth.currentUser.role==='Doctor'&&t.doctorId===appState.auth.currentUser.id
             ? (t.archived
               ? `<button class="btn btn-xs btn-success" ${bindAction('click',()=>restoreTreat(t.id))}>Restore</button>`
               : `<button class="btn btn-xs btn-warning" ${bindAction('click',()=>archiveTreat(t.id))}>Archive</button>`)

@@ -95,7 +95,7 @@ async function restoreAuthenticatedAccount(){
           if(typeof syncPublicSystemSettings==='function'){
             try{await syncPublicSystemSettings();}catch(err){console.error('Settings sync:',err);}
           }
-          if(typeof syncRealTreatments==='function'){
+          if(typeof syncRealTreatments==='function'&&['Doctor','Patient'].includes(appState.auth.currentUser?.role)){
             try{await syncRealTreatments();}catch(err){console.error('Treatment sync:',err);}
           }
           if(typeof syncRealHealthResources==='function'){

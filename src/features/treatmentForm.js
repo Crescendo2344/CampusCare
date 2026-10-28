@@ -356,7 +356,7 @@ export function isDentalTreatment(t){
 export function openDentalRecordEditor(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
   if(appState.auth.currentUser.role!=='Doctor'){
-    toast('Only a Doctor or Administrator can edit a dental record.','warning');
+    toast('Only the treating doctor can edit a dental record.','warning');
     return;
   }
   const pt=getPatientById(t.patientId)||{};

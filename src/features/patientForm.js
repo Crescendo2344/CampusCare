@@ -314,6 +314,8 @@ export async function viewPatient(id){
   const appts=appointmentRecords().filter(a=>a.patientId===id).sort((a,b)=>byNewest(a.date+(a.time||''),b.date+(b.time||'')));
   // Certificates are the issuing doctor's records; other roles do not see them here.
   const showCerts=appState.auth.currentUser.role==='Doctor';
+  // Visit notes, diagnoses and prescriptions are shown to doctors only.
+  const isDoctor=showCerts;
   const certs=(appState.data.DB.certRequests||[]).filter(c=>c.patientId===id&&c.doctorId===appState.auth.currentUser.id).sort((a,b)=>byNewest(a.issuedAt||a.requestedAt,b.issuedAt||b.requestedAt));
   const fitness=fitnessRecords().filter(f=>f.patientId===id).sort((a,b)=>byNewest(a.requestedDate||a.date,b.requestedDate||b.date));
   const {lastVisit,nextAppointment}=patientData.patientVisitSummary(id,{appointments:appointmentRecords(),treatments:treatmentRecords(),today});
@@ -332,7 +334,7 @@ export async function viewPatient(id){
       <section><h4>History</h4><div class="info-row"><span class="info-label">Allergies</span><span class="info-val ${allergy?'text-danger':''}">${val(pt.allergies)}</span></div>${row('Medical History',val(pt.medHistory))}</section>
       <section><h4>Visits</h4>${row('Last visit',lastVisit?fmtDate(lastVisit):'—')}${row('Next appointment',nextAppointment?`${fmtDate(nextAppointment.date)}${nextAppointment.time?' · '+fmtTime(nextAppointment.time):''} · ${escapeHtml(nextAppointment.clinic||'')}`:'—')}${row('Registered',pt.createdAt?fmtDate(String(pt.createdAt).slice(0,10)):'—')}</section>
     </div>`],
-    ['treatments',`Treatments (${treats.length})`,table(['Date','Diagnosis','Prescription','Doctor'],treats.map(t=>`<tr><td>${fmtDate(t.date)}</td><td>${val(t.diagnosis)}</td><td>${val(t.prescription)}</td><td>${doctor(t.doctorId)}</td></tr>`),'No treatments on record.')],
+    ...(isDoctor?[['treatments',`Treatments (${treats.length})`,table(['Date','Diagnosis','Prescription','Doctor'],treats.map(t=>`<tr><td>${fmtDate(t.date)}</td><td>${val(t.diagnosis)}</td><td>${val(t.prescription)}</td><td>${doctor(t.doctorId)}</td></tr>`),'No treatments on record.')]]:[]),
     ['appointments',`Appointments (${appts.length})`,table(['Date','Time','Clinic','Service','Doctor','Status'],appts.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${a.time?fmtTime(a.time):'—'}</td><td>${val(a.clinic)}</td><td>${val(a.service)}</td><td>${doctor(a.doctorId)}</td><td>${statusBadge(a.status)}</td></tr>`),'No appointments on record.')],
     ...(showCerts?[['certificates',`Certificates (${certs.length})`,table(['Date','Purpose','Certificate No.','Status'],certs.map(c=>`<tr><td>${(c.issuedAt||c.requestedAt)?fmtDate(String(c.issuedAt||c.requestedAt).slice(0,10)):'—'}</td><td>${val(c.purpose)}</td><td>${val(c.certNo)}</td><td>${statusBadge(c.status)}</td></tr>`),'No certificates issued by you yet.')]]:[]),
     ...(showCerts?[['fitness',`Fitness (${fitness.length})`,table(['Requested','Sport / Event','Decision','Status'],fitness.map(f=>`<tr><td>${(f.requestedDate||f.date)?fmtDate(String(f.requestedDate||f.date).slice(0,10)):'—'}</td><td>${val(f.sport)}</td><td>${val(f.decision)}</td><td>${statusBadge(f.status)}</td></tr>`),'No fitness assessments.')]]:[])
@@ -367,9 +369,9 @@ export async function viewPatient(id){
     <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap">
       <div class="fhir-toolbar">
         <button class="btn btn-sm" ${bindAction('click',()=>printPatientSummary(id))}><i class="bi bi-printer" aria-hidden="true"></i> Print summary</button>
-        ${appState.auth.currentUser.role==='Doctor'||appState.auth.currentUser.role==='Administrator'?`<button class="btn btn-purple btn-sm" ${bindAction('click',(event,element)=>{openClinicalCopilot((id))})}><i class="bi bi-stars" aria-hidden="true"></i> Clinical Copilot</button>`:''}
+        ${appState.auth.currentUser.role==='Doctor'?`<button class="btn btn-purple btn-sm" ${bindAction('click',(event,element)=>{openClinicalCopilot((id))})}><i class="bi bi-stars" aria-hidden="true"></i> Clinical Copilot</button>`:''}
         ${appState.auth.currentUser.role==='Doctor'&&!pt.archived?`<button class="btn btn-sm" ${bindAction('click',()=>{closeAllModals();openNewCertificateModal(id)})}><i class="bi bi-file-earmark-medical" aria-hidden="true"></i> Issue Certificate</button>`:''}
-        ${appState.auth.currentUser.role!=='Patient'?`<button class="btn btn-info btn-sm" ${bindAction('click',(event,element)=>{viewPatientFHIR((id))})}>FHIR Preview</button>
+        ${isDoctor?`<button class="btn btn-info btn-sm" ${bindAction('click',(event,element)=>{viewPatientFHIR((id))})}>FHIR Preview</button>
         <button class="btn btn-sm" ${bindAction('click',(event,element)=>{downloadPatientFHIR((id))})}>Export FHIR</button>`:''}
       </div>
       <div style="display:flex;gap:.45rem">

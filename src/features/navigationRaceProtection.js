@@ -58,7 +58,8 @@ export function navTo(id,{historyMode='push'}={}){
   if(!appState.auth.currentUser)return;
   if(RETIRED_PAGES.has(id))id='dashboard';
   // Fitness-to-compete assessments are a doctor's clinical work only.
-  if(id==='fitness'&&appState.auth.currentUser.role!=='Doctor')id='dashboard';
+  // Clinical records (visit notes and fitness assessments) belong to doctors.
+  if(['fitness','treatments'].includes(id)&&appState.auth.currentUser.role!=='Doctor')id='dashboard';
   recordPageHistory(id,historyMode);
   if(window.innerWidth<=768) toggleSidebar(false);
   document.querySelectorAll('[id^="nav-"]').forEach(el=>el.classList.remove('active'));

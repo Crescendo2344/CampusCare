@@ -474,7 +474,6 @@ export function initializeFeature(){
     {id:'patients',label:'Patient Records'},
     {id:'appointments',label:'Appointments'},
     {id:'approvals',label:'Approval Queue'},
-    {id:'treatments',label:'Treatments'},
     {id:'inventory',label:'Inventory'},
     {section:'Management'},
     {id:'users',label:'User Management'},
