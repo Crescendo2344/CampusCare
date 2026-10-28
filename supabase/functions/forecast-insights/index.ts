@@ -21,6 +21,7 @@ Rules:
 - The forecast is a planning estimate from past averages, not a guarantee. Say so where it matters, especially when history is short or old.
 - Be concrete: name items, periods and quantities from the data. Round sensibly.
 - Recommended actions must be things a university clinic can do (reorder, move stock, adjust staffing or slots, review data, plan for a period).
+- For inventory, items without usage history have no projection: comment only on their stock against the reorder level and on expiry dates.
 - Do not give medical advice about individual patients.
 - Write plain, friendly English. Keep each field short; no markdown.
 - If a question is included, answer it in "answer" using the data; if the data cannot answer it, say what is missing. Otherwise set "answer" to an empty string.`;
@@ -69,15 +70,22 @@ Deno.serve(async(req)=>{
     if((count||0)>=HOURLY_LIMIT)return json({error:"You've reached the hourly limit for AI insights. Try again later."},429);
 
     const client=new Anthropic();
-    const response=await client.beta.messages.create({
+    const request={
       model:MODEL,
       max_tokens:16000,
-      betas:["server-side-fallback-2026-07-01"],
-      fallbacks:"default",
       output_config:{effort:"medium",format:{type:"json_schema",schema:SCHEMA}},
       system:SYSTEM,
       messages:[{role:"user",content:`${kind==="inventory"?"Inventory stock projection":"Clinic demand forecast"} (JSON):\n${context}${question?`\n\nQuestion from the user: ${question}`:""}`}]
-    } as any);
+    };
+    // Prefer the server-side refusal fallback; if the account or SDK rejects that beta, send the plain request.
+    let response:any;
+    try{
+      response=await client.beta.messages.create({...request,betas:["server-side-fallback-2026-07-01"],fallbacks:"default"} as any);
+    }catch(e){
+      if(!(e instanceof Anthropic.BadRequestError)||/credit balance/i.test(e.message))throw e;
+      console.error("forecast-insights: fallback request rejected, retrying without it:",e.message);
+      response=await client.messages.create(request as any);
+    }
 
     if(response.stop_reason==="refusal")return json({error:"The AI could not analyse this forecast. Try again with different settings."},422);
     if(response.stop_reason==="max_tokens")return json({error:"The AI response was cut short. Try again."},502);
@@ -94,7 +102,13 @@ Deno.serve(async(req)=>{
   }catch(e){
     if(e instanceof Anthropic.RateLimitError)return json({error:"The AI service is busy. Try again in a minute."},429);
     if(e instanceof Anthropic.AuthenticationError)return json({error:"The AI key on the server is not valid. An administrator needs to update ANTHROPIC_API_KEY.",setup_required:true},503);
-    if(e instanceof Anthropic.APIError)return json({error:`The AI service returned an error (${e.status}). Try again shortly.`},502);
+    if(e instanceof Anthropic.APIError){
+      console.error("forecast-insights: Anthropic API error",e.status,e.message);
+      if(/credit balance/i.test(e.message))return json({error:"The Anthropic account has no credit left. Add credits in the Anthropic Console (Plans & Billing), then try again.",setup_required:true},503);
+      const reason=String((e as any).error?.error?.message||e.message||"").slice(0,240);
+      return json({error:`The AI service returned an error (${e.status})${reason?`: ${reason}`:""}`},502);
+    }
+    console.error("forecast-insights:",e);
     return json({error:e instanceof Error?e.message:"AI insights failed."},500);
   }
 });

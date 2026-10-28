@@ -25,7 +25,7 @@ async function requestInsights(kind,context,question=''){
 export function aiInsightsPanelHtml(host,kind){
   return `<section class="ai-insights" id="${host}" data-kind="${kind}" aria-live="polite">
     <div class="ai-insights-head">
-      <div><span class="ai-badge"><i class="bi bi-stars" aria-hidden="true"></i> AI insights</span><h4>Let AI explain this forecast</h4></div>
+      <div><span class="ai-badge"><i class="bi bi-stars" aria-hidden="true"></i> AI insights</span><h4>${kind==='inventory'?'AI inventory forecast: what to reorder and when':'Let AI explain this forecast'}</h4></div>
       <button type="button" class="btn btn-sm btn-primary ai-generate">Generate insights</button>
     </div>
     <div class="ai-insights-body"></div>
@@ -46,7 +46,7 @@ export function mountAiInsights(host,kind,getContext){
       const result=cache.get(cacheKey)||await requestInsights(kind,context,question);
       cache.set(cacheKey,result);
       if(question){root.querySelector('.ai-answer-slot').innerHTML=answerHtml(question,result.insights.answer);return;}
-      body.innerHTML=insightsHtml(result);
+      body.innerHTML=insightsHtml(result,kind);
       button.textContent='Regenerate';
       const form=root.querySelector('.ai-ask');
       form?.addEventListener('submit',event=>{
@@ -66,8 +66,10 @@ export function mountAiInsights(host,kind,getContext){
 
 const RISK_ICON={high:'bi-exclamation-octagon',medium:'bi-exclamation-triangle',low:'bi-info-circle'};
 const PRIORITY_LABEL={now:'Do now',soon:'This month',later:'Later'};
-function insightsHtml({insights:i,model,generated_at}){
-  const suggestions=['Which period needs the most attention?','What should we order first?','How reliable is this forecast?'];
+function insightsHtml({insights:i,model,generated_at},kind){
+  const suggestions=kind==='inventory'
+    ?['What should we order first?','Which items could run out this month?','Which items are expiring soon?']
+    :['Which period needs the most attention?','How reliable is this forecast?','What could explain the trend?'];
   return `<p class="ai-headline">${esc(i.headline)}</p>
     <p class="ai-summary">${esc(i.summary)}</p>
     <div class="ai-grid">

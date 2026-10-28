@@ -204,7 +204,7 @@ export function forecastSectionHtml(){
   </div>`;
   if(!rows.length)return controls+'<div class="tech-note">Add inventory items and record disbursements to generate a forecast.</div>';
   const periods=rows[0].p.periods;
-  return controls+aiInsightsPanelHtml('inv-forecast-ai','inventory')+`<div class="table-wrap"><table class="forecast-table">
+  return controls+`<div class="table-wrap"><table class="forecast-table">
     <thead><tr><th>Item</th>${periods.map(p=>`<th>${escapeHtml(p.label)}</th>`).join('')}<th>Plan for ${escapeHtml(horizonLabel(days))}</th></tr></thead>
     <tbody>${rows.map(({item,p})=>`<tr>
       <td class="fc-item"><strong>${escapeHtml(item.name)}</strong><span>${Number(item.qty??0)} ${escapeHtml(item.unit||'')} in stock · reorder at ${Number(item.threshold||0)}</span><span>About ${p.averageDaily.toFixed(1)} ${escapeHtml(item.unit||'')} a day</span></td>
@@ -227,7 +227,8 @@ export function mountInventoryForecastAi(){
         periods:p.periods.map(x=>({period:x.label,use:x.use,left:x.stockAfter}))
       })),
       items_not_shown:Math.max(0,rows.length-60),
-      items_without_usage_history:missing.length
+      // Items with no disbursement history yet: stock level only, no projection.
+      items_without_usage_history:missing.slice(0,60).map(item=>({item:item.name,category:item.category,unit:item.unit,on_hand:Number(item.qty??0),reorder_level:Number(item.threshold||0),expiry:item.expiryDate||null}))
     };
   });
 }
@@ -238,7 +239,7 @@ export function setForecastDays(value){
   const days=clampHorizon(raw);
   if(days!==Math.round(raw))toast(`Forecasts cover ${MIN_HORIZON} to ${MAX_HORIZON} days, so ${days} days is shown.`,'info');
   appState.inventoryList.forecastDays=days;
-  const host=document.getElementById('inv-forecast');if(host){host.innerHTML=forecastSectionHtml();mountInventoryForecastAi();}
+  const host=document.getElementById('inv-forecast');if(host)host.innerHTML=forecastSectionHtml();
   const badge=document.getElementById('inv-forecast-badge');if(badge)badge.textContent=`${horizonLabel(days)} forecast`;
 }
 
@@ -310,6 +311,7 @@ export function predictiveInventorySummaryHtml(){
       <div class="intel-card"><div class="intel-kicker">Soonest projected depletion</div><div class="intel-value" style="font-size:.95rem">${soon?escapeHtml(soon.item.name):'No immediate risk'}</div><div class="intel-meta">${soon?`${soon.f.daysRemaining} days · ${fmtDate(soon.f.stockoutDate)}`:'Based on available history'}</div></div>
       <div class="intel-card"><div class="intel-kicker">Forecast coverage</div><div class="intel-value">${forecasts.length}/${items.length}</div><div class="intel-meta">Active items with usable demand history</div></div>
     </div>
+    ${aiInsightsPanelHtml('inv-forecast-ai','inventory')}
     ${atRisk.length?`<div class="intel-alert-list">${atRisk.slice(0,4).map(({item,f})=>`<div class="intel-alert-item"><div class="intel-alert-icon ${f.risk==='high'?'danger':'warning'}">${f.risk==='high'?'<i class="bi bi-exclamation-triangle" aria-hidden="true"></i>':'<i class="bi bi-box-seam" aria-hidden="true"></i>'}</div><div class="intel-alert-copy"><strong>${escapeHtml(item.name)} — ${f.daysRemaining} days remaining</strong><span>Projected depletion ${fmtDate(f.stockoutDate)}. Suggested reorder: ${f.reorderQty} ${escapeHtml(item.unit)}. Current forecast usage ≈ ${f.adjustedDaily.toFixed(1)} ${escapeHtml(item.unit)}/day.</span></div></div>`).join('')}</div>`:`<div class="tech-note">No item with sufficient usage history is forecast to deplete within 14 days.</div>`}
     <div class="section-label" style="margin-top:1rem">Consumption forecast</div>
     <div id="inv-forecast">${forecastSectionHtml()}</div>

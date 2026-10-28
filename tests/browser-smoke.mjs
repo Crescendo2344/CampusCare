@@ -943,6 +943,10 @@ try{
     assert(await page.locator('#inv-panel-movements').isVisible());assert(await page.locator('#inv-panel-items').isHidden());
     await page.locator('#inv-tab-forecast').click();
     assert(await page.locator('#inv-panel-forecast').isVisible());
+    // The inventory forecast has its own AI briefing, available even before usage history exists.
+    await page.locator('#inv-forecast-ai .ai-generate').click();
+    await page.locator('#inv-forecast-ai .ai-headline').waitFor();
+    assert.match(await page.locator('#inv-forecast-ai').innerText(),/What should we order first\?/);
     await page.locator('.inv-stat:not([disabled])').first().click();
     assert(await page.locator('#inv-panel-items').isVisible(),'A summary card opens the filtered item list');
     if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/inventory-tabs-${role}.png`});
