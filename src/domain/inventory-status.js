@@ -1,4 +1,4 @@
-import {csvDate,csvMoney,toCsv} from '../shared/csv.js';
+import {csvColumn,csvDate,csvMoney,templateCsv} from '../shared/csv.js';
 // Stock and expiry status for clinic supplies, following common medical-stock practice:
 // out of stock vs. at/below the reorder level, and expiry flagged ahead of time (first-expiry, first-out).
 const DAY=864e5;
@@ -34,10 +34,18 @@ export function inventorySummary(items,today){
 }
 
 export function inventoryCsv(items,today){
-  const rows=[['Item #','Item name','Category','Supplier','Quantity on hand','Unit','Reorder level','Stock status','Unit cost (PHP)','Stock value (PHP)','Expiry date','Expiry status']];
-  for(const i of items){
-    const exp=expiryState(i,today);
-    rows.push([i.displayId??i.id,i.name,i.category,i.supplier||'',i.qty,i.unit,i.threshold,{out:'Out of stock',low:'Low',medium:'Medium',ok:'OK'}[stockState(i)],csvMoney(i.unitCost||0),csvMoney(Number(i.qty||0)*Number(i.unitCost||0)),csvDate(i.expiryDate),{expired:'Expired',soon:`Expires in ${exp.days} days`,ok:'OK','':''}[exp.state]]);
-  }
-  return toCsv(rows);
+  return templateCsv([
+    csvColumn('','Item No.',i=>i.displayId??i.id),
+    csvColumn('Item','Name',i=>i.name),
+    csvColumn('Item','Category',i=>i.category),
+    csvColumn('Item','Supplier',i=>i.supplier||''),
+    csvColumn('Stock','On Hand',i=>i.qty),
+    csvColumn('Stock','Unit',i=>i.unit),
+    csvColumn('Stock','Reorder Level',i=>i.threshold),
+    csvColumn('Stock','Status',i=>({out:'Out of stock',low:'Low',medium:'Medium',ok:'OK'}[stockState(i)])),
+    csvColumn('Cost','Unit Cost (PHP)',i=>csvMoney(i.unitCost||0)),
+    csvColumn('Cost','Stock Value (PHP)',i=>csvMoney(Number(i.qty||0)*Number(i.unitCost||0))),
+    csvColumn('Expiry','Date',i=>csvDate(i.expiryDate)),
+    csvColumn('Expiry','Status',i=>{const exp=expiryState(i,today);return {expired:'Expired',soon:`Expires in ${exp.days} days`,ok:'OK','':''}[exp.state];})
+  ],items);
 }

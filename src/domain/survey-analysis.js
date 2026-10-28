@@ -1,4 +1,4 @@
-import {csvDate,toCsv} from '../shared/csv.js';
+import {csvColumn,csvDate,templateCsv} from '../shared/csv.js';
 // Client Satisfaction Measurement (CSM) reporting, as used for Philippine government offices:
 // a response counts as satisfied when rated 4 (Agree) or 5 (Strongly agree); N/A and blank answers are
 // left out of the base. The overall score pools SQD0–SQD8.
@@ -45,7 +45,17 @@ export function filterSurveys(rows,{from='',group='',service=''}={}){
 }
 // Export without names or email addresses: CSM responses are confidential.
 export function surveysCsv(rows){
-  // Citizen's Charter and SQD columns keep their official codes and add what each one asks.
-  const header=['Date','Client type','Department','Service','Overall rating (1-5)','CC1 Aware of the Citizen\'s Charter','CC2 Saw the Citizen\'s Charter','CC3 Charter helped',...SQD_LABELS.map(([k,label])=>`${k.toUpperCase()} ${label} (1-5)`),'Suggestion'];
-  return toCsv([header,...rows.map(r=>[csvDate(r.createdAt),r.groupType,r.department,r.service,r.ratings?.overall,r.citizensCharter?.cc1,r.citizensCharter?.cc2,r.citizensCharter?.cc3,...SQD_LABELS.map(([k])=>r.sqd?.[k]??''),r.suggestions])]);
+  // Citizen's Charter and SQD columns keep their official codes and say what each one asks.
+  return templateCsv([
+    csvColumn('Response','Date',r=>csvDate(r.createdAt)),
+    csvColumn('Respondent','Client Type',r=>r.groupType),
+    csvColumn('Respondent','Department',r=>r.department),
+    csvColumn('Service','Availed',r=>r.service),
+    csvColumn('Rating','Overall (1-5)',r=>r.ratings?.overall),
+    csvColumn("Citizen's Charter","CC1 Aware of the Citizen's Charter",r=>r.citizensCharter?.cc1),
+    csvColumn("Citizen's Charter","CC2 Saw the Citizen's Charter",r=>r.citizensCharter?.cc2),
+    csvColumn("Citizen's Charter",'CC3 Charter helped',r=>r.citizensCharter?.cc3),
+    ...SQD_LABELS.map(([k,label])=>csvColumn('Service Quality',`${k.toUpperCase()} ${label} (1-5)`,r=>r.sqd?.[k]??'')),
+    csvColumn('Feedback','Suggestion',r=>r.suggestions)
+  ],rows);
 }

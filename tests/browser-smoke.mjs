@@ -811,7 +811,7 @@ try{
     const forecastText=(await import('node:fs')).readFileSync(await forecastCsv.path(),'utf8');
     assert(forecastText.startsWith('\ufeff'),'UTF-8 marker for Excel');
     const forecastLines=forecastText.slice(1).trimEnd().split('\r\n');
-    assert.match(forecastLines[0],/^Item,Item #,Unit,Quantity on hand,Reorder level,Period start,Period end,Projected use,Stock left at period end$/);
+    assert.match(forecastLines[0],/^Item Name,Item: No\.,Item: Unit,Stock: On Hand,Stock: Reorder Level,Period: Start,Period: End,Period: Projected Use,Period: Stock Left$/);
     assert(forecastLines.length>=4,'One row per item per month');
     // Use synthetic registration images to exercise the real review/preview controls without patient data.
     await page.evaluate(()=>{
@@ -1111,7 +1111,7 @@ try{
     assert.match(await page.locator('.report-result').innerText(),/Record count by College and Clinic/);
     assert.equal(await page.locator('.report-answer>strong').innerText(),'2');
     assert.equal(await page.locator('.report-result table').first().locator('tbody tr').count(),2);
-    assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['Record count']),1);
+    assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['Result: Record count']),1);
     await page.locator('#rpt-split').selectOption('status');
     assert(await page.locator('#rpt-stale').isVisible());
     await page.getByRole('button',{name:'Last 90 days',exact:true}).click();
@@ -1157,7 +1157,7 @@ try{
     await page.locator('#rpt-result').getByText('Evening Student',{exact:true}).waitFor();
     assert.equal(await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).count(),0);
     assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows.length),1);
-    assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['Class Session']),'Evening');
+    assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['School: Class Session']),'Evening');
     await page.locator('#rpt-session').selectOption('');await page.locator('#rpt-dental').selectOption('used');
     await page.getByRole('button',{name:'Generate Report',exact:true}).click();
     await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).waitFor();
@@ -1166,7 +1166,7 @@ try{
     const summaryFile=await downloaded;
     assert.match(summaryFile.suggestedFilename(),/^campuscare-student-college-summary-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.csv$/);
     const summaryText=(await import('node:fs')).readFileSync(await summaryFile.path(),'utf8');
-    assert.match(summaryText,/^\ufeffCollege\/Department,Registered students,/,'Readable headers in the shared CSV format');
+    assert.match(summaryText,/^\ufeffCollege\/Department,Students: Registered,Dental Care: Used,/,'Readable headers in the shared CSV format');
   }
   if(role==='Administrator'){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('settings'));

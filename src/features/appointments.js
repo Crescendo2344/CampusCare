@@ -95,7 +95,9 @@ function filteredAppointments(){
 
 function describeAppointment(a){
   const pt=getPatientById(a.patientId),doc=getUserById(a.doctorId);
-  return [appointmentDisplayId(a),csvDate(a.date),csvTime(a.time),pt?`${pt.lname}, ${pt.fname}`:'Unknown',pt?`P-${patientDisplayId(pt)}`:'',a.college||pt?.college||'',a.clinic,a.service||'',doc?`Dr. ${doc.fname} ${doc.lname}`:'',a.priority||pt?.personType||'',a.status,a.reason||''];
+  return {no:appointmentDisplayId(a),date:csvDate(a.date),time:csvTime(a.time),status:a.status,priority:a.priority||pt?.personType||'',
+    patientNo:pt?`P-${patientDisplayId(pt)}`:'',lastName:pt?.lname||'Unknown',firstName:pt?.fname||'',college:a.college||pt?.college||'',
+    clinic:a.clinic,service:a.service||'',reason:a.reason||'',doctor:doc?`Dr. ${doc.fname} ${doc.lname}`:''};
 }
 export function exportAppointmentsCsv(){
   const view=appState.appointments?.view||'upcoming',today=clinicToday();

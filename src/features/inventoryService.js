@@ -243,10 +243,11 @@ export function setForecastDays(value){
 }
 
 // ---------- Forecast CSV with chosen layout, columns and date style ----------
+// Labels shown in the column picker; the file uses the grouped "Group: Field" header beside each.
 const FORECAST_COLUMNS=[
-  ['itemNo','Item #',true],['category','Category',true],['unit','Unit',true],['onHand','Quantity on hand',true],['reorderLevel','Reorder level',true],
-  ['dailyUse','Average daily use',true],['totalUse','Projected use',true],['stockAtEnd','Stock at end of period',true],
-  ['runsOut','Runs out on',true],['orderQty','Suggested order quantity',true],['orderBy','Order by',true]
+  ['itemNo','Item #',true,'Item: No.'],['category','Category',true,'Item: Category'],['unit','Unit',true,'Item: Unit'],['onHand','Quantity on hand',true,'Stock: On Hand'],['reorderLevel','Reorder level',true,'Stock: Reorder Level'],
+  ['dailyUse','Average daily use',true,'Usage: Average Daily'],['totalUse','Projected use',true,'Usage: Projected'],['stockAtEnd','Stock at end of period',true,'Stock: At Period End'],
+  ['runsOut','Runs out on',true,'Plan: Runs Out On'],['orderQty','Suggested order quantity',true,'Plan: Suggested Order'],['orderBy','Order by',true,'Plan: Order By']
 ];
 
 export function openForecastCsvDialog(){
@@ -283,10 +284,10 @@ export function downloadForecastCsv(){
   if(layout==='detailed'){
     // Per-period rows keep the item's identifying columns and add the period's own figures.
     const idCols=columns.filter(([key])=>['itemNo','category','unit','onHand','reorderLevel'].includes(key));
-    table=[['Item',...idCols.map(([,label])=>label),'Period start','Period end','Projected use','Stock left at period end']];
+    table=[['Item Name',...idCols.map(([,,,header])=>header),'Period: Start','Period: End','Period: Projected Use','Period: Stock Left']];
     for(const r of rows)for(const period of r.p.periods)table.push([r.item.name,...idCols.map(([key])=>value[key](r)),date(period.start),date(period.end),period.use,period.stockAfter]);
   }else{
-    table=[['Item',...columns.map(([,label])=>label)],...rows.map(r=>[r.item.name,...columns.map(([key])=>value[key](r))])];
+    table=[['Item Name',...columns.map(([,,,header])=>header)],...rows.map(r=>[r.item.name,...columns.map(([key])=>value[key](r))])];
   }
   downloadCsv(csvFileName(`inventory forecast ${days} days from ${start}`),toCsv(table));
   closeTopModal();

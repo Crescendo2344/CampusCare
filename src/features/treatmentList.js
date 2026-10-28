@@ -13,7 +13,7 @@ import {viewPatient} from './patientForm.js';
 import {fmtDate} from './inputValidation.js';
 import {docName} from './messaging.js';
 import {bindAction} from '../dependencies.js';
-import {csvDate,csvFileName,downloadCsv,toCsv} from '../shared/csv.js';
+import {csvColumn,csvDate,csvFileName,downloadCsv,templateCsv} from '../shared/csv.js';
 // ================================================================
 // TREATMENTS
 // ================================================================
@@ -81,11 +81,21 @@ function filteredTreatments(){
 
 export function exportTreatmentsCsv(){
   const rows=filteredTreatments();
-  const lines=[['Record #','Visit date','Patient','Patient ID','College/Department','Clinic','Diagnosis','Doctor','Follow-up date','Record status']].concat(rows.map(t=>{
-    const pt=getPatientById(t.patientId),doc=getUserById(t.doctorId);
-    return [treatmentDisplayId(t),csvDate(t.date),pt?`${pt.lname}, ${pt.fname}`:'',pt?`P-${patientDisplayId(pt)}`:'',pt?.college||'',clinicOf(t),t.diagnosis||'',doc?docName(doc):'',csvDate(t.followupDate),t.archived?'Archived':'Active'];
-  }));
-  downloadCsv(csvFileName('treatments',appState.clinicInformation.TODAY),toCsv(lines));
+  const pt=t=>getPatientById(t.patientId);
+  const csv=templateCsv([
+    csvColumn('','Treatment No.',t=>treatmentDisplayId(t)),
+    csvColumn('Visit','Date',t=>csvDate(t.date)),
+    csvColumn('Visit','Clinic',t=>clinicOf(t)),
+    csvColumn('Visit','Diagnosis',t=>t.diagnosis||''),
+    csvColumn('Patient','No.',t=>pt(t)?`P-${patientDisplayId(pt(t))}`:''),
+    csvColumn('Patient','Last Name',t=>pt(t)?.lname||''),
+    csvColumn('Patient','First Name',t=>pt(t)?.fname||''),
+    csvColumn('Patient','College/Department',t=>pt(t)?.college||''),
+    csvColumn('Doctor','Name',t=>{const doc=getUserById(t.doctorId);return doc?docName(doc):'';}),
+    csvColumn('Follow-up','Date',t=>csvDate(t.followupDate)),
+    csvColumn('Record','Status',t=>t.archived?'Archived':'Active')
+  ],rows);
+  downloadCsv(csvFileName('treatments',appState.clinicInformation.TODAY),csv);
 }
 
 export function renderTreatTable(){

@@ -15,6 +15,14 @@ export function toCsv(rows){
   return '﻿'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }
 
+// Every export follows one template, like a well-kept spreadsheet: the record's number or name first,
+// then related fields grouped as "Group: Field" (e.g. "Patient: Last Name"), one value per cell.
+export const csvColumn=(group,label,value)=>({group,label,value});
+export const csvHeader=column=>column.group?`${column.group}: ${column.label}`:column.label;
+export function templateCsv(columns,rows){
+  return toCsv([columns.map(csvHeader),...rows.map(row=>columns.map(column=>column.value(row)))]);
+}
+
 // Objects keyed by column label, e.g. report tables, keep their key order as the header.
 export function objectsToCsv(objects){
   if(!objects.length)return '﻿';

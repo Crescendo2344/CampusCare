@@ -1,4 +1,4 @@
-import {downloadBlob,rowsToCSV} from '../features/reportCharts.js';
+import {downloadBlob} from '../features/reportCharts.js';
 import {state} from '../app/state.js';
 import {bindAction} from '../dependencies.js';
 import {escapeHtml} from '../features/issueReports.js';
@@ -7,7 +7,7 @@ import {chartTypeSwitchHtml,isChartType,reportChartHtml} from '../ui/report-char
 import {aiInsightsPanelHtml,mountAiInsights} from './ai-insights.js';
 import {reportData} from './report-data.js';
 import {reportSelect} from './custom-report.js';
-import {csvFileName} from '../shared/csv.js';
+import {csvColumn,csvFileName,templateCsv} from '../shared/csv.js';
 const esc=v=>escapeHtml(String(v??''));
 const read=id=>document.getElementById(id)?.value||'';
 // Same choices as the inventory planner: 3 months by default, presets or any 7–365 days.
@@ -82,7 +82,14 @@ export function runForecast(){
       <div class="report-forecast-chart">${reportChartHtml(['pie','doughnut'].includes(ui.forecastChart)?series.filter(r=>r.projected):series,{type:ui.forecastChart,label:`${name}: recorded history and estimate`,limit:30})}</div>
       ${['pie','doughnut'].includes(ui.forecastChart)?'<p class="form-note">Slices show how the estimate is spread across the forecast period.</p>':''}
       <details class="report-details"><summary>View forecast table</summary><div class="table-wrap"><table><thead><tr><th>Period</th><th>From</th><th>To</th><th>Estimated ${esc(unit)}</th></tr></thead><tbody>${f.rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${r.start}</td><td>${r.end}</td><td>${r.amount}</td></tr>`).join('')}</tbody></table></div></details>
-      <button type="button" class="btn btn-sm" ${bindAction('click',()=>downloadBlob(rowsToCSV(f.rows.map(r=>({'Forecast for':name,'Period':r.label,'From':r.start,'To':r.end,'Estimated amount':r.amount,'Unit':unit,'College':medicine?'Campus inventory':college||'All colleges','Clinic':medicine?'Not applicable':clinic||'All clinics','Calculation':f.method==='weekday'?'Weekday pattern':'Daily average','History from':f.from,'History to':f.to}))),csvFileName(`forecast ${f.from} to ${f.to}`),'text/csv;charset=utf-8;'))}><i class="bi bi-download" aria-hidden="true"></i> Download CSV</button>
+      <button type="button" class="btn btn-sm" ${bindAction('click',()=>downloadBlob(templateCsv([
+        csvColumn('','Forecast For',()=>name),
+        csvColumn('Period','Label',r=>r.label),csvColumn('Period','Start',r=>r.start),csvColumn('Period','End',r=>r.end),
+        csvColumn('Estimate','Amount',r=>r.amount),csvColumn('Estimate','Unit',()=>unit),
+        csvColumn('Scope','College/Department',()=>medicine?'Campus inventory':college||'All colleges'),csvColumn('Scope','Clinic',()=>medicine?'Not applicable':clinic||'All clinics'),
+        csvColumn('Method','Calculation',()=>f.method==='weekday'?'Weekday pattern':'Daily average'),
+        csvColumn('History','From',()=>f.from),csvColumn('History','To',()=>f.to)
+      ],f.rows),csvFileName(`forecast ${f.from} to ${f.to}`),'text/csv;charset=utf-8;'))}><i class="bi bi-download" aria-hidden="true"></i> Download CSV</button>
       <p class="form-note">Estimates use only the selected history. They do not account for holidays, enrollment changes or unexpected events. These are planning estimates, not guaranteed totals or statistical confidence intervals.</p>`}
     </div>`;
     if(!f.reason)mountAiInsights('forecast-ai','reports',()=>({

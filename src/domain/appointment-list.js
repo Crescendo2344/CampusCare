@@ -1,4 +1,4 @@
-import {toCsv} from '../shared/csv.js';
+import {csvColumn,templateCsv} from '../shared/csv.js';
 // Appointment list rules: which tab a booking belongs to, which actions are allowed, ordering and export.
 // Everything works on supplied records and the clinic's current date/time (Asia/Manila).
 const OPEN='Scheduled';
@@ -54,7 +54,21 @@ export function appointmentDayHeading(date,today){
   return `${appointmentRelativeDay(date,today)||d.toLocaleDateString('en-US',{weekday:'long',timeZone:'UTC'})}, ${day}`;
 }
 
+// describe(appointment) returns the plain values for one row.
 export function appointmentsCsv(rows,describe){
-  const header=['Appointment #','Date','Time (PH)','Patient','Patient ID','College/Department','Clinic','Service','Doctor','Priority','Status','Reason for visit'];
-  return toCsv([header,...rows.map(describe)]);
+  return templateCsv([
+    csvColumn('','Appointment No.',r=>r.no),
+    csvColumn('Appointment','Date',r=>r.date),
+    csvColumn('Appointment','Time (PH)',r=>r.time),
+    csvColumn('Appointment','Status',r=>r.status),
+    csvColumn('Appointment','Priority',r=>r.priority),
+    csvColumn('Patient','No.',r=>r.patientNo),
+    csvColumn('Patient','Last Name',r=>r.lastName),
+    csvColumn('Patient','First Name',r=>r.firstName),
+    csvColumn('Patient','College/Department',r=>r.college),
+    csvColumn('Visit','Clinic',r=>r.clinic),
+    csvColumn('Visit','Service',r=>r.service),
+    csvColumn('Visit','Reason',r=>r.reason),
+    csvColumn('Doctor','Name',r=>r.doctor)
+  ],rows.map(describe));
 }

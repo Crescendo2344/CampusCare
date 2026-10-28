@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {csvCell,csvDate,csvFileName,csvMoney,csvReadableDate,csvTime,objectsToCsv,toCsv} from '../src/shared/csv.js';
+import {csvColumn,templateCsv,csvCell,csvDate,csvFileName,csvMoney,csvReadableDate,csvTime,objectsToCsv,toCsv} from '../src/shared/csv.js';
 
 test('cells are quoted only when needed and formulas stay literal',()=>{
   assert.equal(csvCell('Plain'),'Plain');
@@ -25,4 +25,9 @@ test('dates, times and money use one consistent form in Philippine time',()=>{
   assert.equal(csvReadableDate('2026-10-27'),'Oct 27, 2026');
   assert.equal(csvMoney(12.5),'12.50');
   assert.equal(csvFileName('Inventory forecast',"2026-10-27"),'campuscare-inventory-forecast-2026-10-27.csv');
+});
+
+test('every export uses the grouped "Group: Field" template with the identifier first',()=>{
+  const csv=templateCsv([csvColumn('','Patient No.',r=>r.no),csvColumn('Name','Last',r=>r.last),csvColumn('Name','First',r=>r.first)],[{no:'P-1',last:'Reyes',first:'Ana'}]);
+  assert.equal(csv,'﻿Patient No.,Name: Last,Name: First\r\nP-1,Reyes,Ana\r\n');
 });

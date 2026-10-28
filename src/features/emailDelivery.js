@@ -11,7 +11,7 @@ import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {auditLog} from './auditAndBackups.js';
 import {loadDB,persistDB} from './persistence.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
-import {csvDate,csvFileName,csvTime,downloadCsv,toCsv} from '../shared/csv.js';
+import {csvColumn,csvDate,csvFileName,csvTime,downloadCsv,templateCsv} from '../shared/csv.js';
 // ================================================================
 // OPERATIONAL EMAIL DELIVERY
 // ================================================================
@@ -394,12 +394,21 @@ export function openAuditEntry(id){
 
 // Exports what the filters show, with date and time (Philippine time) in their own columns.
 export async function exportActivityLog(){
-  const rows=[['Date','Time (PH)','Person','Role','Category','What happened','Action code','Record type','Record #','Details','IP address','Device'],
-    ...filteredActivity().map(x=>[
-      csvDate(x.timestamp),csvTime(x.timestamp),x.userName,x.role,categoryMeta(auditCategory(x.action,x.targetType))[1],
-      `${x.userName} ${auditSentence(x)}`,x.action,recordName(x.targetType),x.targetId??'',x.details||'',x.ipAddress||'',auditDevice(x)
-    ])];
-  downloadCsv(csvFileName('activity log',appState.clinicInformation.TODAY),toCsv(rows));
+  const csv=templateCsv([
+    csvColumn('Event','Date',x=>csvDate(x.timestamp)),
+    csvColumn('Event','Time (PH)',x=>csvTime(x.timestamp)),
+    csvColumn('Event','Category',x=>categoryMeta(auditCategory(x.action,x.targetType))[1]),
+    csvColumn('Event','Description',x=>`${x.userName} ${auditSentence(x)}`),
+    csvColumn('Event','Action Code',x=>x.action),
+    csvColumn('Event','Details',x=>x.details||''),
+    csvColumn('Person','Name',x=>x.userName),
+    csvColumn('Person','Role',x=>x.role),
+    csvColumn('Record','Type',x=>recordName(x.targetType)),
+    csvColumn('Record','No.',x=>x.targetId??''),
+    csvColumn('Device','IP Address',x=>x.ipAddress||''),
+    csvColumn('Device','Browser & System',x=>auditDevice(x))
+  ],filteredActivity());
+  downloadCsv(csvFileName('activity log',appState.clinicInformation.TODAY),csv);
 
   if(appState.auth.currentUser?._realSupabase){
     try{

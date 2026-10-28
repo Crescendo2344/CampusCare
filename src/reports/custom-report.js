@@ -50,7 +50,10 @@ export function buildCustomReport(exportToolbar){
   const summaryRows=groups.map(r=>Object.fromEntries(columns.map((c,i)=>[c,[r.group,...(split?[r.split]:[]),Number(r.value.toFixed(2))][i]])));
   const detailColumns=Object.keys(rows[0]||{}).filter(k=>['id','patient','college','clinic','date','doctor','diagnosis','status','personType','classSession','sex','blood','item','category','qty','unit','value','stock'].includes(k));
   const details=rows.map(r=>Object.fromEntries(detailColumns.map(k=>[reportLabels[k]||k,r[k]??'—'])));
-  const setExport=list=>{state.reportCharts.lastReportRows=list;state.reportCharts.lastReportTitle=`${title} ${scope} ${filters.college||'All colleges'}`;};
+  // Exports use the shared grouped headers: "Breakdown: College", "Result: Record count", "Record: Patient".
+  const grouped=(list,prefix)=>list.map(row=>Object.fromEntries(Object.entries(row).map(([k,v])=>[`${typeof prefix==='function'?prefix(k):prefix}: ${k}`,v])));
+  const summaryExport=grouped(summaryRows,k=>k===reportLabels[measure]?'Result':'Breakdown'),detailExport=grouped(details,'Record');
+  const setExport=list=>{state.reportCharts.lastReportRows=list===details?detailExport:summaryExport;state.reportCharts.lastReportTitle=`${title} ${scope} ${filters.college||'All colleges'}`;};
   setExport(summaryRows);
   const host=document.getElementById('rpt-result');
   host.innerHTML=`<div class="card report-result"><div class="card-header"><div><h3>${esc(title)}</h3><p class="form-note">${esc(applied)}</p></div><span class="intel-badge">${rows.length} matching records</span></div>
