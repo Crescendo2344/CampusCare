@@ -2,7 +2,7 @@
 import {state as appState} from '../app/state.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
-import {getInventoryForecast,inventoryDisplayId,inventoryForecastBadge,inventoryRecords,inventoryTransactionRecords,mountInventoryForecastAi,predictiveInventorySummaryHtml,syncRealInventory} from './inventoryService.js';
+import {getInventoryForecast,itemAvatarHtml,inventoryDisplayId,inventoryForecastBadge,inventoryRecords,inventoryTransactionRecords,mountInventoryForecastAi,predictiveInventorySummaryHtml,syncRealInventory} from './inventoryService.js';
 import {escapeHtml} from './issueReports.js';
 import {getUserById} from './documentScanner.js';
 import * as stockData from '../domain/inventory-status.js';
@@ -145,12 +145,7 @@ export function exportInventoryCsv(){
   downloadCsv(csvFileName('inventory',appState.clinicInformation.TODAY),stockData.inventoryCsv(rows,appState.clinicInformation.TODAY));
 }
 
-export function itemAvatarHtml(item,size=36){
-  if(item.photo){
-    return `<img src="${item.photo}" style="width:${size}px;height:${size}px;border-radius:9px;object-fit:cover;cursor:pointer;flex-shrink:0" ${bindAction('click',(event,element)=>{event.stopPropagation();showFilePreview((String(item.name)),(String(item.photo)))})} title="Click to view full size">`;
-  }
-  return `<div style="width:${size}px;height:${size}px;border-radius:9px;background:var(--overlay);border:1px solid var(--glass-border-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:${Math.round(size*0.5)}px;height:${Math.round(size*0.5)}px;color:var(--ink-muted)"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M14 8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div>`;
-}
+export {itemAvatarHtml};
 
 export function renderInvTable(){
   const el=document.getElementById('inv-table');
@@ -216,7 +211,7 @@ export function renderDisbTable(){
       const sign=d.type==='Stock In'?'+':d.type==='Disbursement'||d.type==='Expired'?'−':'';
       return `<tr>
         <td data-label="Date">${fmtDate(d.date)}</td>
-        <td data-label="Item">${it?escapeHtml(it.name):'Unknown item'}</td>
+        <td data-label="Item">${it?`<div class="item-cell">${itemAvatarHtml(it,28)}<span>${escapeHtml(it.name)}</span></div>`:'Unknown item'}</td>
         <td data-label="Type">${badge(d.type)}</td>
         <td data-label="Quantity"><strong>${sign}${d.qty}</strong> ${it?escapeHtml(it.unit):''}</td>
         <td data-label="Recorded by">${u?escapeHtml(u.fname+' '+u.lname):'System'}</td>

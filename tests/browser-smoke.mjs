@@ -801,6 +801,11 @@ try{
     await page.locator('#fc-days').fill('400');await page.locator('#fc-days').press('Enter');
     assert.match(await page.locator('.forecast-table thead').innerText(),/Plan for 1 year/);
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#inv-forecast').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/inventory-forecast-${mobile?'mobile':'desktop'}.png`});
+    // Items without a photo show a placeholder that opens a larger view with a shortcut to add one.
+    await page.locator('.forecast-table .item-thumb.empty').first().click();
+    await page.locator('#active-modal .item-view-empty').waitFor();
+    assert.equal(await page.locator('#active-modal').getByRole('button',{name:'Add photo'}).count(),await page.evaluate(()=>['Staff','Administrator'].includes(window.__fixtureApp.state.auth.currentUser.role))?1:0);
+    await page.locator('#active-modal .close-btn').click();
     await page.locator('.fc-preset',{hasText:'3 months'}).click();
     await page.getByRole('button',{name:'Download CSV'}).click();
     await page.locator('.fc-csv').waitFor();
@@ -1132,8 +1137,16 @@ try{
     await page.locator('#forecast-ai .ai-headline').waitFor();
     assert.match(await page.locator('#forecast-ai').innerText(),/Visits stay low[\s\S]*Risks to watch[\s\S]*Recommended actions/);
     await page.locator('#forecast-ai .ai-suggestion').first().click();
-    await page.locator('#forecast-ai .ai-answer').waitFor();
-    assert.match(await page.locator('#forecast-ai .ai-answer').innerText(),/Early November/);
+    await page.locator('#forecast-ai .ai-a p').waitFor();
+    assert.match(await page.locator('#forecast-ai .ai-a').innerText(),/Early November/);
+    // Typed questions join the same scrolling conversation and carry the earlier exchange.
+    assert(await page.locator('#forecast-ai .ai-send').isDisabled());
+    await page.locator('#forecast-ai .ai-ask textarea').fill('Why does November matter?');
+    await page.locator('#forecast-ai .ai-ask textarea').press('Enter');
+    await page.locator('#forecast-ai .ai-turn').nth(1).locator('.ai-a p').waitFor();
+    const lastAsk=requests.filter(r=>r.path.endsWith('/forecast-insights')).at(-1);
+    assert.equal(lastAsk.body.question,'Why does November matter?');assert.equal(lastAsk.body.history.length,1);
+    assert.equal(await page.locator('#forecast-ai .ai-scroll').evaluate(el=>getComputedStyle(el).overflowY),'auto');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#forecast-ai').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/forecast-ai-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#forecast-horizon').getByRole('button',{name:'1 year',exact:true}).click();
     assert.equal(await page.locator('#forecast-result tbody tr').count(),13);

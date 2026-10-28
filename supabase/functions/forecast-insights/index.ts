@@ -12,6 +12,8 @@ const cors={
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
 const HOURLY_LIMIT=40;
 const MAX_CONTEXT_CHARS=60000;
+// Edge functions stop at 150 s; give each AI call well under that so a slow model fails cleanly.
+const CALL_TIMEOUT_MS=45000;
 
 const SYSTEM=`You are the planning analyst inside CampusCare, the health-services system of a Philippine state university clinic (Medical and Dental clinics serving students and personnel).
 You receive a forecast that CampusCare already calculated, as JSON. Explain it for clinic administrators, staff and doctors who are not statisticians.
@@ -24,7 +26,7 @@ Rules:
 - For inventory, items without usage history have no projection: comment only on their stock against the reorder level and on expiry dates.
 - Do not give medical advice about individual patients.
 - Write plain, friendly English. Keep each field short; no markdown.
-- If a question is included, answer it in "answer" using the data; if the data cannot answer it, say what is missing. Otherwise set "answer" to an empty string.
+- Set "answer" to an empty string.
 
 Reply with one JSON object and nothing else, in exactly this shape:
 {"headline": string (one sentence, the most important takeaway),
@@ -34,6 +36,13 @@ Reply with one JSON object and nothing else, in exactly this shape:
  "actions": [{"priority": "now" | "soon" | "later", "action": string, "reason": string}],
  "caveats": [string],
  "answer": string}`;
+
+// Follow-up questions get a short answer only, which is much faster than a full briefing.
+const ASK_SYSTEM=`You are the planning analyst inside CampusCare, the health-services system of a Philippine state university clinic.
+You receive a forecast CampusCare already calculated, as JSON, and a question about it (sometimes with the earlier questions and answers).
+Answer in plain, friendly English in at most five sentences, using only numbers from the data. Never invent figures or causes; offer possible reasons as things to check.
+If the data cannot answer the question, say what is missing. Do not give medical advice about individual patients. No markdown.
+Reply with one JSON object and nothing else: {"answer": string}`;
 
 const text=(v:unknown,max=600)=>String(v??"").trim().slice(0,max);
 const list=(v:unknown)=>Array.isArray(v)?v.slice(0,8):[];
@@ -55,20 +64,35 @@ const parseJson=(output:string)=>JSON.parse(output.trim().replace(/^```(?:json)?
 
 class ProviderError extends Error{constructor(message:string,public status:number,public setup=false){super(message);}}
 
-async function askGemini(key:string,prompt:string){
-  const models=[Deno.env.get("GEMINI_MODEL"),"gemini-flash-latest","gemini-2.5-flash"].filter(Boolean) as string[];
+async function timedFetch(url:string,init:RequestInit){
+  try{return await fetch(url,{...init,signal:AbortSignal.timeout(CALL_TIMEOUT_MS)});}
+  catch(e){
+    if(e instanceof DOMException&&(e.name==="TimeoutError"||e.name==="AbortError"))throw new ProviderError("The AI took too long to answer. Try again.",504);
+    throw e;
+  }
+}
+
+async function askGemini(key:string,system:string,prompt:string,maxTokens:number){
+  // Thinking is switched off: it made answers slow enough to hit the server time limit.
+  const models=[Deno.env.get("GEMINI_MODEL"),"gemini-2.5-flash","gemini-flash-latest"].filter(Boolean) as string[];
   let last:ProviderError|null=null;
   for(const model of [...new Set(models)]){
-    const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{
-      method:"POST",
-      headers:{"Content-Type":"application/json","x-goog-api-key":key},
-      body:JSON.stringify({
-        systemInstruction:{parts:[{text:SYSTEM}]},
-        contents:[{role:"user",parts:[{text:prompt}]}],
-        generationConfig:{responseMimeType:"application/json",temperature:0.3,maxOutputTokens:8192}
-      })
-    });
-    const body=await response.json().catch(()=>({}));
+    let thinking=true,response:Response,body:any;
+    while(true){
+      response=await timedFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-goog-api-key":key},
+        body:JSON.stringify({
+          systemInstruction:{parts:[{text:system}]},
+          contents:[{role:"user",parts:[{text:prompt}]}],
+          generationConfig:{responseMimeType:"application/json",temperature:0.3,maxOutputTokens:maxTokens,...(thinking?{thinkingConfig:{thinkingBudget:0}}:{})}
+        })
+      });
+      body=await response.json().catch(()=>({}));
+      // Models that cannot turn thinking off reject the setting; ask again without it.
+      if(thinking&&response.status===400&&/thinking/i.test(String(body?.error?.message))){thinking=false;continue;}
+      break;
+    }
     if(response.ok){
       // Thinking models can return reasoning parts flagged as thoughts; only the answer text is used.
       const output=(body?.candidates?.[0]?.content?.parts||[]).filter((p:any)=>!p.thought).map((p:any)=>p.text||"").join("");
@@ -86,12 +110,12 @@ async function askGemini(key:string,prompt:string){
   throw last||new ProviderError("The AI service is unavailable.",502);
 }
 
-async function askGroq(key:string,prompt:string){
+async function askGroq(key:string,system:string,prompt:string,maxTokens:number){
   const model=Deno.env.get("GROQ_MODEL")||"llama-3.3-70b-versatile";
-  const response=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+  const response=await timedFetch("https://api.groq.com/openai/v1/chat/completions",{
     method:"POST",
     headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},
-    body:JSON.stringify({model,temperature:0.3,max_tokens:4096,response_format:{type:"json_object"},messages:[{role:"system",content:SYSTEM},{role:"user",content:prompt}]})
+    body:JSON.stringify({model,temperature:0.3,max_tokens:maxTokens,response_format:{type:"json_object"},messages:[{role:"system",content:system},{role:"user",content:prompt}]})
   });
   const body=await response.json().catch(()=>({}));
   if(!response.ok){
@@ -135,15 +159,27 @@ Deno.serve(async(req)=>{
       .eq("user_id",actor.user_id).eq("action","AI_FORECAST_INSIGHTS").gte("created_at",since);
     if((count||0)>=HOURLY_LIMIT)return json({error:"You've reached the hourly limit for AI insights. Try again later."},429);
 
-    const prompt=`${kind==="inventory"?"Inventory stock projection":"Clinic demand forecast"} (JSON):\n${context}${question?`\n\nQuestion from the user: ${question}`:""}`;
-    const {output,model}=geminiKey?await askGemini(geminiKey,prompt):await askGroq(groqKey!,prompt);
+    const history=(Array.isArray(body.history)?body.history:[]).slice(-4)
+      .map((h:any)=>`Q: ${text(h?.question,300)}\nA: ${text(h?.answer,800)}`).join("\n\n");
+    const data=`${kind==="inventory"?"Inventory stock projection":"Clinic demand forecast"} (JSON):\n${context}`;
+    const system=question?ASK_SYSTEM:SYSTEM,maxTokens=question?800:3072;
+    const prompt=question?`${data}${history?`\n\nEarlier in this conversation:\n${history}`:""}\n\nQuestion: ${question}`:data;
+    const ask=async(provider:"Gemini"|"Groq")=>provider==="Gemini"?askGemini(geminiKey!,system,prompt,maxTokens):askGroq(groqKey!,system,prompt,maxTokens);
+    let provider:"Gemini"|"Groq"=geminiKey?"Gemini":"Groq",reply:{output:string,model:string};
+    try{reply=await ask(provider);}
+    catch(e){
+      // With both keys set, a slow or rate-limited Gemini falls back to Groq.
+      if(!(e instanceof ProviderError)||provider!=="Gemini"||!groqKey||e.setup)throw e;
+      provider="Groq";reply=await ask(provider);
+    }
+    const {output,model}=reply;
     let insights:any;
     try{insights=normalize(parseJson(output));}catch(_){return json({error:"The AI returned an unreadable answer. Try again."},502);}
-    if(!insights.headline&&!insights.summary&&!insights.answer)return json({error:"The AI returned an empty answer. Try again."},502);
+    if(question?!insights.answer:!insights.headline&&!insights.summary)return json({error:"The AI returned an empty answer. Try again."},502);
 
     await admin.from("audit_logs").insert({
       user_id:actor.user_id,action:"AI_FORECAST_INSIGHTS",entity_type:kind==="inventory"?"inventory_items":"reports",entity_id:null,
-      details:{kind,question:question||null,provider:geminiKey?"Gemini":"Groq",model}
+      details:{kind,question:question||null,provider,model}
     });
 
     return json({ok:true,insights,model,generated_at:new Date().toISOString()});

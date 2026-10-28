@@ -17,6 +17,22 @@ import {aiInsightsPanelHtml,mountAiInsights} from '../reports/ai-insights.js';
 import {DEFAULT_HORIZON,FORECAST_PRESETS,MAX_HORIZON,MIN_HORIZON,clampHorizon,projectItem} from '../domain/inventory-projection.js';
 import {csvDate,csvFileName,csvReadableDate,downloadCsv,toCsv} from '../shared/csv.js';
 // Compatibility adapters own application state; the data modules receive explicit dependencies.
+// Item photo or placeholder; either opens a larger view, with a shortcut to add a photo.
+export function itemAvatarHtml(item,size=36){
+  return `<button type="button" class="item-thumb ${item.photo?'':'empty'}" style="--thumb:${size}px" aria-label="View ${escapeHtml(item.name)}" ${bindAction('click',event=>{event.stopPropagation();openItemImage(item);})}>${item.photo?`<img src="${escapeHtml(item.photo)}" alt="" loading="lazy">`:'<i class="bi bi-image" aria-hidden="true"></i>'}</button>`;
+}
+export function openItemImage(item){
+  const canEdit=['Staff','Administrator'].includes(appState.auth.currentUser?.role)&&!item.archived;
+  openModal(`<div class="modal">
+    <div class="modal-header"><h3>${escapeHtml(item.name)}</h3><button class="close-btn" ${bindAction('click',()=>closeTopModal())}>✕</button></div>
+    <div class="modal-body"><div class="item-view">
+      ${item.photo?`<img src="${escapeHtml(item.photo)}" alt="${escapeHtml(item.name)}">`:'<div class="item-view-empty"><i class="bi bi-image" aria-hidden="true"></i><span>No photo yet</span></div>'}
+      <div class="item-view-meta">${Number(item.qty??0)} ${escapeHtml(item.unit||'')} in stock${item.category?` · ${escapeHtml(item.category)}`:''}</div>
+    </div></div>
+    ${canEdit?`<div class="modal-footer"><button type="button" class="btn btn-primary" ${bindAction('click',()=>{closeTopModal();import('./inventoryForms.js').then(m=>m.openInvModal(item.id));})}><i class="bi bi-camera" aria-hidden="true"></i> ${item.photo?'Change photo':'Add photo'}</button></div>`:''}
+  </div>`);
+}
+
 export function inventoryRecords(){return inventoryData.inventoryRecords(appState.data.DB,appState.auth.currentUser);}
 export function inventoryTransactionRecords(){return inventoryData.inventoryTransactionRecords(appState.data.DB,appState.auth.currentUser);}
 export function inventoryForecastRecords(){return inventoryData.inventoryForecastRecords(appState.data.DB,appState.auth.currentUser);}
@@ -72,7 +88,7 @@ export function inventoryMonthlyUsageHtml(){
   return `<div class="table-wrap"><table>
     <thead><tr><th>Item</th>${months.map(m=>`<th>${escapeHtml(m.label)}</th>`).join('')}<th>6-Month Total</th></tr></thead>
     <tbody>${active.map(x=>`<tr>
-      <td>${escapeHtml(x.item.name)}<div class="text-muted">${escapeHtml(x.item.unit)}</div></td>
+      <td><div class="item-cell">${itemAvatarHtml(x.item,30)}<div>${escapeHtml(x.item.name)}<div class="text-muted">${escapeHtml(x.item.unit)}</div></div></div></td>
       ${x.values.map(v=>`<td>${v}</td>`).join('')}
       <td><strong>${x.total}</strong></td>
     </tr>`).join('')}</tbody>
@@ -207,7 +223,7 @@ export function forecastSectionHtml(){
   return controls+`<div class="table-wrap"><table class="forecast-table">
     <thead><tr><th>Item</th>${periods.map(p=>`<th>${escapeHtml(p.label)}</th>`).join('')}<th>Plan for ${escapeHtml(horizonLabel(days))}</th></tr></thead>
     <tbody>${rows.map(({item,p})=>`<tr>
-      <td class="fc-item"><strong>${escapeHtml(item.name)}</strong><span>${Number(item.qty??0)} ${escapeHtml(item.unit||'')} in stock · reorder at ${Number(item.threshold||0)}</span><span>About ${p.averageDaily.toFixed(1)} ${escapeHtml(item.unit||'')} a day</span></td>
+      <td class="fc-item"><div class="item-cell">${itemAvatarHtml(item,36)}<div><strong>${escapeHtml(item.name)}</strong><span>${Number(item.qty??0)} ${escapeHtml(item.unit||'')} in stock · reorder at ${Number(item.threshold||0)}</span><span>About ${p.averageDaily.toFixed(1)} ${escapeHtml(item.unit||'')} a day</span></div></div></td>
       ${p.periods.map(period=>forecastCellHtml(period,item)).join('')}
       ${forecastPlanHtml({item,p})}
     </tr>`).join('')}</tbody>
