@@ -942,6 +942,35 @@ try{
     assert(await page.locator('#inv-panel-items').isVisible(),'A summary card opens the filtered item list');
     if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/inventory-tabs-${role}.png`});
   }
+  if(role==='Administrator'){
+    // The activity log reads as a day-grouped timeline with category chips and an entry view showing before → after.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('activity-log'));
+    await page.locator('#audit-table').waitFor();
+    await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp,now=Date.now();
+      const iso=h=>new Date(now-h*36e5).toISOString();
+      state.data.DB.activityLogs=[
+        {id:9001,timestamp:iso(.2),userName:'Ana Reyes',role:'Administrator',action:'LOGIN',targetType:'session',targetId:3,details:'source: web',rawDetails:{source:'web'},ipAddress:'203.0.113.4',userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36'},
+        {id:9002,timestamp:iso(.5),userName:'Ana Reyes',role:'Administrator',action:'INVENTORY_QUANTITY_UPDATED',targetType:'inventory_items',targetId:12,details:'',rawDetails:{previous_quantity:40,new_quantity:25,reason:'Count correction'}},
+        {id:9003,timestamp:iso(30),userName:'Ben Cruz',role:'Staff',action:'APPOINTMENT_CANCELLED',targetType:'appointments',targetId:42,details:'',rawDetails:{reason:'Doctor unavailable'}}
+      ];
+      state.activityLog={};
+      features.emailDelivery.renderActivityLogTable();
+    });
+    await page.locator('#audit-period').selectOption('');
+    assert.equal(await page.locator('.audit-item').count(),3);
+    assert.match(await page.locator('.audit-item').nth(2).innerText(),/Ben Cruz cancelled appointment #42/);
+    assert.equal(await page.locator('.audit-day h4').count(),2,'Events are grouped by day');
+    await page.locator('.audit-chip',{hasText:'Inventory'}).click();
+    assert.equal(await page.locator('.audit-item').count(),1);
+    await page.locator('.audit-item').first().click();
+    await page.locator('.audit-entry .audit-changes').waitFor();
+    assert.match(await page.locator('.audit-changes').innerText(),/Quantity\s+40\s+25/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/audit-entry.png`});
+    await page.locator('.audit-entry .close-btn').click();
+    await page.locator('.audit-chip',{hasText:'All'}).first().click();
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/audit-log-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+  }
   // Walk every visible role route through its actual generated click callback.
   const navIds=await page.locator('#sidebar nav [id^="nav-"]').evaluateAll(elements=>elements.map(element=>element.id));
   assert(navIds.length>0);assert(!navIds.includes('nav-task-center'));
