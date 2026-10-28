@@ -76,66 +76,107 @@ async function timedFetch(url:string,init:RequestInit,deadline:number){
   }
 }
 
+// Model names change often. Try the preferred ones, then ask the provider which models this key can
+// use, so a retired name or a busy model never leaves the clinic without an answer.
+const RETRY_NEXT=(status:number,message:string)=>status===404||status>=500||(status===400&&/model/i.test(message));
+
+async function listGeminiModels(key:string,deadline:number){
+  try{
+    const response=await timedFetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",{headers:{"x-goog-api-key":key}},deadline);
+    const body=await response.json().catch(()=>({}));
+    return (body?.models||[])
+      .filter((m:any)=>(m.supportedGenerationMethods||[]).includes("generateContent")&&/flash/i.test(m.name)&&!/image|tts|audio|live|embed|preview/i.test(m.name))
+      .map((m:any)=>String(m.name).replace(/^models\//,""))
+      .sort((x:string,y:string)=>y.localeCompare(x,undefined,{numeric:true}));// newest version first
+  }catch(_){return [];}
+}
+
+async function geminiOnce(key:string,model:string,system:string,prompt:string,maxTokens:number,deadline:number){
+  // Thinking makes answers too slow for the server time limit: turn it off, or as low as the model allows.
+  for(const thinkingConfig of [{thinkingBudget:0},{thinkingLevel:"minimal"},null]){
+    const response=await timedFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-goog-api-key":key},
+      body:JSON.stringify({
+        systemInstruction:{parts:[{text:system}]},
+        contents:[{role:"user",parts:[{text:prompt}]}],
+        generationConfig:{responseMimeType:"application/json",temperature:0.3,maxOutputTokens:maxTokens,...(thinkingConfig?{thinkingConfig}:{})}
+      })
+    },deadline);
+    const body=await response.json().catch(()=>({}));
+    const message=String(body?.error?.message||response.statusText);
+    if(response.status===400&&/thinking/i.test(message))continue;
+    return {response,body,message};
+  }
+  throw new ProviderError("The AI service rejected the request.",502);
+}
+
 async function askGemini(key:string,system:string,prompt:string,maxTokens:number,deadline:number){
-  // Thinking is switched off: it made answers slow enough to hit the server time limit.
-  const models=[Deno.env.get("GEMINI_MODEL"),"gemini-2.5-flash","gemini-flash-latest"].filter(Boolean) as string[];
-  let last:ProviderError|null=null;
-  for(const model of [...new Set(models)]){
-    let thinking=true,response:Response,body:any;
-    while(true){
-      response=await timedFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-goog-api-key":key},
-        body:JSON.stringify({
-          systemInstruction:{parts:[{text:system}]},
-          contents:[{role:"user",parts:[{text:prompt}]}],
-          generationConfig:{responseMimeType:"application/json",temperature:0.3,maxOutputTokens:maxTokens,...(thinking?{thinkingConfig:{thinkingBudget:0}}:{})}
-        })
-      },deadline);
-      body=await response.json().catch(()=>({}));
-      // Models that cannot turn thinking off reject the setting; ask again without it.
-      if(thinking&&response.status===400&&/thinking/i.test(String(body?.error?.message))){thinking=false;continue;}
-      break;
-    }
+  const preferred=[Deno.env.get("GEMINI_MODEL")||"","gemini-3.8-flash","gemini-flash-latest","gemini-flash-lite-latest"].filter(Boolean);
+  const tried=new Set<string>();let last:ProviderError|null=null,discovered=false;
+  const queue=[...preferred];
+  while(queue.length){
+    const model=queue.shift()!;if(tried.has(model))continue;tried.add(model);
+    const {response,body,message}=await geminiOnce(key,model,system,prompt,maxTokens,deadline);
     if(response.ok){
       // Thinking models can return reasoning parts flagged as thoughts; only the answer text is used.
       const output=(body?.candidates?.[0]?.content?.parts||[]).filter((p:any)=>!p.thought).map((p:any)=>p.text||"").join("");
-      if(!output)throw new ProviderError("The AI returned an empty answer. Try again.",502);
-      return {output,model};
+      if(output)return {output,model};
+      last=new ProviderError("The AI returned an empty answer. Try again.",502);continue;
     }
-    const message=String(body?.error?.message||response.statusText);
     console.error("forecast-insights: Gemini",model,response.status,message);
     if(response.status===400&&/api key/i.test(message))throw new ProviderError("The Gemini API key on the server is not valid. Update the GEMINI_API_KEY secret.",503,true);
     if(response.status===403)throw new ProviderError("The Gemini API key is not allowed to use this model. Check the key in Google AI Studio.",503,true);
-    if(response.status===429)throw new ProviderError("The free AI quota is used up for now. Try again in a minute, or tomorrow if the daily limit was reached.",429);
-    last=new ProviderError(`The AI service returned an error (${response.status}): ${message.slice(0,200)}`,502);
-    if(response.status!==404)break;// a retired model name: try the next one
+    last=response.status===429
+      ?new ProviderError("The free AI quota is used up for now. Try again in a minute, or tomorrow if the daily limit was reached.",429)
+      :new ProviderError(`The AI service returned an error (${response.status}): ${message.slice(0,200)}`,502);
+    if(response.status!==429&&!RETRY_NEXT(response.status,message))break;
+    if(!queue.length&&!discovered){discovered=true;queue.push(...(await listGeminiModels(key,deadline)).slice(0,3));}
   }
   throw last||new ProviderError("The AI service is unavailable.",502);
 }
 
-// Groq speaks the OpenAI chat format.
-async function askOpenAiCompatible(name:string,url:string,key:string,models:string[],system:string,prompt:string,maxTokens:number,deadline:number){
-  let last:ProviderError|null=null;
-  for(const model of [...new Set(models.filter(Boolean))]){
-    const response=await timedFetch(url,{
-      method:"POST",
-      headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},
-      body:JSON.stringify({model,temperature:0.3,max_tokens:maxTokens,response_format:{type:"json_object"},messages:[{role:"system",content:system},{role:"user",content:prompt}]})
-    },deadline);
+async function listOpenAiModels(url:string,key:string,deadline:number){
+  try{
+    const response=await timedFetch(url,{headers:{Authorization:`Bearer ${key}`}},deadline);
     const body=await response.json().catch(()=>({}));
+    const ids=(body?.data||[]).filter((m:any)=>m.active!==false).map((m:any)=>String(m.id)).filter((id:string)=>!/whisper|guard|tts|orpheus|playai|compound|prompt|safeguard/i.test(id));
+    const rank=(id:string)=>[/gpt-oss-120b/,/gpt-oss/,/llama/,/qwen/,/kimi/].findIndex(r=>r.test(id))+1||9;
+    return ids.sort((x:string,y:string)=>rank(x)-rank(y));
+  }catch(_){return [];}
+}
+
+// Groq speaks the OpenAI chat format.
+async function askOpenAiCompatible(name:string,url:string,modelsUrl:string,key:string,preferred:string[],system:string,prompt:string,maxTokens:number,deadline:number){
+  const tried=new Set<string>();let last:ProviderError|null=null,discovered=false;
+  const queue=preferred.filter(Boolean);
+  while(queue.length){
+    const model=queue.shift()!;if(tried.has(model))continue;tried.add(model);
+    // gpt-oss models reason before answering; keep that short so replies stay fast.
+    let reasoning=/gpt-oss/.test(model),response:Response,body:any,message="";
+    while(true){
+      response=await timedFetch(url,{
+        method:"POST",
+        headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},
+        body:JSON.stringify({model,temperature:0.3,max_tokens:maxTokens,response_format:{type:"json_object"},...(reasoning?{reasoning_effort:"low"}:{}),messages:[{role:"system",content:system},{role:"user",content:prompt}]})
+      },deadline);
+      body=await response.json().catch(()=>({}));
+      message=String(body?.error?.message||body?.error||response.statusText);
+      if(reasoning&&response.status===400&&/reasoning/i.test(message)){reasoning=false;continue;}
+      break;
+    }
     if(response.ok){
       const output=String(body?.choices?.[0]?.message?.content||"");
-      if(!output)throw new ProviderError("The AI returned an empty answer. Try again.",502);
-      return {output,model};
+      if(output)return {output,model};
+      last=new ProviderError("The AI returned an empty answer. Try again.",502);continue;
     }
-    const message=String(body?.error?.message||body?.error||response.statusText);
     console.error("forecast-insights:",name,model,response.status,message);
     if(response.status===401||response.status===403)throw new ProviderError(`The ${name} API key on the server is not valid.`,503,true);
-    if(response.status===429)throw new ProviderError("The free AI quota is used up for now. Try again in a minute.",429);
-    last=new ProviderError(`The AI service returned an error (${response.status}): ${message.slice(0,200)}`,502);
-    // An unknown or retired model name: try the next one.
-    if(!(response.status===404||(response.status===400&&/model/i.test(message))))break;
+    last=response.status===429
+      ?new ProviderError("The free AI quota is used up for now. Try again in a minute.",429)
+      :new ProviderError(`The AI service returned an error (${response.status}): ${message.slice(0,200)}`,502);
+    if(response.status!==429&&!RETRY_NEXT(response.status,message))break;
+    if(!queue.length&&!discovered){discovered=true;queue.push(...(await listOpenAiModels(modelsUrl,key,deadline)).slice(0,3));}
   }
   throw last||new ProviderError("The AI service is unavailable.",502);
 }
@@ -143,7 +184,7 @@ async function askOpenAiCompatible(name:string,url:string,key:string,models:stri
 const PROVIDERS=[
   {name:"Gemini",key:"GEMINI_API_KEY",ask:(key:string,system:string,prompt:string,max:number,deadline:number)=>askGemini(key,system,prompt,max,deadline)},
   {name:"Groq",key:"GROQ_API_KEY",ask:(key:string,system:string,prompt:string,max:number,deadline:number)=>
-    askOpenAiCompatible("Groq","https://api.groq.com/openai/v1/chat/completions",key,[Deno.env.get("GROQ_MODEL")||"","llama-3.3-70b-versatile"],system,prompt,max,deadline)}
+    askOpenAiCompatible("Groq","https://api.groq.com/openai/v1/chat/completions","https://api.groq.com/openai/v1/models",key,[Deno.env.get("GROQ_MODEL")||"","openai/gpt-oss-120b","openai/gpt-oss-20b"],system,prompt,max,deadline)}
 ];
 
 Deno.serve(async(req)=>{

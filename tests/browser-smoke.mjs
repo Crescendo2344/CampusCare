@@ -122,7 +122,7 @@ try{
    else if(path.endsWith('/forecast-insights')){
     const body=request.postDataJSON();
     assert(body.context&&!JSON.stringify(body.context).match(/patient_id|id_number/),'Only aggregated forecast data is sent to the AI');
-    response={ok:true,model:'gemini-flash-latest',generated_at:'2026-10-28T02:00:00Z',insights:{headline:body.question?'':'Visits stay low and steady over the next 3 months.',summary:'About 3 visits are expected.',highlights:[{title:'Low demand',detail:'Roughly 0.2 visits a week.'}],risks:[{level:'medium',title:'Old history',detail:'The latest event is from March.'}],actions:[{priority:'soon',action:'Review recent records',reason:'The history may be incomplete.'}],caveats:['Based on 3 events only.'],answer:body.question?'Early November needs the most attention.':''}};
+    response={ok:true,model:'gemini-3.8-flash',generated_at:'2026-10-28T02:00:00Z',insights:{headline:body.question?'':'Visits stay low and steady over the next 3 months.',summary:'About 3 visits are expected.',highlights:[{title:'Low demand',detail:'Roughly 0.2 visits a week.'}],risks:[{level:'medium',title:'Old history',detail:'The latest event is from March.'}],actions:[{priority:'soon',action:'Review recent records',reason:'The history may be incomplete.'}],caveats:['Based on 3 events only.'],answer:body.question?'Early November needs the most attention.':''}};
    }
    else if(path.includes('/functions/v1/'))response={ok:true,notifications:[],requests:[],doctor_leaves:[],messages:[],contacts:[doctor],resources:[],surveys:[],users:[],doctors:[doctor],counts:{},items:{}};
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(response)});
