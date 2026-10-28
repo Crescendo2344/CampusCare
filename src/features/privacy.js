@@ -14,10 +14,6 @@ export function openPrivacyRequestModal(){
     <div class="modal-header"><h3>Privacy / Data Request</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
     <div class="modal-body">
       <div id="privacy-request-msg"></div>
-      <div class="alert alert-info show" style="font-size:.76rem">
-        Use this form to request review of access, correction, objection, withdrawal, deletion, or another privacy-related concern.
-        Submitting a request does not automatically erase or disable medical/dental records that CTU may be required or otherwise lawfully permitted to retain.
-      </div>
       <div class="form-group">
         <label>Request details <span class="required">*</span></label>
         <textarea id="privacy-request-notes" rows="4" maxlength="1200" placeholder="Briefly describe the privacy or personal-data request you want authorized CTU personnel to review."></textarea>

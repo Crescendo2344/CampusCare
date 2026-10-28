@@ -33,7 +33,7 @@ export function openCampusDatePicker(inputId,title,minDate='',maxDate='',onChang
   const dismiss=()=>{appState.datePicker.campusDatePickerTarget=null;if(layered)closeTopModal();else closeAllModals();};
   appState.datePicker.campusDatePickerTarget={inputId,onChange,layered};
   const selected=input.value||((minDate&&minDate>appState.clinicInformation.TODAY)?minDate:appState.clinicInformation.TODAY);
-  openModal(`<div class="modal"><div class="modal-header"><div><h3>${escapeHtml(title||'Select Date')}</h3><div class="text-muted">Choose a month, year, and date.</div></div><button class="close-btn" ${bindAction('click',()=>dismiss())}>✕</button></div>
+  openModal(`<div class="modal"><div class="modal-header"><div><h3>${escapeHtml(title||'Select Date')}</h3></div><button class="close-btn" ${bindAction('click',()=>dismiss())}>✕</button></div>
     <div class="modal-body"><div id="campus-single-date-calendar"></div></div>
     <div class="modal-footer"><button class="btn" ${bindAction('click',()=>dismiss())}>Cancel</button></div></div>`,{preserveParent:layered});
   const isDob=/dob|birth/i.test(inputId);
@@ -70,7 +70,7 @@ export function openReportDateRange(){
   appState.datePicker.reportRangeDraftFrom=from.value||appState.clinicInformation.TODAY.substring(0,7)+'-01';
   appState.datePicker.reportRangeDraftTo=to.value||appState.clinicInformation.TODAY;
   appState.datePicker.reportRangeStage='from';
-  openModal(`<div class="modal"><div class="modal-header"><div><h3>Select Report Date Range</h3><div class="text-muted">First select Date From, then Date To using the same calendar.</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+  openModal(`<div class="modal"><div class="modal-header"><div><h3>Select Report Date Range</h3></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
     <div class="modal-body">
       <div id="report-range-msg"></div>
       <div class="dashboard-range-picker">
@@ -123,7 +123,7 @@ export function applyReportDateRange(){
 
 export function openApptRangePicker(){
   appState.datePicker.apptFilterFrom=document.getElementById('appt-date-from')?.value||appState.clinicInformation.TODAY;appState.datePicker.apptFilterTo=document.getElementById('appt-date-to')?.value||'';appState.datePicker.apptFilterStage='from';
-  openModal(`<div class="modal"><div class="modal-header"><div><h3>Appointment Date Range</h3><div class="text-muted">Select Date From, then Date To.</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div class="dashboard-range-summary"><div class="dashboard-range-value"><span>From</span><strong id="af-from">${fmtDate(appState.datePicker.apptFilterFrom)}</strong></div><div class="dashboard-range-arrow">→</div><div class="dashboard-range-value"><span>To</span><strong id="af-to">${appState.datePicker.apptFilterTo?fmtDate(appState.datePicker.apptFilterTo):'Select date'}</strong></div></div><div class="dashboard-range-step" id="af-step">1. Select Date From</div><div id="appt-filter-calendar"></div></div><div class="modal-footer" style="justify-content:space-between"><button class="btn btn-danger" ${bindAction('click',(event,element)=>{clearApptRange(true)})}><i class="bi bi-eraser"></i> Clear Range</button><div style="display:flex;gap:.5rem"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{applyApptRange()})}>Apply</button></div></div></div>`);
+  openModal(`<div class="modal"><div class="modal-header"><div><h3>Appointment Date Range</h3></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div class="dashboard-range-summary"><div class="dashboard-range-value"><span>From</span><strong id="af-from">${fmtDate(appState.datePicker.apptFilterFrom)}</strong></div><div class="dashboard-range-arrow">→</div><div class="dashboard-range-value"><span>To</span><strong id="af-to">${appState.datePicker.apptFilterTo?fmtDate(appState.datePicker.apptFilterTo):'Select date'}</strong></div></div><div class="dashboard-range-step" id="af-step">1. Select Date From</div><div id="appt-filter-calendar"></div></div><div class="modal-footer" style="justify-content:space-between"><button class="btn btn-danger" ${bindAction('click',(event,element)=>{clearApptRange(true)})}><i class="bi bi-eraser"></i> Clear Range</button><div style="display:flex;gap:.5rem"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{applyApptRange()})}>Apply</button></div></div></div>`);
   initModernCalendar('appt-filter-calendar',appState.datePicker.apptFilterFrom,'','selectApptFilterDate',{showAppointmentHints:true,rangeMode:true,rangeStart:appState.datePicker.apptFilterFrom,rangeEnd:appState.datePicker.apptFilterTo});
 }
 export function selectApptFilterDate(date){

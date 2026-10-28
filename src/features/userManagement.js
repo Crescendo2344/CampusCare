@@ -168,7 +168,6 @@ export async function openUserDetails(id){
               ${d.profile_signed_url?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{showFilePreview((String(fullName)+" - Registration Selfie"),(String(d.profile_signed_url)))})}><i class="bi bi-arrows-fullscreen"></i> Open Selfie</button>`:''}
               ${d.verification_signed_url?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{showFilePreview((String(documentTitle)),(String(d.verification_signed_url)))})}><i class="bi bi-arrows-fullscreen"></i> Open Submitted Document</button>`:''}
             </div>
-            <p class="form-note" style="margin-top:.55rem">Sensitive registration files use temporary signed links and remain in private CampusCare storage.</p>
           </section>
         </div>
       </div>

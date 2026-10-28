@@ -50,7 +50,7 @@ export function openAddUserModal(){
   Object.assign(st,{role:'Doctor',passwordMode:'generate',generated:generateTemporaryPassword(),created:null});
   resetRegistrationFieldErrors('au-');
   openModal(`<div class="modal au-modal" role="dialog" aria-labelledby="au-title">
-    <div class="modal-header"><div><h3 id="au-title">Add staff account</h3><p class="form-note">Create a sign-in for clinic personnel. Patients register themselves or through <button type="button" class="link-btn" ${bindAction('click',()=>{closeAllModals();navTo('patients');})}>Patient Records</button>.</p></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-header"><div><h3 id="au-title">Add staff account</h3></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body" id="au-body">
       <div id="adduser-msg"></div>
       <div id="au-form">

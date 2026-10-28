@@ -135,13 +135,9 @@ export async function renderDentalSurvey(){
   c.innerHTML=`
     <div class="survey-layout">
       <div class="card">
-        <div class="card-header"><div><h3>Dental Clinic Patient Survey</h3>
-          <div class="text-muted">Digital version based on the clinic's Patient Survey Form and Client Satisfaction Measurement (CSM).</div></div></div>
+        <div class="card-header"><div><h3>Dental Clinic Patient Survey</h3></div></div>
         <div style="padding:.85rem">
           <div id="survey-msg"></div>
-          <div class="alert alert-info show" style="font-size:.7rem">
-            Your feedback is used for service improvement. Survey information is handled under the clinic's Data Privacy Statement and CampusCare privacy controls.
-          </div>
 
           <div class="survey-section">
             <h4>Visit Information</h4>
@@ -150,7 +146,7 @@ export async function renderDentalSurvey(){
                 <select id="survey-appt">
                   ${dentalAppts.map(a=>`<option value="${a.id}">${fmtDate(a.date)} · ${escapeHtml(a.service)} · ${fmtTime(a.time)}</option>`).join('')}
                 </select>
-                <p class="form-note">Only completed Dental Clinic appointments that have not already been surveyed are listed.</p>
+                
               </div>
               ${surveySelect('survey-group','Which group do you belong to?',['Student','Organic Personnel','In-organic Personnel'],groupDefault)}
             </div>
@@ -362,7 +358,7 @@ export async function renderSurveyResults(){
       </div>
     </div>
     <div class="card">
-      <div class="card-header"><div><h3>Responses</h3><div class="text-muted">Respondents are kept confidential, as the CSM form promises.</div></div></div>
+      <div class="card-header"><div><h3>Responses</h3></div></div>
       ${rows.length?`<div class="table-wrap"><table class="treat-table"><thead><tr>
         <th scope="col">Date</th><th scope="col">Client type</th><th scope="col">Service</th><th scope="col">Overall</th><th scope="col">SQD0</th><th scope="col">Suggestion</th>
       </tr></thead><tbody>${rows.map(r=>`<tr><td data-label="Date">${r.createdAt?fmtDate(String(r.createdAt).slice(0,10)):'—'}</td>

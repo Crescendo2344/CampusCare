@@ -141,7 +141,6 @@ export async function openDoctorScheduleEditor(docId){
     <div class="modal-body" ${bindAction('input',()=>refreshEditor())} ${bindAction('change',()=>refreshEditor())}>
       <div id="dse-msg"></div>
       ${blocked?`<div class="alert alert-warning show">${escapeHtml(docName(doc))} has a schedule change request ${blocked.status==='Pending'?'waiting for review':'approved for '+escapeHtml(fmtDate(blocked.effective_date))}. Resolve it in <button type="button" class="link-btn" ${bindAction('click',()=>{closeAllModals();ui().tab='requests';renderUsers();})}>Requests</button> before changing the schedule here.</div>`:''}
-      ${capped?`<div class="alert alert-info show">The daily patient limit was lowered from ${Number(doc.maxPatients)} to ${max} to fit the available appointment slots.</div>`:''}
       <section class="dse-section"><div class="dse-section-head"><h4>Weekly hours</h4><div class="dse-presets">
         <button type="button" class="btn btn-xs" ${bindAction('click',()=>applyPreset('weekdays'))}>Mon–Fri, 8 AM – 5 PM</button>
         <button type="button" class="btn btn-xs" ${bindAction('click',()=>applyPreset('copy'))}>Copy first day to all</button>

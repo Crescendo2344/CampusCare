@@ -317,7 +317,6 @@ export function predictiveInventorySummaryHtml(){
     <div id="inv-forecast">${forecastSectionHtml()}</div>
     <div class="section-label" style="margin-top:1rem">Monthly Usage Analytics</div>
     ${inventoryMonthlyUsageHtml()}
-    <div class="tech-note" style="margin-top:.5rem">Forecasts are planning estimates based on recorded disbursements. They are not guaranteed future demand.</div>
   </div>`;
 }
 // ---------- Clinical Copilot / FHIR backend ----------

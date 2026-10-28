@@ -307,12 +307,7 @@ export async function renderMessages(){
   if(isCompactMessenger())appState.messaging.activeConversationId=null;
 
   c.innerHTML=`
-    <div class="alert alert-info show" style="font-size:.76rem">
-      ${appIcon('shield',16)} <strong>Secure CampusCare messaging.</strong>
-      ${appState.auth.currentUser.role==='Patient'
-        ? 'Use Messages to contact Doctors, clinic Staff, or Administrators for non-emergency health and clinic-related concerns. For urgent or emergency symptoms, seek immediate in-person or emergency care.'
-        : 'Messages may contain health-related information. Use only what is necessary for clinic coordination and patient care.'}
-    </div>
+    ${appState.auth.currentUser.role==='Patient'?`<div class="alert alert-warning show" style="font-size:.76rem">For urgent or emergency symptoms, go to the clinic or the nearest emergency room.</div>`:''}
     <div class="msgr-shell" id="msgr-shell">
       <div class="msgr-sidebar">
         <div class="msgr-sidebar-header">
@@ -972,7 +967,6 @@ export function openMessageSettings(){
         <label style="margin:0">Enter key sends message</label>
         <input type="checkbox" id="mp-enter" ${prefs.enterToSend?'checked':''} style="width:18px;height:18px">
       </div>
-      ${appState.auth.currentUser?._realSupabase?'':'<p class="form-note">Sample availability indicators.</p>'}
     </div>
     <div class="modal-footer">
       <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>

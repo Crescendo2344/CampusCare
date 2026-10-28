@@ -166,7 +166,7 @@ export function openPatientModal(id=null){
         </label>
       </div>
       <p class="registration-field-error" id="pm-privacy-ack-error" aria-live="polite" hidden></p>`}
-      ${realMode&&editing?`<div class="tech-note">Changes are recorded in the activity log.</div>`:''}
+      
     </div>
 
     <div class="modal-footer">
@@ -484,7 +484,6 @@ export function dentalRecordFormHtml(existing={},pt=null,defaultDate=appState.cl
 
   return `<div class="dental-record-section" id="tm-dental-section">
     <h4>Dental Record</h4>
-    <p class="form-note">Digital version of the CTU Dental Clinic record form. Patient identity, age, date, and ID are drawn from the CampusCare record.</p>
 
     <div class="form-row">
       <div class="form-group"><label>Course &amp; Major</label><input id="tm-dental-course" maxlength="180" value="${escapeHtml(existing?.courseMajor||pt?.college||'')}"></div>
@@ -509,7 +508,6 @@ export function dentalRecordFormHtml(existing={},pt=null,defaultDate=appState.cl
       <div class="dental-odontogram-title">Primary Teeth — Lower</div>
       ${dentalToothInputsHtml(appState.patientForm.DENTAL_PRIMARY_LOWER,existing?.odontogram||{},true)}
     </div>
-    <p class="form-note">Enter the dentist's short notation or finding for each tooth. CampusCare stores the notation without interpreting it.</p>
 
     <div class="section-label">Oral Health Record</div>
     <div class="dental-check-grid">

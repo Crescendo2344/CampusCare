@@ -425,13 +425,10 @@ export function maskVerificationEmail(email){
 export function openResendVerification(prefill=''){
   const initial=String(prefill||document.getElementById('li-user')?.value||'').trim();
   openModal(`<div class="modal modal-sm">
-    <div class="modal-header"><div><h3>Resend Verification Email</h3><div class="text-muted">For newly registered accounts whose confirmation link expired.</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+    <div class="modal-header"><div><h3>Resend Verification Email</h3></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
     <div class="modal-body">
       <div id="resend-verify-msg"></div>
       <div class="form-group"><label>Username or Email</label><input id="resend-verify-id" maxlength="150" autocomplete="username" value="${escapeHtml(initial)}" placeholder="Enter your username or registered email"></div>
-      <div class="alert alert-info show" style="font-size:.7rem">
-        This requests a new signup-verification message. It does not create another registration and does not reset your password.
-      </div>
     </div>
     <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button><button class="btn btn-primary" id="resend-verify-btn" ${bindAction('click',(event,element)=>{sendVerificationEmailAgain()})}>Send New Verification Email</button></div>
   </div>`);

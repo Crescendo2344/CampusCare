@@ -368,7 +368,6 @@ export function openCertificateEditor(id,draft=null){
   openModal(`<div class="modal modal-xl" style="max-width:1180px">
     <div class="modal-header"><div><h3>${r.id?'Medical certificate draft':'New medical certificate'}</h3><div class="text-muted">Step 2 of 2 · ${pt?escapeHtml(pt.fname+' '+pt.lname):'Unknown patient'} · ${escapeHtml(r.purpose)}${visit?` · visit of ${escapeHtml(fmtDate(visit.date))}`:''}</div></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
-      <div class="alert alert-info show" style="font-size:.78rem">Check the wording, then sign and issue. The patient is notified and can download the PDF. Issued certificates cannot be edited; void and reissue if something is wrong.</div>
       <input id="ic-doctor" type="hidden" value="${doctor.id}">
       <div class="cert-editor-shell">
         <div>${certEditorToolbarHtml()}<div class="cert-page-wrap"><div class="cert-paper" id="cert-editor" contenteditable="true" spellcheck="true">${documentHtml}</div></div></div>

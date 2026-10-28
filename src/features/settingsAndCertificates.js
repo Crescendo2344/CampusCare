@@ -64,7 +64,7 @@ export async function renderSettings(){
         <div class="form-group"><label>Contact Email</label><input id="set-email" type="email" value="${escapeHtml(s.contactEmail||'')}"></div>
         <div class="form-group"><label>Contact Phone</label><input id="set-phone" value="${escapeHtml(s.contactPhone||appState.clinicInformation.CTU_CLINIC_INFO.phone)}"></div>
         <div class="form-group"><label>Dental Visits Allowed Per Semester</label><input id="set-dental" type="number" min="1" max="5" value="${Number(s.dentalLimitPerSemester||1)}"></div>
-        <div class="form-group"><label>Appointment Reminder Days Before</label><input id="set-remind" type="number" min="0" max="14" value="${Number(s.appointmentReminderDays??1)}"><div class="form-note">0 = same-day reminder only. Server reminders are generated automatically every hour.</div></div>
+        <div class="form-group"><label>Appointment Reminder Days Before</label><input id="set-remind" type="number" min="0" max="14" value="${Number(s.appointmentReminderDays??1)}"></div>
         <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{saveSettings()})}>Save Settings</button>
       </div>
       <div class="card">
@@ -80,7 +80,6 @@ export async function renderSettings(){
       <div class="card-header">
         <div>
           <h3>Privacy &amp; Data Protection</h3>
-          <div class="tech-note">The Privacy Notice version is recorded with registration acknowledgements and privacy/data requests.</div>
         </div>
         <button class="btn btn-sm" ${bindAction('click',(event,element)=>{openPrivacyNotice()})}>View Privacy Notice</button>
       </div>
@@ -102,18 +101,12 @@ export async function renderSettings(){
         </div>
       </div>
 
-      <div class="alert alert-info show" style="font-size:.76rem">
-        This version is stored with future registration acknowledgements. Existing users are not automatically asked to acknowledge the notice again during normal use.
-        If a future change materially affects how CampusCare processes information, CTU can communicate that update through an appropriate separate process.
-      </div>
-
       <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{savePrivacySettings()})}>Save Privacy Notice Version</button>
     </div>
     ${appState.auth.currentUser?._realSupabase?`<div class="card" data-settings-panel="email">
       <div class="card-header">
         <div>
           <h3>Operational Email Delivery</h3>
-          <div class="tech-note">In-app notifications are automatically mirrored into a secure email queue for appointments, reminders, certificates, fitness assessments, treatments, and inventory alerts.</div>
         </div>
         <button class="btn btn-sm" id="email-dispatch-btn" ${bindAction('click',(event,element)=>{dispatchOperationalEmails()})}>Process Queue Now</button>
       </div>
@@ -150,11 +143,6 @@ export async function renderSettings(){
         </div>
       </div>
 
-      <div class="alert alert-info show" style="font-size:.76rem">
-        <strong>Automatic workflow:</strong> operational notification → secure email queue → scheduled dispatcher every 5 minutes.
-        Appointment reminders are generated server-side every hour, so the Patient does not need to keep CampusCare open.
-      </div>
-
       <div id="email-queue-list">${renderEmailQueueHtml()}</div>
     </div>`:''}
 
@@ -162,7 +150,6 @@ export async function renderSettings(){
       <div class="card-header">
         <div>
           <h3>Automated Daily Backups</h3>
-          <div class="tech-note">Automatic database backups are recorded in the backup history.</div>
         </div>
         ${appState.auth.currentUser?._realSupabase
           ? `<button class="btn btn-primary btn-sm" id="backup-now-btn" ${bindAction('click',(event,element)=>{runRealBackupNow()})}>Back Up Now</button>`
@@ -184,14 +171,7 @@ export async function renderSettings(){
                 ${[7,14,30,60,90,180,365].map(d=>`<option value="${d}" ${Number(appState.data.DB.realBackupRetentionDays||30)===d?'selected':''}>${d} days</option>`).join('')}
               </select>
             </div>
-            <p>Expired database snapshots are removed automatically.</p>
           </div>
-        </div>
-
-        <div class="alert alert-info show" style="font-size:.78rem">
-          <strong>Backup scope:</strong> CampusCare application database records, audit history, notifications, clinical records, appointments,
-          inventory, certificates, fitness assessments, privacy consents, settings, and a manifest of uploaded profile/verification files.
-          Supabase Auth password secrets are intentionally not copied into application backup files.
         </div>
 
         <div class="alert alert-warning show" style="font-size:.76rem">

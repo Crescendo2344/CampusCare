@@ -117,7 +117,7 @@ export function openBookApptModal(apptId=null){
             ?`<input type="hidden" id="b-pt" value="${pt?pt.id:''}">
               <div class="booking-readonly-patient">
                 <span class="booking-patient-icon"><i class="bi bi-person-check"></i></span>
-                <div><strong>${pt?escapeHtml(pt.fname+' '+pt.lname):'No patient record linked'}</strong><small>Your signed-in patient profile is used automatically.</small></div>
+                <div><strong>${pt?escapeHtml(pt.fname+' '+pt.lname):'No patient record linked'}</strong></div>
               </div>`
             :`<input type="hidden" id="b-pt" value="${editing?editing.patientId:''}">
               <div class="patient-combobox">
@@ -168,7 +168,6 @@ export function openBookApptModal(apptId=null){
       <div class="form-group">
         <label>Available Time Slots</label>
         <div id="slot-grid" class="slot-grid" style="min-height:40px"><span class="text-muted" style="font-size:.78rem">Select an appointment date to see available doctors and time slots.</span></div>
-        <div class="form-note">Booked, past, lunch-break, and manually unavailable slots are clearly marked and cannot be selected.</div>
         <input type="hidden" id="b-time" value="${editing?editing.time:''}">
       </div>
 
