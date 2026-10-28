@@ -1,9 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-// AI insights for forecasts: a free-tier model (Google Gemini, or Groq as an alternative) reads the aggregated
+// AI insights for forecasts: a free-tier model (Google Gemini, with Groq and xAI Grok as backups) reads the aggregated
 // forecast (no patient details) and returns a structured briefing - headline, findings, risks, actions and
 // caveats - plus an answer to an optional question.
-// Secrets: GEMINI_API_KEY (preferred) or GROQ_API_KEY; optional GEMINI_MODEL / GROQ_MODEL to pick a model.
+// Secrets: any of GEMINI_API_KEY, GROQ_API_KEY, XAI_API_KEY (tried in that order); optional GEMINI_MODEL / GROQ_MODEL / GROK_MODEL.
 const cors={
   "Access-Control-Allow-Origin":"*",
   "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
@@ -12,8 +12,10 @@ const cors={
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
 const HOURLY_LIMIT=40;
 const MAX_CONTEXT_CHARS=60000;
-// Edge functions stop at 150 s; give each AI call well under that so a slow model fails cleanly.
-const CALL_TIMEOUT_MS=45000;
+// Edge functions stop at 150 s; each AI call gets at most 40 s and all of them together 125 s,
+// so a slow provider hands over to the next one and the user always gets an answer or a clear error.
+const CALL_TIMEOUT_MS=40000;
+const TOTAL_BUDGET_MS=125000;
 
 const SYSTEM=`You are the planning analyst inside CampusCare, the health-services system of a Philippine state university clinic (Medical and Dental clinics serving students and personnel).
 You receive a forecast that CampusCare already calculated, as JSON. Explain it for clinic administrators, staff and doctors who are not statisticians.
@@ -64,15 +66,17 @@ const parseJson=(output:string)=>JSON.parse(output.trim().replace(/^```(?:json)?
 
 class ProviderError extends Error{constructor(message:string,public status:number,public setup=false){super(message);}}
 
-async function timedFetch(url:string,init:RequestInit){
-  try{return await fetch(url,{...init,signal:AbortSignal.timeout(CALL_TIMEOUT_MS)});}
+async function timedFetch(url:string,init:RequestInit,deadline:number){
+  const remaining=Math.min(CALL_TIMEOUT_MS,deadline-Date.now());
+  if(remaining<3000)throw new ProviderError("The AI took too long to answer. Try again.",504);
+  try{return await fetch(url,{...init,signal:AbortSignal.timeout(remaining)});}
   catch(e){
     if(e instanceof DOMException&&(e.name==="TimeoutError"||e.name==="AbortError"))throw new ProviderError("The AI took too long to answer. Try again.",504);
     throw e;
   }
 }
 
-async function askGemini(key:string,system:string,prompt:string,maxTokens:number){
+async function askGemini(key:string,system:string,prompt:string,maxTokens:number,deadline:number){
   // Thinking is switched off: it made answers slow enough to hit the server time limit.
   const models=[Deno.env.get("GEMINI_MODEL"),"gemini-2.5-flash","gemini-flash-latest"].filter(Boolean) as string[];
   let last:ProviderError|null=null;
@@ -87,7 +91,7 @@ async function askGemini(key:string,system:string,prompt:string,maxTokens:number
           contents:[{role:"user",parts:[{text:prompt}]}],
           generationConfig:{responseMimeType:"application/json",temperature:0.3,maxOutputTokens:maxTokens,...(thinking?{thinkingConfig:{thinkingBudget:0}}:{})}
         })
-      });
+      },deadline);
       body=await response.json().catch(()=>({}));
       // Models that cannot turn thinking off reject the setting; ask again without it.
       if(thinking&&response.status===400&&/thinking/i.test(String(body?.error?.message))){thinking=false;continue;}
@@ -110,25 +114,39 @@ async function askGemini(key:string,system:string,prompt:string,maxTokens:number
   throw last||new ProviderError("The AI service is unavailable.",502);
 }
 
-async function askGroq(key:string,system:string,prompt:string,maxTokens:number){
-  const model=Deno.env.get("GROQ_MODEL")||"llama-3.3-70b-versatile";
-  const response=await timedFetch("https://api.groq.com/openai/v1/chat/completions",{
-    method:"POST",
-    headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},
-    body:JSON.stringify({model,temperature:0.3,max_tokens:maxTokens,response_format:{type:"json_object"},messages:[{role:"system",content:system},{role:"user",content:prompt}]})
-  });
-  const body=await response.json().catch(()=>({}));
-  if(!response.ok){
-    const message=String(body?.error?.message||response.statusText);
-    console.error("forecast-insights: Groq",model,response.status,message);
-    if(response.status===401)throw new ProviderError("The Groq API key on the server is not valid. Update the GROQ_API_KEY secret.",503,true);
+// Groq and xAI Grok both speak the OpenAI chat format.
+async function askOpenAiCompatible(name:string,url:string,key:string,models:string[],system:string,prompt:string,maxTokens:number,deadline:number){
+  let last:ProviderError|null=null;
+  for(const model of [...new Set(models.filter(Boolean))]){
+    const response=await timedFetch(url,{
+      method:"POST",
+      headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},
+      body:JSON.stringify({model,temperature:0.3,max_tokens:maxTokens,response_format:{type:"json_object"},messages:[{role:"system",content:system},{role:"user",content:prompt}]})
+    },deadline);
+    const body=await response.json().catch(()=>({}));
+    if(response.ok){
+      const output=String(body?.choices?.[0]?.message?.content||"");
+      if(!output)throw new ProviderError("The AI returned an empty answer. Try again.",502);
+      return {output,model};
+    }
+    const message=String(body?.error?.message||body?.error||response.statusText);
+    console.error("forecast-insights:",name,model,response.status,message);
+    if(response.status===401||response.status===403)throw new ProviderError(`The ${name} API key on the server is not valid or has no credit left.`,503,true);
     if(response.status===429)throw new ProviderError("The free AI quota is used up for now. Try again in a minute.",429);
-    throw new ProviderError(`The AI service returned an error (${response.status}): ${message.slice(0,200)}`,502);
+    last=new ProviderError(`The AI service returned an error (${response.status}): ${message.slice(0,200)}`,502);
+    // An unknown or retired model name: try the next one.
+    if(!(response.status===404||(response.status===400&&/model/i.test(message))))break;
   }
-  const output=String(body?.choices?.[0]?.message?.content||"");
-  if(!output)throw new ProviderError("The AI returned an empty answer. Try again.",502);
-  return {output,model};
+  throw last||new ProviderError("The AI service is unavailable.",502);
 }
+
+const PROVIDERS=[
+  {name:"Gemini",key:"GEMINI_API_KEY",ask:(key:string,system:string,prompt:string,max:number,deadline:number)=>askGemini(key,system,prompt,max,deadline)},
+  {name:"Groq",key:"GROQ_API_KEY",ask:(key:string,system:string,prompt:string,max:number,deadline:number)=>
+    askOpenAiCompatible("Groq","https://api.groq.com/openai/v1/chat/completions",key,[Deno.env.get("GROQ_MODEL")||"","llama-3.3-70b-versatile"],system,prompt,max,deadline)},
+  {name:"Grok",key:"XAI_API_KEY",ask:(key:string,system:string,prompt:string,max:number,deadline:number)=>
+    askOpenAiCompatible("Grok","https://api.x.ai/v1/chat/completions",key,[Deno.env.get("GROK_MODEL")||"","grok-4.1-fast","grok-4.3"],system,prompt,max,deadline)}
+];
 
 Deno.serve(async(req)=>{
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
@@ -144,9 +162,9 @@ Deno.serve(async(req)=>{
     if(!actor||actor.status!=="Active")return json({error:"Active CampusCare account required."},403);
     if(!["Administrator","Staff","Doctor"].includes(actor.role))return json({error:"AI insights are available to clinic staff only."},403);
 
-    const geminiKey=Deno.env.get("GEMINI_API_KEY"),groqKey=Deno.env.get("GROQ_API_KEY");
-    if(!geminiKey&&!groqKey)
-      return json({error:"AI insights are not set up yet. Add a free GEMINI_API_KEY (Google AI Studio) or GROQ_API_KEY secret to the CampusCare server.",setup_required:true},503);
+    const available=PROVIDERS.map(p=>({...p,secret:Deno.env.get(p.key)||""})).filter(p=>p.secret);
+    if(!available.length)
+      return json({error:"AI insights are not set up yet. Add a GEMINI_API_KEY, GROQ_API_KEY or XAI_API_KEY secret to the CampusCare server.",setup_required:true},503);
 
     const body=await req.json().catch(()=>({}));
     const kind=body.kind==="inventory"?"inventory":"reports";
@@ -164,14 +182,18 @@ Deno.serve(async(req)=>{
     const data=`${kind==="inventory"?"Inventory stock projection":"Clinic demand forecast"} (JSON):\n${context}`;
     const system=question?ASK_SYSTEM:SYSTEM,maxTokens=question?800:3072;
     const prompt=question?`${data}${history?`\n\nEarlier in this conversation:\n${history}`:""}\n\nQuestion: ${question}`:data;
-    const ask=async(provider:"Gemini"|"Groq")=>provider==="Gemini"?askGemini(geminiKey!,system,prompt,maxTokens):askGroq(groqKey!,system,prompt,maxTokens);
-    let provider:"Gemini"|"Groq"=geminiKey?"Gemini":"Groq",reply:{output:string,model:string};
-    try{reply=await ask(provider);}
-    catch(e){
-      // With both keys set, a slow or rate-limited Gemini falls back to Groq.
-      if(!(e instanceof ProviderError)||provider!=="Gemini"||!groqKey||e.setup)throw e;
-      provider="Groq";reply=await ask(provider);
+    // Each configured provider is tried in turn: a slow, failing or rate-limited one hands over to the next.
+    const deadline=Date.now()+TOTAL_BUDGET_MS;
+    let provider="",reply:{output:string,model:string}|null=null,failure:ProviderError|null=null;
+    for(const p of available){
+      try{reply=await p.ask(p.secret,system,prompt,maxTokens,deadline);provider=p.name;break;}
+      catch(e){
+        if(!(e instanceof ProviderError))throw e;
+        failure=e;
+        if(deadline-Date.now()<3000)break;
+      }
     }
+    if(!reply)throw failure||new ProviderError("The AI service is unavailable.",502);
     const {output,model}=reply;
     let insights:any;
     try{insights=normalize(parseJson(output));}catch(_){return json({error:"The AI returned an unreadable answer. Try again."},502);}

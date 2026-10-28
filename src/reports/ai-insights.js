@@ -7,7 +7,7 @@ import {escapeHtml} from '../features/issueReports.js';
 const esc=v=>escapeHtml(String(v??''));
 const cache=new Map();
 
-const TIMEOUT_MS=60000;
+const TIMEOUT_MS=140000;
 async function requestInsights(kind,context,question='',history=[]){
   const supabase=state.supabaseClient;
   if(!state.auth.currentUser?._realSupabase||!supabase?.supabaseClient)throw new Error('AI insights need a connection to the CampusCare server.');
