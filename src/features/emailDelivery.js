@@ -217,10 +217,11 @@ export async function syncRealActivityLogs(){
 
 // The log reads as a timeline: who did what to which record, grouped by day, with details one click away.
 const AUDIT_PAGES={appointments:'appointments',patients:'patients',treatments:'treatments',dental_records:'treatments',inventory_items:'inventory',inventory_transactions:'inventory',users:'users',workflow_requests:'users',doctor_leaves:'users',issue_reports:'feedback-issues',system_settings:'settings',audit_logs:'activity-log'};
-const AUDIT_PERIODS=[['1','Today'],['2','Last 24 hours'],['7','Last 7 days'],['30','Last 30 days'],['90','Last 90 days'],['','All time'],['custom','Custom range']];
+const AUDIT_PAGE_SIZE=10;
+const AUDIT_PERIODS=[['today','Today'],['24h','Last 24 hours'],['7','Last 7 days'],['30','Last 30 days'],['90','Last 90 days'],['','All time'],['custom','Custom range']];
 function auditUi(){
   const ui=appState.activityLog??={};
-  ui.limit??=100;ui.category??='';ui.period??='30';ui.person??='';ui.role??='';ui.record??=null;
+  ui.page??=1;ui.category??='';ui.period??='24h';ui.person??='';ui.role??='';ui.record??=null;
   return ui;
 }
 const categoryMeta=id=>AUDIT_CATEGORIES.find(([key])=>key===id)||AUDIT_CATEGORIES.at(-1);
@@ -273,14 +274,14 @@ export async function renderActivityLog(){
       </div>
       <div class="audit-chips" id="audit-chips" role="group" aria-label="Category"></div>
       <div class="audit-toolbar">
-        <input id="audit-q" type="search" placeholder="Search people, actions, records or details" aria-label="Search the log" ${bindAction('input',()=>{ui.limit=100;renderActivityLogTable();})}>
-        <select id="audit-person" aria-label="Person" ${bindAction('change',(event,element)=>{ui.person=element.value;ui.limit=100;renderActivityLogTable();})}>
+        <input id="audit-q" type="search" placeholder="Search people, actions, records or details" aria-label="Search the log" ${bindAction('input',()=>{ui.page=1;renderActivityLogTable();})}>
+        <select id="audit-person" aria-label="Person" ${bindAction('change',(event,element)=>{ui.person=element.value;ui.page=1;renderActivityLogTable();})}>
           <option value="">Everyone</option>${people.map(([name,role])=>`<option value="${escapeHtml(name)}" ${ui.person===name?'selected':''}>${escapeHtml(name)} · ${escapeHtml(role)}</option>`).join('')}
         </select>
-        <select id="audit-role" aria-label="Role" ${bindAction('change',(event,element)=>{ui.role=element.value;ui.limit=100;renderActivityLogTable();})}>
+        <select id="audit-role" aria-label="Role" ${bindAction('change',(event,element)=>{ui.role=element.value;ui.page=1;renderActivityLogTable();})}>
           <option value="">All roles</option>${roles.map(r=>`<option ${ui.role===r?'selected':''}>${escapeHtml(r)}</option>`).join('')}
         </select>
-        <select id="audit-period" aria-label="Period" ${bindAction('change',(event,element)=>{ui.period=element.value;ui.limit=100;document.getElementById('audit-range').hidden=element.value!=='custom';renderActivityLogTable();})}>
+        <select id="audit-period" aria-label="Period" ${bindAction('change',(event,element)=>{ui.period=element.value;ui.page=1;document.getElementById('audit-range').hidden=element.value!=='custom';renderActivityLogTable();})}>
           ${AUDIT_PERIODS.map(([v,l])=>`<option value="${v}" ${ui.period===v?'selected':''}>${l}</option>`).join('')}
         </select>
         <div class="audit-range" id="audit-range" ${ui.period==='custom'?'':'hidden'}>
@@ -303,7 +304,7 @@ function filteredActivity({ignoreCategory=false}={}){
   const ui=auditUi();
   const q=(document.getElementById('audit-q')?.value||'').trim().toLowerCase();
   const now=Date.now();
-  const since=ui.period==='1'?new Date(manilaDay(new Date())+'T00:00:00+08:00').getTime():ui.period&&ui.period!=='custom'?now-Number(ui.period)*864e5:0;
+  const since=ui.period==='today'?new Date(manilaDay(new Date())+'T00:00:00+08:00').getTime():ui.period==='24h'?now-864e5:ui.period&&ui.period!=='custom'?now-Number(ui.period)*864e5:0;
   const from=ui.period==='custom'&&ui.from?ui.from:'',to=ui.period==='custom'&&ui.to?ui.to:'';
   return (appState.data.DB.activityLogs||[])
     .filter(x=>{
@@ -324,7 +325,7 @@ function renderAuditChips(){
   const host=document.getElementById('audit-chips');if(!host)return;
   const ui=auditUi(),base=filteredActivity({ignoreCategory:true});
   const counts=new Map();base.forEach(x=>{const k=auditCategory(x.action,x.targetType);counts.set(k,(counts.get(k)||0)+1);});
-  const chip=(id,label,icon,n)=>`<button type="button" class="audit-chip ${ui.category===id?'active':''}" aria-pressed="${ui.category===id}" ${bindAction('click',()=>{ui.category=id;ui.limit=100;renderActivityLogTable();})}>${icon?`<i class="bi ${icon}" aria-hidden="true"></i>`:''}${label}<span>${n}</span></button>`;
+  const chip=(id,label,icon,n)=>`<button type="button" class="audit-chip ${ui.category===id?'active':''}" aria-pressed="${ui.category===id}" ${bindAction('click',()=>{ui.category=id;ui.page=1;renderActivityLogTable();})}>${icon?`<i class="bi ${icon}" aria-hidden="true"></i>`:''}${label}<span>${n}</span></button>`;
   host.innerHTML=chip('','All','',base.length)+AUDIT_CATEGORIES.map(([id,label,icon])=>chip(id,label,icon,counts.get(id)||0)).join('');
 }
 
@@ -334,27 +335,30 @@ export function renderActivityLogTable(){
   renderAuditChips();
   const recordHost=document.getElementById('audit-record-filter');
   if(recordHost)recordHost.innerHTML=ui.record?`<div class="audit-filter-pill"><i class="bi bi-funnel" aria-hidden="true"></i> Only ${escapeHtml(recordName(ui.record.type))} #${escapeHtml(String(ui.record.id))}<button type="button" aria-label="Remove record filter" ${bindAction('click',()=>{ui.record=null;renderActivityLogTable();})}>✕</button></div>`:'';
-  const all=filteredActivity(),rows=all.slice(0,ui.limit);
+  const all=filteredActivity(),pages=Math.max(1,Math.ceil(all.length/AUDIT_PAGE_SIZE));
+  ui.page=Math.min(Math.max(1,ui.page),pages);
+  const first=(ui.page-1)*AUDIT_PAGE_SIZE,rows=all.slice(first,first+AUDIT_PAGE_SIZE);
   const summary=document.getElementById('audit-summary');
-  if(summary)summary.textContent=`${all.length} event${all.length===1?'':'s'}${all.length>rows.length?` · showing the latest ${rows.length}`:''}`;
-  if(!rows.length){el.innerHTML='<div class="empty-state"><i class="bi bi-journal-x" aria-hidden="true" style="font-size:1.6rem"></i><p>No activity matches these filters.</p></div>';return;}
-  const groups=[];
-  for(const x of rows){
-    const label=auditDayLabel(x.timestamp);
-    if(groups.at(-1)?.label!==label)groups.push({label,items:[]});
-    groups.at(-1).items.push(x);
-  }
-  el.innerHTML=groups.map(g=>`<section class="audit-day"><h4>${escapeHtml(g.label)}<span>${g.items.length} event${g.items.length===1?'':'s'}</span></h4><ol class="audit-items">${g.items.map(x=>{
-    const [cat,,icon]=categoryMeta(auditCategory(x.action,x.targetType));
-    const device=auditDevice(x),ago=relativeTime(x.timestamp);
-    return `<li><button type="button" class="audit-item" ${bindAction('click',()=>openAuditEntry(x.id))}>
-      <span class="audit-icon ${cat}"><i class="bi ${icon}" aria-hidden="true"></i></span>
-      <span class="audit-text"><span><strong>${escapeHtml(x.userName)}</strong> ${escapeHtml(auditSentence(x))}</span>
-        <span class="audit-meta">${escapeHtml(x.role||'')}<span aria-hidden="true">·</span><time datetime="${escapeHtml(x.timestamp)}">${escapeHtml(auditTime(x.timestamp))}</time>${ago?`<span aria-hidden="true">·</span>${escapeHtml(ago)}`:''}${device?`<span aria-hidden="true">·</span>${escapeHtml(device)}`:''}</span>
-      </span>
-      <i class="bi bi-chevron-right audit-go" aria-hidden="true"></i>
-    </button></li>`;}).join('')}</ol></section>`).join('')
-    +(all.length>rows.length?`<div class="pt-pager"><span>Showing ${rows.length} of ${all.length}</span><div><button class="btn btn-xs" ${bindAction('click',()=>{ui.limit+=100;renderActivityLogTable();})}>Show more</button></div></div>`:'');
+  if(summary)summary.textContent=`${all.length} event${all.length===1?'':'s'}`;
+  if(!rows.length){el.innerHTML=`<div class="empty-state"><i class="bi bi-journal-x" aria-hidden="true" style="font-size:1.6rem"></i><p>No activity matches these filters${ui.period==='24h'?' in the last 24 hours':''}.</p></div>`;return;}
+  el.innerHTML=`<div class="table-wrap"><table class="audit-table">
+    <thead><tr><th scope="col">When</th><th scope="col">Person</th><th scope="col">What happened</th><th scope="col">Category</th><th scope="col">Device</th><th scope="col"><span class="sr-only">Details</span></th></tr></thead>
+    <tbody>${rows.map(x=>{
+      const [cat,catLabel,icon]=categoryMeta(auditCategory(x.action,x.targetType));
+      const ago=relativeTime(x.timestamp);
+      return `<tr class="audit-row" tabindex="0" ${bindAction('click',()=>openAuditEntry(x.id))} ${bindAction('keydown',event=>{if(event.key==='Enter'){event.preventDefault();openAuditEntry(x.id);}})}>
+        <td data-label="When"><time datetime="${escapeHtml(x.timestamp)}" title="${escapeHtml(new Date(x.timestamp).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}))}">${escapeHtml(auditDayLabel(x.timestamp)==='Today'?auditTime(x.timestamp):`${auditDayLabel(x.timestamp)}, ${auditTime(x.timestamp)}`)}</time>${ago?`<span class="text-muted">${escapeHtml(ago)}</span>`:''}</td>
+        <td data-label="Person"><strong>${escapeHtml(x.userName)}</strong><span class="text-muted">${escapeHtml(x.role||'')}</span></td>
+        <td data-label="What happened">${escapeHtml(auditSentence(x))}</td>
+        <td data-label="Category"><span class="audit-cat ${cat}"><i class="bi ${icon}" aria-hidden="true"></i>${escapeHtml(catLabel)}</span></td>
+        <td data-label="Device">${escapeHtml(auditDevice(x)||'—')}</td>
+        <td class="audit-go-cell"><i class="bi bi-chevron-right" aria-hidden="true"></i></td>
+      </tr>`;}).join('')}</tbody>
+  </table></div>
+  <div class="pt-pager"><span>Showing ${first+1}–${first+rows.length} of ${all.length}</span>${pages>1?`<div>
+    <button class="btn btn-xs" ${ui.page===1?'disabled':''} ${bindAction('click',()=>{ui.page--;renderActivityLogTable();})}>‹ Previous</button>
+    <span class="audit-page">Page ${ui.page} of ${pages}</span>
+    <button class="btn btn-xs" ${ui.page===pages?'disabled':''} ${bindAction('click',()=>{ui.page++;renderActivityLogTable();})}>Next ›</button></div>`:''}</div>`;
 }
 
 export function openAuditEntry(id){

@@ -1226,3 +1226,16 @@ button.fi-row.fi-open{padding:.75rem .9rem}
 .ai-error{display:flex;gap:.5rem;align-items:flex-start;font-size:.8rem;padding:.55rem .7rem;border-radius:10px;background:var(--danger-bg);color:var(--danger)}
 .ai-error.setup{background:var(--warning-bg);color:var(--warning)}
 @media(max-width:700px){.ai-grid{grid-template-columns:1fr}}
+.audit-table td{vertical-align:middle;font-size:.82rem;padding-top:.55rem;padding-bottom:.55rem}
+.audit-table td .text-muted{display:block;font-size:.7rem}
+.audit-row{cursor:pointer}
+.audit-row:hover,.audit-row:focus-visible{background:var(--glass-surface-soft)}
+.audit-cat{display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;font-weight:600;padding:.12rem .5rem;border-radius:999px;background:var(--overlay);color:var(--ink-muted);white-space:nowrap}
+.audit-cat.security{background:var(--danger-bg);color:var(--danger)}
+.audit-cat.appointments{background:var(--info-bg);color:var(--info)}
+.audit-cat.records{background:var(--success-bg);color:var(--success)}
+.audit-cat.inventory{background:var(--warning-bg);color:var(--warning)}
+.audit-cat.accounts{background:var(--primary-light);color:var(--primary)}
+.audit-cat.feedback{background:rgba(140,121,218,.18);color:#8c79da}
+.audit-go-cell{width:24px;color:var(--ink-muted)}
+.audit-page{font-size:.74rem;color:var(--ink-muted);margin:0 .4rem}

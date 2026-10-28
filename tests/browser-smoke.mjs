@@ -959,16 +959,19 @@ try{
         {id:9002,timestamp:iso(.5),userName:'Ana Reyes',role:'Administrator',action:'INVENTORY_QUANTITY_UPDATED',targetType:'inventory_items',targetId:12,details:'',rawDetails:{previous_quantity:40,new_quantity:25,reason:'Count correction'}},
         {id:9003,timestamp:iso(30),userName:'Ben Cruz',role:'Staff',action:'APPOINTMENT_CANCELLED',targetType:'appointments',targetId:42,details:'',rawDetails:{reason:'Doctor unavailable'}}
       ];
-      state.activityLog={};
+      Object.assign(state.activityLog,{category:'',record:null,person:'',page:1});
       features.emailDelivery.renderActivityLogTable();
     });
+    // The last 24 hours by default, as a compact paged table.
+    assert.equal(await page.locator('#audit-period').inputValue(),'24h');
+    assert.equal(await page.locator('.audit-row').count(),2);
     await page.locator('#audit-period').selectOption('');
-    assert.equal(await page.locator('.audit-item').count(),3);
-    assert.match(await page.locator('.audit-item').nth(2).innerText(),/Ben Cruz cancelled appointment #42/);
-    assert.equal(await page.locator('.audit-day h4').count(),2,'Events are grouped by day');
+    assert.equal(await page.locator('.audit-row').count(),3);
+    assert.match(await page.locator('.audit-row').nth(2).innerText(),/Ben Cruz[\s\S]*cancelled appointment #42/);
+    assert.match(await page.locator('#audit-table .pt-pager').innerText(),/Showing 1–3 of 3/);
     await page.locator('.audit-chip',{hasText:'Inventory'}).click();
-    assert.equal(await page.locator('.audit-item').count(),1);
-    await page.locator('.audit-item').first().click();
+    assert.equal(await page.locator('.audit-row').count(),1);
+    await page.locator('.audit-row').first().click();
     await page.locator('.audit-entry .audit-changes').waitFor();
     assert.match(await page.locator('.audit-changes').innerText(),/Quantity\s+40\s+25/);
     if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/audit-entry.png`});
