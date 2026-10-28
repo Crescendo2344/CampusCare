@@ -1201,26 +1201,34 @@ try{
     const updatesBefore=requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').length;
     await active().getByRole('button',{name:'Edit',exact:true}).click();assert.equal(await page.locator('#eu-status').count(),0);
     await page.locator('#eu-fname').fill('Updated');await page.locator('#eu-contact').fill('+639987654321');
-    await page.getByRole('button',{name:'Review Changes',exact:true}).click();await page.getByRole('heading',{name:'Confirm user changes',exact:true}).waitFor();
+    // Step 1 marks what changed; step 2 reviews it, asks for a reason and the username before saving.
+    assert.equal(await page.locator('.eu-field.changed').count(),2);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/user-edit-${mobile?'mobile':'desktop'}.png`});
+    await page.getByRole('button',{name:'Review changes',exact:true}).click();await page.getByRole('heading',{name:'Confirm user changes',exact:true}).waitFor();
     assert.equal(requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').length,updatesBefore,'Review must not save before confirmation');
-    await page.getByRole('button',{name:'Back to Editing',exact:true}).click();assert.equal(await page.locator('#eu-fname').inputValue(),'Updated');
-    await page.getByRole('button',{name:'Review Changes',exact:true}).click();
+    await page.getByRole('button',{name:'Back to editing',exact:true}).click();assert.equal(await page.locator('#eu-fname').inputValue(),'Updated');
+    await page.getByRole('button',{name:'Review changes',exact:true}).click();
+    const save=page.getByRole('button',{name:'Save changes',exact:true});
+    assert(await save.isDisabled(),'Saving needs a reason and the typed username');
+    await page.locator('#eu-reason').fill('Corrected per registrar records');assert(await save.isDisabled());
+    await page.locator('#eu-confirm-word').fill('fixture');assert(await save.isEnabled());
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/user-edit-review-${mobile?'mobile':'desktop'}.png`});
-    await page.getByRole('button',{name:'Confirm Changes',exact:true}).click();
+    await save.click();
+    assert.equal(requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').at(-1).body.reason,'Corrected per registrar records');
     const updated=()=>page.locator('#user-table tbody tr').filter({hasText:'Doctor, Updated'});await updated().waitFor();
     assert.equal(managedUsers[1].first_name,'Updated');assert.equal(managedUsers[1].contact_number,'09987654321');assert.equal(managedUsers[1].status,'Active');
     await updated().getByRole('button',{name:'Suspend',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Reactivate',exact:true}).waitFor();
     await updated().getByRole('button',{name:'Reactivate',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Suspend',exact:true}).waitFor();
     managedUsers.push(...Array.from({length:12},(_,i)=>({...profile,user_id:200+i,auth_user_id:'scroll-'+i,first_name:'Scroll',last_name:String(i),username:'scroll'+i,status:i===0?'Archived':i===1?'Suspended':'Active'})));
     await page.evaluate(()=>window.__fixtureApp.features.userManagement.renderUsers());
-    assert.equal(await page.locator('#user-table tbody tr').count(),15,'All Status includes archived and suspended accounts');
-    const scroller=page.locator('.user-table-scroll');
-    assert(await scroller.evaluate(el=>el.scrollHeight>el.clientHeight),'More than ten users must scroll inside the table');
-    // Ten rows are the ceiling; small viewports may show fewer complete rows.
-    assert(await scroller.evaluate(el=>{const rows=[...el.querySelectorAll('tbody tr')],ten=el.querySelector('thead').getBoundingClientRect().height+rows.slice(0,10).reduce((sum,row)=>sum+row.getBoundingClientRect().height,0);return el.clientHeight<=Math.min(innerHeight*.63,ten+3)&&el.clientHeight>100;}),'User table fits the viewport and never exceeds ten rows');
+    // Ten accounts per page with a pager; All Status includes archived and suspended accounts.
+    assert.equal(await page.locator('#user-table tbody tr').count(),10);
+    assert.match(await page.locator('#user-table .pt-pager').innerText(),/Showing 1–10 of 15/);
+    await page.locator('#user-table').getByRole('button',{name:/Next/}).click();
+    assert.equal(await page.locator('#user-table tbody tr').count(),5);
     await page.locator('#usr-status').selectOption('Archived');assert.equal(await page.locator('#user-table tbody tr').count(),1);
     await page.locator('#usr-status').selectOption('Suspended');assert.equal(await page.locator('#user-table tbody tr').count(),1);
-    await page.locator('#usr-status').selectOption('');await scroller.evaluate(el=>el.scrollTop=el.scrollHeight);assert(await scroller.evaluate(el=>el.scrollTop>0));
+    await page.locator('#usr-status').selectOption('');assert.equal(await page.locator('#user-table tbody tr').count(),10,'Changing a filter returns to page 1');
 
   }
   // Brand navigation works from every role; Patient history returns to the actual previous page.

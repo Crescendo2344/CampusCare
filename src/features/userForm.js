@@ -10,7 +10,7 @@ import {checkPasswordStrength,renderPasswordStrength} from './loginLockout.js';
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
 import {passwordValidationError} from '../../supabase/functions/_shared/registration-validation.js';
 import {normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
-import {adminUserAction,renderUsers} from './userManagement.js';
+import {adminUserAction,renderUsers,userAvatarHtml} from './userManagement.js';
 import {bindAction} from '../dependencies.js';
 import {openDoctorScheduleEditor} from './doctorSchedules.js';
 // ── Add User Modal ──
@@ -225,51 +225,109 @@ async function openCreatedDoctorSchedule(){
   else toast('Open Doctor schedules to set their hours.','info');
 }
 
+// Editing an account is two deliberate steps, as in admin consoles such as Google Workspace and Okta:
+// edit the details (changed fields are marked), then review every change with a reason and confirm by
+// typing the account's username before anything is saved.
+const EDIT_LABELS={first_name:'First name',last_name:'Last name',email:'Email',contact_number:'Mobile number',specialty:'Specialty'};
+function editState(){return appState.userManagement.editUser??={};}
+function editOriginal(u){return {...u,first_name:u.fname,last_name:u.lname,contact_number:u.contact||''};}
+function editInputs(u){
+  return {first_name:document.getElementById('eu-fname').value,last_name:document.getElementById('eu-lname').value,email:document.getElementById('eu-email').value,contact_number:document.getElementById('eu-contact').value,...(u.role==='Doctor'?{specialty:document.getElementById('eu-spec').value}:{})};
+}
+function confirmWord(u){return u.username||u.email;}
+
 export function openEditUserModal(id){
   const u=appState.data.DB.users.find(x=>x.id===Number(id));if(!u)return;
   if(appState.auth.currentUser?.role!=='Administrator'){toast('Administrator access required.','warning');return;}
   if(!canEditApprovedUser(u)){toast('Approve this account before editing it. Archived accounts must be restored first.','warning');return;}
-  openModal(`<div class="modal">
-    <div class="modal-header"><h3>Edit User – ${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</h3><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+  editState().userId=u.id;
+  const field=(id,key,label,input)=>`<div class="form-group eu-field" data-field="${key}"><label for="${id}">${label}<span class="eu-changed" hidden>Changed</span></label>${input}<p class="registration-field-error" id="${id}-error" hidden></p></div>`;
+  openModal(`<div class="modal modal-lg eu-modal">
+    <div class="modal-header"><div><h3>Edit user</h3><ol class="eu-steps" aria-label="Steps"><li class="active" id="eu-step-1">Edit details</li><li id="eu-step-2">Review &amp; confirm</li></ol></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body"><div id="edituser-msg"></div>
-      <div class="form-row" id="edituser-fields">
-        <div class="form-group"><label for="eu-fname">First Name</label><input id="eu-fname" maxlength="100" value="${escapeHtml(u.fname)}"></div>
-        <div class="form-group"><label for="eu-lname">Last Name</label><input id="eu-lname" maxlength="100" value="${escapeHtml(u.lname)}"></div>
-        <div class="form-group"><label for="eu-email">Email</label><input id="eu-email" type="email" maxlength="150" value="${escapeHtml(u.email)}"></div>
-        <div class="form-group"><label for="eu-contact">Contact</label><input id="eu-contact" type="tel" placeholder="09 or +63" value="${escapeHtml(u.contact||'')}"></div>
-        ${u.role==='Doctor'?`<div class="form-group"><label for="eu-spec">Specialty</label><select id="eu-spec">${['General Medicine','Dental','Eye','Mental Health'].map(value=>`<option ${u.specialty===value?'selected':''}>${value}</option>`).join('')}</select></div>`:''}
-      </div><section id="edituser-review" hidden></section>
-    </div><div class="modal-footer" id="edituser-actions"><button class="btn btn-primary" ${bindAction('click',()=>saveEditUser(u.id))}>Review Changes</button></div>
+      <div class="eu-identity">${userAvatarHtml(u,44)}<div><strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong><span>@${escapeHtml(u.username||'—')} · ${escapeHtml(u.role)} · ${escapeHtml(u.status)}</span></div></div>
+      <div id="edituser-fields" ${bindAction('input',()=>markEditChanges(u.id))} ${bindAction('change',()=>markEditChanges(u.id))}>
+        <section class="eu-section"><h4>Profile</h4><div class="form-row">
+          ${field('eu-fname','first_name','First name',`<input id="eu-fname" maxlength="100" autocomplete="off" value="${escapeHtml(u.fname)}">`)}
+          ${field('eu-lname','last_name','Last name',`<input id="eu-lname" maxlength="100" autocomplete="off" value="${escapeHtml(u.lname)}">`)}
+        </div></section>
+        <section class="eu-section"><h4>Contact</h4><div class="form-row">
+          ${field('eu-email','email','Email',`<input id="eu-email" type="email" maxlength="150" autocomplete="off" value="${escapeHtml(u.email)}">`)}
+          ${field('eu-contact','contact_number','Mobile number',`<input id="eu-contact" type="tel" placeholder="09XXXXXXXXX" autocomplete="off" value="${escapeHtml(u.contact||'')}">`)}
+        </div></section>
+        ${u.role==='Doctor'?`<section class="eu-section"><h4>Professional</h4><div class="form-row">${field('eu-spec','specialty','Specialty',`<select id="eu-spec">${['General Medicine','Dental','Eye','Mental Health'].map(value=>`<option ${u.specialty===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div></section>`:''}
+        <dl class="eu-locked"><div><dt>Username</dt><dd>@${escapeHtml(u.username||'—')}</dd></div><div><dt>Role</dt><dd>${escapeHtml(u.role)}</dd></div><div><dt>Account status</dt><dd>${escapeHtml(u.status)}</dd></div></dl>
+      </div>
+      <section id="edituser-review" hidden></section>
+    </div>
+    <div class="modal-footer eu-footer" id="edituser-actions">${editFooterHtml(u)}</div>
   </div>`);
+  markEditChanges(u.id);
 }
+
+function editFooterHtml(u){
+  return `<span class="eu-count" id="eu-count">No changes yet</span>
+    <button class="btn" id="eu-reset" disabled ${bindAction('click',()=>openEditUserModal(u.id))}>Reset</button>
+    <button class="btn btn-primary" id="eu-next" disabled ${bindAction('click',()=>saveEditUser(u.id))}>Review changes</button>`;
+}
+
+// Marks changed fields and shows field-level problems as the admin types.
+export function markEditChanges(id){
+  const u=appState.data.DB.users.find(x=>x.id===Number(id));if(!u||!document.getElementById('eu-fname'))return;
+  const original=editOriginal(u),inputs=editInputs(u);
+  let changed=0;
+  for(const [key,value] of Object.entries(inputs)){
+    const before=String(original[key]||'').trim(),now=String(value||'').trim();
+    const differs=key==='email'?now.toLowerCase()!==before.toLowerCase():key==='contact_number'?(normalizePhilippineMobile(now)||now)!==before:now!==before;
+    const wrap=document.querySelector(`.eu-field[data-field="${key}"]`);
+    if(wrap){wrap.classList.toggle('changed',differs);wrap.querySelector('.eu-changed').hidden=!differs;}
+    if(differs)changed++;
+  }
+  const result=buildUserEditPatch(inputs,original);
+  const count=document.getElementById('eu-count');if(count)count.textContent=changed?`${changed} change${changed===1?'':'s'}`:'No changes yet';
+  const next=document.getElementById('eu-next');if(next)next.disabled=!changed||Boolean(result.error);
+  const reset=document.getElementById('eu-reset');if(reset)reset.disabled=!changed;
+  const msg=document.getElementById('edituser-msg');
+  if(msg){if(result.error&&changed)showAlert(msg,result.error,'warning');else msg.innerHTML='';}
+}
+
 export async function saveEditUser(id){
   const u=appState.data.DB.users.find(x=>x.id===Number(id));if(!u)return;
   const msg=document.getElementById('edituser-msg');
   if(appState.auth.currentUser?.role!=='Administrator'||!canEditApprovedUser(u)){showAlert(msg,'Only approved accounts can be edited by an administrator.');return;}
   if(!u._realSupabase){showAlert(msg,'This account has not been migrated to Supabase yet.','warning');return;}
-  const original={...u,first_name:u.fname,last_name:u.lname,contact_number:u.contact||''};
-  const result=buildUserEditPatch({first_name:document.getElementById('eu-fname').value,last_name:document.getElementById('eu-lname').value,email:document.getElementById('eu-email').value,contact_number:document.getElementById('eu-contact').value,...(u.role==='Doctor'?{specialty:document.getElementById('eu-spec').value}:{})},original);
+  const original=editOriginal(u);
+  const result=buildUserEditPatch(editInputs(u),original);
   if(result.error){showAlert(msg,result.error);return;}
   const patch=result.patch;if(!Object.keys(patch).length){showAlert(msg,'No changes to save.','info');return;}
   const fields=document.getElementById('edituser-fields'),review=document.getElementById('edituser-review'),actions=document.getElementById('edituser-actions'),modal=document.getElementById('active-modal');
-  const labels={first_name:'First Name',last_name:'Last Name',email:'Email',contact_number:'Contact',specialty:'Specialty'};
-  // Freeze a reviewed snapshot; returning to editing preserves the original form and its unsaved values.
+  const word=confirmWord(u);
   fields.hidden=true;review.hidden=false;msg.innerHTML='';
-  review.innerHTML=`<h4>Confirm user changes</h4><p>Are you sure you want to update <strong>${escapeHtml(u.username||u.email)}</strong>?</p><div class="table-wrap"><table><thead><tr><th>Field</th><th>Current</th><th>New</th></tr></thead><tbody>${Object.entries(patch).map(([key,value])=>`<tr><td>${labels[key]}</td><td>${escapeHtml(original[key]||'—')}</td><td>${escapeHtml(value||'—')}</td></tr>`).join('')}</tbody></table></div>`;
-  const back=()=>{fields.hidden=false;review.hidden=true;actions.innerHTML=`<button class="btn btn-primary" ${bindAction('click',()=>saveEditUser(u.id))}>Review Changes</button>`;};
-  actions.innerHTML=`<button class="btn" ${bindAction('click',back)}>Back to Editing</button><button id="confirm-user-edit" class="btn btn-primary" ${bindAction('click',async()=>{
+  document.getElementById('eu-step-1').classList.replace('active','done');document.getElementById('eu-step-2').classList.add('active');
+  review.innerHTML=`<h4>Confirm user changes</h4>
+    <div class="table-wrap"><table class="eu-diff"><thead><tr><th scope="col">Field</th><th scope="col">Current</th><th scope="col">New</th></tr></thead><tbody>${Object.entries(patch).map(([key,value])=>`<tr><th scope="row">${EDIT_LABELS[key]}</th><td><del>${escapeHtml(original[key]||'—')}</del></td><td><ins>${escapeHtml(value||'—')}</ins></td></tr>`).join('')}</tbody></table></div>
+    ${patch.email?`<div class="eu-warning"><i class="bi bi-envelope-exclamation" aria-hidden="true"></i><span><strong>Sign-in email changes.</strong> ${escapeHtml(u.fname)} will sign in with ${escapeHtml(patch.email)} from now on.</span></div>`:''}
+    <div class="form-group"><label for="eu-reason">Reason for this change <span class="required">*</span></label><input id="eu-reason" maxlength="300" placeholder="e.g. Corrected spelling per registrar records" autocomplete="off"></div>
+    <label class="fi-check"><input type="checkbox" id="eu-notify" checked> Notify ${escapeHtml(u.fname)} about this change</label>
+    <div class="form-group eu-confirm"><label for="eu-confirm-word">Type <strong>${escapeHtml(word)}</strong> to confirm</label><input id="eu-confirm-word" autocomplete="off" autocapitalize="off" spellcheck="false"></div>`;
+  const ready=()=>{const reasonInput=document.getElementById('eu-reason'),wordInput=document.getElementById('eu-confirm-word');if(!reasonInput||!wordInput)return;const ok=reasonInput.value.trim().length>=5&&wordInput.value.trim().toLowerCase()===String(word).toLowerCase();const btn=document.getElementById('confirm-user-edit');if(btn)btn.disabled=!ok;};
+  const back=()=>{fields.hidden=false;review.hidden=true;document.getElementById('eu-step-2').classList.remove('active');document.getElementById('eu-step-1').classList.replace('done','active');actions.innerHTML=editFooterHtml(u);markEditChanges(u.id);};
+  actions.innerHTML=`<button class="btn" ${bindAction('click',back)}>Back to editing</button><button id="confirm-user-edit" class="btn btn-primary" disabled ${bindAction('click',async()=>{
     if(!canEditApprovedUser(appState.data.DB.users.find(x=>x.id===u.id))){showAlert(msg,'This account is no longer available for editing.');return;}
+    const reason=document.getElementById('eu-reason').value.trim(),notify=document.getElementById('eu-notify').checked;
     const buttons=[...actions.querySelectorAll('button')];buttons.forEach(button=>button.disabled=true);
     try{
-      const result=await adminUserAction({action:'update',user_id:u.dbUserId,...patch,confirmed:true});
+      const result=await adminUserAction({action:'update',user_id:u.dbUserId,...patch,confirmed:true,reason,notify});
       const saved=result.user;
       if(!saved)throw new Error('The update could not be verified. Reload the account before retrying.');
       Object.assign(u,{fname:saved.first_name,lname:saved.last_name,email:saved.email,contact:saved.contact_number||'',contactNo:saved.contact_number||'',specialty:saved.specialty||''});
-      if(modal.isConnected)closeAllModals();toast('User changes saved.','success');
+      if(modal.isConnected)closeAllModals();toast(`${saved.first_name} ${saved.last_name}'s account updated.`,'success');
       if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
     }catch(error){if(modal.isConnected)showAlert(msg,error?.message||'Unable to update user.');else toast(error?.message||'Unable to update user.','error');}
-    finally{buttons.forEach(button=>button.disabled=false);}
-  })}>Confirm Changes</button>`;
+    finally{buttons.forEach(button=>button.disabled=false);ready();}
+  })}>Save changes</button>`;
+  review.addEventListener('input',ready);
+  document.getElementById('eu-reason').focus();
 }
 
 export function openDoctorScheduleEdit(docId){return openDoctorScheduleEditor(docId);}

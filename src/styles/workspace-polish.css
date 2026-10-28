@@ -1239,3 +1239,29 @@ button.fi-row.fi-open{padding:.75rem .9rem}
 .audit-cat.feedback{background:rgba(140,121,218,.18);color:#8c79da}
 .audit-go-cell{width:24px;color:var(--ink-muted)}
 .audit-page{font-size:.74rem;color:var(--ink-muted);margin:0 .4rem}
+
+/* Edit user: two steps, sections, changed-field markers, and a review with typed confirmation. */
+.eu-steps{display:flex;gap:.4rem;list-style:none;margin:.35rem 0 0;padding:0;font-size:.72rem;color:var(--ink-muted)}
+.eu-steps li{display:flex;align-items:center;gap:.3rem}
+.eu-steps li::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--line)}
+.eu-steps li+li::after{content:none}
+.eu-steps li.active{color:var(--primary-mid);font-weight:700}.eu-steps li.active::before{background:var(--primary-mid)}
+.eu-steps li.done::before{background:var(--success)}
+.eu-identity{display:flex;align-items:center;gap:.75rem;padding:.7rem .8rem;margin-bottom:.9rem;border-radius:14px;background:var(--glass-surface-soft);border:1px solid var(--line-soft,var(--line))}
+.eu-identity div{display:flex;flex-direction:column}
+.eu-identity span{font-size:.75rem;color:var(--ink-muted)}
+.eu-section{margin-bottom:.4rem}
+.eu-section h4{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted);margin:0 0 .4rem}
+.eu-field label{display:flex;align-items:center;gap:.4rem}
+.eu-changed{font-size:.62rem;font-weight:800;text-transform:uppercase;padding:.05rem .4rem;border-radius:999px;background:var(--warning-bg);color:var(--warning)}
+.eu-field.changed input,.eu-field.changed select{border-color:var(--warning-border);box-shadow:0 0 0 1px var(--warning-border)}
+.eu-locked{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem;margin:.6rem 0 0;padding:.6rem .8rem;border-radius:12px;border:1px dashed var(--line)}
+.eu-locked dt{font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-muted)}
+.eu-locked dd{margin:.1rem 0 0;font-size:.82rem}
+.eu-footer{align-items:center}
+.eu-count{margin-right:auto;font-size:.76rem;color:var(--ink-muted)}
+.eu-diff th[scope=row]{font-weight:600;background:none;color:var(--ink);text-transform:none;letter-spacing:0}
+.eu-diff del{color:var(--danger)}.eu-diff ins{color:var(--success);text-decoration:none;font-weight:600}
+.eu-warning{display:flex;gap:.5rem;align-items:flex-start;margin:.7rem 0;padding:.6rem .75rem;border-radius:12px;background:var(--warning-bg);border:1px solid var(--warning-border);font-size:.8rem}
+.eu-confirm{margin-top:.8rem}
+@media(max-width:640px){.eu-locked{grid-template-columns:1fr}}

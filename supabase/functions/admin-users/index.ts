@@ -257,6 +257,8 @@ Deno.serve(async(req)=>{
       if(body.confirmed!==true)return json({error:"Review and confirm the user changes before saving."},400);
       const patch:any=result.patch;
       if(!Object.keys(patch).length)return json({error:"No changes to save."},400);
+      const reason=String(body.reason||"").trim().slice(0,300);
+      if(reason.length<5)return json({error:"Give a short reason for this change."},400);
       let changedAuthEmail=false;
       if(patch.email){
         const {data:hit,error:lookupError}=await admin.from("users").select("user_id").eq("email",patch.email).neq("user_id",targetId).limit(1);
@@ -277,7 +279,18 @@ Deno.serve(async(req)=>{
         }
         return json({error:error?.message||"The account status changed while editing. Reload the account and try again."},409);
       }
-      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"USER_UPDATED",entity_type:"users",entity_id:targetId,details:patch});
+      // Before/after pairs so the activity log can show exactly what changed, and why.
+      const changes:Record<string,unknown>={};
+      for(const key of Object.keys(patch)){changes["previous_"+key]=(target as any)[key]??null;changes["new_"+key]=patch[key];}
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"USER_UPDATED",entity_type:"users",entity_id:targetId,details:{...changes,reason}});
+      if(body.notify!==false){
+        const labels:Record<string,string>={first_name:"first name",last_name:"last name",email:"email",contact_number:"mobile number",specialty:"specialty"};
+        await admin.from("notifications").insert({
+          user_id:targetId,title:"Account details updated",
+          message:`An administrator updated your ${Object.keys(patch).map(k=>labels[k]||k).join(", ")}. Reason: ${reason}`,
+          type:"Account",channel:"In-app",delivery_status:"Created",action_page:"my-account"
+        });
+      }
       return json({ok:true,user:saved});
     }
 

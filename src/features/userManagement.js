@@ -1,4 +1,3 @@
-import {limitTableRows} from '../ui/table-scroll.js';
 import {canEditApprovedUser} from '../../supabase/functions/_shared/admin-user-edit.js';
 // userManagement: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
@@ -383,8 +382,14 @@ export function renderUserTable(){
   const summary=document.getElementById('usr-summary');
   if(summary)summary.textContent=`${users.length} of ${sourceUsers.length} accounts · ${count('Active')} active · ${count('Pending')} pending · ${count('Suspended')} suspended`;
   if(!users.length){el.innerHTML='<div class="empty-state"><p>No accounts match these filters.</p></div>';return;}
-  el.innerHTML=`<div class="table-wrap user-table-scroll" tabindex="0" role="region" aria-label="Users table, scroll for more users"><table class="treat-table"><thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col">Type / Dept.</th><th scope="col">Last login</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${
-    users.map(u=>`<tr class="user-detail-row-click ${u.archived?'archived':''}" ${bindAction('click',()=>openUserDetails(u.id))} title="Open complete user information">
+  // Ten accounts per page with a pager, like the other record tables.
+  const ui=appState.userManagement;
+  const key=[q,role,stat,sort].join('|');if(ui.tableKey!==key){ui.tableKey=key;ui.tablePage=1;}
+  const pages=Math.max(1,Math.ceil(users.length/USER_PAGE_SIZE));
+  ui.tablePage=Math.min(Math.max(1,ui.tablePage||1),pages);
+  const first=(ui.tablePage-1)*USER_PAGE_SIZE,pageUsers=users.slice(first,first+USER_PAGE_SIZE);
+  el.innerHTML=`<div class="table-wrap"><table class="treat-table"><thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col">Type / Dept.</th><th scope="col">Last login</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${
+    pageUsers.map(u=>`<tr class="user-detail-row-click ${u.archived?'archived':''}" ${bindAction('click',()=>openUserDetails(u.id))} title="Open complete user information">
       <td data-label="User"><div class="pt-identity">${userAvatarHtml(u,32)}<div><strong>${escapeHtml(u.lname)}, ${escapeHtml(u.fname)}</strong>${u.id===appState.auth.currentUser.id?' <span class="badge badge-info">You</span>':''}<div class="text-muted">@${escapeHtml(u.username||'—')} · ${escapeHtml(u.email||'')}</div>${u.idNo?`<div class="text-muted">ID ${escapeHtml(u.idNo)}</div>`:''}</div></div></td>
       <td data-label="Role"><span class="badge badge-info">${escapeHtml(u.role)}</span></td>
       <td data-label="Type / Dept.">${escapeHtml(u.personType||u.specialty||u.department||'—')}${u.college?`<div class="text-muted">${escapeHtml(u.college)}</div>`:''}</td>
@@ -398,9 +403,13 @@ export function renderUserTable(){
         ${u.id!==appState.auth.currentUser.id&&u.status!=='Pending'?(u.archived?`<button class="btn btn-xs btn-success" ${bindAction('click',()=>restoreUser(u.id))}>Restore</button>`:`<button class="btn btn-xs" ${bindAction('click',()=>archiveUser(u.id))}>Archive</button>`):''}
       </div></td>
     </tr>`).join('')
-  }</tbody></table></div>`;
-  limitTableRows(el.querySelector('.user-table-scroll'),10);
+  }</tbody></table></div>
+  <div class="pt-pager"><span>Showing ${first+1}–${first+pageUsers.length} of ${users.length}</span>${pages>1?`<div>
+    <button class="btn btn-xs" ${ui.tablePage===1?'disabled':''} ${bindAction('click',()=>{ui.tablePage--;renderUserTable();})}>‹ Previous</button>
+    <span class="audit-page">Page ${ui.tablePage} of ${pages}</span>
+    <button class="btn btn-xs" ${ui.tablePage===pages?'disabled':''} ${bindAction('click',()=>{ui.tablePage++;renderUserTable();})}>Next ›</button></div>`:''}</div>`;
 }
+const USER_PAGE_SIZE=10;
 
 // Status changes share one flow: confirm, save, then offer Undo back to the previous status.
 const STATUS_CHANGES={
