@@ -98,7 +98,7 @@ async function syncRealIssueReports(){
 
   const {data:reports,error:reportErr}=await appState.supabaseClient.supabaseClient
     .from('issue_reports')
-    .select('issue_id,reporter_id,issue_type,page_affected,description,screenshot_path,status,admin_note,resolved_by,resolved_at,created_at,updated_at')
+    .select('issue_id,reporter_id,issue_type,page_affected,description,screenshot_path,status,admin_note,resolved_by,resolved_at,created_at,updated_at,priority,assigned_to,device_info,reporter_rating')
     .order('created_at',{ascending:false});
   if(reportErr)throw reportErr;
 
@@ -107,7 +107,7 @@ async function syncRealIssueReports(){
   if(issueIds.length){
     const {data,error}=await appState.supabaseClient.supabaseClient
       .from('issue_replies')
-      .select('reply_id,issue_id,author_id,body,created_at')
+      .select('reply_id,issue_id,author_id,body,created_at,is_internal')
       .in('issue_id',issueIds)
       .order('created_at',{ascending:true});
     if(error)throw error;
@@ -116,7 +116,9 @@ async function syncRealIssueReports(){
 
   const userIds=[...new Set([
     ...(reports||[]).map(r=>Number(r.reporter_id)),
-    ...replies.map(r=>Number(r.author_id))
+    ...replies.map(r=>Number(r.author_id)),
+    ...(reports||[]).map(r=>Number(r.assigned_to)),
+    ...(reports||[]).map(r=>Number(r.resolved_by))
   ].filter(Boolean))];
 
   const userMap=new Map();

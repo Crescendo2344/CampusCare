@@ -901,6 +901,35 @@ try{
       await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/admin-${route}.png`,fullPage:true});
     }
   }
+  if(role==='Administrator'&&!mobile){
+    // Feedback & Issues works like a helpdesk: queue stats, priority order, bulk selection and a thread with internal notes.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('feedback-issues'));
+    await page.locator('#fi-list').waitFor();
+    await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp,me=state.auth.currentUser,now=Date.now(),h=36e5;
+      const iso=ago=>new Date(now-ago*h).toISOString();
+      state.data.DB.issueReports=[
+        {id:1400001,dbIssueId:1,reporterId:me.id,reporterName:'Ana Reyes',reporterRole:'Patient',type:'Bug',page:'Appointments',description:'Booking page freezes after choosing a date\nIt spins forever.',status:'Open',priority:'Normal',deviceInfo:'Chrome 141 · Windows · 1920×1080',replies:[],createdAt:iso(30),_realSupabase:true},
+        {id:1400002,dbIssueId:2,reporterId:me.id,reporterName:'Ben Cruz',reporterRole:'Staff',type:'Suggestion',page:'Inventory',description:'Add barcode scanning',status:'In Review',priority:'Urgent',replies:[{authorRole:'Administrator',authorName:'Admin',body:'Checking with the team.',internal:true,createdAt:iso(5)}],createdAt:iso(10),_realSupabase:true},
+        {id:1400003,dbIssueId:3,reporterId:me.id,reporterName:'Cy Lim',reporterRole:'Patient',type:'Feedback',description:'Nice update',status:'Resolved',priority:'Low',resolvedAt:iso(2),replies:[{authorRole:'Administrator',authorName:'Admin',body:'Thanks!',createdAt:iso(3)}],createdAt:iso(8),_realSupabase:true}
+      ];
+      features.issueReports.renderFeedbackIssuesList();
+    });
+    const rows=page.locator('#fi-list div.fi-row');
+    assert.equal(await rows.count(),2,'Needs action lists open reports only');
+    assert.match(await rows.first().innerText(),/Add barcode scanning[\s\S]*Urgent/,'Urgent reports come first');
+    await rows.first().locator('.fi-select').check();
+    assert.match(await page.locator('#fi-bulk').innerText(),/1 selected/);
+    await rows.first().locator('.fi-open').click();
+    await page.locator('#issue-thread .fi-side').waitFor();
+    assert.match(await page.locator('#issue-thread .fi-msg.internal').innerText(),/Internal note/);
+    await page.locator('#fi-composer .seg button[data-mode="internal"]').click();
+    assert.equal(await page.locator('#fi-composer').getAttribute('data-mode'),'internal');
+    assert(await page.locator('#issue-reply-resolve-btn').isHidden(),'Internal notes cannot resolve the report');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/feedback-thread.png`});
+    await page.locator('#issue-thread .close-btn').click();
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/feedback-queue.png`,fullPage:true});
+  }
   // Walk every visible role route through its actual generated click callback.
   const navIds=await page.locator('#sidebar nav [id^="nav-"]').evaluateAll(elements=>elements.map(element=>element.id));
   assert(navIds.length>0);assert(!navIds.includes('nav-task-center'));

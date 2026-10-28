@@ -30,6 +30,13 @@ export function realIssueToUi(row,userMap,replyRows,screenshotUrl){
     status:row.status||'Open',
     adminNote:row.admin_note||'',
     resolvedBy:row.resolved_by?100000+Number(row.resolved_by):null,
+    resolvedByName:(u=>u?`${u.first_name||''} ${u.last_name||''}`.trim():'')(userMap.get(Number(row.resolved_by))),
+    priority:row.priority||'Normal',
+    assignedTo:row.assigned_to?100000+Number(row.assigned_to):null,
+    dbAssignedTo:row.assigned_to?Number(row.assigned_to):null,
+    assigneeName:(u=>u?`${u.first_name||''} ${u.last_name||''}`.trim():'')(userMap.get(Number(row.assigned_to))),
+    deviceInfo:row.device_info||'',
+    reporterRating:row.reporter_rating==null?null:Number(row.reporter_rating),
     resolvedAt:row.resolved_at||'',
     createdAt:row.created_at||'',
     updatedAt:row.updated_at||'',
@@ -45,6 +52,7 @@ export function realIssueToUi(row,userMap,replyRows,screenshotUrl){
           authorName:author?`${author.first_name||''} ${author.last_name||''}`.trim():'CampusCare user',
           authorRole:author?.role||'User',
           body:r.body||'',
+          internal:!!r.is_internal,
           createdAt:r.created_at||''
         };
       }),
