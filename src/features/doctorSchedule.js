@@ -17,10 +17,31 @@ import {docName} from './messaging.js';
 import {persistDB} from './persistence.js';
 import {openWorkflowRequestReview,renderUsers} from './userManagement.js';
 import {bindAction} from '../dependencies.js';
+import {paginate,pagerHtml} from '../ui/pager.js';
+import {patientAvatarHtml} from './patientManagement.js';
 import {requestAttachmentBadge,requestAttachmentFieldHtml,requestAttachmentLocal,requestAttachmentPayload} from './requestAttachments.js';
 // ================================================================
 // DOCTOR – SCHEDULE
 // ================================================================
+// Upcoming appointments are paged like the clinic appointment list.
+function renderUpcomingAppointments(){
+  const el=document.getElementById('ds-upcoming');if(!el)return;
+  const upcoming=appState.doctorSchedule.upcoming||[];
+  if(!upcoming.length){el.innerHTML='<div class="empty-state"><p>No upcoming appointments.</p></div>';return;}
+  const page=paginate('doctor-upcoming',upcoming);
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Patient</th><th>College</th><th>Type</th><th>Service</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${
+    page.rows.map(a=>{const pt=getPatientById(a.patientId);return`<tr style="cursor:pointer" ${bindAction('click',()=>viewAppt(a.id))} title="Open appointment">
+      <td>${fmtDate(a.date)}</td><td>${fmtTime(a.time)}</td>
+      <td>${pt?`<div class="pt-identity">${patientAvatarHtml(pt,28)}<strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong></div>`:'Unknown'}</td>
+      <td>${collegeBadge(a.college)}</td><td>${priorityBadge(a.priority)}</td>
+      <td>${escapeHtml(a.service||'')}</td><td>${statusBadge(a.status)}</td>
+      <td><div class="td-actions" ${bindAction('click',event=>event.stopPropagation())}>
+        ${a.status==='Scheduled'&&a.date<=appState.clinicInformation.TODAY?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>openAddTreatmentModal(a.id))}><i class="bi bi-pencil-square" aria-hidden="true"></i> Add Notes &amp; Complete</button>`:''}
+      </div></td>
+    </tr>`;}).join('')
+  }</tbody></table></div>${pagerHtml(page,renderUpcomingAppointments)}`;
+}
+
 export async function renderDoctorSchedule(){
   const c=document.getElementById('app-content');
   const pageToken=captureCampusPageToken();
@@ -39,6 +60,7 @@ export async function renderDoctorSchedule(){
   const myAppts=appointmentRecords().filter(a=>a.doctorId===appState.auth.currentUser.id&&a.status!=='Cancelled');
   const upcoming=myAppts.filter(a=>a.date>=appState.clinicInformation.TODAY).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
   const today=myAppts.filter(a=>a.date===appState.clinicInformation.TODAY);
+  appState.doctorSchedule.upcoming=upcoming;
   c.innerHTML=`
     <div class="grid-2">
       <div class="card">
@@ -57,17 +79,7 @@ export async function renderDoctorSchedule(){
     </div>
     <div class="card">
       <div class="card-header"><h3>Upcoming Appointments</h3></div>
-      ${upcoming.length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Patient</th><th>College</th><th>Type</th><th>Service</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
-        upcoming.map(a=>{const pt=getPatientById(a.patientId);return`<tr style="cursor:pointer" ${bindAction('click',(event,element)=>{viewAppt((a.id))})} title="Click to open appointment">
-          <td>${fmtDate(a.date)}</td><td>${fmtTime(a.time)}</td>
-          <td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td>
-          <td>${collegeBadge(a.college)}</td><td>${priorityBadge(a.priority)}</td>
-          <td>${a.service}</td><td>${statusBadge(a.status)}</td>
-          <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
-            ${a.status==='Scheduled'&&a.date<=appState.clinicInformation.TODAY?`<button class="btn btn-xs btn-primary" ${bindAction('click',(event,element)=>{openAddTreatmentModal((a.id))})}><i class="bi bi-pencil-square" aria-hidden="true"></i> Add Notes &amp; Complete</button>`:''}
-          </div></td>
-        </tr>`;}).join('')
-      }</tbody></table></div>`:'<div class="empty-state"><p>No upcoming appointments.</p></div>'}
+      <div id="ds-upcoming"></div>
     </div>
     <div class="card">
       <div class="card-header"><h3>Time Off / Days on Leave</h3></div>
@@ -88,6 +100,7 @@ export async function renderDoctorSchedule(){
         getDoctorLeaves(appState.auth.currentUser.id).map(l=>`<tr><td>${fmtDate(l.date)}</td><td>${l.reason?escapeHtml(l.reason):'<span class="text-muted">—</span>'}</td></tr>`).join('')
       }</tbody></table></div>`:'<p class="text-muted">No upcoming days off on file. Patients can book any of your regular work days.</p>'}
     </div>`;
+  renderUpcomingAppointments();
 }
 
 export function getDoctorLeaves(docId){

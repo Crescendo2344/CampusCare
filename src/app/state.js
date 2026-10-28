@@ -43,4 +43,6 @@ export const state={
   settingsPage:{},
   activityLog:{},
   requestAttachments:{},
+  doctorSchedule:{},
+  patientRecords:{},
 };

@@ -8,6 +8,7 @@ import {collegeBadge,fmtDate} from './inputValidation.js';
 import {getUserById} from './documentScanner.js';
 import {downloadTreatmentPDF,viewTreatment} from './treatmentForm.js';
 import {docName} from './messaging.js';
+import {paginate,pagerHtml} from '../ui/pager.js';
 import {bindAction} from '../dependencies.js';
 // ================================================================
 // PATIENT – MY RECORDS
@@ -51,9 +52,20 @@ export async function renderMyRecords(){
     </div>
     <div class="card">
       <div class="card-header"><h3>Treatment History</h3></div>
-      ${treats.length?`<div class="table-wrap"><table>
+      <div id="my-treat-list"></div>
+    </div>`;
+  appState.patientRecords.treatments=treats;
+  renderMyTreatmentHistory();
+}
+
+// Treatment history is paged like the clinic lists.
+function renderMyTreatmentHistory(){
+  const el=document.getElementById('my-treat-list');if(!el)return;
+  const treats=appState.patientRecords.treatments||[];
+  const page=paginate('my-records',treats);
+  el.innerHTML=treats.length?`<div class="table-wrap"><table>
         <thead><tr><th>#</th><th>Date</th><th>Diagnosis</th><th>Prescription</th><th>Doctor</th><th>Follow-up</th><th>Actions</th></tr></thead>
-        <tbody>${treats.map(t=>{
+        <tbody>${page.rows.map(t=>{
           const doc=getUserById(t.doctorId);
           return `<tr style="cursor:pointer" ${bindAction('click',(event,element)=>{viewTreatment((t.id))})} title="Open treatment record">
             <td>#${treatmentDisplayId(t)}</td>
@@ -68,8 +80,7 @@ export async function renderMyRecords(){
             </div></td>
           </tr>`;
         }).join('')}</tbody>
-      </table></div>`:'<div class="empty-state"><p>No treatment records yet.</p></div>'}
-    </div>`;
+      </table></div>${pagerHtml(page,renderMyTreatmentHistory)}`:'<div class="empty-state"><p>No treatment records yet.</p></div>';
 }
 
 // Run side effects only after every feature's function exports are available.

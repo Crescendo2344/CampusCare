@@ -115,8 +115,8 @@ export function renderMyAccount(){
           <div class="form-group"><label>Email</label><input id="acc-email" value="${escapeHtml(u.email||'')}" type="email" autocomplete="email" ${bindAction('input',(event,element)=>{sanitizeInput(element,'email')})}></div>
           <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${escapeHtml(u.contact||'')}" autocomplete="tel" type="tel" inputmode="tel" maxlength="24" placeholder="09XXXXXXXXX or +639XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
           ${u.role==='Administrator'
-            ? '<p class="form-note">As an administrator, updating your email or contact applies immediately — no verification code needed.</p>'
-            : '<p class="form-note">To change your email or contact number, you will confirm with a 6-digit code sent to your current email or phone. A new phone number also gets its own confirmation code.</p>'}
+            ? ''
+            : ''}
           <button class="btn btn-primary btn-sm" id="account-save-button" ${bindAction('click',(event,element)=>{saveAccount()})}>Save Changes</button>
         </div>
         <div class="card">
@@ -173,7 +173,6 @@ export function renderMyAccount(){
           <div class="card-header">
             <div>
               <h3>Privacy &amp; Personal Data</h3>
-              <div class="tech-note">Privacy acknowledgement is collected during registration; repeated acknowledgement is not required during normal use.</div>
             </div>
           </div>
           <p class="text-muted" style="font-size:.78rem;line-height:1.6">
@@ -190,7 +189,6 @@ export function renderMyAccount(){
             <select id="acc-theme" ${bindAction('change',(event,element)=>{setThemePreference(element.value);toast(element.value==='auto'?'Theme now follows the time of day.':`${element.value==='dark'?'Dark':'Light'} theme saved on this device.`,'success');})}>
               ${[['auto','Automatic (dark from 6 PM to 6 AM)'],['light','Light'],['dark','Dark']].map(([v,t])=>`<option value="${v}" ${themePreference()===v?'selected':''}>${t}</option>`).join('')}
             </select>
-            <p class="form-note">Saved on this device. The moon/sun button in the top bar switches it too.</p>
           </div>
         </div>
         ${u._realSupabase?`<div class="card">

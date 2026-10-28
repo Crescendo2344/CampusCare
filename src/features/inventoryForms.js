@@ -49,7 +49,6 @@ export function openInvModal(id=null){
         <div class="form-group"><label>Expiry Date</label>${campusDateFieldHtml('im-expiry',it?it.expiryDate||'':'','Expiry Date')}</div>
         <div class="form-group full"><label>Target Disbursement Date</label>
           ${campusDateFieldHtml('im-disb',it?it.disbursementDate||'':'','Target Disbursement Date')}
-          <div class="form-note">Optional planning date for this inventory batch.</div>
         </div>
       </div>
     </div>

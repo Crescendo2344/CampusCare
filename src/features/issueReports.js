@@ -700,7 +700,6 @@ export function openArticleModal(id=null) {
             ${(appState.issueReports.articlePhotoExistingUrl||appState.issueReports.articlePhotoData)?`<button type="button" class="btn btn-sm btn-danger" ${bindAction('click',(event,element)=>{clearArticlePhoto()})}>Remove</button>`:''}
             <input type="file" id="art-photo-file" accept="image/jpeg,image/png,image/webp" style="display:none" ${bindAction('change',(event,element)=>{handleArticlePhotoChange(element)})}>
           </div>
-          <p class="form-note">Optional. Article images are stored in private CampusCare Storage and displayed through temporary signed links.</p>
         </div>
 
         <div class="form-group"><label>Teaser</label><input id="art-teaser" maxlength="1200" value="${art?escapeHtml(art.teaser||''):''}" placeholder="A short summary shown on the article card"></div>

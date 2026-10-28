@@ -114,7 +114,7 @@ export function renderLiveAnalyticsCard(summary){
     </div>
 
     <div class="section-label" style="margin-top:1rem">Medicine usage in selected range</div>
-    ${['Administrator','Staff'].includes(appState.auth.currentUser.role)?analyticsMiniBars((summary.medicineUsage||[]).map(x=>({name:`${x.itemName} (${x.unit})`,count:x.used}))):'<p class="form-note">Inventory analytics are available to Staff and Administrators.</p>'}
+    ${['Administrator','Staff'].includes(appState.auth.currentUser.role)?analyticsMiniBars((summary.medicineUsage||[]).map(x=>({name:`${x.itemName} (${x.unit})`,count:x.used}))):''}
     <div class="tech-note" style="margin-top:.75rem">
       Campus Health Intelligence identifies patterns for administrative and clinical review. It does not independently diagnose outbreaks or replace clinician judgment.
     </div>

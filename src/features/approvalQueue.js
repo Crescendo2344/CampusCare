@@ -10,6 +10,7 @@ import {closeAllModals,closeTopModal,openModal,showFilePreview} from './modals.j
 import {syncUnitFilter,unitFilterOptionsHtml} from './patientManagement.js';
 import * as queueData from '../domain/approval-queue.js';
 import {toast} from './theme.js';
+import {paginate,pagerHtml} from '../ui/pager.js';
 import {bindAction,workflowData} from '../dependencies.js';
 // ================================================================
 // APPROVALS
@@ -109,8 +110,9 @@ export function renderApprovalTable(){
     el.innerHTML=`<div class="empty-state"><i class="bi bi-person-check" aria-hidden="true" style="font-size:1.6rem"></i><p>${pending.length?'No applicants match these filters.':'All caught up. There are no registrations waiting for review.'}</p></div>`;
     return;
   }
+  const page=paginate('approvals',rows,{signature:JSON.stringify(appState.approvalQueue.filters||{})});
   el.innerHTML=`<div class="table-wrap"><table class="approval-table"><thead><tr><th scope="col">Applicant</th><th scope="col">Type</th><th scope="col">College / Dept.</th><th scope="col">ID No.</th><th scope="col">Evidence</th><th scope="col">Waiting</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${
-    rows.map(u=>{
+    page.rows.map(u=>{
       const flags=queueData.approvalFlags(u,pending);
       const days=queueData.approvalWaitDays(u.createdAt,now);
       const evidence=[['Selfie',u.verificationSelfie],['Front',u.idFileData],['Back',u.idBackData]];
@@ -127,7 +129,7 @@ export function renderApprovalTable(){
         <td data-label="Actions"><div class="td-actions" ${bindAction('click',(event)=>event.stopPropagation())}><button class="btn btn-xs btn-primary" ${bindAction('click',()=>reviewApproval(u.id))}>Review</button></div></td>
       </tr>`;
     }).join('')
-  }</tbody></table></div>`;
+  }</tbody></table></div>${pagerHtml(page,renderApprovalTable)}`;
 }
 
 export function approvalDisplayValue(value,fallback='Not provided'){
@@ -203,7 +205,6 @@ export function reviewApproval(id){
             ${evidence(`${docLabel} — Front`,u.idFileData,'Submitted ID front','Open ID Front',u.idFile||'ID Front')}
             ${evidence(`${docLabel} — Back`,u.idBackData,'Submitted ID back','Open ID Back','ID Back')}
           </div>
-          <p class="form-note">Click a photo to zoom. Scroll or pinch to read small print.</p>
         </section>
 
         <div style="display:grid;gap:.8rem;align-content:start">

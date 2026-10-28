@@ -13,6 +13,7 @@ import {campusDateFieldHtml} from './datePicker.js';
 import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
 import {auditLog} from './auditAndBackups.js';
 import {persistDB} from './persistence.js';
+import {paginate,pagerHtml} from '../ui/pager.js';
 import {bindAction,createOperationalService,workflowData} from '../dependencies.js';
 import * as screening from '../domain/fitness-screening.js';
 import {openNewCertificateModal} from './certificateService.js';
@@ -56,13 +57,13 @@ export async function syncFitnessContext(){
   await syncRealFitnessAssessments();
 }
 
-export async function renderFitnessAssessments(){
+export async function renderFitnessAssessments({refresh=true}={}){
   const c=document.getElementById('app-content');
   if(!c)return;
   const pageToken=captureCampusPageToken();
   const role=appState.auth.currentUser.role;
 
-  if(appState.auth.currentUser?._realSupabase){
+  if(refresh&&appState.auth.currentUser?._realSupabase){
     showDatabaseSkeleton('table');
     try{await syncFitnessContext();}
     catch(e){
@@ -90,6 +91,7 @@ export async function renderFitnessAssessments(){
     // Open requests oldest first (first come, first served); finished ones newest first.
     .sort((a,b)=>ui.tab==='open'?String(a.requestedDate).localeCompare(String(b.requestedDate))||a.id-b.id:String(b.date||b.requestedDate).localeCompare(String(a.date||a.requestedDate))||b.id-a.id);
 
+  const page=paginate('fitness',list,{signature:ui.tab+'|'+q});
   const actionButton=role==='Patient'
     ? `<button class="btn btn-primary btn-sm" ${bindAction('click',()=>openFitnessRequestModal())}>+ Request Assessment</button>`
     : (role==='Doctor'
@@ -103,15 +105,14 @@ export async function renderFitnessAssessments(){
   };
 
   c.innerHTML=`
-    <div class="appt-head"><div class="appt-views" role="tablist" aria-label="Fitness assessment lists">${tabs.map(([id,label,count])=>`<button type="button" role="tab" class="appt-view ${ui.tab===id?'active':''} ${id==='open'&&count&&role!=='Patient'?'attention':''}" aria-selected="${ui.tab===id}" ${bindAction('click',()=>{ui.tab=id;renderFitnessAssessments();})}>${label}<span class="appt-view-count">${count}</span></button>`).join('')}</div>${actionButton}</div>
+    <div class="appt-head"><div class="appt-views" role="tablist" aria-label="Fitness assessment lists">${tabs.map(([id,label,count])=>`<button type="button" role="tab" class="appt-view ${ui.tab===id?'active':''} ${id==='open'&&count&&role!=='Patient'?'attention':''}" aria-selected="${ui.tab===id}" ${bindAction('click',()=>{ui.tab=id;renderFitnessAssessments({refresh:false});})}>${label}<span class="appt-view-count">${count}</span></button>`).join('')}</div>${actionButton}</div>
     ${role==='Patient'?`<div class="alert alert-info show" style="font-size:.78rem;display:block">
       <strong>Intramurals 2026–2027:</strong> get the Eligibility Form from your coach, fill in your details and sport, sign the Participant's Waiver and Release Agreement, collect the parent/guardian and coach signatures, then bring the form to the clinic at the <strong>Ground Floor, Education Building</strong>.
     </div>`:''}
-    <div class="toolbar"><input type="search" id="fit-search" placeholder="Search patient, sport or assessment #" aria-label="Search fitness assessments" value="${escapeHtml(ui.query)}" ${bindAction('input',(event,element)=>{ui.query=element.value;clearTimeout(ui.timer);ui.timer=setTimeout(()=>renderFitnessAssessments().then(()=>{const input=document.getElementById('fit-search');if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length);}}),250);})}></div>
-    <p class="patient-filter-summary">Pre-participation medical assessment for sports. The attending doctor makes the final clearance decision; a clearance is valid for one year.</p>
+    <div class="toolbar"><input type="search" id="fit-search" placeholder="Search patient, sport or assessment #" aria-label="Search fitness assessments" value="${escapeHtml(ui.query)}" ${bindAction('input',(event,element)=>{ui.query=element.value;clearTimeout(ui.timer);ui.timer=setTimeout(()=>renderFitnessAssessments({refresh:false}).then(()=>{const input=document.getElementById('fit-search');if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length);}}),250);})}></div>
     <div class="card">${list.length?`<div class="table-wrap"><table class="treat-table">
       <thead><tr><th scope="col">Requested</th><th scope="col">Patient</th><th scope="col">Sport / Event</th><th scope="col">Event date</th><th scope="col">Doctor</th><th scope="col">Status</th><th scope="col">Decision</th><th scope="col">Clearance</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
-      <tbody>${list.map(x=>{
+      <tbody>${page.rows.map(x=>{
         const p=getPatientById(x.patientId),d=getUserById(x.doctorId);
         const canAssess=role==='Doctor'&&(!x.doctorId||x.doctorId===appState.auth.currentUser.id)&&x.status!=='Cancelled';
         const eventSoon=x.eventDate&&open(x)&&x.eventDate>=today&&x.eventDate<=new Date(Date.parse(today+'T12:00:00Z')+7*864e5).toISOString().slice(0,10);
@@ -130,7 +131,7 @@ export async function renderFitnessAssessments(){
           </div></td>
         </tr>`;
       }).join('')}</tbody>
-    </table></div>`:`<div class="empty-state"><i class="bi bi-heart-pulse" aria-hidden="true" style="font-size:1.6rem"></i><p>${q?'No assessments match your search.':ui.tab==='open'?'No requests waiting for assessment.':'No fitness-to-compete assessments here yet.'}</p></div>`}</div>`;
+    </table></div>${pagerHtml(page,()=>renderFitnessAssessments({refresh:false}))}`:`<div class="empty-state"><i class="bi bi-heart-pulse" aria-hidden="true" style="font-size:1.6rem"></i><p>${q?'No assessments match your search.':ui.tab==='open'?'No requests waiting for assessment.':'No fitness-to-compete assessments here yet.'}</p></div>`}</div>`;
 }
 
 export function openFitnessRequestModal(){

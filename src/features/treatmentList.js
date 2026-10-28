@@ -41,7 +41,6 @@ export async function renderTreatments(){
   ui.page=1;
   const doctors=role==='Doctor'?[]:getDoctors();
   c.innerHTML=`
-    ${role==='Doctor'?'<p class="patient-filter-summary" style="margin:0 0 .6rem">Your visit notes. Other doctors\' notes are in each patient\'s record.</p>':''}
     <div class="toolbar tr-toolbar">
       <input type="search" placeholder="Search patient, ID, diagnosis or record #" aria-label="Search treatment records" id="tr-search" ${bindAction('input',()=>{ui.page=1;renderTreatTable()})}>
       <select id="tr-type" aria-label="Clinic" ${bindAction('change',()=>{ui.page=1;renderTreatTable()})}><option value="">All clinics</option><option>Medical Clinic</option><option>Dental Clinic</option></select>

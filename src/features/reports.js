@@ -73,7 +73,6 @@ export async function renderReports(){
         <div class="form-group"><label for="rpt-college">College / Department</label><select id="rpt-college" ${bindAction('change',()=>{markReportStale();markForecastStale();refreshHealthIntelligence();})}>${unitFilterOptionsHtml('')}<option value="Unknown">Not recorded</option></select></div>
       </div>
       <div class="report-presets"><span>Quick dates</span>${[['Month to date','month'],['Last 30 days','30'],['Last 90 days','90'],['Year to date','year']].map(([label,key])=>`<button type="button" class="btn btn-sm" ${bindAction('click',()=>setReportPreset(key))}>${label}</button>`).join('')}</div>
-      <p class="form-note">Activity dates and college/department apply to the overview and dated reports. Forecasts have their own history dates.</p>
     </div>
     <div class="report-tabs" role="tablist" aria-label="Analytics views">${[['overview','Overview','bi-grid'],['builder','Custom Reports','bi-sliders'],['forecast','Forecast','bi-graph-up-arrow']].map(([id,label,icon])=>`<button type="button" role="tab" id="report-tab-${id}" data-report-view="${id}" aria-controls="report-panel-${id}" aria-selected="${id==='overview'}" ${bindAction('click',()=>switchReportView(id))}><i class="bi ${icon}" aria-hidden="true"></i>${label}</button>`).join('')}</div>
     <section id="report-panel-overview" role="tabpanel" aria-labelledby="report-tab-overview">
@@ -81,7 +80,7 @@ export async function renderReports(){
       <div id="health-intelligence-wrap">${appState.auth.currentUser?._realSupabase?renderLiveAnalyticsCard(appState.reports.currentAnalyticsSummary):renderHealthIntelligenceCard(defaultFrom,defaultTo)}</div>
     </section>
     <section id="report-panel-builder" role="tabpanel" aria-labelledby="report-tab-builder" hidden>
-      <div class="card"><div class="card-header"><div><h3>Build a report</h3><p class="form-note">Choose a measure, combine filters and compare one or two breakdowns.</p></div></div>
+      <div class="card"><div class="card-header"><div><h3>Build a report</h3></div></div>
         <div id="rpt-custom-controls"></div>${studentFilterMarkup()}
         <button class="btn btn-primary" ${bindAction('click',generateReport)}><i class="bi bi-bar-chart" aria-hidden="true"></i> Generate Report</button>
       </div><div id="rpt-result" aria-live="polite"></div>

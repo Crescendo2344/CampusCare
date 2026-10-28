@@ -40,7 +40,7 @@ export function setForecastChart(type){
 }
 export function forecastControls(){
   const today=state.clinicInformation.TODAY,medicines=reportData().consumption;
-  return `<div class="card"><div class="card-header"><div><h3>Plan ahead</h3><p class="form-note">Choose past dates to learn from, then estimate demand starting tomorrow.</p></div><span class="intel-badge">Planning estimate</span></div>
+  return `<div class="card"><div class="card-header"><div><h3>Plan ahead</h3></div><span class="intel-badge">Planning estimate</span></div>
     <div class="report-control-grid">
       ${reportSelect('forecast-clinic','Clinic (visits only)',[['','All clinics'],...['Medical Clinic','Dental Clinic'].map(v=>[v,v])])}
       ${reportSelect('forecast-target','What to forecast',[['visits','Clinical visits'],...medicines.map(m=>['medicine:'+m.item.id,m.item.name+' usage ('+m.item.unit+')'])])}
@@ -48,7 +48,7 @@ export function forecastControls(){
       <div class="form-group"><label for="forecast-to">History to</label><input type="date" id="forecast-to" value="${today}" max="${today}"></div>
       ${reportSelect('forecast-method','Calculation',[['average','Daily average'],['weekday','Weekday pattern']])}
     </div>
-    <div class="form-group"><span class="form-label-text" id="forecast-period-label">Forecast period</span>${horizonPickerHtml()}</div><p class="form-note">Clinical visits use the selected college. Medicine usage uses campus inventory disbursements and is not filtered by college. A completed booking and its linked treatment count as one visit.</p>
+    <div class="form-group"><span class="form-label-text" id="forecast-period-label">Forecast period</span>${horizonPickerHtml()}</div>
     <button class="btn btn-primary" ${bindAction('click',runForecast)}>Update forecast</button>
     </div><div id="forecast-result" aria-live="polite"></div>`;
 }
@@ -80,7 +80,6 @@ export function runForecast(){
         ${chartTypeSwitchHtml(ui.forecastChart,type=>bindAction('click',()=>setForecastChart(type)))}
       </div>
       <div class="report-forecast-chart">${reportChartHtml(['pie','doughnut'].includes(ui.forecastChart)?series.filter(r=>r.projected):series,{type:ui.forecastChart,label:`${name}: recorded history and estimate`,limit:30})}</div>
-      ${['pie','doughnut'].includes(ui.forecastChart)?'<p class="form-note">Slices show how the estimate is spread across the forecast period.</p>':''}
       <details class="report-details"><summary>View forecast table</summary><div class="table-wrap"><table><thead><tr><th>Period</th><th>From</th><th>To</th><th>Estimated ${esc(unit)}</th></tr></thead><tbody>${f.rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${r.start}</td><td>${r.end}</td><td>${r.amount}</td></tr>`).join('')}</tbody></table></div></details>
       <button type="button" class="btn btn-sm" ${bindAction('click',()=>downloadBlob(templateCsv([
         csvColumn('','Forecast For',()=>name),
@@ -89,8 +88,7 @@ export function runForecast(){
         csvColumn('Scope','College/Department',()=>medicine?'Campus inventory':college||'All colleges'),csvColumn('Scope','Clinic',()=>medicine?'Not applicable':clinic||'All clinics'),
         csvColumn('Method','Calculation',()=>f.method==='weekday'?'Weekday pattern':'Daily average'),
         csvColumn('History','From',()=>f.from),csvColumn('History','To',()=>f.to)
-      ],f.rows),csvFileName(`forecast ${f.from} to ${f.to}`),'text/csv;charset=utf-8;'))}><i class="bi bi-download" aria-hidden="true"></i> Download CSV</button>
-      <p class="form-note">Estimates use only the selected history. They do not account for holidays, enrollment changes or unexpected events. These are planning estimates, not guaranteed totals or statistical confidence intervals.</p>`}
+      ],f.rows),csvFileName(`forecast ${f.from} to ${f.to}`),'text/csv;charset=utf-8;'))}><i class="bi bi-download" aria-hidden="true"></i> Download CSV</button>`}
     </div>`;
     if(!f.reason)mountAiInsights('forecast-ai','reports',()=>({
       forecast_of:name,unit,today:state.clinicInformation.TODAY,

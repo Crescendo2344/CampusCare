@@ -143,7 +143,6 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
       ${dentalRecordFormHtml({},pt,defaultDate).replace('id="tm-dental-section"','id="tm-dental-section" '+(defaultRecordType==='Dental Clinic'?'':'hidden'))}
 
       <div class="section-label">Optional Medication Reminder</div>
-      <p class="form-note" style="margin-bottom:.65rem">If completed, CampusCare creates a medication reminder for the patient.</p>
       <div class="form-row">
         <div class="form-group"><label>Medication Name</label><input id="tm-medname" placeholder="e.g. Amoxicillin"></div>
         <div class="form-group"><label>Dosage</label><input id="tm-dosage" placeholder="e.g. 500 mg"><p class="registration-field-error" id="tm-dosage-error" aria-live="polite" hidden></p></div>

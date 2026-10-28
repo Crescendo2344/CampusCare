@@ -111,7 +111,6 @@ export function openPatientModal(id=null){
           <div class="form-group" id="pm-session-group">
             <label for="pm-class-session">Class Session <span class="required">*</span></label>
             <select id="pm-class-session" ${live()}>${options([['Morning'],['Evening']],['Morning','Evening'].includes(pt?.classSession)?pt.classSession:'','Select session')}</select>
-            <p class="form-note field-hint" id="pm-class-session-help">The student's regular class schedule.</p>
             <p class="registration-field-error" id="pm-class-session-error" aria-live="polite" hidden></p>
           </div>
         </div>

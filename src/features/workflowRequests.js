@@ -47,19 +47,17 @@ export function openScheduleChangeRequest(){
   const u=appState.auth.currentUser;
   // Numbered sections explain the recurring pattern before asking for its details.
   openModal(`<div class="modal schedule-request" role="dialog" aria-modal="true" aria-labelledby="schedule-request-title">
-    <div class="modal-header"><div><h3 id="schedule-request-title">Request Schedule Change</h3><p class="form-note">Update your regular weekly clinic hours</p></div><button class="close-btn" aria-label="Close schedule request" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-header"><div><h3 id="schedule-request-title">Request Schedule Change</h3></div><button class="close-btn" aria-label="Close schedule request" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
       <div id="scr-msg" role="alert"></div>
       <div class="schedule-notice"><strong>This is a weekly schedule change.</strong><p>Selected days repeat every week. For just one day away, use <strong>Request Day Off</strong> in My Schedule.</p></div>
       <fieldset class="schedule-section"><legend><span>1</span> Choose your work days</legend>
-        <p class="form-note" id="schedule-days-help">Select the days you will work. Unselected days are days off.</p>
         <div class="schedule-presets"><button type="button" class="btn btn-sm" ${bindAction('click',()=>setScheduleDays('weekdays'))}>Mon–Fri</button><button type="button" class="btn btn-sm" ${bindAction('click',()=>setScheduleDays('current'))}>Current pattern</button><button type="button" class="btn btn-sm" ${bindAction('click',()=>setScheduleDays('clear'))}>Clear</button></div>
-        <div class="schedule-days" aria-describedby="schedule-days-help">
+        <div class="schedule-days">
           ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d,i)=>`<label class="schedule-day"><input type="checkbox" class="scr-day" value="${d}" aria-label="${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][i]}" ${(u.workDays||[]).includes(d)?'checked':''}><span>${d}<small class="schedule-day-on">Work</small><small class="schedule-day-off">Off</small></span></label>`).join('')}
         </div>
       </fieldset>
       <fieldset class="schedule-section"><legend><span>2</span> Set hours and appointments</legend>
-        <p class="form-note">These hours apply to every selected day. Times are in Philippine time (UTC+8).</p>
         <div class="schedule-fields">
           <div class="form-group"><label for="scr-start">Starts at</label><input type="time" id="scr-start" value="${escapeHtml(u.startTime||'08:00')}"></div>
           <div class="form-group"><label for="scr-end">Ends at</label><input type="time" id="scr-end" value="${escapeHtml(u.endTime||'17:00')}"></div>
@@ -68,7 +66,7 @@ export function openScheduleChangeRequest(){
         </div>
       </fieldset>
       <fieldset class="schedule-section"><legend><span>3</span> Choose when and explain why</legend>
-        <div class="form-group"><label for="scr-effective">Requested start date <span class="required">*</span></label>${campusDateFieldHtml('scr-effective',clinicToday(),'Choose start date',clinicToday())}<p class="form-note">Repeats weekly from this date onward, once approved. Your current schedule stays active while this request is pending.</p></div>
+        <div class="form-group"><label for="scr-effective">Requested start date <span class="required">*</span></label>${campusDateFieldHtml('scr-effective',clinicToday(),'Choose start date',clinicToday())}</div>
         <div class="form-group"><label for="scr-reason">Reason for change <span class="required">*</span></label><textarea id="scr-reason" rows="3" placeholder="Explain why you need these new days or hours." required></textarea></div>
         ${requestAttachmentFieldHtml('scr-attach','e.g. memo, class load, or training schedule')}
       </fieldset>
@@ -77,7 +75,6 @@ export function openScheduleChangeRequest(){
         <p id="schedule-effective-summary" class="form-note"></p>
         <div id="schedule-preview" class="schedule-status" aria-live="polite"></div>
       </section>
-      <p class="form-note schedule-approval-note">Submitting sends a request to the administrator. It does not immediately change your schedule or cancel any appointments.</p>
     </div>
     <div class="modal-footer"><button type="button" class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button type="button" class="btn btn-primary" ${bindAction('click',()=>submitScheduleChangeRequest())}>Send for Approval</button></div>
   </div>`);

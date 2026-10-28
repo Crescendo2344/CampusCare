@@ -22,7 +22,7 @@ export function studentFilterMarkup(){
     <div class="form-group"><label for="rpt-min-age">Minimum age at end date</label><input type="number" id="rpt-min-age" min="0" max="150"></div>
     <div class="form-group"><label for="rpt-max-age">Maximum age at end date</label><input type="number" id="rpt-max-age" min="0" max="150"></div>
     <div class="form-group"><label for="rpt-student-search">Student name or university ID</label><input id="rpt-student-search" type="search" maxlength="120"></div>
-    </div></details><p class="form-note">Filters combine with College and Date Range above. Dental/medical use counts completed bookings and recorded treatments, not pending or cancelled appointments. Registration totals are unique CampusCare student accounts, not university enrollment. Missing class sessions are never guessed.</p></fieldset>`;
+    </div></details></fieldset>`;
 }
 export function readStudentFilters(){
   const value=id=>document.getElementById(id)?.value||'';
@@ -70,6 +70,5 @@ export async function generateStudentReport(exportToolbar,download){
     <div class="stats-grid">${[['Registered students in cohort',report.registered],['Matching students',report.matched],['Availed dental care',report.dentalUsed],['No recorded dental care',report.dentalNotUsed],['Class session not recorded',report.unknownSession],['No linked patient record',report.unknownCoverage]].map(([label,count])=>`<div class="stat-card"><div class="stat-val">${count}</div><div class="stat-lbl">${label}</div></div>`).join('')}</div>
     <h4>Registered students by college</h4><div class="table-wrap"><table><thead><tr>${['College','Registered','Dental used','No dental recorded','Coverage unknown','Morning','Evening','Mixed','Session unknown','Dental coverage'].map(k=>`<th>${k}</th>`).join('')}</tr></thead><tbody>${report.colleges.map(c=>`<tr>${collegeColumns.map(k=>`<td>${escapeHtml(c[k])}</td>`).join('')}<td>${c.registered?Math.round(c.dentalUsed/c.registered*100)+'%':'—'}</td></tr>`).join('')}</tbody></table></div>
     <button class="btn btn-sm" ${bindAction('click',summaryExport)}>Export college summary CSV</button>
-    <h4 style="margin-top:1rem">Matching student list</h4><div class="table-wrap"><table><thead><tr>${columns.map(k=>`<th>${k}</th>`).join('')}</tr></thead><tbody>${screenRows.map(row=>`<tr>${columns.map(k=>`<td>${escapeHtml(row[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!report.matched?'<p>No students match these filters.</p>':''}
-    <p class="form-note">No recorded dental care means no matching record in CampusCare for this period. It does not prove the student never received dental care elsewhere.</p></div>${report.matched?exportToolbar():''}`;
+    <h4 style="margin-top:1rem">Matching student list</h4><div class="table-wrap"><table><thead><tr>${columns.map(k=>`<th>${k}</th>`).join('')}</tr></thead><tbody>${screenRows.map(row=>`<tr>${columns.map(k=>`<td>${escapeHtml(row[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!report.matched?'<p>No students match these filters.</p>':''}</div>${report.matched?exportToolbar():''}`;
 }

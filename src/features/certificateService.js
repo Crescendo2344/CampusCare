@@ -13,6 +13,7 @@ import {getPatientById,getUserById} from './documentScanner.js';
 import {viewPatient} from './patientForm.js';
 import {docName} from './messaging.js';
 import {loadJsPDF} from './settingsAndCertificates.js';
+import {paginate,pagerHtml} from '../ui/pager.js';
 import {bindAction,certificateData,createCertificateService} from '../dependencies.js';
 import * as purposeData from '../domain/certificate-purpose.js';
 // Preserve legacy handlers while certificate data access lives in independent modules.
@@ -58,12 +59,12 @@ export function certStatusBadge(s){
 }
 
 // Patients receive certificates their doctor issued; they cannot request or change them.
-export async function renderMyCertificates(){
+export async function renderMyCertificates({refresh=true}={}){
   const c=document.getElementById('app-content');
   if(!c)return;
   const pageToken=captureCampusPageToken();
 
-  if(appState.auth.currentUser?._realSupabase){
+  if(refresh&&appState.auth.currentUser?._realSupabase){
     showDatabaseSkeleton('table');
     try{await syncCertificateContext();}
     catch(e){
@@ -85,12 +86,13 @@ export async function renderMyCertificates(){
   const certs=certificateRecords()
     .filter(r=>r.patientId===pt.id&&(r.status==='Issued'||(r.status==='Cancelled'&&r.issuedAt)))
     .sort((a,b)=>String(b.issuedAt).localeCompare(String(a.issuedAt))||b.id-a.id);
+  const page=paginate('my-certificates',certs);
 
   c.innerHTML=`<div class="card">
-    <div class="card-header"><div><h3>Medical Certificates</h3><div class="text-muted">Certificates your clinic doctor issued to you. If you need one, ask the doctor during your consultation.</div></div></div>
+    <div class="card-header"><h3>Medical Certificates</h3></div>
     ${certs.length?`<div class="table-wrap"><table class="cert-list-table">
         <thead><tr><th scope="col">Certificate No.</th><th scope="col">Purpose</th><th scope="col">Issued</th><th scope="col">Doctor</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
-        <tbody>${certs.map(r=>{const doctor=getUserById(r.doctorId);return `<tr>
+        <tbody>${page.rows.map(r=>{const doctor=getUserById(r.doctorId);return `<tr>
           <td data-label="Certificate No."><strong>${escapeHtml(r.certNo||'—')}</strong></td>
           <td data-label="Purpose">${escapeHtml(r.purpose)}${r.details?`<div class="text-muted">${escapeHtml(r.details)}</div>`:''}</td>
           <td data-label="Issued">${r.issuedAt?fmtDate(String(r.issuedAt).slice(0,10)):'—'}</td>
@@ -98,7 +100,7 @@ export async function renderMyCertificates(){
           <td data-label="Status">${certStatusBadge(r.status)}${r.status==='Cancelled'&&r.declineReason?`<div class="text-muted">${escapeHtml(r.declineReason)}</div>`:''}</td>
           <td data-label="Actions">${r.status==='Issued'?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>downloadCertPdf(r.id))}><i class="bi bi-download" aria-hidden="true"></i> Download PDF</button>`:''}</td>
         </tr>`;}).join('')}</tbody>
-      </table></div>`:'<div class="empty-state"><i class="bi bi-file-earmark-medical" aria-hidden="true" style="font-size:1.6rem"></i><p>No medical certificates yet.</p></div>'}
+      </table></div>${pagerHtml(page,()=>renderMyCertificates({refresh:false}))}`:'<div class="empty-state"><i class="bi bi-file-earmark-medical" aria-hidden="true" style="font-size:1.6rem"></i><p>No medical certificates yet.</p></div>'}
   </div>`;
 }
 
@@ -205,7 +207,7 @@ export function certEditorToolbarHtml(){
 const isDoctor=()=>appState.auth.currentUser?.role==='Doctor';
 const CERT_TABS=[['Awaiting Signature','Drafts'],['Issued','Issued'],['Cancelled','Voided'],['all','All']];
 
-export async function renderCertRequests(filter=null){
+export async function renderCertRequests(filter=null,{refresh=true}={}){
   const c=document.getElementById('app-content');
   if(!c)return;
   if(!isDoctor()){
@@ -213,7 +215,7 @@ export async function renderCertRequests(filter=null){
     return;
   }
   const pageToken=captureCampusPageToken();
-  if(appState.auth.currentUser?._realSupabase){
+  if(refresh&&appState.auth.currentUser?._realSupabase){
     showDatabaseSkeleton('table');
     try{await syncCertificateContext();}
     catch(e){
@@ -237,11 +239,11 @@ export async function renderCertRequests(filter=null){
     .filter(r=>!q||`${patientName(r)} ${r.certNo} ${r.purpose} ${r.details}`.toLowerCase().includes(q))
     .sort((a,b)=>String(b.issuedAt||b.preparedAt||b.requestedAt).localeCompare(String(a.issuedAt||a.preparedAt||a.requestedAt))||b.id-a.id);
 
+  const page=paginate('cert-requests',list,{signature:filter+'|'+q});
   c.innerHTML=`<div class="appt-head"><div class="appt-views" role="tablist" aria-label="Certificate lists">${CERT_TABS.map(([id,label])=>`<button type="button" role="tab" class="appt-view ${filter===id?'active':''} ${id==='Awaiting Signature'&&counts[id]?'attention':''}" aria-selected="${filter===id}" ${bindAction('click',()=>renderCertRequests(id))}>${label}<span class="appt-view-count">${counts[id]}</span></button>`).join('')}</div>
       <button class="btn btn-primary btn-sm" ${bindAction('click',()=>openNewCertificateModal())}>+ New Certificate</button></div>
     <div class="toolbar"><input type="search" id="cert-search" placeholder="Search patient, certificate no. or purpose" aria-label="Search certificates" value="${escapeHtml(ui.certQuery||'')}" ${bindAction('input',(event,element)=>{ui.certQuery=element.value;clearTimeout(ui.certSearchTimer);ui.certSearchTimer=setTimeout(()=>renderCertRequests(filter).then(()=>{const input=document.getElementById('cert-search');if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length);}}),250);})}></div>
-    <p class="patient-filter-summary">Only you can see and change the certificates you write. Patients can download a certificate once you sign and issue it.</p>
-    <div class="card">${list.length?`<div class="table-wrap"><table class="cert-list-table"><thead><tr><th scope="col">Certificate</th><th scope="col">Patient</th><th scope="col">Purpose</th><th scope="col">Date</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${list.map(r=>{
+    <div class="card">${list.length?`<div class="table-wrap"><table class="cert-list-table"><thead><tr><th scope="col">Certificate</th><th scope="col">Patient</th><th scope="col">Purpose</th><th scope="col">Date</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${page.rows.map(r=>{
       const pt=getPatientById(r.patientId);
       const date=r.status==='Issued'||r.issuedAt?r.issuedAt:r.preparedAt||r.requestedAt;
       return `<tr>
@@ -254,7 +256,7 @@ export async function renderCertRequests(filter=null){
           ${r.status==='Awaiting Signature'?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>openCertificateEditor(r.id))}>Continue</button><button class="btn btn-xs" ${bindAction('click',()=>discardCertificateDraft(r.id))}>Discard</button>`:''}
           ${r.status==='Issued'?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>downloadCertPdf(r.id))}><i class="bi bi-download" aria-hidden="true"></i> PDF</button><button class="btn btn-xs btn-danger" ${bindAction('click',()=>openVoidCertificateModal(r.id))}>Void</button>`:''}
         </div></td>
-      </tr>`;}).join('')}</tbody></table></div>`
+      </tr>`;}).join('')}</tbody></table></div>${pagerHtml(page,()=>renderCertRequests(filter,{refresh:false}))}`
       :`<div class="empty-state"><i class="bi bi-file-earmark-medical" aria-hidden="true" style="font-size:1.6rem"></i><p>${q?'No certificates match your search.':filter==='Awaiting Signature'?'No drafts. Start a new certificate after a consultation.':'No certificates here yet.'}</p></div>`}</div>`;
 }
 

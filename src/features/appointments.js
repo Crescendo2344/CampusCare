@@ -200,20 +200,6 @@ export function cancelAppt(id,patient=false){
   // Patients cancel their own visit with one confirmation. Clinic staff cancel someone else's
   // visit, so they give a reason the patient will see and then confirm it deliberately.
   const clinicSide=!patient&&appState.auth.currentUser?.role!=='Patient';
-  if(!clinicSide){
-    openModal(`<div class="modal modal-sm">
-      <div class="modal-header"><h3>Cancel Appointment</h3><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
-      <div class="modal-body">
-        <p style="font-size:.86rem;margin-bottom:.7rem">Are you sure you want to cancel this appointment?</p>
-        <div class="form-group"><label>Reason (optional)</label><textarea id="cancel-appt-reason" rows="2" placeholder="Reason for cancellation"></textarea></div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn" ${bindAction('click',()=>closeAllModals())}>Go Back</button>
-        <button class="btn btn-danger" ${bindAction('click',()=>confirmCancelAppt(id,patient))}>Cancel Appointment</button>
-      </div>
-    </div>`);
-    return;
-  }
   const pt=getPatientById(a.patientId),doc=getUserById(a.doctorId);
   const ptName=pt?`${pt.fname} ${pt.lname}`:'this patient';
   const summary=`<dl class="cancel-summary">
@@ -222,6 +208,23 @@ export function cancelAppt(id,patient=false){
       <div><dt>Where</dt><dd>${escapeHtml(a.clinic||'—')}${a.service?' · '+escapeHtml(a.service):''}</dd></div>
       ${doc?`<div><dt>Doctor</dt><dd>Dr. ${escapeHtml(doc.fname+' '+doc.lname)}</dd></div>`:''}
     </dl>`;
+  if(!clinicSide){
+    // The patient's own visit: one clear confirmation with what is being cancelled; Undo follows.
+    openModal(`<div class="modal modal-sm cancel-flow">
+      <div class="modal-header"><h3>Cancel appointment</h3><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+      <div class="modal-body">
+        ${summary}
+        <div class="form-group"><label for="cancel-reason-choice">Reason</label>
+          <select id="cancel-reason-choice"><option value="">Prefer not to say</option>${PATIENT_CANCEL_REASONS.map(r=>`<option>${r}</option>`).join('')}</select></div>
+        <div class="form-group"><label for="cancel-appt-reason">Details <span class="text-muted">(optional)</span></label><textarea id="cancel-appt-reason" rows="2" maxlength="400"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" ${bindAction('click',()=>closeAllModals())}>Keep appointment</button>
+        <button class="btn btn-danger" ${bindAction('click',()=>confirmCancelAppt(id,patient,cancelReasonText()||(document.getElementById('cancel-appt-reason').value||'').trim()))}>Cancel appointment</button>
+      </div>
+    </div>`);
+    return;
+  }
   openModal(`<div class="modal modal-sm cancel-flow">
     <div class="modal-header"><div><h3>Cancel appointment</h3><p class="form-note" id="cancel-step-label">Step 1 of 2 · Reason</p></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
@@ -247,6 +250,7 @@ export function cancelAppt(id,patient=false){
   </div>`);
 }
 
+const PATIENT_CANCEL_REASONS=['Schedule conflict','Feeling better','Booked by mistake','Will book another date'];
 function cancelReasonText(){
   const choice=document.getElementById('cancel-reason-choice')?.value||'',details=(document.getElementById('cancel-appt-reason')?.value||'').trim();
   if(choice==='other')return details;
