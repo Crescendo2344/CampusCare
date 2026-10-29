@@ -141,7 +141,7 @@ Deno.serve(async(req)=>{
         email:email?emailValidationError(email):"Enter an email address.",
         password:passwordValidationError(password,{username,email}),
         contact_number:contactValidationError(contactRaw),
-        specialty:role==="Doctor"&&!["General Medicine","Dental","Eye","Mental Health"].includes(specialty)?"Choose a valid doctor specialty.":""
+        specialty:role==="Doctor"&&!["General Medicine","Dental"].includes(specialty)?"Choose a valid doctor specialty.":""
       }).filter(([,message])=>message));
       if(Object.keys(fieldErrors).length)return json({error:Object.values(fieldErrors)[0],field_errors:fieldErrors},400);
       const contactNumber=contactRaw?normalizePhilippineMobile(contactRaw):"";

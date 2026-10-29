@@ -21,7 +21,7 @@ const ROLE_CHOICES=[
   ['Staff','bi-person-workspace','Handles appointments, patient records and inventory at the clinic desk.'],
   ['Administrator','bi-shield-lock','Full access, including user accounts, approvals, settings and backups.']
 ];
-const SPECIALTIES=['General Medicine','Dental','Eye','Mental Health'];
+const SPECIALTIES=['General Medicine','Dental'];
 const AU_SERVER_FIELDS={first_name:'au-fname',last_name:'au-lname',username:'au-user',email:'au-email',contact_number:'au-contact',password:'au-pass'};
 
 function addUserState(){return appState.userManagement.addUser??={};}
@@ -255,7 +255,7 @@ export function openEditUserModal(id){
           ${field('eu-email','email','Email',`<input id="eu-email" type="email" maxlength="150" autocomplete="off" value="${escapeHtml(u.email)}">`)}
           ${field('eu-contact','contact_number','Mobile number',`<input id="eu-contact" type="tel" placeholder="09XXXXXXXXX" autocomplete="off" value="${escapeHtml(u.contact||'')}">`)}
         </div></section>
-        ${u.role==='Doctor'?`<section class="eu-section"><h4>Professional</h4><div class="form-row">${field('eu-spec','specialty','Specialty',`<select id="eu-spec">${['General Medicine','Dental','Eye','Mental Health'].map(value=>`<option ${u.specialty===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div></section>`:''}
+        ${u.role==='Doctor'?`<section class="eu-section"><h4>Professional</h4><div class="form-row">${field('eu-spec','specialty','Specialty',`<select id="eu-spec">${['General Medicine','Dental'].map(value=>`<option ${u.specialty===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div></section>`:''}
         <dl class="eu-locked"><div><dt>Username</dt><dd>@${escapeHtml(u.username||'—')}</dd></div><div><dt>Role</dt><dd>${escapeHtml(u.role)}</dd></div><div><dt>Account status</dt><dd>${escapeHtml(u.status)}</dd></div></dl>
       </div>
       <section id="edituser-review" hidden></section>
