@@ -448,7 +448,7 @@ export function initializeFeature(){
     {id:'fitness',label:'Fitness Assessments'},
     {id:'cert-requests',label:'Medical Certificates'},
     {section:'Reports'},
-    {id:'reports',label:'Reports'},
+    {id:'reports',label:'My Reports'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
     {id:'report-issue',label:'Report an Issue'},

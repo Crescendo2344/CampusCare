@@ -69,7 +69,7 @@ export function navTo(id,{historyMode='push'}={}){
     dashboard:'Dashboard','my-appointments':'My Appointments','my-records':'My Health Records','my-certificates':'Medical Certificates',
     'my-account':'Account Settings',patients:'Patient Records',appointments:'Appointments',
     approvals:'Approval Queue',certificates:'Medical Certificates','cert-requests':'Medical Certificates',treatments:'Treatments',inventory:'Inventory Management',
-    reports:'Reports & Analytics',users:'User Management',settings:'System Settings',
+    reports:appState.auth.currentUser.role==='Doctor'?'My Reports':'Reports & Analytics',users:'User Management',settings:'System Settings',
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',
     'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness Assessments','activity-log':'Activity Log',
     'dental-survey':'Dental Clinic Survey','survey-results':'Survey Results'

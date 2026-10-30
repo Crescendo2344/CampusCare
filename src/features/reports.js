@@ -62,7 +62,7 @@ export async function renderReports(){
   ].join('');
 
   c.innerHTML=`<div class="reports-workspace">
-    <div class="report-page-heading"><div><h2>Reports &amp; Analytics</h2><p>Understand clinic activity, explore records and plan ahead.</p></div><span class="intel-badge">${appState.auth.currentUser.role==='Doctor'?'Your clinical records':'Clinic records'}</span></div>
+    <div class="report-page-heading"><div><h2>${appState.auth.currentUser.role==='Doctor'?'My Reports':'Reports &amp; Analytics'}</h2><p>Understand clinic activity, explore records and plan ahead.</p></div><span class="intel-badge">${appState.auth.currentUser.role==='Doctor'?'Your clinical records':'Clinic records'}</span></div>
     <div class="card report-filter-card">
       <div class="report-control-grid">
         <div class="form-group"><label for="rpt-type">Report data source</label><select id="rpt-type" ${bindAction('change',updateReportMetricOptions)}>${reportTypeOptions}</select></div>
