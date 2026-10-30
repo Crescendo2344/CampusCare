@@ -1,7 +1,7 @@
 // dashboard: imported feature APIs; state belongs to explicit application namespaces.
 import {describeTrend,periodComparison} from '../domain/dashboard-metrics.js';
 import {state as appState} from '../app/state.js';
-import {dashboardAttentionItem,dashboardChartControlHtml,dashboardControlsHtml,dashboardInRange,dashboardMobileQuickLinks,dashboardRangeCounts,dashboardRangeLabel,dashboardStatCard,dashboardTrendSvg} from './dashboardChartHelpers.js';
+import {followTodayIfDefaultRange,dashboardAttentionItem,dashboardChartControlHtml,dashboardControlsHtml,dashboardInRange,dashboardMobileQuickLinks,dashboardRangeCounts,dashboardRangeLabel,dashboardStatCard,dashboardTrendSvg} from './dashboardChartHelpers.js';
 import {appointmentRecords} from './appointmentService.js';
 import {getDoctors,getLowStock,getPatientById,getUserById} from './documentScanner.js';
 import {docName} from './messaging.js';
@@ -16,7 +16,8 @@ import {bindAction} from '../dependencies.js';
 export function renderDashboard(){
   const c=document.getElementById('app-content');
   const role=appState.auth.currentUser.role;
-  const today=appState.dashboardChartHelpers.dashboardDateTo||appState.clinicInformation.TODAY;
+  followTodayIfDefaultRange();
+  const today=appState.clinicInformation.TODAY;
   const rangeLabel=dashboardRangeLabel();
   const allToday=appointmentRecords().filter(a=>a.date===today&&a.status!=='Cancelled');
   const allRange=appointmentRecords().filter(a=>dashboardInRange(a.date)&&a.status!=='Cancelled');

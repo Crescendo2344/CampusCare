@@ -11,7 +11,7 @@ import {openAddTreatmentModal} from './treatmentForm.js';
 import {campusDateFieldHtml} from './datePicker.js';
 import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {clinicToday} from './scheduleAndDrafts.js';
-import {offerDecisionUndo,syncRealWorkflowRequests,workflowAction} from './workflowRequests.js';
+import {offerDecisionUndo,openScheduleChangeRequest,syncRealWorkflowRequests,workflowAction} from './workflowRequests.js';
 import {addNotif} from './notifications.js';
 import {docName} from './messaging.js';
 import {persistDB} from './persistence.js';
@@ -70,11 +70,12 @@ export async function renderDoctorSchedule(){
       </div>
       <div class="card">
         <div class="card-header"><h3>My Work Schedule</h3></div>
-        <div class="info-row"><span class="info-label">Days</span><span class="info-val">${(appState.auth.currentUser.workDays||[]).join(', ')}</span></div>
+        <div class="info-row"><span class="info-label">Clinic</span><span class="info-val">${appState.auth.currentUser.specialty==='Dental'?'Dental Clinic':'Medical Clinic'} · ${escapeHtml(appState.auth.currentUser.specialty||'General Medicine')}</span></div>
+        <div class="info-row"><span class="info-label">Work days</span><span class="info-val">${escapeHtml((appState.auth.currentUser.workDays||[]).join(', ')||'—')}</span></div>
         <div class="info-row"><span class="info-label">Hours</span><span class="info-val">${fmtTime(appState.auth.currentUser.startTime||'08:00')} – ${fmtTime(appState.auth.currentUser.endTime||'17:00')}</span></div>
-        <div class="info-row"><span class="info-label">Slot Duration</span><span class="info-val">${appState.auth.currentUser.slotDuration||60} minutes</span></div>
-        <div class="info-row"><span class="info-label">Specialty</span><span class="info-val">${appState.auth.currentUser.specialty||'General'}</span></div>
-        <div style="margin-top:.75rem"><button class="btn btn-sm btn-info" ${bindAction('click',(event,element)=>{navTo('my-account')})}>Edit Schedule</button></div>
+        <div class="info-row"><span class="info-label">Appointment length</span><span class="info-val">${appState.auth.currentUser.slotDuration||60} minutes</span></div>
+        <div class="info-row"><span class="info-label">Patients per day</span><span class="info-val">Up to ${appState.auth.currentUser.maxPatients||20}</span></div>
+        <div style="margin-top:.75rem"><button class="btn btn-sm btn-info" ${bindAction('click',()=>openScheduleChangeRequest())}>Request schedule change</button></div>
       </div>
     </div>
     <div class="card">

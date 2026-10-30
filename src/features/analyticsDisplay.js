@@ -75,17 +75,18 @@ export function renderLiveAnalyticsCard(summary){
 
   const s=summary.summary||{};
   const range=summary.range||{};
-  const scopeText=summary.scope==='doctor'
-    ? 'Your clinical records only'
+  const doctor=summary.scope==='doctor'||appState.auth.currentUser?.role==='Doctor';
+  const scopeText=doctor
+    ? 'Your patients and visits'
     : (range.college?`Campus analytics filtered to ${range.college}`:'Campus-wide clinical analytics');
 
   return `<div class="card">
     <div class="card-header">
       <div>
         <h3>Clinic activity overview</h3>
-        <div class="tech-note">${escapeHtml(scopeText)} · ${fmtDate(range.from)} – ${fmtDate(range.to)}</div>
+        <div class="tech-note">${escapeHtml(scopeText)}${range.from&&range.to?` · ${fmtDate(range.from)} – ${fmtDate(range.to)}`:''}</div>
       </div>
-      <span class="intel-badge">Clinic records</span>
+      <span class="intel-badge">${doctor?'Your records':'Clinic records'}</span>
     </div>
 
     <div class="intel-grid">
@@ -113,10 +114,7 @@ export function renderLiveAnalyticsCard(summary){
         : `<div class="intel-alert-item"><div class="intel-alert-icon success"><i class="bi bi-check2-circle" aria-hidden="true"></i></div><div class="intel-alert-copy"><strong>No unusual increase detected</strong><span>No clinical trend met the review threshold for this selected range.</span></div></div>`}
     </div>
 
-    <div class="section-label" style="margin-top:1rem">Medicine usage in selected range</div>
-    ${['Administrator','Staff'].includes(appState.auth.currentUser.role)?analyticsMiniBars((summary.medicineUsage||[]).map(x=>({name:`${x.itemName} (${x.unit})`,count:x.used}))):''}
-    <div class="tech-note" style="margin-top:.75rem">
-      Campus Health Intelligence identifies patterns for administrative and clinical review. It does not independently diagnose outbreaks or replace clinician judgment.
-    </div>
+    ${['Administrator','Staff'].includes(appState.auth.currentUser.role)?`<div class="section-label" style="margin-top:1rem">Medicine usage in selected range</div>
+    ${analyticsMiniBars((summary.medicineUsage||[]).map(x=>({name:`${x.itemName} (${x.unit})`,count:x.used})))}`:''}
   </div>`;
 }

@@ -1009,6 +1009,7 @@ try{
     await page.evaluate(id=>document.getElementById(id).click(),id);
     await page.waitForTimeout(120);
     assert(await page.locator('#app-content').innerHTML(),`${role}: empty ${id}`);
+    if(process.env.CAMPUSCARE_ROUTE_SHOTS===role&&!mobile){await page.waitForTimeout(400);await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/route-${role}-${id.replace('nav-','')}.png`,fullPage:true});}
   }
   // Messages is not part of CampusCare: no navigation entry, and old links land on the dashboard.
   assert(!navIds.includes('nav-messages'),`${role}: Messages must not be in the sidebar`);

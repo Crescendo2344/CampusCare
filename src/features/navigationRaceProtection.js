@@ -71,7 +71,7 @@ export function navTo(id,{historyMode='push'}={}){
     approvals:'Approval Queue',certificates:'Medical Certificates','cert-requests':'Medical Certificates',treatments:'Treatments',inventory:'Inventory Management',
     reports:'Reports & Analytics',users:'User Management',settings:'System Settings',
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',
-    'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log',
+    'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness Assessments','activity-log':'Activity Log',
     'dental-survey':'Dental Clinic Survey','survey-results':'Survey Results'
   }[id]||id;
   renderPage(id);

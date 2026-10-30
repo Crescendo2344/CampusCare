@@ -50,16 +50,16 @@ export async function renderAppointments(){
       <div class="appt-head-actions">${canManageSlots()?`<button class="btn btn-sm" id="appt-manage-slots" ${bindAction('click',()=>openSlotManager())}><i class="bi bi-sliders" aria-hidden="true"></i> Manage time slots</button>`:''}
       ${role!=='Doctor'?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>{openBookApptModal()})}>+ Book Appointment</button>`:''}</div></div>
     <div class="toolbar appt-toolbar">
-      <input type="search" placeholder="Search patient, ID, appointment #, doctor or service" aria-label="Search appointments" id="appt-search" ${bindAction('input',()=>{ui.page=1;renderApptTable()})}>
+      <input type="search" placeholder="Search patient, ID, appointment #${appState.auth.currentUser.role==='Doctor'?'':', doctor'} or service" aria-label="Search appointments" id="appt-search" ${bindAction('input',()=>{ui.page=1;renderApptTable()})}>
       <select id="appt-status" aria-label="Status" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>
         <option value="">All statuses</option>
         <option>Scheduled</option><option>Completed</option><option>Cancelled</option><option>No-show</option>
       </select>
       <select id="appt-college" aria-label="College or department" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>${unitFilterOptionsHtml('')}</select>
-      <select id="appt-clinic" aria-label="Clinic" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>
+      ${appState.auth.currentUser.role==='Doctor'?'':`      <select id="appt-clinic" aria-label="Clinic" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>
         <option value="">All clinics</option>
         <option>Medical Clinic</option><option>Dental Clinic</option>
-      </select>
+      </select>`}
       ${doctors.length?`<select id="appt-doctor" aria-label="Doctor" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}><option value="">All doctors</option>${doctors.map(d=>`<option value="${d.id}">Dr. ${escapeHtml(d.fname+' '+d.lname)}</option>`).join('')}</select>`:''}
       <div class="appt-range-filter"><input type="hidden" id="appt-date-from"><input type="hidden" id="appt-date-to"><button type="button" class="modern-date-btn" aria-label="Filter by date range" ${bindAction('click',()=>{openApptRangePicker()})}><i class="bi bi-calendar3" aria-hidden="true"></i><span id="appt-range-label">All dates</span></button></div>
       <button class="btn btn-sm" ${bindAction('click',()=>exportAppointmentsCsv())}><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>
@@ -133,7 +133,7 @@ export function renderApptTable(){
   const el=document.getElementById('appt-table');
   if(!el)return;
   const ui=appState.appointments??={view:'upcoming',page:1};
-  const today=clinicToday();
+  const today=clinicToday(),doctorView=appState.auth.currentUser.role==='Doctor';
   const filtered=filteredAppointments();
   const counts=listData.appointmentViewCounts(filtered,today);
   const tabs=document.getElementById('appt-views');
@@ -154,14 +154,14 @@ export function renderApptTable(){
     const pt=getPatientById(a.patientId),doc=getUserById(a.doctorId);
     const name=pt?`${pt.lname}, ${pt.fname}`:'Unknown patient';
     const {primary,more}=apptActionButtons(a,appointmentAllowedActions(a));
-    const heading=a.date!==lastDay?`<tr class="appt-day-row"><th colspan="7" scope="rowgroup">${escapeHtml(listData.appointmentDayHeading(a.date,today))}</th></tr>`:'';
+    const heading=a.date!==lastDay?`<tr class="appt-day-row"><th colspan="${doctorView?6:7}" scope="rowgroup">${escapeHtml(listData.appointmentDayHeading(a.date,today))}</th></tr>`:'';
     lastDay=a.date;
     const overdue=listData.appointmentView(a,today)==='outcome';
     return `${heading}<tr class="appt-row" ${bindAction('click',()=>viewAppt(a.id))}>
       <td data-label="Time"><strong class="appt-time">${fmtTime(a.time)}</strong><div class="text-muted">#${appointmentDisplayId(a)}</div></td>
       <td data-label="Patient"><div class="pt-identity">${pt?patientAvatarHtml(pt,32):''}<div>${pt?`<button type="button" class="link-btn" ${bindAction('click',(event)=>{event.stopPropagation();viewPatient(pt.id)})}><strong>${escapeHtml(name)}</strong></button>`:`<strong>${escapeHtml(name)}</strong>`}<div class="text-muted">${pt?`P-${patientDisplayId(pt)} · `:''}${escapeHtml(a.college||pt?.college||'—')}</div></div></div></td>
       <td data-label="Service"><strong>${escapeHtml(a.service||a.clinic||'—')}</strong><div class="text-muted">${escapeHtml(a.clinic||'')}</div></td>
-      <td data-label="Doctor">${doc?`Dr. ${escapeHtml(doc.fname+' '+doc.lname)}`:'<span class="text-muted">Unassigned</span>'}</td>
+      ${doctorView?'':`<td data-label="Doctor">${doc?`Dr. ${escapeHtml(doc.fname+' '+doc.lname)}`:'<span class="text-muted">Unassigned</span>'}</td>`}
       <td data-label="Priority">${priorityBadge(a.priority||pt?.personType||'')}</td>
       <td data-label="Status">${statusBadge(a.status)}${overdue?'<div class="appt-overdue">Outcome needed</div>':''}</td>
       <td data-label="Actions"><div class="td-actions" ${bindAction('click',(event)=>{event.stopPropagation()})}>${primary}${apptMenuHtml(more,`appointment #${appointmentDisplayId(a)}`)}</div></td>
@@ -170,7 +170,7 @@ export function renderApptTable(){
   const pager=pages>1?`<div class="pt-pager"><span>Showing ${(page-1)*APPT_PAGE_SIZE+1}–${(page-1)*APPT_PAGE_SIZE+rows.length} of ${all.length}</span>
     <div><button class="btn btn-xs" ${page===1?'disabled':''} ${bindAction('click',()=>{ui.page=page-1;renderApptTable();})}>‹ Previous</button>
     <button class="btn btn-xs" ${page===pages?'disabled':''} ${bindAction('click',()=>{ui.page=page+1;renderApptTable();})}>Next ›</button></div></div>`:'';
-  el.innerHTML=`<div class="table-wrap"><table class="appt-table"><thead><tr><th scope="col">Time</th><th scope="col">Patient</th><th scope="col">Service</th><th scope="col">Doctor</th><th scope="col">Priority</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${body}</tbody></table></div>${pager}`;
+  el.innerHTML=`<div class="table-wrap"><table class="appt-table"><thead><tr><th scope="col">Time</th><th scope="col">Patient</th><th scope="col">Service</th>${doctorView?'':'<th scope="col">Doctor</th>'}<th scope="col">Priority</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${body}</tbody></table></div>${pager}`;
 }
 
 export function completeAppt(id){

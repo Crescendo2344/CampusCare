@@ -82,6 +82,7 @@ export function applyDashboardDateRange(){
   if(!appState.dashboardChartHelpers.dashboardPendingFrom||!appState.dashboardChartHelpers.dashboardPendingTo){showAlert(msg,'Please select both a From and To date.','warning');return;}
   if(appState.dashboardChartHelpers.dashboardPendingFrom>appState.dashboardChartHelpers.dashboardPendingTo){showAlert(msg,'The From date must be on or before the To date.','warning');return;}
   appState.dashboardChartHelpers.dashboardDateFrom=appState.dashboardChartHelpers.dashboardPendingFrom; appState.dashboardChartHelpers.dashboardDateTo=appState.dashboardChartHelpers.dashboardPendingTo;
+  appState.dashboardChartHelpers.dashboardRangeChosen=true;
   closeAllModals(); renderDashboard();
 }
 export function dashboardRangeLabel(){return `${fmtDate(appState.dashboardChartHelpers.dashboardDateFrom)} – ${fmtDate(appState.dashboardChartHelpers.dashboardDateTo)}`;}
@@ -204,6 +205,13 @@ export function dashboardMobileQuickLinks(role){
 }
 
 // Run side effects only after every feature's function exports are available.
+// Until someone picks a range, the dashboard shows the last 7 days up to the current clinic date.
+export function followTodayIfDefaultRange(){
+  const ui=appState.dashboardChartHelpers;
+  if(ui.dashboardRangeChosen)return;
+  ui.dashboardDateTo=ui.dashboardPendingTo=appState.clinicInformation.TODAY;
+  ui.dashboardDateFrom=ui.dashboardPendingFrom=isoDateOffset(appState.clinicInformation.TODAY,-6);
+}
 export function initializeFeature(){
   appState.dashboardChartHelpers.dashboardDateFrom=isoDateOffset(appState.clinicInformation.TODAY,-6);
   appState.dashboardChartHelpers.dashboardDateTo=appState.clinicInformation.TODAY;

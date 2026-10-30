@@ -43,7 +43,7 @@ export async function renderTreatments(){
   c.innerHTML=`
     <div class="toolbar tr-toolbar">
       <input type="search" placeholder="Search patient, ID, diagnosis or record #" aria-label="Search treatment records" id="tr-search" ${bindAction('input',()=>{ui.page=1;renderTreatTable()})}>
-      <select id="tr-type" aria-label="Clinic" ${bindAction('change',()=>{ui.page=1;renderTreatTable()})}><option value="">All clinics</option><option>Medical Clinic</option><option>Dental Clinic</option></select>
+      ${role==='Doctor'?'':`<select id="tr-type" aria-label="Clinic" ${bindAction('change',()=>{ui.page=1;renderTreatTable()})}><option value="">All clinics</option><option>Medical Clinic</option><option>Dental Clinic</option></select>`}
       <select id="tr-college" aria-label="College or department" ${bindAction('change',()=>{ui.page=1;renderTreatTable()})}>${unitFilterOptionsHtml('')}</select>
       ${doctors.length?`<select id="tr-doctor" aria-label="Doctor" ${bindAction('change',()=>{ui.page=1;renderTreatTable()})}><option value="">All doctors</option>${doctors.map(d=>`<option value="${d.id}">${escapeHtml(docName(d))}</option>`).join('')}</select>`:''}
       <select id="tr-period" aria-label="Visit date" ${bindAction('change',()=>{ui.page=1;renderTreatTable()})}><option value="">Any date</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="followup">Follow-up due</option></select>
@@ -53,7 +53,7 @@ export async function renderTreatments(){
         <option value="all">All records</option>
       </select>
       <button class="btn btn-sm" ${bindAction('click',()=>exportTreatmentsCsv())}><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>
-      ${canAdd?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>{openAddTreatmentModalPt(null)})}>+ Add Treatment</button>`:''}
+      ${canAdd?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>{openAddTreatmentModalPt(null)})}>+ Record visit</button>`:''}
     </div>
     <p class="patient-filter-summary" id="tr-summary" role="status" aria-live="polite"></p>
     <div class="card"><div id="treat-table"></div></div>`;
@@ -100,6 +100,7 @@ export function exportTreatmentsCsv(){
 export function renderTreatTable(){
   const el=document.getElementById('treat-table');
   if(!el)return;
+  const role=appState.auth.currentUser.role;
   const ui=appState.treatmentList??={page:1};
   const all=filteredTreatments(),today=appState.clinicInformation.TODAY;
   const pages=Math.max(1,Math.ceil(all.length/TREAT_PAGE_SIZE));
@@ -122,7 +123,7 @@ export function renderTreatTable(){
     <div><button class="btn btn-xs" ${page===1?'disabled':''} ${bindAction('click',()=>{ui.page=page-1;renderTreatTable();})}>‹ Previous</button>
     <button class="btn btn-xs" ${page===pages?'disabled':''} ${bindAction('click',()=>{ui.page=page+1;renderTreatTable();})}>Next ›</button></div></div>`:'';
   el.innerHTML=`<div class="table-wrap"><table class="treat-table">
-    <thead><tr><th scope="col">Visit</th><th scope="col">Patient</th><th scope="col">Diagnosis</th><th scope="col">Clinic</th><th scope="col">Doctor</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <thead><tr><th scope="col">Visit</th><th scope="col">Patient</th><th scope="col">Diagnosis</th>${role==='Doctor'?'':'<th scope="col">Clinic</th><th scope="col">Doctor</th>'}<th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>${rows.map(t=>{
       const pt=getPatientById(t.patientId);
       const doc=getUserById(t.doctorId);
@@ -131,8 +132,7 @@ export function renderTreatTable(){
         <td data-label="Visit"><strong>${fmtDate(t.date)}</strong><div class="text-muted">#${treatmentDisplayId(t)}${t.archived?' · Archived':''}</div></td>
         <td data-label="Patient">${pt?`<button class="link-btn" ${bindAction('click',(event)=>{event.stopPropagation();viewPatient(pt.id)})}><strong>${escapeHtml(pt.lname+', '+pt.fname)}</strong></button><div class="text-muted">P-${patientDisplayId(pt)} · ${escapeHtml(pt.college||'—')}</div>`:'Unknown'}</td>
         <td data-label="Diagnosis">${escapeHtml(t.diagnosis||'—')}</td>
-        <td data-label="Clinic">${escapeHtml(clinic)}</td>
-        <td data-label="Doctor">${doc?escapeHtml(docName(doc)):'—'}</td>
+        ${role==='Doctor'?'':`<td data-label="Clinic">${escapeHtml(clinic)}</td><td data-label="Doctor">${doc?escapeHtml(docName(doc)):'—'}</td>`}
         <td data-label="Follow-up">${followUp(t)}</td>
         <td data-label="Actions"><div class="td-actions" ${bindAction('click',(event)=>event.stopPropagation())}>
           <button class="btn btn-xs" ${bindAction('click',()=>viewTreatment(t.id))}>View</button>

@@ -6,7 +6,7 @@ import {collegeBadge,fmtTime,priorityBadge,sanitizeInput,statusBadge} from './in
 import {navTo} from './navigationRaceProtection.js';
 import {openCamera} from '../app/optional-features.js';
 import {changeAccountPassword,changeProfilePhoto,checkPasswordConfirmation,hideAccountPasswordChecklist,openNameChangeRequest,renderPasswordCooldownNotice,setPasswordFieldError,showAccountPasswordChecklist,updateAccountPasswordStrength} from './nameChangeRequests.js';
-import {openScheduleChangeRequest,saveAccount} from './workflowRequests.js';
+import {saveAccount} from './workflowRequests.js';
 import {openPrivacyNotice} from './loginLockout.js';
 import {openPrivacyRequestModal} from './privacy.js';
 import {setThemePreference,showConfirmDialog,themePreference,toast} from './theme.js';
@@ -99,7 +99,7 @@ export function renderMyAccount(){
               <button class="btn btn-sm" ${bindAction('click',(event,element)=>{document.getElementById('acc-photo-file').click()})}>Upload Photo</button>
               <button class="btn btn-sm btn-info" ${bindAction('click',(event,element)=>{openCamera('account')})}><i class="bi bi-camera" aria-hidden="true"></i> Use Camera</button>
               <input type="file" id="acc-photo-file" accept="image/*" style="display:none" ${bindAction('change',(event,element)=>{changeProfilePhoto(element)})}>
-              <p class="form-note">Shown on your clinic records so staff can recognise you. JPG or PNG; square photos look best.</p>
+              
             </div>
           </div>
         </div>
@@ -198,18 +198,6 @@ export function renderMyAccount(){
         </div>`:''}
       </div>
     </div>`;
-    if(u.role==='Doctor'){
-      document.getElementById('app-content').insertAdjacentHTML('beforeend',`
-        <div class="card">
-          <div class="card-header"><h3>My Work Schedule</h3></div>
-          <p class="form-note" style="margin:-.2rem 0 .8rem">For scheduling consistency, your work schedule can only be changed by an administrator. Submit a request below and we'll notify you once it's reviewed.</p>
-          <div class="info-row"><span class="info-label">Hours</span><span class="info-val">${fmtTime(u.startTime||'08:00')} – ${fmtTime(u.endTime||'17:00')}</span></div>
-          <div class="info-row"><span class="info-label">Slot Duration</span><span class="info-val">${u.slotDuration||60} minutes</span></div>
-          <div class="info-row"><span class="info-label">Max Patients/Day</span><span class="info-val">${u.maxPatients||20}</span></div>
-          <div class="info-row"><span class="info-label">Work Days</span><span class="info-val">${(u.workDays||[]).join(', ')||'—'}</span></div>
-          <div style="margin-top:.8rem"><button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{openScheduleChangeRequest()})}>Request Schedule Change</button></div>
-        </div>`);
-    }
 
   // Initialize the live password-security UI after the account card is in the DOM.
   renderPasswordCooldownNotice();
