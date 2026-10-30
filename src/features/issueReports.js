@@ -1,7 +1,7 @@
 import {createFeatureSyncService} from '../services/feature-sync.js';
 // issueReports: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
-import {captureCampusPageToken,healthResourceAction,healthResourceRecords,isCampusPageCurrent,renderHealthEducation,syncRealHealthResources} from './navigationRaceProtection.js';
+import {articleBannerHtml,captureCampusPageToken,deleteDraftArticle,healthResourceAction,healthResourceRecords,isCampusPageCurrent,renderHealthEducation,syncRealHealthResources} from './navigationRaceProtection.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {fmtDate,readFileAsDataURL,resizeImageDataUrl} from './inputValidation.js';
 import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
@@ -717,6 +717,7 @@ export function openArticleModal(id=null) {
       </div>
 
       <div class="modal-footer">
+        ${art&&!art.published?`<button class="btn btn-danger" style="margin-right:auto" ${bindAction('click',()=>deleteDraftArticle(art.id))}><i class="bi bi-trash" aria-hidden="true"></i> Delete draft</button>`:''}
         <button class="btn btn-primary" id="art-save-btn" ${bindAction('click',(event,element)=>{saveArticle((id||'null'))})}>Save Article</button>
       </div>
     </div>`);
@@ -730,7 +731,8 @@ function updateArticlePreview(){
   const title=value('art-title')||'Article title',category=value('art-category')||'Category',content=value('art-content');
   const teaser=value('art-teaser')||content.slice(0,160);
   const photo=appState.issueReports.articlePhotoData||(appState.issueReports.articlePhotoRemove?'':appState.issueReports.articlePhotoExistingUrl);
-  host.innerHTML=`<div class="he-card preview">${photo?`<div class="he-card-media"><img src="${escapeHtml(photo)}" alt="" style="width:100%;height:110px;object-fit:cover;display:block"></div>`:''}
+  const icon=document.querySelector('input[name="art-icon"]:checked')?.value;
+  host.innerHTML=`<div class="he-card preview"><div class="he-card-media">${articleBannerHtml({category,icon,photo},'card')}</div>
     <div class="he-card-body"><div class="he-card-tags"><span class="he-cat">${escapeHtml(category)}</span></div><h4>${escapeHtml(title)}</h4><p>${escapeHtml(teaser||'A short summary appears here.')}</p><span class="he-card-meta">${readingMinutes(content)} min read · ${content.split(/\s+/).filter(Boolean).length} words</span></div></div>`;
 }
 

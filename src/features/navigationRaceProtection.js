@@ -131,16 +131,14 @@ export function articleCategoryColor(cat){
   return palette[hash%palette.length];
 }
 
-export function articleBannerHtml(art,height=140){
-  if(art.photo){
-    return `<div style="height:${height}px;border-radius:14px 14px 0 0;overflow:hidden">
-      <img src="${art.photo}" style="width:100%;height:100%;object-fit:cover;display:block">
-    </div>`;
-  }
+// The category gradient sits underneath, so a photo that fails to load still leaves a banner.
+// In the reader the whole photo shows over a blurred copy of itself instead of being cropped.
+export function articleBannerHtml(art,variant='card'){
   const [c1,c2]=articleCategoryColor(art.category);
-  return `<div style="height:${height}px;border-radius:14px 14px 0 0;background:linear-gradient(135deg,${c1},${c2});display:flex;align-items:center;justify-content:center;font-size:${Math.round(height*0.4)}px;position:relative;overflow:hidden">
-    <div style="position:absolute;width:180%;height:180%;border-radius:50%;background:rgba(255,255,255,.08);top:-60%;left:-40%"></div>
-    <span class="article-banner-icon" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,.15))">${articleIconHtml(art.icon)}</span>
+  const photo=art.photo?escapeHtml(art.photo):'';
+  return `<div class="he-media he-media-${variant}" style="--c1:${c1};--c2:${c2}${photo&&variant==='reader'?`;--img:url('${photo}')`:''}">
+    <span class="article-banner-icon">${articleIconHtml(art.icon)}</span>
+    ${photo?`<img class="he-img" src="${photo}" alt="" loading="lazy" decoding="async">`:''}
   </div>`;
 }
 
@@ -183,7 +181,7 @@ export async function renderHealthEducation() {
 
 function articleCardHtml(art,editor,featured=false){
   return `<article class="he-card ${featured?'featured':''}" tabindex="0" role="button" aria-label="Read ${escapeHtml(art.title)}" ${bindAction('click',()=>viewArticle(art.id))} ${bindAction('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();viewArticle(art.id);}})}>
-    <div class="he-card-media">${articleBannerHtml(art,featured?220:130)}</div>
+    <div class="he-card-media">${articleBannerHtml(art,featured?'featured':'card')}</div>
     <div class="he-card-body">
       <div class="he-card-tags"><span class="he-cat" style="--cat:${articleCategoryColor(art.category)[1]}">${escapeHtml(art.category)}</span>${editor&&!art.published?'<span class="badge badge-warning">Draft</span>':''}</div>
       <h4>${escapeHtml(art.title)}</h4>
@@ -241,7 +239,7 @@ export function viewArticle(id) {
         <button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button>
       </div>
       <div class="modal-body" style="padding:0">
-        ${articleBannerHtml(art,190)}
+        ${articleBannerHtml(art,'reader')}
         <div class="he-article">
           ${editor&&!art.published?'<span class="badge badge-warning">Draft</span>':''}
           <h2>${escapeHtml(art.title)}</h2>
@@ -258,7 +256,8 @@ export function viewArticle(id) {
         ${editor?`<button class="btn btn-sm" ${bindAction('click',()=>openArticleModal(art.id))}><i class="bi bi-pencil" aria-hidden="true"></i> Edit</button>
           ${art.published
             ?`<button class="btn btn-sm btn-warning" ${bindAction('click',()=>deleteArticle(art.id))}>Unpublish</button>`
-            :`<button class="btn btn-sm btn-success" ${bindAction('click',()=>publishArticle(art.id))}>Publish</button>`}
+            :`<button class="btn btn-sm btn-success" ${bindAction('click',()=>publishArticle(art.id))}>Publish</button>
+              <button class="btn btn-sm btn-danger" ${bindAction('click',()=>deleteDraftArticle(art.id))}><i class="bi bi-trash" aria-hidden="true"></i> Delete draft</button>`}
           ${appState.auth.currentUser.role==='Administrator'?`<button class="btn btn-sm btn-danger" ${bindAction('click',()=>archiveArticle(art.id))}>Archive</button>`:''}`:''}
         <button class="btn btn-sm" ${bindAction('click',()=>window.print())}><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
       </div>
@@ -315,11 +314,41 @@ export function archiveArticle(id){
   });
 }
 
+// Drafts were never shown to patients, so they can be removed for good after a confirmation.
+export function deleteDraftArticle(id){
+  const art=healthResourceRecords().find(r=>r.id===Number(id));if(!art||art.published)return;
+  showConfirmDialog({
+    title:'Delete draft',
+    message:`Delete the draft <strong>${escapeHtml(art.title)}</strong>? This removes it and its photo permanently.`,
+    confirmLabel:'Delete draft',
+    danger:true,
+    onConfirm:async()=>{
+      try{
+        if(art._realSupabase){
+          await healthResourceAction({action:'delete',resource_id:art.dbResourceId});
+          await syncRealHealthResources();
+        }else{
+          appState.data.DB.healthResources=(appState.data.DB.healthResources||[]).filter(r=>r.id!==art.id);
+          persistDB();
+        }
+      }catch(e){toast(e?.message||'Unable to delete the draft.','error');return;}
+      closeAllModals();
+      renderArticlesList();
+      toast('Draft deleted.','success');
+    }
+  });
+}
+
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
   appState.navigationRaceProtection.campusNavigationToken=0;
   appState.navigationRaceProtection.campusActivePageId='dashboard';
   appState.navigationRaceProtection.historySession=0;
+  // Image errors do not bubble, so a capture listener drops a broken article photo and the banner shows instead.
+  document.addEventListener('error',event=>{
+    const img=event.target;
+    if(img?.tagName==='IMG'&&img.classList.contains('he-img')){img.closest('.he-media')?.style.removeProperty('--img');img.remove();}
+  },true);
   // Back and Forward use the same renderer and race guard as sidebar navigation.
   window.addEventListener('popstate',event=>{
     if(!appState.auth.currentUser)return;

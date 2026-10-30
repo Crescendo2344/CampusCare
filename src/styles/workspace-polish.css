@@ -1402,7 +1402,6 @@ select:disabled::-ms-expand{display:none}
 .he-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem}
 .he-card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--glass-surface-strong,var(--overlay));cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s}
 .he-card:hover,.he-card:focus-visible{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.12);border-color:var(--primary);outline:none}
-.he-card-media>div{border-radius:0!important}
 .he-card-body{display:flex;flex-direction:column;gap:.4rem;padding:.9rem 1rem 1rem;flex:1}
 .he-card-tags{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}
 .he-cat{display:inline-flex;align-items:center;font-size:.68rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--cat,var(--primary))}
@@ -1446,3 +1445,14 @@ select:disabled::-ms-expand{display:none}
 .he-preview-label{display:block;font-size:.68rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:.4rem}
 @media(max-width:860px){.he-editor-grid{grid-template-columns:1fr}.he-preview{position:static}}
 @media print{.he-reader .modal-body{overflow:visible}}
+.he-media{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--c1),var(--c2));aspect-ratio:16/9}
+.he-media::before{content:"";position:absolute;width:180%;height:180%;border-radius:50%;background:rgba(255,255,255,.08);top:-60%;left:-40%}
+.he-media .article-banner-icon{position:relative;font-size:2.6rem;filter:drop-shadow(0 2px 6px rgba(0,0,0,.15))}
+.he-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 35%;display:block;background:var(--overlay)}
+.he-card.featured .he-media{aspect-ratio:auto;height:100%;min-height:240px}
+.he-card.featured .he-media .article-banner-icon{font-size:4rem}
+.he-media-reader{aspect-ratio:auto;height:clamp(200px,42vh,380px)}
+.he-media-reader .article-banner-icon{font-size:4.2rem}
+.he-media-reader[style*="--img"]::before{width:auto;height:auto;inset:-24px;border-radius:0;top:-24px;left:-24px;background:var(--img) center/cover;filter:blur(22px) brightness(.85);transform:scale(1.1)}
+.he-media-reader .he-img{object-fit:contain;object-position:center;background:transparent}
+.he-preview .he-media{aspect-ratio:16/9}

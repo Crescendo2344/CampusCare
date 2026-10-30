@@ -1299,7 +1299,9 @@ try{
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('health_education'));
     await page.locator('#articles-list').waitFor();
     await page.evaluate(()=>{const {state,features}=window.__fixtureApp;
-      const art=(id,title,category,days,published=true)=>({id,dbResourceId:id,title,category,teaser:`${title} in brief.`,content:'Sleep matters during exams.\n\nTips:\n\n- Keep a schedule\n- Avoid caffeine late',sourceName:'WHO',sourceUrl:'https://www.who.int',icon:'bi-moon',photo:'',published,publishedAt:`2026-10-${String(days).padStart(2,'0')}T08:00:00Z`,createdAt:`2026-10-${String(days).padStart(2,'0')}T08:00:00Z`,_realSupabase:true});
+      const photo=(w,h,c)=>{const cv=document.createElement('canvas');cv.width=w;cv.height=h;const g=cv.getContext('2d');g.fillStyle=c;g.fillRect(0,0,w,h);g.fillStyle='#fff';g.beginPath();g.arc(w/2,h/2,Math.min(w,h)/4,0,7);g.fill();return cv.toDataURL('image/jpeg');};
+      const photos={1:photo(1200,800,'#3a7ab0'),2:photo(500,900,'#0f6e56')};
+      const art=(id,title,category,days,published=true)=>({id,dbResourceId:id,title,category,teaser:`${title} in brief.`,content:'Sleep matters during exams.\n\nTips:\n\n- Keep a schedule\n- Avoid caffeine late',sourceName:'WHO',sourceUrl:'https://www.who.int',icon:'bi-moon',photo:photos[id]||'',published,publishedAt:`2026-10-${String(days).padStart(2,'0')}T08:00:00Z`,createdAt:`2026-10-${String(days).padStart(2,'0')}T08:00:00Z`,_realSupabase:true});
       state.data.DB.healthResources=[art(1,'Sleep before exams','Sleep',20),art(2,'Hand washing','Hygiene',10),art(3,'Napping well','Sleep',5),art(4,'Healthy snacks','Nutrition',2),art(5,'Draft on stress','Mental Health',25,false)];
       features.navigationRaceProtection.renderArticlesList();});
     assert.match(await page.locator('.he-card.featured h4').innerText(),role==='Staff'?/Draft on stress/:/Sleep before exams/);
@@ -1312,6 +1314,7 @@ try{
     assert.match(await page.locator('.he-article-meta').innerText(),/1 min read/);
     assert.match(await page.locator('.he-related').innerText(),/Napping well/);
     assert.equal(await page.locator('.he-cta').count(),role==='Patient'?1:0);
+    assert.equal(await page.locator('.he-media-reader .he-img').evaluate(img=>getComputedStyle(img).objectFit),'contain','The reader shows the whole photo');
     if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/health-article-${role}.png`});
     await page.locator('#active-modal .close-btn').click();
     await page.locator('.he-topic').first().click();
@@ -1323,6 +1326,19 @@ try{
       await page.locator('#art-title').dispatchEvent('input');
       assert.match(await page.locator('#art-preview').innerText(),/Staying active[\s\S]*1 min read/);
       await page.locator('#active-modal .close-btn').click();
+      // A photo that fails to load falls back to the category banner.
+      await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.data.DB.healthResources[3].photo='https://invalid.example/missing.jpg';features.navigationRaceProtection.renderArticlesList();});
+      await page.waitForFunction(()=>!document.querySelector('.he-card img[src*="invalid.example"]'));
+      // Drafts can be deleted for good; published articles cannot.
+      await page.locator('#he-status button',{hasText:'Drafts'}).click();
+      await page.locator('.he-card',{hasText:'Draft on stress'}).click();
+      assert.equal(await page.getByRole('button',{name:'Delete draft'}).count(),1);
+      await page.getByRole('button',{name:'Delete draft'}).click();
+      const deleteRequest=page.waitForRequest(request=>request.url().includes('/functions/v1/health-resource-actions')&&request.postData()?.includes('"delete"'));
+      await page.locator('#cc-confirm-ok-btn').click();
+      assert.equal(JSON.parse((await deleteRequest).postData()).resource_id,5);
+      await page.locator('.toast',{hasText:'Draft deleted.'}).first().waitFor();
+      await page.locator('#he-status button',{hasText:'All'}).click();
     }
   }
   if(role==='Doctor'){
