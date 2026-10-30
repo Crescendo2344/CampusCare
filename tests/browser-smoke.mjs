@@ -656,6 +656,24 @@ try{
     assert.notEqual(await page.locator('#tm-followup').inputValue(),'');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/visit-record-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#active-modal .close-btn').click();
+    // A dental doctor gets the dental record: quadrant tooth chart, tap-to-mark codes, procedure rows, work status.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.auth.currentUser.specialty='Dental';const pt=state.data.DB.patients.find(p=>p._realSupabase&&!p.archived)||state.data.DB.patients[0];features.treatmentForm.openAddTreatmentModalPt(pt.id);});
+    await page.locator('#tm-dental-section').waitFor();
+    assert.equal(await page.locator('#tm-record-type').inputValue(),'Dental Clinic');
+    assert.equal(await page.locator('.dr-arch:not(.primary) .tm-dental-tooth').count(),32);
+    await page.locator('.dr-code',{hasText:'Decayed'}).click();
+    await page.locator('.tm-dental-tooth[data-tooth="36"]').click();
+    assert.equal(await page.locator('.tm-dental-tooth[data-tooth="36"]').inputValue(),'D');
+    await page.locator('.dr-chip',{hasText:'Fair'}).click();await page.locator('.dr-chip',{hasText:'Poor'}).click();
+    await page.getByRole('button',{name:'Add procedure'}).click();
+    await page.locator('.dr-op').nth(0).locator('.tm-dental-op-tooth').fill('36');await page.locator('.dr-op').nth(0).locator('.tm-dental-op-nature').fill('Tooth filling (restoration)');
+    await page.locator('.dr-status label',{hasText:'Completed'}).click();
+    const dentalData=await page.evaluate(()=>window.__fixtureApp.features.patientForm.collectDentalRecordForm());
+    assert.equal(dentalData.odontogram['36'],'D');assert.equal(dentalData.oral_health.poor,true);assert.equal(dentalData.oral_health.fair,false,'Condition is one choice');
+    assert.deepEqual(dentalData.accomplishment,[{tooth_no:'36',nature:'Tooth filling (restoration)'}]);assert.equal(dentalData.work_status,'Completed');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#tm-dental-section').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/dental-record-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#active-modal .close-btn').click();
+    await page.evaluate(()=>{window.__fixtureApp.state.auth.currentUser.specialty='General Medicine';});
     // Certificates: doctors write, sign and issue them; only the three purposes are offered.
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('cert-requests'));
     await page.getByRole('button',{name:'+ New Certificate'}).click();

@@ -89,7 +89,6 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
   const clinic=treatmentClinicFor(appState.auth.currentUser,appt);
   const dental=clinic==='Dental Clinic';
   const diagnoses=[...new Set(treatmentRecords().filter(t=>t.doctorId===appState.auth.currentUser.id).map(t=>String(t.diagnosis||'').trim()).filter(Boolean))].slice(0,40);
-  const procedures=['Oral examination','Tooth extraction','Oral prophylaxis (cleaning)','Tooth filling (restoration)'];
   const vital=([key,label,unit,placeholder,mode])=>`<div class="form-group tv-vital" data-vital="${key}"><label for="tm-${key}">${label} <span class="tv-unit">${unit}</span><span class="tv-flag" hidden></span></label><input id="tm-${key}" ${mode?`inputmode="${mode}"`:''} placeholder="${placeholder}" autocomplete="off"><p class="registration-field-error" id="tm-${key}-error" aria-live="polite" hidden></p></div>`;
 
   openModal(`<div class="modal modal-lg tv-modal">
@@ -141,14 +140,11 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
           </div>
         </details>
       </section>
-      ${dental?`<datalist id="tm-procedure-list">${procedures.map(v=>`<option value="${v}">`).join('')}</datalist>`:''}
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" id="tm-save-btn" ${bindAction('click',()=>saveTreatment((ptId||null),(apptId||null)))}>${appt?'Save and complete appointment':'Save visit record'}</button>
     </div>
   </div>`);
-  // Dental "nature of operation" offers the clinic's own procedures.
-  document.querySelectorAll('.tm-dental-op-nature').forEach(input=>input.setAttribute('list','tm-procedure-list'));
 }
 
 function isoAfter(date,days){return new Date(Date.parse(date+'T12:00:00Z')+days*86400000).toISOString().slice(0,10);}

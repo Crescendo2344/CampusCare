@@ -1330,3 +1330,51 @@ select:disabled::-ms-expand{display:none}
 .tv-reminder summary{cursor:pointer;font-size:.8rem;font-weight:650}
 .tv-reminder[open] summary{margin-bottom:.6rem}
 .tv-modal .dental-record-section{margin-top:.4rem}
+
+/* Dental record: grouped blocks, a quadrant tooth chart that fits without scrolling, choice chips. */
+.dr{padding:0;border:0;background:none;margin-top:.6rem}
+.dr-head h4{display:flex;align-items:center;gap:.4rem;margin:0 0 .5rem;font-size:.9rem}
+.dr-block{border:1px solid var(--line);border-radius:14px;padding:.75rem .85rem;margin-bottom:.7rem;background:var(--glass-surface-soft)}
+.dr-block h5{margin:0 0 .6rem;font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted)}
+.dr-block .form-group{margin-bottom:.5rem}
+.dr-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.1rem .7rem}
+.dr-codes{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.65rem}
+.dr-code{border:1px solid var(--line);background:var(--overlay);color:var(--ink);font:inherit;font-size:.72rem;padding:.25rem .6rem;border-radius:999px;cursor:pointer}
+.dr-code b{display:inline-grid;place-items:center;min-width:18px;height:18px;margin-right:.15rem;border-radius:5px;background:var(--overlay-strong);font-size:.7rem}
+.dr-code.active{border-color:var(--primary);background:var(--primary);color:#fff}
+.dr-code.active b{background:rgba(255,255,255,.25)}
+.dr-chart{display:flex;flex-direction:column;gap:.25rem}
+.dr-side{display:flex;justify-content:space-between;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-muted)}
+.dr-jaw{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-muted);text-align:center}
+.dr-arch{display:grid;grid-template-columns:1fr 2px 1fr;gap:.35rem;align-items:stretch}
+.dr-mid{background:var(--line);border-radius:2px}
+.dr-quad{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:.25rem}
+.dr-arch.primary .dr-quad{grid-template-columns:repeat(5,minmax(0,1fr))}
+.dr-occlusal{height:1px;background:var(--line);margin:.15rem 0}
+.dr-tooth{display:flex;flex-direction:column;align-items:center;gap:.1rem;padding:.25rem .1rem;border:1px solid var(--line);border-radius:9px;background:var(--overlay);cursor:text;min-width:0}
+.dr-tooth span{font-size:.62rem;font-weight:700;color:var(--ink-muted)}
+.dr-tooth input{width:100%;min-width:0;border:0;background:transparent;text-align:center;font:inherit;font-size:.78rem;font-weight:800;color:var(--ink);padding:.05rem 0;outline:0;text-transform:uppercase}
+.dr-tooth:focus-within{border-color:var(--primary);box-shadow:0 0 0 2px rgba(10,126,168,.18)}
+.dr-tooth.marked{border-color:var(--primary);background:rgba(10,126,168,.12)}
+.dr-primary{margin-top:.7rem}
+.dr-primary summary{cursor:pointer;font-size:.78rem;font-weight:650;margin-bottom:.5rem}
+.dr-row{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.55rem}
+.dr-label{min-width:88px;font-size:.76rem;font-weight:650;color:var(--ink-muted)}
+.dr-chips,.dr-status{display:flex;flex-wrap:wrap;gap:.35rem}
+.dr-chip input,.dr-status input{position:absolute;opacity:0;pointer-events:none}
+.dr-chip span,.dr-status span{display:inline-block;border:1px solid var(--line);background:var(--overlay);border-radius:999px;padding:.3rem .75rem;font-size:.76rem;cursor:pointer}
+.dr-chip input:checked+span,.dr-status input:checked+span{border-color:var(--primary);background:var(--primary);color:#fff}
+.dr-chips.findings input:checked+span{border-color:var(--warning);background:var(--warning-bg);color:var(--warning)}
+.dr-chip input:focus-visible+span,.dr-status input:focus-visible+span{outline:2px solid var(--primary);outline-offset:2px}
+.dr-ops{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.5rem}
+.dr-op{display:grid;grid-template-columns:90px 1fr 32px;gap:.4rem}
+.dr-op input{padding:.45rem .65rem;border:1px solid var(--line);border-radius:9px;background:var(--overlay);color:var(--ink);font:inherit;font-size:.84rem;min-width:0}
+.dr-op input:focus{outline:none;border-color:var(--primary)}
+.dr-op-remove{border:1px solid var(--line);border-radius:9px;background:var(--overlay);color:var(--ink-muted);cursor:pointer}
+.dr-op-remove:hover{color:var(--danger);border-color:var(--danger)}
+@media(max-width:640px){
+  .dr-arch{grid-template-columns:1fr;gap:.25rem}
+  .dr-mid{height:2px}
+  .dr-side{display:none}
+  .dr-op{grid-template-columns:70px 1fr 32px}
+}

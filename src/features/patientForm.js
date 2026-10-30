@@ -467,73 +467,95 @@ async function setPatientArchived(p,archived){
   if(appState.navigationRaceProtection.campusActivePageId==='patients')await renderPatients();
 }
 
+// Dental record (CTU dental form): the same fields, laid out as a tooth chart by quadrant, condition
+// choices, a procedure list and a work status.
+const TOOTH_CODES=[['D','Decayed'],['F','Filled'],['M','Missing'],['X','For extraction']];
+const ORAL_CONDITION=['Satisfactory','Fair','Poor'];
+const ORAL_FINDINGS=['Harelip','Defective Gums','Cleft Palate'];
+const DENTAL_STATUS=['Completed','In Progress','No Dental Work Necessary'];
+const DENTAL_PROCEDURES=['Oral examination','Tooth extraction','Oral prophylaxis (cleaning)','Tooth filling (restoration)'];
+let activeToothCode='';
+
+function toothCellHtml(n,values){
+  return `<label class="dr-tooth ${values?.[n]?'marked':''}"><span>${n}</span><input class="tm-dental-tooth" data-tooth="${n}" maxlength="12" autocomplete="off" aria-label="Tooth ${n}" value="${escapeHtml(values?.[n]||'')}" ${bindAction('click',(event,element)=>applyToothCode(element))} ${bindAction('input',(event,element)=>element.closest('.dr-tooth').classList.toggle('marked',Boolean(element.value.trim())))}></label>`;
+}
+// One arch: the patient's right quadrant, the midline, then the left quadrant.
 export function dentalToothInputsHtml(numbers,values={},primary=false){
-  return `<div class="dental-odontogram-grid ${primary?'primary':''}">
-    ${numbers.map(n=>`<label class="dental-tooth"><strong>${n}</strong><input class="tm-dental-tooth" data-tooth="${n}" maxlength="12" value="${escapeHtml(values?.[n]||'')}" placeholder="—"></label>`).join('')}
-  </div>`;
+  const half=numbers.length/2;
+  return `<div class="dr-arch ${primary?'primary':''}"><div class="dr-quad">${numbers.slice(0,half).map(n=>toothCellHtml(n,values)).join('')}</div><div class="dr-mid" aria-hidden="true"></div><div class="dr-quad">${numbers.slice(half).map(n=>toothCellHtml(n,values)).join('')}</div></div>`;
+}
+function applyToothCode(input){
+  if(!activeToothCode)return;
+  input.value=input.value===activeToothCode?'':activeToothCode;
+  input.closest('.dr-tooth')?.classList.toggle('marked',Boolean(input.value));
+}
+function setToothCode(code){
+  activeToothCode=activeToothCode===code?'':code;
+  document.querySelectorAll('.dr-code').forEach(button=>button.classList.toggle('active',button.dataset.code===activeToothCode));
+}
+function operationRowHtml(row={}){
+  return `<div class="dr-op"><input class="tm-dental-op-tooth" maxlength="20" placeholder="Tooth" aria-label="Tooth number" value="${escapeHtml(row.tooth_no||'')}"><input class="tm-dental-op-nature" maxlength="255" list="dr-procedure-list" placeholder="Procedure done" aria-label="Procedure done" value="${escapeHtml(row.nature||'')}"><button type="button" class="dr-op-remove" aria-label="Remove procedure" ${bindAction('click',(event,element)=>{const list=element.closest('.dr-ops');element.closest('.dr-op').remove();if(list&&!list.querySelector('.dr-op'))list.insertAdjacentHTML('beforeend',operationRowHtml());})}><i class="bi bi-x-lg" aria-hidden="true"></i></button></div>`;
 }
 
 export function dentalRecordFormHtml(existing={},pt=null,defaultDate=appState.clinicInformation.TODAY){
   const oral=existing?.oralHealth||{};
-  const operations=Array.isArray(existing?.accomplishment)?existing.accomplishment:[];
-  const opRows=[0,1,2].map(i=>({
-    tooth:operations[i]?.tooth_no||'',
-    nature:operations[i]?.nature||''
-  }));
+  const odontogram=existing?.odontogram||{};
+  const operations=Array.isArray(existing?.accomplishment)&&existing.accomplishment.length?existing.accomplishment:[{}];
+  const key=v=>v.toLowerCase().replace(/\s+/g,'_');
+  const hasPrimary=[...appState.patientForm.DENTAL_PRIMARY_UPPER,...appState.patientForm.DENTAL_PRIMARY_LOWER].some(n=>odontogram[n]);
+  activeToothCode='';
+  const chip=(v,group)=>`<label class="dr-chip"><input type="checkbox" class="tm-dental-oral" value="${escapeHtml(v)}" ${oral?.[key(v)]?'checked':''} ${group?bindAction('change',(event,element)=>{if(element.checked)element.closest('.dr-chips').querySelectorAll('input').forEach(other=>{if(other!==element)other.checked=false;});}):''}><span>${escapeHtml(v)}</span></label>`;
 
-  return `<div class="dental-record-section" id="tm-dental-section">
-    <h4>Dental Record</h4>
+  return `<div class="dental-record-section dr" id="tm-dental-section">
+    <div class="dr-head"><h4><i class="bi bi-emoji-smile" aria-hidden="true"></i> Dental record</h4></div>
 
-    <div class="form-row">
-      <div class="form-group"><label>Course &amp; Major</label><input id="tm-dental-course" maxlength="180" value="${escapeHtml(existing?.courseMajor||pt?.college||'')}"></div>
-      <div class="form-group"><label>Year &amp; Section</label><input id="tm-dental-year" maxlength="120" value="${escapeHtml(existing?.yearSection||'')}"></div>
-      <div class="form-group"><label>Cell No.</label><input id="tm-dental-cell" maxlength="80" value="${escapeHtml(existing?.cellNo||pt?.contact||'')}"></div>
-      <div class="form-group"><label>Messenger Account</label><input id="tm-dental-messenger" maxlength="180" value="${escapeHtml(existing?.messengerAccount||'')}"></div>
-    </div>
-
-    <div class="dental-odontogram-group">
-      <div class="dental-odontogram-title">Permanent Teeth — Upper</div>
-      ${dentalToothInputsHtml(appState.patientForm.DENTAL_PERMANENT_UPPER,existing?.odontogram||{})}
-    </div>
-    <div class="dental-odontogram-group">
-      <div class="dental-odontogram-title">Permanent Teeth — Lower</div>
-      ${dentalToothInputsHtml(appState.patientForm.DENTAL_PERMANENT_LOWER,existing?.odontogram||{})}
-    </div>
-    <div class="dental-odontogram-group">
-      <div class="dental-odontogram-title">Primary Teeth — Upper</div>
-      ${dentalToothInputsHtml(appState.patientForm.DENTAL_PRIMARY_UPPER,existing?.odontogram||{},true)}
-    </div>
-    <div class="dental-odontogram-group">
-      <div class="dental-odontogram-title">Primary Teeth — Lower</div>
-      ${dentalToothInputsHtml(appState.patientForm.DENTAL_PRIMARY_LOWER,existing?.odontogram||{},true)}
-    </div>
-
-    <div class="section-label">Oral Health Record</div>
-    <div class="dental-check-grid">
-      ${['Satisfactory','Fair','Poor','Harelip','Defective Gums','Cleft Palate'].map(v=>{
-        const key=v.toLowerCase().replace(/\s+/g,'_');
-        return `<label><input type="checkbox" class="tm-dental-oral" value="${escapeHtml(v)}" ${oral?.[key]?'checked':''}> ${escapeHtml(v)}</label>`;
-      }).join('')}
-    </div>
-    <div class="form-group" style="margin-top:.5rem"><label>Others</label><input id="tm-dental-oral-other" maxlength="255" value="${escapeHtml(oral?.others||'')}"></div>
-
-    <div class="section-label">Accomplishment</div>
-    <div class="dental-operation-grid">
-      <strong>Tooth No.</strong><strong>Nature of Operation</strong>
-      ${opRows.map((r,i)=>`<input class="tm-dental-op-tooth" maxlength="20" value="${escapeHtml(r.tooth)}" placeholder="e.g. 16"><input class="tm-dental-op-nature" maxlength="255" value="${escapeHtml(r.nature)}" placeholder="Treatment / operation performed">`).join('')}
-    </div>
-
-    <div class="form-row" style="margin-top:.6rem">
-      <div class="form-group"><label>Dental Work Status</label>
-        <select id="tm-dental-status">
-          <option value="">Select</option>
-          ${['Completed','In Progress','No Dental Work Necessary'].map(v=>`<option ${existing?.workStatus===v?'selected':''}>${v}</option>`).join('')}
-        </select>
+    <div class="dr-block"><h5>Patient details</h5>
+      <div class="dr-fields">
+        <div class="form-group"><label for="tm-dental-course">Course &amp; major</label><input id="tm-dental-course" maxlength="180" value="${escapeHtml(existing?.courseMajor||pt?.college||'')}"></div>
+        <div class="form-group"><label for="tm-dental-year">Year &amp; section</label><input id="tm-dental-year" maxlength="120" value="${escapeHtml(existing?.yearSection||'')}"></div>
+        <div class="form-group"><label for="tm-dental-cell">Cell no.</label><input id="tm-dental-cell" maxlength="80" inputmode="tel" value="${escapeHtml(existing?.cellNo||pt?.contact||'')}"></div>
+        <div class="form-group"><label for="tm-dental-messenger">Messenger account</label><input id="tm-dental-messenger" maxlength="180" value="${escapeHtml(existing?.messengerAccount||'')}"></div>
       </div>
-      <div class="form-group"><label>Dental Record Date</label><input type="date" id="tm-dental-date" value="${escapeHtml(existing?.recordDate||defaultDate)}" max="${appState.clinicInformation.TODAY}"></div>
     </div>
 
-    <div class="form-group"><label>Recommendation</label><textarea id="tm-dental-recommendation" rows="3" maxlength="5000">${escapeHtml(existing?.recommendation||'')}</textarea></div>
+    <div class="dr-block"><h5>Tooth chart</h5>
+      <div class="dr-codes" role="group" aria-label="Mark teeth">${TOOTH_CODES.map(([code,label])=>`<button type="button" class="dr-code" data-code="${code}" ${bindAction('click',()=>setToothCode(code))}><b>${code}</b> ${label}</button>`).join('')}</div>
+      <div class="dr-chart">
+        <div class="dr-side"><span>Right</span><span>Left</span></div>
+        <div class="dr-jaw">Upper</div>
+        ${dentalToothInputsHtml(appState.patientForm.DENTAL_PERMANENT_UPPER,odontogram)}
+        <div class="dr-occlusal" aria-hidden="true"></div>
+        ${dentalToothInputsHtml(appState.patientForm.DENTAL_PERMANENT_LOWER,odontogram)}
+        <div class="dr-jaw">Lower</div>
+      </div>
+      <details class="dr-primary" ${hasPrimary?'open':''}><summary>Primary teeth</summary>
+        <div class="dr-chart">
+          ${dentalToothInputsHtml(appState.patientForm.DENTAL_PRIMARY_UPPER,odontogram,true)}
+          <div class="dr-occlusal" aria-hidden="true"></div>
+          ${dentalToothInputsHtml(appState.patientForm.DENTAL_PRIMARY_LOWER,odontogram,true)}
+        </div>
+      </details>
+    </div>
+
+    <div class="dr-block"><h5>Oral health</h5>
+      <div class="dr-row"><span class="dr-label">Condition</span><div class="dr-chips">${ORAL_CONDITION.map(v=>chip(v,true)).join('')}</div></div>
+      <div class="dr-row"><span class="dr-label">Findings</span><div class="dr-chips findings">${ORAL_FINDINGS.map(v=>chip(v,false)).join('')}</div></div>
+      <div class="form-group"><label for="tm-dental-oral-other">Other findings</label><input id="tm-dental-oral-other" maxlength="255" value="${escapeHtml(oral?.others||'')}"></div>
+    </div>
+
+    <div class="dr-block"><h5>Procedures done</h5>
+      <div class="dr-ops">${operations.map(op=>operationRowHtml(op)).join('')}</div>
+      <button type="button" class="btn btn-xs" ${bindAction('click',(event,element)=>element.previousElementSibling.insertAdjacentHTML('beforeend',operationRowHtml()))}><i class="bi bi-plus-lg" aria-hidden="true"></i> Add procedure</button>
+      <datalist id="dr-procedure-list">${DENTAL_PROCEDURES.map(v=>`<option value="${v}">`).join('')}</datalist>
+    </div>
+
+    <div class="dr-block"><h5>Outcome</h5>
+      <div class="dr-row"><span class="dr-label">Dental work</span><div class="dr-status" role="radiogroup" aria-label="Dental work status">${DENTAL_STATUS.map(v=>`<label><input type="radio" name="tm-dental-status" value="${v}" ${existing?.workStatus===v?'checked':''}><span>${v}</span></label>`).join('')}</div></div>
+      <div class="dr-fields">
+        <div class="form-group"><label>Record date</label>${campusDateFieldHtml('tm-dental-date',existing?.recordDate||defaultDate,'Dental record date','',appState.clinicInformation.TODAY)}</div>
+      </div>
+      <div class="form-group"><label for="tm-dental-recommendation">Recommendation</label><textarea id="tm-dental-recommendation" rows="2" maxlength="5000">${escapeHtml(existing?.recommendation||'')}</textarea></div>
+    </div>
   </div>`;
 }
 
@@ -554,11 +576,9 @@ export function collectDentalRecordForm(){
   });
   oralHealth.others=document.getElementById('tm-dental-oral-other')?.value.trim()||'';
 
-  const teeth=[...document.querySelectorAll('.tm-dental-op-tooth')];
-  const nature=[...document.querySelectorAll('.tm-dental-op-nature')];
-  const accomplishment=teeth.map((el,i)=>({
-    tooth_no:String(el.value||'').trim(),
-    nature:String(nature[i]?.value||'').trim()
+  const accomplishment=[...document.querySelectorAll('.dr-op')].map(row=>({
+    tooth_no:String(row.querySelector('.tm-dental-op-tooth')?.value||'').trim(),
+    nature:String(row.querySelector('.tm-dental-op-nature')?.value||'').trim()
   })).filter(r=>r.tooth_no||r.nature);
 
   return {
@@ -570,7 +590,7 @@ export function collectDentalRecordForm(){
     odontogram,
     oral_health:oralHealth,
     accomplishment,
-    work_status:document.getElementById('tm-dental-status')?.value||'',
+    work_status:document.querySelector('input[name="tm-dental-status"]:checked')?.value||'',
     recommendation:document.getElementById('tm-dental-recommendation')?.value.trim()||''
   };
 }
