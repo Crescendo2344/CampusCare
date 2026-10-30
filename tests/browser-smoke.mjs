@@ -1293,6 +1293,38 @@ try{
     await page.goBack();
     await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='health_education');
   }
+  if(role==='Patient'||role==='Staff'){
+    // Health Education: topic chips with counts, a featured newest article, reading time, formatted article,
+    // related articles; patients get a booking prompt, editors see drafts and a live card preview.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('health_education'));
+    await page.locator('#articles-list').waitFor();
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;
+      const art=(id,title,category,days,published=true)=>({id,dbResourceId:id,title,category,teaser:`${title} in brief.`,content:'Sleep matters during exams.\n\nTips:\n\n- Keep a schedule\n- Avoid caffeine late',sourceName:'WHO',sourceUrl:'https://www.who.int',icon:'bi-moon',photo:'',published,publishedAt:`2026-10-${String(days).padStart(2,'0')}T08:00:00Z`,createdAt:`2026-10-${String(days).padStart(2,'0')}T08:00:00Z`,_realSupabase:true});
+      state.data.DB.healthResources=[art(1,'Sleep before exams','Sleep',20),art(2,'Hand washing','Hygiene',10),art(3,'Napping well','Sleep',5),art(4,'Healthy snacks','Nutrition',2),art(5,'Draft on stress','Mental Health',25,false)];
+      features.navigationRaceProtection.renderArticlesList();});
+    assert.match(await page.locator('.he-card.featured h4').innerText(),role==='Staff'?/Draft on stress/:/Sleep before exams/);
+    assert.match(await page.locator('.he-topic',{hasText:'Sleep'}).innerText(),/Sleep\s*2/);
+    await page.locator('.he-topic',{hasText:'Sleep'}).click();
+    assert.equal(await page.locator('#articles-list .he-card').count(),2);
+    await page.locator('.he-card',{hasText:'Sleep before exams'}).click();
+    await page.locator('.he-reader').waitFor();
+    assert.equal(await page.locator('.he-body ul li').count(),2);assert.equal(await page.locator('.he-body h3').innerText(),'Tips');
+    assert.match(await page.locator('.he-article-meta').innerText(),/1 min read/);
+    assert.match(await page.locator('.he-related').innerText(),/Napping well/);
+    assert.equal(await page.locator('.he-cta').count(),role==='Patient'?1:0);
+    if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/health-article-${role}.png`});
+    await page.locator('#active-modal .close-btn').click();
+    await page.locator('.he-topic').first().click();
+    if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/health-library-${role}.png`,fullPage:true});
+    if(role==='Staff'){
+      assert.match(await page.locator('#he-status').innerText(),/Drafts\s*1/);
+      await page.getByRole('button',{name:'New article'}).click();
+      await page.locator('#art-title').fill('Staying active');await page.locator('#art-content').fill('Walk every day. '.repeat(50));
+      await page.locator('#art-title').dispatchEvent('input');
+      assert.match(await page.locator('#art-preview').innerText(),/Staying active[\s\S]*1 min read/);
+      await page.locator('#active-modal .close-btn').click();
+    }
+  }
   if(role==='Doctor'){
     // Day-off requests carry an optional supporting file to the workflow API.
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('schedule'));

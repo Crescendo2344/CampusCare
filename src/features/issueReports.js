@@ -15,6 +15,7 @@ import {docName,fmtShortTime} from './messaging.js';
 import {openCamera} from '../app/optional-features.js';
 import {bindAction,workflowData} from '../dependencies.js';
 import {ARTICLE_ICONS,articleIconName,biIcon} from '../ui/app-icons.js';
+import {readingMinutes} from '../domain/health-articles.js';
 import {ISSUE_PRIORITIES,ISSUE_STATUSES,QUICK_REPLIES,awaitingReply,describeDevice,formatHours,isOpenIssue,queueStats,sortIssues} from '../domain/issue-queue.js';
 // ================================================================
 // REPORT AN ISSUE / FEEDBACK — REAL SUPABASE TRACKING
@@ -671,10 +672,11 @@ export function openArticleModal(id=null) {
   const existingCategories=[...new Set(healthResourceRecords().map(r=>r.category).filter(Boolean))].sort();
 
   openModal(`
-    <div class="modal modal-lg">
-      <div class="modal-header"><h3>${art?'Edit':'Add'} Health Article</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+    <div class="modal modal-lg he-editor">
+      <div class="modal-header"><h3>${art?'Edit article':'New article'}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
       <div class="modal-body">
         <div id="art-msg"></div>
+        <div class="he-editor-grid" ${bindAction('input',()=>updateArticlePreview())}><div>
 
         <div class="form-group"><label>Title <span class="required">*</span></label><input id="art-title" maxlength="255" value="${art?escapeHtml(art.title):''}" placeholder="A clear, headline-style title"></div>
 
@@ -702,22 +704,34 @@ export function openArticleModal(id=null) {
           </div>
         </div>
 
-        <div class="form-group"><label>Teaser</label><input id="art-teaser" maxlength="1200" value="${art?escapeHtml(art.teaser||''):''}" placeholder="A short summary shown on the article card"></div>
-        <div class="form-group"><label>Full Content <span class="required">*</span></label><textarea id="art-content" maxlength="20000" rows="8">${art?escapeHtml(art.content):''}</textarea></div>
+        <div class="form-group"><label>Teaser</label><input id="art-teaser" maxlength="300" value="${art?escapeHtml(art.teaser||''):''}" placeholder="A short summary shown on the article card"></div>
+        <div class="form-group"><label>Full Content <span class="required">*</span></label><textarea id="art-content" maxlength="20000" rows="10" placeholder="Write in plain paragraphs. Start lines with - for a list.">${art?escapeHtml(art.content):''}</textarea></div>
 
         <div class="form-row">
           <div class="form-group"><label>Source Name (optional)</label><input id="art-source-name" maxlength="255" value="${art?escapeHtml(art.sourceName||''):''}" placeholder="e.g. WHO, DOH, U.S. CDC"></div>
           <div class="form-group"><label>Source URL (optional)</label><input id="art-source-url" maxlength="1500" value="${art?escapeHtml(art.sourceUrl||''):''}" placeholder="https://..."></div>
         </div>
 
-        <div class="form-group"><label><input type="checkbox" id="art-published" ${art?(art.published?'checked':''):'checked'}> Publish immediately</label></div>
+        <label class="fi-check"><input type="checkbox" id="art-published" ${art?(art.published?'checked':''):'checked'}> Publish now</label>
+        </div><aside class="he-preview" aria-label="Card preview"><span class="he-preview-label">Preview</span><div id="art-preview"></div></aside></div>
       </div>
 
       <div class="modal-footer">
-        <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
         <button class="btn btn-primary" id="art-save-btn" ${bindAction('click',(event,element)=>{saveArticle((id||'null'))})}>Save Article</button>
       </div>
     </div>`);
+  updateArticlePreview();
+}
+
+// The editor shows the library card as it will look, with its reading time.
+function updateArticlePreview(){
+  const host=document.getElementById('art-preview');if(!host)return;
+  const value=id=>document.getElementById(id)?.value.trim()||'';
+  const title=value('art-title')||'Article title',category=value('art-category')||'Category',content=value('art-content');
+  const teaser=value('art-teaser')||content.slice(0,160);
+  const photo=appState.issueReports.articlePhotoData||(appState.issueReports.articlePhotoRemove?'':appState.issueReports.articlePhotoExistingUrl);
+  host.innerHTML=`<div class="he-card preview">${photo?`<div class="he-card-media"><img src="${escapeHtml(photo)}" alt="" style="width:100%;height:110px;object-fit:cover;display:block"></div>`:''}
+    <div class="he-card-body"><div class="he-card-tags"><span class="he-cat">${escapeHtml(category)}</span></div><h4>${escapeHtml(title)}</h4><p>${escapeHtml(teaser||'A short summary appears here.')}</p><span class="he-card-meta">${readingMinutes(content)} min read · ${content.split(/\s+/).filter(Boolean).length} words</span></div></div>`;
 }
 
 export async function handleArticlePhotoChange(input){
@@ -737,6 +751,7 @@ export async function handleArticlePhotoChange(input){
     appState.issueReports.articlePhotoRemove=false;
     const preview=document.getElementById('art-photo-preview');
     if(preview)preview.innerHTML=`<img src="${appState.issueReports.articlePhotoData}" style="width:100%;height:100%;object-fit:cover">`;
+    updateArticlePreview();
   }catch(e){
     toast('Could not attach that photo. Please try again.','error');
   }
@@ -748,6 +763,7 @@ export function clearArticlePhoto(){
   appState.issueReports.articlePhotoRemove=true;
   const preview=document.getElementById('art-photo-preview');
   if(preview)preview.innerHTML='<span class="text-muted" style="font-size:.7rem">No photo</span>';
+  updateArticlePreview();
 }
 
 export async function saveArticle(id){

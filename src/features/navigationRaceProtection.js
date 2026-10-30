@@ -10,6 +10,7 @@ import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {persistDB} from './persistence.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
 import {articleIconHtml} from '../ui/app-icons.js';
+import {articleBodyHtml,readingMinutes,relatedArticles} from '../domain/health-articles.js';
 // ================================================================
 // NAVIGATION RACE PROTECTION
 // ================================================================
@@ -143,10 +144,13 @@ export function articleBannerHtml(art,height=140){
   </div>`;
 }
 
+const heUi=()=>appState.navigationRaceProtection.healthEducation??={category:'',sort:'newest',status:'',query:''};
+const isArticleEditor=()=>['Administrator','Staff'].includes(appState.auth.currentUser.role);
+const articleDate=art=>fmtDate(String(art.publishedAt||art.createdAt||'').slice(0,10));
+const articleMeta=art=>`${articleDate(art)} · ${readingMinutes(art.content)} min read`;
+
 export async function renderHealthEducation() {
   const c=document.getElementById('app-content');if(!c)return;
-  const role=appState.auth.currentUser.role;
-  const isEditor=role==='Administrator'||role==='Staff';
   const pageToken=captureCampusPageToken();
 
   if(appState.auth.currentUser?._realSupabase){
@@ -155,131 +159,108 @@ export async function renderHealthEducation() {
     catch(e){
       if(!isCampusPageCurrent('health_education',pageToken))return;
       c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load Health Education resources.')}</div>
-        <button class="btn btn-sm" ${bindAction('click',(event,element)=>{renderHealthEducation()})}>Retry</button>`;
+        <button class="btn btn-sm" ${bindAction('click',()=>renderHealthEducation())}>Retry</button>`;
       return;
     }
     if(!isCampusPageCurrent('health_education',pageToken))return;
   }
 
-  const records=healthResourceRecords();
-  const categories=[...new Set(records.filter(r=>r.published).map(r=>r.category).filter(Boolean))].sort();
-
+  const ui=heUi(),editor=isArticleEditor();
   c.innerHTML=`
-    <div class="card" style="background:linear-gradient(135deg,rgba(10,126,168,.14),rgba(91,79,214,.1));border:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
-        <div>
-          <h2 style="font-size:1.15rem;margin-bottom:.25rem"><i class="bi bi-book" aria-hidden="true"></i> Health &amp; Wellness Library</h2>
-          <p class="text-muted" style="max-width:560px">Clinic-curated educational resources with source links. Articles are general information and do not replace individualized medical or dental advice.</p>
-        </div>
-        ${isEditor?`<button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{openArticleModal()})}>+ Add Article</button>`:''}
-      </div>
+    <div class="he-head">
+      <div><h2><i class="bi bi-book" aria-hidden="true"></i> Health Education</h2><p id="he-count"></p></div>
+      ${editor?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>openArticleModal())}><i class="bi bi-plus-lg" aria-hidden="true"></i> New article</button>`:''}
     </div>
-
-    <div class="toolbar">
-      <input type="text" id="article-search" placeholder="Search articles..." ${bindAction('input',(event,element)=>{renderArticlesList()})}>
-      <select id="article-category" ${bindAction('change',(event,element)=>{renderArticlesList()})}>
-        <option value="">All Categories</option>
-        ${categories.map(cat=>`<option>${escapeHtml(cat)}</option>`).join('')}
-      </select>
-      ${isEditor?`<select id="article-status" ${bindAction('change',(event,element)=>{renderArticlesList()})}>
-        <option value="">All Statuses</option>
-        <option value="published">Published</option>
-        <option value="draft">Draft / Unpublished</option>
-      </select>`:''}
+    <div class="he-toolbar">
+      <div class="he-search"><i class="bi bi-search" aria-hidden="true"></i><input type="search" id="article-search" placeholder="Search health topics" aria-label="Search articles" value="${escapeHtml(ui.query)}" ${bindAction('input',(event,element)=>{ui.query=element.value;renderArticlesList();})}></div>
+      ${editor?`<div class="he-status" id="he-status" role="tablist" aria-label="Article status"></div>`:''}
+      <select id="article-sort" aria-label="Sort articles" ${bindAction('change',(event,element)=>{ui.sort=element.value;renderArticlesList();})}><option value="newest" ${ui.sort==='newest'?'selected':''}>Newest first</option><option value="title" ${ui.sort==='title'?'selected':''}>A–Z</option></select>
     </div>
-    <div id="articles-list"></div>
-  `;
-
+    <div class="he-topics" id="he-topics" role="tablist" aria-label="Topics"></div>
+    <div id="articles-list"></div>`;
   renderArticlesList();
 }
 
+function articleCardHtml(art,editor,featured=false){
+  return `<article class="he-card ${featured?'featured':''}" tabindex="0" role="button" aria-label="Read ${escapeHtml(art.title)}" ${bindAction('click',()=>viewArticle(art.id))} ${bindAction('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();viewArticle(art.id);}})}>
+    <div class="he-card-media">${articleBannerHtml(art,featured?220:130)}</div>
+    <div class="he-card-body">
+      <div class="he-card-tags"><span class="he-cat" style="--cat:${articleCategoryColor(art.category)[1]}">${escapeHtml(art.category)}</span>${editor&&!art.published?'<span class="badge badge-warning">Draft</span>':''}</div>
+      <h4>${escapeHtml(art.title)}</h4>
+      <p>${escapeHtml(art.teaser||String(art.content||'').slice(0,160))}</p>
+      <span class="he-card-meta">${articleMeta(art)}${art.sourceName?` · ${escapeHtml(art.sourceName)}`:''}</span>
+    </div>
+  </article>`;
+}
+
 export function renderArticlesList() {
-  const search=(document.getElementById('article-search')?.value||'').toLowerCase();
-  const category=document.getElementById('article-category')?.value||'';
-  const status=document.getElementById('article-status')?.value||'';
-  const isEditor=appState.auth.currentUser.role==='Administrator'||appState.auth.currentUser.role==='Staff';
+  const ui=heUi(),editor=isArticleEditor();
+  const all=healthResourceRecords().filter(r=>editor||r.published);
+  const q=String(ui.query||'').trim().toLowerCase();
+  const matchesStatus=r=>!ui.status||(ui.status==='published'?r.published:!r.published);
+  const visible=all.filter(matchesStatus);
+  const topics=[...new Set(visible.map(r=>r.category).filter(Boolean))].sort();
+  if(ui.category&&!topics.includes(ui.category))ui.category='';
 
-  let articles=healthResourceRecords().filter(r=>{
-    const haystack=`${r.title} ${r.teaser||''} ${r.content||''}`.toLowerCase();
-    return haystack.includes(search);
-  });
+  const count=document.getElementById('he-count');
+  if(count)count.textContent=`${visible.length} article${visible.length===1?'':'s'} · ${topics.length} topic${topics.length===1?'':'s'}`;
+  const status=document.getElementById('he-status');
+  if(status){
+    const n=f=>all.filter(f).length;
+    status.innerHTML=[['','All',n(()=>true)],['published','Published',n(r=>r.published)],['draft','Drafts',n(r=>!r.published)]].map(([key,label,num])=>`<button type="button" role="tab" aria-selected="${ui.status===key}" class="${ui.status===key?'active':''}" ${bindAction('click',()=>{ui.status=key;renderArticlesList();})}>${label} <span>${num}</span></button>`).join('');
+  }
+  const chips=document.getElementById('he-topics');
+  if(chips)chips.innerHTML=[['','All topics',visible.length],...topics.map(t=>[t,t,visible.filter(r=>r.category===t).length])].map(([key,label,num])=>`<button type="button" role="tab" aria-selected="${ui.category===key}" class="he-topic ${ui.category===key?'active':''}" ${key?`style="--cat:${articleCategoryColor(key)[1]}"`:''} ${bindAction('click',()=>{ui.category=key;renderArticlesList();})}>${key?'<i class="he-dot" aria-hidden="true"></i>':''}${escapeHtml(label)} <span>${num}</span></button>`).join('');
 
-  if(!isEditor)articles=articles.filter(r=>r.published);
-  if(category)articles=articles.filter(r=>r.category===category);
-  if(status==='published')articles=articles.filter(r=>r.published);
-  if(status==='draft')articles=articles.filter(r=>!r.published);
-
-  articles=articles.sort((a,b)=>String(b.publishedAt||b.createdAt).localeCompare(String(a.publishedAt||a.createdAt))||b.id-a.id);
+  let articles=visible.filter(r=>(!ui.category||r.category===ui.category)&&(!q||`${r.title} ${r.teaser||''} ${r.content||''} ${r.category}`.toLowerCase().includes(q)));
+  articles=articles.sort(ui.sort==='title'
+    ?(a,b)=>String(a.title).localeCompare(String(b.title))
+    :(a,b)=>String(b.publishedAt||b.createdAt).localeCompare(String(a.publishedAt||a.createdAt))||b.id-a.id);
 
   const container=document.getElementById('articles-list');
   if(!container)return;
-
   if(!articles.length){
-    container.innerHTML='<div class="empty-state"><p>No articles found.</p></div>';
+    container.innerHTML=`<div class="empty-state"><i class="bi bi-journal-text" aria-hidden="true" style="font-size:1.6rem"></i><p>${all.length?'No articles match your search.':editor?'No articles yet. Write the first one with New article.':'No health articles yet.'}</p></div>`;
     return;
   }
-
-  container.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:1rem">${articles.map(art=>`
-    <div class="card" style="margin-bottom:0;padding:0;overflow:hidden;cursor:pointer;display:flex;flex-direction:column" ${bindAction('click',(event,element)=>{viewArticle((art.id))})}>
-      ${articleBannerHtml(art)}
-      <div style="padding:1rem;display:flex;flex-direction:column;gap:.4rem;flex:1">
-        <div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap">
-          <span class="badge badge-info">${escapeHtml(art.category)}</span>
-          ${isEditor?`<span class="badge ${art.published?'badge-success':'badge-warning'}">${art.published?'Published':'Draft'}</span>`:''}
-        </div>
-        <h4 style="font-size:.92rem;line-height:1.3;margin:0">${escapeHtml(art.title)}</h4>
-        <p style="font-size:.79rem;color:var(--ink-muted);flex:1">${escapeHtml((art.teaser||art.content).substring(0,110))}${(art.teaser||art.content).length>110?'…':''}</p>
-        <div style="font-size:.7rem;color:var(--ink-muted);display:flex;justify-content:space-between;align-items:center;padding-top:.4rem;border-top:1px solid var(--line-soft)">
-          <span>${fmtDate(art.publishedAt||art.createdAt)}</span>
-          ${art.sourceName?`<span><i class="bi bi-paperclip" aria-hidden="true"></i> ${escapeHtml(art.sourceName)}</span>`:''}
-        </div>
-      </div>
-    </div>`).join('')}</div>`;
+  // The newest article leads the library when nobody is searching or filtering.
+  const feature=!q&&!ui.category&&ui.sort==='newest'&&articles.length>2?articles[0]:null;
+  const rest=feature?articles.slice(1):articles;
+  container.innerHTML=`${feature?articleCardHtml(feature,editor,true):''}<div class="he-grid">${rest.map(art=>articleCardHtml(art,editor)).join('')}</div>`;
 }
 
 export function viewArticle(id) {
   const art=healthResourceRecords().find(r=>r.id===Number(id));
   if(!art)return;
-
-  const isEditor=appState.auth.currentUser.role==='Administrator'||appState.auth.currentUser.role==='Staff';
+  const editor=isArticleEditor(),patient=appState.auth.currentUser.role==='Patient';
+  const related=relatedArticles(art,healthResourceRecords());
   openModal(`
-    <div class="modal modal-lg">
+    <div class="modal modal-lg he-reader">
       <div class="modal-header no-print">
-        <h3>Health Education Article</h3>
-        <button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button>
+        <span class="he-cat" style="--cat:${articleCategoryColor(art.category)[1]}">${escapeHtml(art.category)}</span>
+        <button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button>
       </div>
       <div class="modal-body" style="padding:0">
-        ${articleBannerHtml(art,170)}
-        <div style="padding:1.25rem">
-          <span class="badge badge-info">${escapeHtml(art.category)}</span>
-          ${isEditor?` <span class="badge ${art.published?'badge-success':'badge-warning'}">${art.published?'Published':'Draft'}</span>`:''}
-          <span class="text-muted" style="font-size:.78rem"> · ${fmtDate(art.publishedAt||art.createdAt)}</span>
-
-          <h2 style="font-size:1.2rem;margin:.6rem 0">${escapeHtml(art.title)}</h2>
-          <div style="white-space:pre-wrap;line-height:1.65;font-size:.88rem;color:var(--ink)">${escapeHtml(art.content)}</div>
-
-          ${art.sourceName&&art.sourceUrl?`
-            <div class="card" style="background:var(--overlay);margin-top:1.1rem;padding:.9rem 1rem">
-              <div style="font-size:.78rem;color:var(--ink-muted);margin-bottom:.4rem">Source / further reading</div>
-              <a href="${escapeHtml(art.sourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open ${escapeHtml(art.sourceName)}</a>
-            </div>`:''}
-
-          <div class="alert alert-info show" style="font-size:.73rem;margin-top:1rem">
-            This article is for health education only and is not a diagnosis or individualized treatment recommendation.
-          </div>
-
-          ${isEditor?`<div class="divider"></div><div class="td-actions">
-            <button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openArticleModal((art.id))})}>Edit Article</button>
-            ${art.published
-              ? `<button class="btn btn-xs btn-warning" ${bindAction('click',(event,element)=>{deleteArticle((art.id))})}>Unpublish</button>`
-              : `<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{publishArticle((art.id))})}>Publish</button>`}
-            ${appState.auth.currentUser.role==='Administrator'?`<button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{archiveArticle((art.id))})}>Archive</button>`:''}
-          </div>`:''}
+        ${articleBannerHtml(art,190)}
+        <div class="he-article">
+          ${editor&&!art.published?'<span class="badge badge-warning">Draft</span>':''}
+          <h2>${escapeHtml(art.title)}</h2>
+          <div class="he-article-meta">${articleMeta(art)}</div>
+          ${art.teaser?`<p class="he-lead">${escapeHtml(art.teaser)}</p>`:''}
+          <div class="he-body">${articleBodyHtml(art.content,escapeHtml)}</div>
+          ${art.sourceName&&art.sourceUrl?`<a class="he-source" href="${escapeHtml(art.sourceUrl)}" target="_blank" rel="noopener noreferrer"><i class="bi bi-journal-bookmark" aria-hidden="true"></i><span><small>Source</small>${escapeHtml(art.sourceName)}</span><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>`:''}
+          ${patient?`<div class="he-cta no-print"><div><strong>Have a health concern?</strong><span>The clinic can see you in person.</span></div><button class="btn btn-primary btn-sm" ${bindAction('click',()=>{closeAllModals();navTo('my-appointments');import('./bookingForm.js').then(m=>m.openBookApptModal());})}>Book a visit</button></div>`:''}
+          <p class="he-disclaimer">General health information, not personal medical advice.</p>
+          ${related.length?`<div class="he-related no-print"><h4>Related articles</h4>${related.map(r=>`<button type="button" class="he-related-item" ${bindAction('click',()=>viewArticle(r.id))}><span class="he-dot" style="--cat:${articleCategoryColor(r.category)[1]}" aria-hidden="true"></span><span><strong>${escapeHtml(r.title)}</strong><small>${escapeHtml(r.category)} · ${readingMinutes(r.content)} min read</small></span></button>`).join('')}</div>`:''}
         </div>
       </div>
       <div class="modal-footer no-print">
-        <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
-        <button class="btn btn-info" ${bindAction('click',(event,element)=>{window.print()})}><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
+        ${editor?`<button class="btn btn-sm" ${bindAction('click',()=>openArticleModal(art.id))}><i class="bi bi-pencil" aria-hidden="true"></i> Edit</button>
+          ${art.published
+            ?`<button class="btn btn-sm btn-warning" ${bindAction('click',()=>deleteArticle(art.id))}>Unpublish</button>`
+            :`<button class="btn btn-sm btn-success" ${bindAction('click',()=>publishArticle(art.id))}>Publish</button>`}
+          ${appState.auth.currentUser.role==='Administrator'?`<button class="btn btn-sm btn-danger" ${bindAction('click',()=>archiveArticle(art.id))}>Archive</button>`:''}`:''}
+        <button class="btn btn-sm" ${bindAction('click',()=>window.print())}><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
       </div>
     </div>`);
 }
