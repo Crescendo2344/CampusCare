@@ -36,6 +36,8 @@ export async function renderMyRecords(){
     .slice()
     .sort((a,b)=>String(b.date).localeCompare(String(a.date))||b.id-a.id);
 
+  const today=appState.clinicInformation.TODAY;
+  const meds=(appState.data.DB.medReminders||[]).filter(r=>r.patientId===pt.id&&r.status==='active'&&r.endDate>=today).sort((a,b)=>String(a.endDate).localeCompare(String(b.endDate)));
   c.innerHTML=`
     <div class="card">
       <div class="card-header"><h3>Personal Information</h3></div>
@@ -43,22 +45,29 @@ export async function renderMyRecords(){
         <div class="info-row"><span class="info-label">Full Name</span><span class="info-val">${escapeHtml(pt.fname)} ${escapeHtml(pt.lname)}</span></div>
         <div class="info-row"><span class="info-label">Age</span><span class="info-val">${pt.age||'—'}</span></div>
         <div class="info-row"><span class="info-label">Gender</span><span class="info-val">${escapeHtml(pt.gender||'—')}</span></div>
-        <div class="info-row"><span class="info-label">Blood Type</span><span class="info-val">${escapeHtml(pt.blood||'—')}</span></div>
-        <div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
+        <div class="info-row"><span class="info-label">Blood Type</span><span class="info-val">${escapeHtml(pt.blood&&pt.blood!=='Unknown'?pt.blood:'—')}</span></div>
+        <div class="info-row"><span class="info-label">College</span><span class="info-val">${pt.college?collegeBadge(pt.college):'—'}</span></div>
         <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${escapeHtml(pt.idNo||'—')}</span></div>
         <div class="info-row full"><span class="info-label">Allergies</span><span class="info-val text-danger">${escapeHtml(pt.allergies?.trim()||'—')}</span></div>
         <div class="info-row full"><span class="info-label">Medical History</span><span class="info-val">${escapeHtml(pt.medHistory?.trim()||'—')}</span></div>
       </div>
     </div>
     <div class="card">
-      <div class="card-header"><h3>Treatment History</h3></div>
+      <div class="card-header"><h3>Current Medications</h3></div>
+      ${meds.length?`<div class="table-wrap"><table>
+        <thead><tr><th>Medicine</th><th>How to take</th><th>From</th><th>Until</th></tr></thead>
+        <tbody>${meds.map(r=>`<tr><td><strong>${escapeHtml(r.medicationName)}</strong></td><td>${escapeHtml(r.dosage||'As prescribed')}</td><td>${fmtDate(r.startDate)}</td><td>${fmtDate(r.endDate)}</td></tr>`).join('')}</tbody>
+      </table></div>`:'<div class="empty-state"><p>No medicines to take right now.</p></div>'}
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Visit History</h3></div>
       <div id="my-treat-list"></div>
     </div>`;
   appState.patientRecords.treatments=treats;
   renderMyTreatmentHistory();
 }
 
-// Treatment history is paged like the clinic lists.
+// Visit history is paged like the clinic lists.
 function renderMyTreatmentHistory(){
   const el=document.getElementById('my-treat-list');if(!el)return;
   const treats=appState.patientRecords.treatments||[];
@@ -67,7 +76,7 @@ function renderMyTreatmentHistory(){
         <thead><tr><th>#</th><th>Date</th><th>Diagnosis</th><th>Prescription</th><th>Doctor</th><th>Follow-up</th><th>Actions</th></tr></thead>
         <tbody>${page.rows.map(t=>{
           const doc=getUserById(t.doctorId);
-          return `<tr style="cursor:pointer" ${bindAction('click',(event,element)=>{viewTreatment((t.id))})} title="Open treatment record">
+          return `<tr style="cursor:pointer" ${bindAction('click',(event,element)=>{viewTreatment((t.id))})} title="Open visit record">
             <td>#${treatmentDisplayId(t)}</td>
             <td>${fmtDate(t.date)}</td>
             <td>${escapeHtml(t.diagnosis)}${t.dentalRecord?'<br><span class="badge badge-info">Dental Record</span>':''}</td>
@@ -80,7 +89,7 @@ function renderMyTreatmentHistory(){
             </div></td>
           </tr>`;
         }).join('')}</tbody>
-      </table></div>${pagerHtml(page,renderMyTreatmentHistory)}`:'<div class="empty-state"><p>No treatment records yet.</p></div>';
+      </table></div>${pagerHtml(page,renderMyTreatmentHistory)}`:'<div class="empty-state"><p>No visits recorded yet.</p></div>';
 }
 
 // Run side effects only after every feature's function exports are available.

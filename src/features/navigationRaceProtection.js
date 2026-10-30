@@ -53,8 +53,8 @@ export function recordPageHistory(id,historyMode){
     window.history.pushState({...window.history.state,campuscareNavigation:{account,page:id,index:previous.index+1}},'');
   }
 }
-// Pages that are no longer part of CampusCare open the dashboard instead (e.g. old history entries).
-const RETIRED_PAGES=new Set(['messages']);
+// Old links to removed pages (messages; the patient certificate page) land on the dashboard.
+const RETIRED_PAGES=new Set(['messages','my-certificates','certificates']);
 export function navTo(id,{historyMode='push'}={}){
   if(!appState.auth.currentUser)return;
   if(RETIRED_PAGES.has(id))id='dashboard';
@@ -67,7 +67,7 @@ export function navTo(id,{historyMode='push'}={}){
   const btn=document.getElementById('nav-'+id);
   if(btn)btn.classList.add('active');
   document.getElementById('top-title').textContent={
-    dashboard:'Dashboard','my-appointments':'My Appointments','my-records':'My Health Records','my-certificates':'Medical Certificates',
+    dashboard:'Dashboard','my-appointments':'My Appointments','my-records':'My Health Records',
     'my-account':'Account Settings',patients:'Patient Records',appointments:'Appointments',
     approvals:'Approval Queue',certificates:'Medical Certificates','cert-requests':'Medical Certificates',treatments:'Treatments',inventory:'Inventory Management',
     reports:appState.auth.currentUser.role==='Doctor'?'My Reports':'Reports & Analytics',users:'User Management',settings:'System Settings',

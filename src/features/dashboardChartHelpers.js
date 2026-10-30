@@ -146,7 +146,7 @@ export function dashboardTrendSvg(points,label='Visits',chartType=appState.dashb
 
 export function dashboardTarget(text=''){
   const s=String(text).toLowerCase(),r=appState.auth.currentUser?.role;
-  if(s.includes('certificate'))return r==='Patient'?'my-certificates':r==='Doctor'?'cert-requests':'';
+  if(s.includes('certificate'))return r==='Doctor'?'cert-requests':'';
   if(s.includes('approval')||s.includes('registration'))return 'approvals';
   if(s.includes('stock')||s.includes('inventory'))return 'inventory';
   if(s.includes('patient'))return r==='Doctor'?'my-patients':'patients';
@@ -170,7 +170,6 @@ export function dashboardMobileQuickLinks(role){
     Patient:[
       ['my-appointments','fa-calendar-plus','Appointments'],
       ['my-records','fa-notes-medical','Health Records'],
-      ['my-certificates','fa-file-medical','Certificates'],
       ['health_education','fa-book-medical','Health Tips'],
       ['dental-survey','fa-tooth','Dental Survey'],
       ['my-account','fa-user-gear','Account']

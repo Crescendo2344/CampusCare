@@ -58,52 +58,6 @@ export function certStatusBadge(s){
   return `<span class="badge ${m[s]||'badge-gray'}">${escapeHtml(certStatusLabel(s))}</span>`;
 }
 
-// Patients receive certificates their doctor issued; they cannot request or change them.
-export async function renderMyCertificates({refresh=true}={}){
-  const c=document.getElementById('app-content');
-  if(!c)return;
-  const pageToken=captureCampusPageToken();
-
-  if(refresh&&appState.auth.currentUser?._realSupabase){
-    showDatabaseSkeleton('table');
-    try{await syncCertificateContext();}
-    catch(e){
-      if(!isCampusPageCurrent('my-certificates',pageToken))return;
-      console.error('Certificate sync:',e);
-      c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load medical certificates.')}</div>
-        <button class="btn btn-sm" ${bindAction('click',()=>renderMyCertificates())}>Retry</button>`;
-      return;
-    }
-    if(!isCampusPageCurrent('my-certificates',pageToken))return;
-  }
-
-  const pt=appState.auth.currentPatient;
-  if(!pt){
-    c.innerHTML='<div class="alert alert-warning show">No patient record linked. Contact admin.</div>';
-    return;
-  }
-
-  const certs=certificateRecords()
-    .filter(r=>r.patientId===pt.id&&(r.status==='Issued'||(r.status==='Cancelled'&&r.issuedAt)))
-    .sort((a,b)=>String(b.issuedAt).localeCompare(String(a.issuedAt))||b.id-a.id);
-  const page=paginate('my-certificates',certs);
-
-  c.innerHTML=`<div class="card">
-    <div class="card-header"><h3>Medical Certificates</h3></div>
-    ${certs.length?`<div class="table-wrap"><table class="cert-list-table">
-        <thead><tr><th scope="col">Certificate No.</th><th scope="col">Purpose</th><th scope="col">Issued</th><th scope="col">Doctor</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
-        <tbody>${page.rows.map(r=>{const doctor=getUserById(r.doctorId);return `<tr>
-          <td data-label="Certificate No."><strong>${escapeHtml(r.certNo||'—')}</strong></td>
-          <td data-label="Purpose">${escapeHtml(r.purpose)}${r.details?`<div class="text-muted">${escapeHtml(r.details)}</div>`:''}</td>
-          <td data-label="Issued">${r.issuedAt?fmtDate(String(r.issuedAt).slice(0,10)):'—'}</td>
-          <td data-label="Doctor">${doctor?escapeHtml(docName(doctor)):'—'}</td>
-          <td data-label="Status">${certStatusBadge(r.status)}${r.status==='Cancelled'&&r.declineReason?`<div class="text-muted">${escapeHtml(r.declineReason)}</div>`:''}</td>
-          <td data-label="Actions">${r.status==='Issued'?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>downloadCertPdf(r.id))}><i class="bi bi-download" aria-hidden="true"></i> Download PDF</button>`:''}</td>
-        </tr>`;}).join('')}</tbody>
-      </table></div>${pagerHtml(page,()=>renderMyCertificates({refresh:false}))}`:'<div class="empty-state"><i class="bi bi-file-earmark-medical" aria-hidden="true" style="font-size:1.6rem"></i><p>No medical certificates yet.</p></div>'}
-  </div>`;
-}
-
 // ---- DOCTOR WORKFLOW ----
 // The examining doctor decides whether to issue a certificate, writes it from the visit notes and signs it.
 

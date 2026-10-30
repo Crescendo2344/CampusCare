@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Medical certificates are written, signed and issued by the examining doctor only.
-// Patients can read their issued certificates; nobody else can request, prepare or change them.
+// Patients collect the printed certificate at the clinic; nobody else can request, prepare or change them.
 const cors={
   "Access-Control-Allow-Origin":"*",
   "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
@@ -196,8 +196,8 @@ Deno.serve(async(req)=>{
         await admin.from("notifications").insert({
           user_id:patient.user_id,
           title:"Medical Certificate Ready",
-          message:`Your medical certificate (${certNo}) has been signed and issued. You can download it from CampusCare.`,
-          type:"Certificate",channel:"In-app",delivery_status:"Created",action_page:"my-certificates"
+          message:`Your medical certificate (${certNo}) has been signed and issued. You may collect the printed copy at the clinic.`,
+          type:"Certificate",channel:"In-app",delivery_status:"Created",action_page:null
         });
       }
       await admin.from("audit_logs").insert({
@@ -225,7 +225,7 @@ Deno.serve(async(req)=>{
           user_id:patient.user_id,
           title:"Medical Certificate Voided",
           message:`Certificate ${existing.certificate_no} is no longer valid. Reason: ${reason}`,
-          type:"Certificate",channel:"In-app",delivery_status:"Created",action_page:"my-certificates"
+          type:"Certificate",channel:"In-app",delivery_status:"Created",action_page:null
         });
       }
       await admin.from("audit_logs").insert({

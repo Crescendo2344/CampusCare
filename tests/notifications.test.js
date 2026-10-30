@@ -28,7 +28,7 @@ test('refresh replaces live rows, preserves demo rows and leaves input records i
 test('routing preserves explicit aliases and role-specific fallback destinations',()=>{
   for(const [alias,page] of [['privacy-center','my-account'],['certificate-signatures','cert-requests'],['certificate-requests','cert-requests'],['patient-messages',''],['my-messages',''],['messages','']])assert.equal(records.notificationPageFor({actionPage:alias},{role:'Patient'}),page);
   assert.equal(records.notificationPageFor({actionPage:' inventory ',type:'appointment'},{role:'Patient'}),'inventory');
-  for(const [type,patientPage,staffPage] of [['appointment','my-appointments','appointments'],['treatment','my-records','treatments'],['certificate','my-certificates',''],['fitness','fitness','fitness'],['inventory','inventory','inventory']]){
+  for(const [type,patientPage,staffPage] of [['appointment','my-appointments','appointments'],['treatment','my-records','treatments'],['certificate','',''],['fitness','fitness','fitness'],['inventory','inventory','inventory']]){
     assert.equal(records.notificationPageFor({type},{role:'Patient'}),patientPage);
     assert.equal(records.notificationPageFor({type},{role:'Staff'}),staffPage);
   }

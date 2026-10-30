@@ -139,7 +139,7 @@ async function restoreAuthenticatedAccount(){
         .then(()=>syncRealIssueReports())
         .then(()=>syncRealWorkflowRequests())
         .then(()=>syncRealMedicationReminders())
-        .then(()=>syncRealCertificates())
+        .then(()=>syncRealTreatments())
         .then(()=>{guard();refreshActivePageAfterSync();})
         .catch(err=>{if(err!==cancelled&&stillCurrent())console.error('Patient background sync:',err);});
     }

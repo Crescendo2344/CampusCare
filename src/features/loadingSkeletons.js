@@ -4,7 +4,7 @@ import {beginCampusNavigation,isCampusPageCurrent,renderHealthEducation} from '.
 import {renderDashboard} from './dashboard.js';
 import {renderMyAppointments} from './patientAppointments.js';
 import {renderMyRecords} from './patientRecords.js';
-import {renderCertRequests,renderMyCertificates} from './certificateService.js';
+import {renderCertRequests} from './certificateService.js';
 import {renderMyAccount} from './accountSettings.js';
 import {renderPatients} from './patientManagement.js';
 import {renderAppointments} from './appointments.js';
@@ -113,12 +113,10 @@ export function renderPage(id){
     dashboard:()=>renderDashboard(),
     'my-appointments':()=>renderMyAppointments(),
     'my-records':()=>renderMyRecords(),
-    'my-certificates':()=>renderMyCertificates(),
     'my-account':()=>renderMyAccount(),
     patients:()=>renderPatients(),
     appointments:()=>renderAppointments(),
     approvals:()=>renderApprovals(),
-    certificates:()=>renderMyCertificates(),
     'cert-requests':()=>renderCertRequests(),
     treatments:()=>renderTreatments(),
     inventory:()=>renderInventory(),

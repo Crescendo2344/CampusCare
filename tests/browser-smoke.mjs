@@ -502,7 +502,20 @@ try{
   await page.waitForFunction(role=>window.__fixtureApp.state.auth.currentUser?.role===role,role);
   // Date endpoints share one compact control; all app headers remain opaque in both themes.
   const rangeButton=page.getByRole('button',{name:/Select dashboard date range:/});
-  await rangeButton.waitFor();assert.equal(await rangeButton.locator('.dashboard-range-endpoint').count(),2);
+  // Patients get a personal dashboard without a date range or chart.
+  if(role==='Patient'){
+    await page.locator('.pd-card').first().waitFor();assert.equal(await page.locator('.dashboard-range-endpoint, .dashboard-trend-card').count(),0);
+    // Medications, health tips and the records page read the patient's own data.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp,pt=state.auth.currentPatient,today=state.clinicInformation.TODAY;
+      state.data.DB.medReminders.push({id:900,patientId:pt.id,medicationName:'Amoxicillin 500mg',dosage:'3 times a day',startDate:today,endDate:'2099-01-01',status:'active'});
+      state.data.DB.healthResources=[{id:1,title:'Sleep before exams',category:'Sleep',content:'Rest.',published:true,publishedAt:'2026-10-20',_realSupabase:true}];
+      features.dashboard.renderDashboard();});
+    assert.match(await page.locator('.dashboard-a-stat',{hasText:'Current medications'}).innerText(),/1/);
+    assert.match(await page.locator('.pd-card',{hasText:'Health tips'}).innerText(),/Sleep before exams/);
+    assert.equal(await page.locator('#nav-my-certificates').count(),0,'Patients collect certificates at the clinic');
+  }
+  else{const rangeButton=page.getByRole('button',{name:/Select dashboard date range:/});
+  await rangeButton.waitFor();assert.equal(await rangeButton.locator('.dashboard-range-endpoint').count(),2);}
   for(const theme of ['light','dark']){
     await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
     assert(await page.locator('.top-bar').evaluate(el=>!getComputedStyle(el).backgroundColor.startsWith('rgba')),'Top bar must be opaque');
@@ -543,10 +556,12 @@ try{
   }
   await page.evaluate(()=>document.documentElement.dataset.theme='light');
   if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({fullPage:true,path:`${process.env.CAMPUSCARE_VISUAL_DIR}/workspace-range-${mobile?'mobile':'desktop'}.png`});
-  await rangeButton.click();assert.equal(await page.locator('#active-modal').getByRole('button',{name:'Cancel',exact:true}).count(),0);
-  await page.evaluate(()=>{const f=window.__fixtureApp.features.dashboardChartHelpers;f.chooseDashboardRangeDate('2026-10-14');f.chooseDashboardRangeDate('2026-10-20');});
-  await page.getByRole('button',{name:'Apply Date Range',exact:true}).click();
-  assert.match(await rangeButton.innerText(),/Oct 14, 2026/);
+  if(role!=='Patient'){
+    await rangeButton.click();assert.equal(await page.locator('#active-modal').getByRole('button',{name:'Cancel',exact:true}).count(),0);
+    await page.evaluate(()=>{const f=window.__fixtureApp.features.dashboardChartHelpers;f.chooseDashboardRangeDate('2026-10-14');f.chooseDashboardRangeDate('2026-10-20');});
+    await page.getByRole('button',{name:'Apply Date Range',exact:true}).click();
+    assert.match(await rangeButton.innerText(),/Oct 14, 2026/);
+  }
   if(['Patient','Staff','Administrator'].includes(role)){
     // Exercise real doctor/date/time clicks and draft restoration, with server requests intercepted.
     await page.evaluate(async()=>{await window.__fixtureApp.features.appointmentService.syncAppointmentContext();window.__fixtureApp.features.bookingForm.openBookApptModal();});
