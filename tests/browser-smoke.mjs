@@ -642,6 +642,20 @@ try{
   assert.equal(await page.locator('#active-modal .modal-footer').getByRole('button',{name:'Close',exact:true}).count(),0);
   await page.locator('#active-modal .close-btn').click();
   if(role==='Doctor'){
+    // Visit record: the clinic is fixed by the doctor's own clinic, vitals are flagged, BMI is computed, no imaging field.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const pt=state.data.DB.patients.find(p=>p._realSupabase&&!p.archived)||state.data.DB.patients[0];features.treatmentForm.openAddTreatmentModalPt(pt.id);});
+    await page.locator('.tv-modal').waitFor();
+    assert.equal(await page.locator('#tm-record-type').inputValue(),'Medical Clinic');
+    assert.equal(await page.locator('.tv-modal select#tm-record-type').count(),0,'The clinic is not a choice');
+    assert.equal(await page.locator('#tm-xray').count(),0);
+    assert.match(await page.locator('.tv-meta').innerText(),/Medical Clinic/);
+    await page.locator('#tm-temp').fill('38.4');await page.locator('#tm-weight').fill('70');await page.locator('#tm-height').fill('175');
+    assert.equal(await page.locator('.tv-vital[data-vital="temp"] .tv-flag').innerText(),'FEVER');
+    assert.match(await page.locator('#tm-bmi').innerText(),/22\.9[\s\S]*Normal/);
+    await page.getByRole('button',{name:'2 weeks',exact:true}).click();
+    assert.notEqual(await page.locator('#tm-followup').inputValue(),'');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/visit-record-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#active-modal .close-btn').click();
     // Certificates: doctors write, sign and issue them; only the three purposes are offered.
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('cert-requests'));
     await page.getByRole('button',{name:'+ New Certificate'}).click();

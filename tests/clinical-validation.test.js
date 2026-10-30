@@ -24,3 +24,12 @@ test('follow-up states',()=>{
   assert.equal(followUpState('2026-10-30','2026-10-23'),'upcoming');
   assert.equal(followUpState('','2026-10-23'),'');
 });
+
+test('BMI and out-of-range vital signs are flagged for the doctor',async()=>{
+  const {bodyMassIndex,vitalFlags}=await import('../src/domain/clinical-validation.js');
+  assert.deepEqual(bodyMassIndex('70','175'),{value:22.9,category:'Normal'});
+  assert.equal(bodyMassIndex('','175'),null);
+  assert.equal(bodyMassIndex('95','170').category,'Obese');
+  assert.deepEqual(vitalFlags({bp:'150/95',temp:'38.2',pulse:'72',spo2:'93'}),{bp:{level:'high',label:'High'},temp:{level:'high',label:'Fever'},spo2:{level:'low',label:'Low'}});
+  assert.deepEqual(vitalFlags({bp:'118/76',temp:'36.6',pulse:'',spo2:''}),{});
+});

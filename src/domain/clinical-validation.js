@@ -44,3 +44,24 @@ export function followUpState(followupDate,today){
   if(followupDate===today)return 'today';
   return 'upcoming';
 }
+
+// Body mass index from weight (kg) and height (cm), with the WHO adult category.
+export function bodyMassIndex(weight,height){
+  const w=num(weight),h=num(height)/100;
+  if(!(w>0)||!(h>0))return null;
+  const value=Math.round(w/(h*h)*10)/10;
+  const category=value<18.5?'Underweight':value<25?'Normal':value<30?'Overweight':'Obese';
+  return {value,category};
+}
+
+// Readings outside the usual adult range, flagged for the doctor's attention (not errors).
+export function vitalFlags(v={}){
+  const flags={};
+  const m=String(v.bp||'').trim().match(/^(\d{2,3})\s*\/\s*(\d{2,3})$/);
+  if(m){const s=+m[1],d=+m[2];if(s>=140||d>=90)flags.bp={level:'high',label:'High'};else if(s<90||d<60)flags.bp={level:'low',label:'Low'};}
+  const read=key=>blank(v[key])?NaN:num(v[key]);
+  const temp=read('temp');if(temp>=37.5)flags.temp={level:'high',label:'Fever'};else if(temp<35)flags.temp={level:'low',label:'Low'};
+  const pulse=read('pulse');if(pulse>100)flags.pulse={level:'high',label:'High'};else if(pulse<60)flags.pulse={level:'low',label:'Low'};
+  const spo2=read('spo2');if(spo2<95)flags.spo2={level:'low',label:'Low'};
+  return flags;
+}

@@ -206,7 +206,7 @@ export async function onClinicChange(preferredDoctorId=null,editing=null){
 
   const isDental=clinic.value==='Dental Clinic';
   const medSvcs=['General Checkup','Follow-up','Consultation','Physical Exam'];
-  const dentSvcs=['Dental Checkup','Tooth Extraction','Dental Cleaning','Dental X-ray'];
+  const dentSvcs=['Dental Checkup','Tooth Extraction','Dental Cleaning','Tooth Filling'];
   const svcs=isDental?dentSvcs:medSvcs;
   const previousService=svc.value;
 

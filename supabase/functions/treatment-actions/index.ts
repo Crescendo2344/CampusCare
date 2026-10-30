@@ -47,7 +47,7 @@ Deno.serve(async(req)=>{
     if(userErr||!user)return json({error:"Invalid session."},401);
 
     const {data:actor,error:actorErr}=await admin.from("users")
-      .select("user_id,role,status,first_name,last_name")
+      .select("user_id,role,status,first_name,last_name,specialty")
       .eq("auth_user_id",user.id).maybeSingle();
     if(actorErr||!actor||actor.status!=="Active")
       return json({error:"Active CampusCare account required."},403);
@@ -127,7 +127,8 @@ Deno.serve(async(req)=>{
       }
 
       const dentalRecord=body.dental_record&&typeof body.dental_record==="object"?body.dental_record:null;
-      const dentalContext=String(body.clinic_type||appointment?.clinic||"");
+      // The clinic follows the appointment, otherwise the doctor's own clinic; the form cannot choose it.
+      const dentalContext=appointment?.clinic||(actor.specialty==="Dental"?"Dental Clinic":"Medical Clinic");
       if(dentalRecord&&dentalContext==="Dental Clinic"){
         const dentistName=`Dr. ${actor.first_name||""} ${actor.last_name||""}`.trim();
         const record=dentalPayload(dentalRecord,treatment.treatment_id,patientId,doctorId,dentistName);
