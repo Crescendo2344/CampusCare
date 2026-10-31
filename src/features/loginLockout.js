@@ -27,6 +27,15 @@ export function setLoginAttempts(data){
   try{ localStorage.setItem(appState.loginLockout.LOGIN_ATTEMPTS_KEY,JSON.stringify(data)); }catch(e){}
 }
 
+// Browsers with the Credential Management API (Chrome, Edge, Opera) show their own "Save password?"
+// prompt here; others offer it from the submitted login form.
+function offerToSavePassword(id,password,name){
+  try{
+    if(!window.PasswordCredential||!navigator.credentials?.store)return;
+    void navigator.credentials.store(new window.PasswordCredential({id,password,name:name||id})).catch(()=>{});
+  }catch{ /* Saving is optional; sign-in has already succeeded. */ }
+}
+
 export async function doLogin(){
   // Ensure Supabase is ready before attempting authentication.
   if(!initializeSupabaseClient()){
@@ -78,7 +87,10 @@ export async function doLogin(){
     }
 
     // Only a successful sign-in updates the remembered username or email.
-    setRememberedLogin(document.getElementById('li-remember')?.checked?identifier:'');
+    const remember=Boolean(document.getElementById('li-remember')?.checked);
+    setRememberedLogin(remember?identifier:'');
+    // The password itself is kept by the browser's password manager, never by CampusCare.
+    if(remember)offerToSavePassword(identifier,password,`${profile.first_name||''} ${profile.last_name||''}`.trim());
     appState.auth.currentUser=normalizeSupabaseUser(profile);
     appState.auth.currentUser.lastLogin=data.user?.last_sign_in_at||new Date().toISOString();
     appState.auth.currentUser.emailConfirmedAt=data.user?.email_confirmed_at||null;
@@ -248,18 +260,8 @@ export async function openPrivacyNotice(){
       ${sections.map(([id,icon,title,body],i)=>`<section class="pn-section" id="pn-${id}"><h4><span class="pn-num">${i+1}</span><i class="bi ${icon}" aria-hidden="true"></i>${title}</h4>${body}</section>`).join('')}
       <p class="pn-disclaimer"><i class="bi bi-info-circle"></i> CampusCare supports responsible processing of personal and health information under the Data Privacy Act of 2012. Actual institutional compliance also depends on CTU policies, personnel, security controls and lawful records-management procedures.</p>
     </div>
-    <div class="modal-footer pn-footer"><button type="button" class="btn" ${bindAction('click',()=>printPrivacyNotice())}><i class="bi bi-printer"></i> Print</button><button type="button" class="btn btn-primary" ${bindAction('click',()=>closeAllModals())}>I understand</button></div>
+    <div class="modal-footer pn-footer"><button type="button" class="btn btn-primary" ${bindAction('click',()=>closeAllModals())}>I understand</button></div>
   </div>`);
-}
-
-function printPrivacyNotice(){
-  const body=document.querySelector('.privacy-notice .pn-body');
-  if(!body)return;
-  const win=window.open('','_blank','noopener=no,width=820,height=900');
-  if(!win){toast('Allow pop-ups to print the privacy notice.','warning');return;}
-  const title=document.querySelector('.privacy-notice .pn-title')?.innerText||'Privacy Notice';
-  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>CampusCare Privacy Notice</title><style>body{font:14px/1.6 system-ui,sans-serif;color:#111;max-width:720px;margin:2rem auto;padding:0 1rem}h4{margin:1.2rem 0 .3rem}.pn-toc,i{display:none}.pn-glance,.pn-rights{display:grid;grid-template-columns:repeat(2,1fr);gap:.4rem}.pn-glance div,.pn-rights div{border:1px solid #ccc;border-radius:6px;padding:.4rem .6rem;display:flex;flex-direction:column}.pn-chips span{display:inline-block;border:1px solid #ccc;border-radius:99px;padding:.1rem .5rem;margin:.15rem}blockquote{border-left:3px solid #2a7;margin:1rem 0;padding:.3rem .9rem;background:#f4faf6}.pn-num{font-weight:700;margin-right:.4rem}</style></head><body><h2>${escapeHtml(title)}</h2>${body.innerHTML}</body></html>`);
-  win.document.close();win.focus();win.print();
 }
 
 export function dataUrlToRegistrationFile(dataUrl, filename='capture.jpg'){

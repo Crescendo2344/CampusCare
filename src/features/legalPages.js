@@ -17,7 +17,7 @@ function openLegalDocument({id,icon,title,meta,intro,sections}){
       <nav class="pn-toc" aria-label="Sections">${sections.map(([key,,heading],i)=>`<button type="button" ${bindAction('click',()=>document.getElementById(`${id}-${key}`)?.scrollIntoView({behavior:'smooth',block:'start'}))}>${i+1}. ${heading}</button>`).join('')}</nav>
       ${sections.map(([key,sectionIcon,heading,body],i)=>`<section class="pn-section" id="${id}-${key}"><h4><span class="pn-num">${i+1}</span><i class="bi ${sectionIcon}" aria-hidden="true"></i>${heading}</h4>${body}</section>`).join('')}
     </div>
-    <div class="modal-footer pn-footer"><button type="button" class="btn" ${bindAction('click',()=>window.print())}><i class="bi bi-printer" aria-hidden="true"></i> Print</button><button type="button" class="btn btn-primary" ${bindAction('click',()=>closeAllModals())}>Close</button></div>
+    <div class="modal-footer pn-footer"><button type="button" class="btn btn-primary" ${bindAction('click',()=>closeAllModals())}>Done</button></div>
   </div>`);
 }
 

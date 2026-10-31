@@ -533,8 +533,13 @@ try{
   await page.locator('#toast-wrap .toast.error').getByText('Enter your username/email and password.',{exact:true}).waitFor();
   await page.locator('#li-user').fill(profile.email);await page.locator('#li-pass').fill('Fixture-only-password1!');
   await page.getByLabel('Remember me').check();
-  await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).click();
+  // The browser's password manager is asked to save the sign-in; CampusCare itself never stores the password.
+  await page.evaluate(()=>{window.__savedCredentials=[];window.PasswordCredential=class{constructor(data){Object.assign(this,data);}};navigator.credentials.store=async credential=>{window.__savedCredentials.push({id:credential.id,password:credential.password});return credential;};});
+  // Enter in the password field submits the sign-in form.
+  await page.locator('#li-pass').press('Enter');
   await page.locator('#app.visible').waitFor();
+  assert.deepEqual(await page.evaluate(()=>window.__savedCredentials),[{id:profile.email,password:'Fixture-only-password1!'}].map(c=>({...c,id:c.id})));
+  assert.equal(await page.evaluate(()=>Object.keys(localStorage).concat(Object.keys(sessionStorage)).some(key=>String(localStorage.getItem(key)??sessionStorage.getItem(key)).includes('Fixture-only-password1!'))),false,'The password is never written to browser storage');
   await page.waitForFunction(role=>window.__fixtureApp.state.auth.currentUser?.role===role,role);
   // Date endpoints share one compact control; all app headers remain opaque in both themes.
   const rangeButton=page.getByRole('button',{name:/Select dashboard date range:/});

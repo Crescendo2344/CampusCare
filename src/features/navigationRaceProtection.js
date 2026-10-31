@@ -259,7 +259,6 @@ export function viewArticle(id) {
             :`<button class="btn btn-sm btn-success" ${bindAction('click',()=>publishArticle(art.id))}>Publish</button>
               <button class="btn btn-sm btn-danger" ${bindAction('click',()=>deleteDraftArticle(art.id))}><i class="bi bi-trash" aria-hidden="true"></i> Delete draft</button>`}
           ${appState.auth.currentUser.role==='Administrator'?`<button class="btn btn-sm btn-danger" ${bindAction('click',()=>archiveArticle(art.id))}>Archive</button>`:''}`:''}
-        <button class="btn btn-sm" ${bindAction('click',()=>window.print())}><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
       </div>
     </div>`);
 }

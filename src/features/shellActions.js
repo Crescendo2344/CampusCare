@@ -40,9 +40,8 @@ export function initializeFeature(){
   registerNamedAction('shell-11',(event,element)=>{event.preventDefault();authTab('login')});
   registerNamedAction('shell-12',(event,element)=>{event.preventDefault();authTab('reg')});
   registerNamedAction('shell-13',(event,element)=>{sanitizeInput(element,'password')});
-  registerNamedAction('shell-14',(event,element)=>{if(event.key==='Enter')doLogin()});
   registerNamedAction('shell-16',(event,element)=>{openForgotPassword();return false;});
-  registerNamedAction('shell-17',(event,element)=>{doLogin()});
+  registerNamedAction('login-submit',event=>{event.preventDefault();doLogin()});
   registerNamedAction('shell-18',(event,element)=>{sanitizeInput(element,'name');validateRegistrationField(element.id,false);recheckNameMatch()});
   registerNamedAction('shell-19',(event,element)=>{sanitizeInput(element,'name');validateRegistrationField(element.id,false);recheckNameMatch()});
   registerNamedAction('shell-20',(event,element)=>{sanitizeInput(element,'username');validateRegistrationField(element.id,false)});
