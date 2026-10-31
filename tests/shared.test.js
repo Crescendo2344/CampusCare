@@ -26,8 +26,14 @@ test('input policies preserve supported names and normalize account/contact valu
 
 test('formatters preserve placeholders, calendar boundaries and clock labels',()=>{
   assert.equal(getSemester(null),null);
-  assert.equal(getSemester('2026-06-15'), '2026-S1');
-  assert.equal(getSemester('2026-07-15'), '2026-S2');
+  // December is still 1st Semester; 2nd Semester begins in January of the next calendar year.
+  assert.equal(getSemester('2026-08-15'), '2026-S1');
+  assert.equal(getSemester('2026-12-15'), '2026-S1');
+  assert.equal(getSemester('2027-01-10'), '2026-S2');
+  assert.equal(getSemester('2027-06-15'), '2026-S2');
+  const settings={semesterStart:'2026-08-03',semesterEnd:'2026-12-18',semester2Start:'2027-01-11',semester2End:'2027-05-28'};
+  assert.equal(getSemester('2026-12-18',settings),'2026-S1');
+  assert.equal(getSemester('2027-02-01',settings),'2026-S2');
   assert.equal(fmtDate(''),'-');assert.equal(fmtDate('invalid'),'-');
   assert.equal(fmtDateTime(null),'-');assert.equal(fmtDateTime('invalid'),'-');
   assert.equal(fmtDate('2026-10-08'),new Date(2026,9,8).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}));

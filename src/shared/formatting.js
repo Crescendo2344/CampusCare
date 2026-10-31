@@ -1,8 +1,15 @@
 // Shared formatting helpers have no dependency on application state or the DOM.
-export function getSemester(dateStr){
+// Semester key for a date, named by school year: 1st Semester runs July–December and
+// 2nd Semester January–June of the following calendar year (SY 2026–2027 → 2026-S1, 2026-S2).
+// With the clinic's configured semester dates, a date inside a range uses that range instead.
+export function getSemester(dateStr,settings={}){
   if(!dateStr)return null;
-  const d=new Date(dateStr);const yr=d.getFullYear();const mo=d.getMonth()+1;
-  return mo<=6?`${yr}-S1`:`${yr}-S2`;
+  const day=String(dateStr).slice(0,10);
+  const within=(from,to)=>from&&to&&day>=from&&day<=to;
+  if(within(settings.semesterStart,settings.semesterEnd))return `${settings.semesterStart.slice(0,4)}-S1`;
+  if(within(settings.semester2Start,settings.semester2End))return `${settings.semesterStart?.slice(0,4)||Number(settings.semester2Start.slice(0,4))-1}-S2`;
+  const yr=Number(day.slice(0,4)),mo=Number(day.slice(5,7));
+  return mo>=7?`${yr}-S1`:`${yr-1}-S2`;
 }
 
 export function fmtDate(d){

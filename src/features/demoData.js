@@ -108,10 +108,10 @@ export function initializeFeature(){
   nextActivityLogId:1,
 
   settings: {
-    semesterStart:'2026-01-01',
-    semesterEnd:'2026-06-30',
-    semester2Start:'2026-07-01',
-    semester2End:'2026-12-31',
+    semesterStart:'2026-08-01',
+    semesterEnd:'2026-12-31',
+    semester2Start:'2027-01-01',
+    semester2End:'2027-05-31',
     dentalLimitPerSemester:1,
     appointmentReminderDays:2,
     lunchBreakStart:'12:00',

@@ -1310,6 +1310,9 @@ try{
     await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='health_education');
   }
   if(role==='Patient'){
+    // December visits ask for the 1st Semester COR; the 2nd Semester starts in January.
+    const corTerm=await page.evaluate(()=>{const f=window.__fixtureApp.features.bookingForm;return [f.corChecklistHtml('2026-12-10'),f.corChecklistHtml('2027-01-15')].map(h=>h.match(/(1st|2nd) Semester, SY \d{4}–\d{4}/)[0]);});
+    assert.deepEqual(corTerm,['1st Semester, SY 2026–2027','2nd Semester, SY 2026–2027']);
     // Once the semester's Dental Clinic visit is used, everything after the clinic choice locks immediately.
     await page.evaluate(()=>{const {state,features}=window.__fixtureApp,pt=state.auth.currentPatient;
       state.data.DB.appointments.push({id:990001,patientId:pt.id,doctorId:100002,clinic:'Dental Clinic',service:'Dental Checkup',date:state.clinicInformation.TODAY,time:'08:00',status:'Completed',_realSupabase:Boolean(pt._realSupabase)});

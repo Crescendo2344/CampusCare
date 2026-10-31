@@ -1,7 +1,7 @@
 // bookingForm: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {campusScheduleForDate,clinicToday,discardCampusDraft,validateCampusBooking} from './scheduleAndDrafts.js';
-import {dayOfWeek,fmtDate,fmtTime} from './inputValidation.js';
+import {dayOfWeek,fmtDate,fmtTime,getSemester} from './inputValidation.js';
 import {appointmentAction,appointmentRecords,appointmentService,syncRealAppointments} from './appointmentService.js';
 import {checkDentalQuota,getDentalDoctors,getMedDoctors,getPatientById,getUserById} from './documentScanner.js';
 import {escapeHtml} from './issueReports.js';
@@ -385,12 +385,10 @@ export function patientPriority(pt){
 
 // Name the term the visit falls in so the patient brings the right Certificate of Registration.
 function registrationTermLabel(date){
-  const st=appState.data.DB.settings||{};
-  const within=(from,to)=>from&&to&&date>=from&&date<=to;
-  const term=within(st.semester2Start,st.semester2End)?'2nd Semester':within(st.semesterStart,st.semesterEnd)?'1st Semester':'';
-  if(!term)return 'the current semester';
-  const year=Number(String(st.semesterStart||date).slice(0,4));
-  return `${term}, SY ${year}–${year+1}`;
+  const key=getSemester(date);
+  if(!key)return 'the current semester';
+  const year=Number(key.slice(0,4));
+  return `${key.endsWith('S1')?'1st':'2nd'} Semester, SY ${year}–${year+1}`;
 }
 
 export function corChecklistHtml(date,personType='Student'){

@@ -7,7 +7,9 @@ import {getDoctors,getLowStock,getPatientById,getUserById} from './documentScann
 import {docName} from './messaging.js';
 import {collegeBadge,currentSemester,fmtDate,fmtTime,getSemester,statusBadge} from './inputValidation.js';
 import {escapeHtml} from './issueReports.js';
-import {articleCategoryColor,healthResourceRecords,navTo,viewArticle} from './navigationRaceProtection.js';
+import {articleCategoryColor,captureCampusPageToken,healthResourceRecords,isCampusPageCurrent,navTo,viewArticle} from './navigationRaceProtection.js';
+import {ensureCurrentPatient} from './patientService.js';
+import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {treatmentRecords} from './treatmentService.js';
 import {viewTreatment} from './treatmentForm.js';
 import {viewAppt} from './appointmentDetails.js';
@@ -39,7 +41,19 @@ export function renderDashboard(){
   // A personal page: what is coming up, what to do next and the latest from the clinic, with no date range or chart.
   if(role==='Patient'){
     const pt=appState.auth.currentPatient;
-    if(!pt){c.innerHTML='<div class="alert alert-warning show">No patient record linked. Please contact admin.</div>';return;}
+    if(!pt){
+      // Right after sign-in the patient record may still be loading; only a finished lookup with no record is an error.
+      if(appState.auth.currentUser._realSupabase&&appState.dashboard.patientLookupFailedFor!==appState.auth.currentUser.id){
+        const pageToken=captureCampusPageToken();showDatabaseSkeleton('dashboard');
+        ensureCurrentPatient().then(found=>{
+          if(!isCampusPageCurrent('dashboard',pageToken))return;
+          if(!found)appState.dashboard.patientLookupFailedFor=appState.auth.currentUser?.id;
+          renderDashboard();
+        });
+        return;
+      }
+      c.innerHTML='<div class="alert alert-warning show">No patient record linked. Please contact admin.</div>';return;
+    }
     const mine=appointmentRecords().filter(a=>a.patientId===pt.id);
     const upcoming=mine.filter(a=>a.status==='Scheduled'&&a.date>=today).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
     const semester=currentSemester();

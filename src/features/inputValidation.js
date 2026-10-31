@@ -181,7 +181,7 @@ export function resetRegistrationFieldErrors(prefix='r-'){
 // Server field names (from field_errors) mapped to the patient form controls.
 export const PATIENT_FORM_SERVER_FIELDS={first_name:'pm-fname',last_name:'pm-lname',username:'pm-username',email:'pm-email',contact_number:'pm-contact',college:'pm-college',id_number:'pm-idno',birth_date:'pm-birth',sex:'pm-gender',class_session:'pm-class-session'};
 
-export function getSemester(...args){return formatters.getSemester(...args);}
+export function getSemester(date){return formatters.getSemester(date,appState.data.DB?.settings||{});}
 export function currentSemester(){return getSemester(appState.clinicInformation.TODAY);}
 
 export function fmtDate(...args){return formatters.fmtDate(...args);}

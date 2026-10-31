@@ -21,6 +21,7 @@ export const state={
   navigationRaceProtection:{},
   issueReports:{},
   dashboardChartHelpers:{},
+  dashboard:{},
   workflowRequests:{},
   approvalQueue:{},
   messaging:{},

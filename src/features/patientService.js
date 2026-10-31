@@ -41,6 +41,14 @@ export async function syncCurrentPatientFromSupabase(){
   }catch(e){console.error('Patient sync:',e);}
 }
 
+// Pages that open before the background sign-in sync finishes wait for the same patient lookup.
+let currentPatientLookup=null;
+export function ensureCurrentPatient(){
+  if(appState.auth.currentPatient||!appState.auth.currentUser?._realSupabase)return Promise.resolve(appState.auth.currentPatient);
+  currentPatientLookup??=syncCurrentPatientFromSupabase().finally(()=>{currentPatientLookup=null;});
+  return currentPatientLookup.then(()=>appState.auth.currentPatient);
+}
+
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
 
