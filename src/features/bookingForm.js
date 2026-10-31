@@ -177,14 +177,12 @@ export function openBookApptModal(apptId=null){
     </div>
     <div class="modal-footer">
       <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
-      <button class="btn btn-primary" ${bindAction('click',(event,element)=>{saveAppt(apptId)})}>Confirm Booking</button>
+      <button class="btn btn-primary" id="b-confirm" ${bindAction('click',(event,element)=>{saveAppt(apptId)})}>Confirm Booking</button>
     </div>
   </div>`);
 
   // Populate the clinician selector before fetching the calendar for an existing reschedule.
   void onClinicChange(editing?.doctorId||null,editing);
-
-  checkDentalWarn();
 }
 
 export function chooseBookingDate(date,preferredDoctorId=null){
@@ -213,7 +211,7 @@ export async function onClinicChange(preferredDoctorId=null,editing=null){
   svc.innerHTML=svcs.map(s=>`<option>${s}</option>`).join('');
   if(svcs.includes(previousService))svc.value=previousService;
 
-  checkDentalWarn();
+  if(checkDentalWarn())return;
   const doctors=isDental?getDentalDoctors():getMedDoctors();
   doc.innerHTML='<option value="">Choose a doctor</option>'+doctors.map(d=>`<option value="${d.id}">${escapeHtml(docName(d))} — ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('');
   doc.disabled=!doctors.length;
@@ -225,19 +223,33 @@ export async function onClinicChange(preferredDoctorId=null,editing=null){
   }
 }
 
+// A patient who has used the semester's Dental Clinic visit cannot pick a dental doctor, service,
+// date or time; everything after the clinic choice is locked until Medical Clinic is chosen.
 export function checkDentalWarn(){
   const clinicEl=document.getElementById('b-clinic');
   const ptEl=document.getElementById('b-pt');
   const warnEl=document.getElementById('dental-warn');
-  if(!clinicEl||!ptEl||!warnEl)return;
-  warnEl.classList.remove('show');
-  if(clinicEl.value==='Dental Clinic'){
-    const ptId=parseInt(ptEl.value);
-    if(ptId&&checkDentalQuota(ptId)){
-      warnEl.innerHTML='<i class="bi bi-exclamation-triangle" aria-hidden="true"></i> This patient has already used their Dental Clinic quota for this semester. Booking will be blocked.';
-      warnEl.classList.add('show');
-    }
+  if(!clinicEl||!ptEl||!warnEl)return false;
+  const ptId=parseInt(ptEl.value);
+  const locked=clinicEl.value==='Dental Clinic'&&Boolean(ptId)&&checkDentalQuota(ptId,appState.bookingForm.activeBookingEditId);
+  const self=appState.auth.currentUser.role==='Patient';
+  warnEl.classList.toggle('show',locked);
+  warnEl.innerHTML=locked?`<i class="bi bi-exclamation-triangle" aria-hidden="true"></i> ${self?'You have already used your Dental Clinic visit for this semester.':'This patient has already used their Dental Clinic visit for this semester.'} Choose Medical Clinic to continue.`:'';
+  const modal=clinicEl.closest('.modal');
+  modal?.classList.toggle('booking-dental-locked',locked);
+  for(const id of ['b-service','b-doc','b-reason','b-confirm']){const el=document.getElementById(id);if(el)el.disabled=locked;}
+  if(locked){
+    appState.bookingForm.availabilityRequest=(appState.bookingForm.availabilityRequest||0)+1;
+    appState.bookingForm.availabilityDays=[];
+    const doc=document.getElementById('b-doc');if(doc)doc.innerHTML='<option value="">Not available</option>';
+    const note=document.getElementById('b-doctor-note');if(note)note.textContent='Dental Clinic booking is closed for this patient until next semester.';
+    document.getElementById('b-date').value='';document.getElementById('b-time').value='';
+    document.getElementById('b-date-label').textContent='Not available';
+    const today=clinicToday();
+    initModernCalendar('booking-modern-calendar','',today,'chooseBookingDate',{allowEmptySelection:true,maxDate:today,availableDates:[],viewMonth:today.slice(0,7),showAppointmentHints:false,showTodayButton:false});
+    document.getElementById('slot-grid').innerHTML='<span class="text-muted" style="font-size:.78rem">No time slots while the Dental Clinic limit is reached.</span>';
   }
+  return locked;
 }
 
 export function timeToMinutes(t){return scheduleRules.timeToMinutes(t);}

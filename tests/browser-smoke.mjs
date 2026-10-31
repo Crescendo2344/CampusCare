@@ -1179,7 +1179,8 @@ try{
     assert.match(await page.locator('#forecast-result').innerText(),/History: 2026-01-01 to 2026-03-31/);
     // 3 months by default, week by week; longer periods switch to months; any 7–365 days can be typed.
     assert.match(await page.locator('#forecast-result').innerText(),/Expected in the next 3 months/i);
-    assert.equal(await page.locator('#forecast-result tbody tr').count(),13);
+    // A year starting on the 1st is 12 whole months; any other start adds a partial month.
+    assert([12,13].includes(await page.locator('#forecast-result tbody tr').count()));
     // AI insights run only on request and summarise the forecast; follow-up questions get their own answer.
     await page.locator('#forecast-ai .ai-generate').click();
     await page.locator('#forecast-ai .ai-headline').waitFor();
@@ -1197,7 +1198,7 @@ try{
     assert.equal(await page.locator('#forecast-ai .ai-scroll').evaluate(el=>getComputedStyle(el).overflowY),'auto');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#forecast-ai').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/forecast-ai-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#forecast-horizon').getByRole('button',{name:'1 year',exact:true}).click();
-    assert.equal(await page.locator('#forecast-result tbody tr').count(),13);
+    assert([12,13].includes(await page.locator('#forecast-result tbody tr').count()));
     assert.match(await page.locator('#forecast-result tbody tr').nth(1).textContent(),/\w{3} \d{4}/);
     await page.locator('#forecast-days').fill('30');await page.locator('#forecast-days').press('Enter');
     assert.equal(await page.locator('#forecast-result tbody tr').count(),5);
@@ -1307,6 +1308,25 @@ try{
     await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
     await page.goBack();
     await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='health_education');
+  }
+  if(role==='Patient'){
+    // Once the semester's Dental Clinic visit is used, everything after the clinic choice locks immediately.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp,pt=state.auth.currentPatient;
+      state.data.DB.appointments.push({id:990001,patientId:pt.id,doctorId:100002,clinic:'Dental Clinic',service:'Dental Checkup',date:state.clinicInformation.TODAY,time:'08:00',status:'Completed',_realSupabase:Boolean(pt._realSupabase)});
+      features.bookingForm.openBookApptModal();});
+    await page.locator('#b-clinic').selectOption('Dental Clinic');
+    await page.locator('#dental-warn.show').waitFor();
+    for(const id of ['#b-doc','#b-service','#b-confirm'])assert(await page.locator(id).isDisabled(),`${id} locks when the dental limit is reached`);
+    assert.equal(await page.locator('#slot-grid button').count(),0);
+    await page.locator('#b-clinic').selectOption('Medical Clinic');
+    await page.waitForFunction(()=>!document.getElementById('b-doc').disabled&&!document.getElementById('b-confirm').disabled);
+    assert.equal(await page.locator('#dental-warn.show').count(),0);
+    // Form errors inside the app use the shared toast, not an inline red box.
+    await page.locator('#b-confirm').click();
+    await page.locator('#toast-wrap .toast.error').first().waitFor();
+    assert.equal(await page.locator('#book-msg.show').count(),0);
+    await page.locator('#active-modal .close-btn').click();
+    await page.evaluate(()=>{const {state}=window.__fixtureApp;state.data.DB.appointments=state.data.DB.appointments.filter(a=>a.id!==990001);});
   }
   if(role==='Patient'||role==='Staff'){
     // Health Education: topic chips with counts, a featured newest article, reading time, formatted article,

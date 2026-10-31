@@ -235,6 +235,15 @@ export function showAlert(el,msg,type='danger'){
     return;
   }
 
+  // Inside the signed-in app and its dialogs, feedback uses the shared toast instead of an inline box.
+  // The login and recovery screens (nobody signed in yet) keep their errors next to the fields.
+  if(appState.auth.currentUser&&el.closest('#app, #active-modal')){
+    hideAlert(el);
+    const text=document.createElement('div');text.innerHTML=String(msg??'');
+    toast(text.textContent.trim(),type==='danger'?'error':type);
+    return;
+  }
+
   el.className=`alert alert-${type} show`;
   el.innerHTML=msg;
   if(el._autoHideTimer)clearTimeout(el._autoHideTimer);

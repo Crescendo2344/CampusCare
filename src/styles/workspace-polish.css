@@ -1470,3 +1470,5 @@ select:disabled::-ms-expand{display:none}
 .pd-date small{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.15rem}
 .pd-dot{width:10px;height:10px;border-radius:50%;background:var(--cat,var(--primary));flex:0 0 auto;margin:0 .4rem}
 .pd-card .empty-state .btn{margin-top:.5rem}
+.booking-dental-locked .booking-calendar-wrap,.booking-dental-locked #slot-grid,.booking-dental-locked .modern-date-btn{opacity:.5;pointer-events:none;filter:grayscale(.6)}
+.booking-dental-locked select:disabled,.booking-dental-locked textarea:disabled{opacity:.6;cursor:not-allowed}
