@@ -7,7 +7,7 @@ import {escapeHtml} from './issueReports.js';
 import {collegeBadge,fmtDate} from './inputValidation.js';
 import {getUserById} from './documentScanner.js';
 import {downloadTreatmentPDF,viewTreatment} from './treatmentForm.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {paginate,pagerHtml} from '../ui/pager.js';
 import {bindAction} from '../dependencies.js';
 // ================================================================

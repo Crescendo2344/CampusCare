@@ -7,7 +7,7 @@ import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtec
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {getMedDoctors,getPatientById,getUserById} from './documentScanner.js';
 import {fmtDate,fmtDateTime} from './inputValidation.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {closeAllModals,openModal} from './modals.js';
 import {campusDateFieldHtml} from './datePicker.js';
 import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';

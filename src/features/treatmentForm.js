@@ -6,7 +6,7 @@ import {fmtDate,fmtTime} from './inputValidation.js';
 import {syncRealDentalRecords,syncRealMedicationReminders,syncRealTreatments,treatmentAction,treatmentDisplayId,treatmentRecords} from './treatmentService.js';
 import {getPatientById,getUserById} from './documentScanner.js';
 import {escapeHtml} from './issueReports.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {closeAllModals,openModal} from './modals.js';
 import {collectDentalRecordForm,dentalRecordFormHtml} from './patientForm.js';
 import {patientAvatarHtml} from './patientManagement.js';

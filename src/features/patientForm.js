@@ -12,7 +12,7 @@ import {patientAvatarHtml,renderPatients} from './patientManagement.js';
 import {syncRealTreatments,treatmentRecords} from './treatmentService.js';
 import {appointmentRecords} from './appointmentService.js';
 import {collegeBadge,fmtDate,fmtTime,priorityBadge,statusBadge} from './inputValidation.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {downloadPatientFHIR,openClinicalCopilot,viewPatientFHIR} from './inventoryService.js';
 import {openNewCertificateModal} from './certificateService.js';
 import {bindAction,patientData} from '../dependencies.js';

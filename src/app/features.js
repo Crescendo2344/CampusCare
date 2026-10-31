@@ -2,7 +2,6 @@
 import * as feature0 from '../features/authSession.js';
 import * as feature1 from '../features/supabaseClient.js';
 import * as feature2 from '../features/demoData.js';
-import * as feature3 from '../features/dataServices.js';
 import * as feature4 from '../features/utilities.js';
 import * as feature5 from '../features/clinicInformation.js';
 import * as feature6 from '../features/persistence.js';
@@ -46,7 +45,7 @@ import * as feature43 from '../features/appointments.js';
 import * as feature44 from '../features/approvalQueue.js';
 import * as feature45 from '../features/dentalSurvey.js';
 import * as feature46 from '../features/treatmentList.js';
-import * as feature47 from '../features/messaging.js';
+import * as feature47 from '../features/displayNames.js';
 import * as feature48 from '../features/inventory.js';
 import {reports as feature49} from './optional-features.js';
 import {reportCharts as feature50} from './optional-features.js';
@@ -74,7 +73,6 @@ analyticsDisplay,
   authSession:feature0,
   supabaseClient:feature1,
   demoData:feature2,
-  dataServices:feature3,
   utilities:feature4,
   clinicInformation:feature5,
   persistence:feature6,
@@ -118,7 +116,7 @@ analyticsDisplay,
   approvalQueue:feature44,
   dentalSurvey:feature45,
   treatmentList:feature46,
-  messaging:feature47,
+  displayNames:feature47,
   inventory:feature48,
   reports:feature49,
   reportCharts:feature50,
@@ -149,7 +147,6 @@ initializeOptionalState();
   feature0.initializeFeature();
   feature1.initializeFeature();
   feature2.initializeFeature();
-  feature3.initializeFeature();
   feature4.initializeFeature();
   feature5.initializeFeature();
   feature6.initializeFeature();

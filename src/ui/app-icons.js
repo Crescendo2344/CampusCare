@@ -1,4 +1,4 @@
-// Small first-party outline icons keep messaging controls consistent without an icon CDN.
+// Small first-party outline icons keep controls consistent without an icon CDN.
 const paths={
   calendar:'M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2ZM7 2v5m10-5v5M3 10h18m-14 4h2m2 0h2m2 0h2m-10 3h2m2 0h2',
   arrow:'M5 12h14m-5-5 5 5-5 5',

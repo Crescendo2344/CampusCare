@@ -27,8 +27,7 @@
 @media(max-width:480px){.selfie-prep-grid{gap:.4rem}.selfie-prep-card{padding:.8rem .35rem}.selfie-modal .modal-body{padding:.9rem}.selfie-modal .modal-footer .btn{flex:1 1 140px}.selfie-document-guide{font-size:.7rem}}
 /* A single ID panel advances through both sides without duplicating the upload UI. */
 .registration-id-panel{border:1px solid var(--line);border-radius:12px;padding:.7rem;min-width:0}
-.registration-id-heading{display:flex;align-items:center;justify-content:space-between;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem}
-.registration-id-heading h4{font-size:.82rem;margin:0}
+
 .registration-id-switch{display:flex;gap:.3rem}
 .registration-id-switch .btn[aria-pressed="true"]{border-color:var(--primary);color:var(--primary)}
 .registration-id-panel [hidden]{display:none}

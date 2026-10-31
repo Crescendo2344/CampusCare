@@ -198,34 +198,3 @@ export function realApprovalUiUser(u){
   };
 }
 
-export function realMessageToUi(m){
-  return {
-    id:1200000+Number(m.message_id),
-    dbMessageId:Number(m.message_id),
-    fromUserId:100000+Number(m.from_user_id),
-    dbFromUserId:Number(m.from_user_id),
-    toUserId:100000+Number(m.to_user_id),
-    dbToUserId:Number(m.to_user_id),
-    subject:m.subject||'',
-    message:m.body||'',
-    replyToId:m.reply_to_id?1200000+Number(m.reply_to_id):null,
-    dbReplyToId:m.reply_to_id?Number(m.reply_to_id):null,
-    isRead:Boolean(m.is_read),
-    createdAt:m.created_at||'',
-    edited:Boolean(m.edited_at),
-    editedAt:m.edited_at||'',
-    deleted:Boolean(m.deleted_for_everyone),
-    deletedAt:m.deleted_at||'',
-    forwarded:Boolean(m.forwarded_from_id),
-    dbForwardedFromId:m.forwarded_from_id?Number(m.forwarded_from_id):null,
-    attachment:m.attachment_url&&!m.deleted_for_everyone?{
-      type:m.attachment_type||'file',
-      name:m.attachment_name||'Attachment',
-      dataUrl:m.attachment_url,
-      mime:m.attachment_mime||'',
-      size:Number(m.attachment_size||0),
-      path:m.attachment_path||''
-    }:null,
-    _realSupabase:true
-  };
-}

@@ -23,7 +23,7 @@ export function loadDB(){
     if(!raw)return false;
     const saved=JSON.parse(raw);
     if(!saved||typeof saved!=='object')return false;
-    const arrayKeys=['users','patients','appointments','treatments','inventory','certRequests','disbursements','messages','notifications','articles','doctorLeaves','nameChangeRequests','fitnessAssessments','activityLogs'];
+    const arrayKeys=['users','patients','appointments','treatments','inventory','certRequests','disbursements','notifications','articles','doctorLeaves','nameChangeRequests','fitnessAssessments','activityLogs'];
     Object.keys(saved).forEach(k=>{
       // Guard against corrupted/incompatible cached data from an older
       // version of the app silently breaking everything on load.

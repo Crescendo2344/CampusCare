@@ -9,7 +9,7 @@ import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtec
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
 import {getUserById} from './documentScanner.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {fmtDate,fmtTime,statusBadge} from './inputValidation.js';
 import {approveScheduleChange,rejectScheduleChange} from './workflowRequests.js';
 import {approveLeaveRequest,rejectLeaveRequest} from './doctorSchedule.js';

@@ -5,7 +5,7 @@ import {dayOfWeek,fmtDate,fmtTime,getSemester} from './inputValidation.js';
 import {appointmentAction,appointmentRecords,appointmentService,syncRealAppointments} from './appointmentService.js';
 import {checkDentalQuota,getDentalDoctors,getMedDoctors,getPatientById,getUserById} from './documentScanner.js';
 import {escapeHtml} from './issueReports.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {closeAllModals,openModal} from './modals.js';
 import {filterBookPatients} from './datePicker.js';
 import {initModernCalendar,renderModernCalendar} from './calendar.js';

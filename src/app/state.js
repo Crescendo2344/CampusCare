@@ -3,7 +3,6 @@
 export const state={
   supabaseClient:{},
   data:{},
-  dataServices:{},
   utilities:{},
   clinicInformation:{},
   auth:{},
@@ -25,7 +24,6 @@ export const state={
   legalPages:{},
   workflowRequests:{},
   approvalQueue:{},
-  messaging:{},
   reports:{},
   reportCharts:{},
   certificateService:{},

@@ -148,24 +148,6 @@ async function syncRealIssueReports(){
   return issueReportRecords();
 }
 
-async function syncRealMessages(){
-  const appState=getState();
-  const {messageRecords,messageAction,mergeRealMessageContacts,realMessageToUi}=callbacks;
-  const account=appState.auth.currentUser;
-  if(!appState.auth.currentUser?._realSupabase)return messageRecords();
-
-  const result=await messageAction({action:'list'});
-
-  // The backend returns both the user's messages and every contact the role
-  // is allowed to message. This prevents an incoming Admin/Staff message from
-  // disappearing simply because that sender was not loaded in another module.
-  if(appState.auth.currentUser!==account)return [];
-  mergeRealMessageContacts(result.contacts||[]);
-
-  appState.data.DB.messages=(appState.data.DB.messages||[]).filter(m=>!m._realSupabase);
-  appState.data.DB.messages.push(...(result.messages||[]).map(realMessageToUi));
-  return messageRecords();
-}
 
 async function syncRealHealthResources(){
   const appState=getState();
@@ -264,5 +246,5 @@ async function syncRealWorkflowRequests(){
 
   return appState.data.DB.workflowRequests;
 }
-return {syncPublicSystemSettings,syncRealSystemSettings,syncRealIssueReports,syncRealHealthResources,syncClinicSurveys,syncRealWorkflowRequests,syncRealMessages,syncRealFitnessAssessments,fetchRealPendingApprovals,fetchAnalyticsSummary};
+return {syncPublicSystemSettings,syncRealSystemSettings,syncRealIssueReports,syncRealHealthResources,syncClinicSurveys,syncRealWorkflowRequests,syncRealFitnessAssessments,fetchRealPendingApprovals,fetchAnalyticsSummary};
 }

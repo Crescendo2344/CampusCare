@@ -9,7 +9,7 @@ import {canonicalSchedule,clinicToday,discardCampusDraft,scheduleConflicts,setSc
 import {campusDateFieldHtml} from './datePicker.js';
 import {syncRealAppointments} from './appointmentService.js';
 import {addNotif} from './notifications.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {fmtDate,sanitizeInput} from './inputValidation.js';
 import {persistDB} from './persistence.js';
 import {refreshTaskBadges} from './topbarAndNavigation.js';

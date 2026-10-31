@@ -4,7 +4,7 @@ import {state as appState} from '../app/state.js';
 import {followTodayIfDefaultRange,dashboardAttentionItem,dashboardChartControlHtml,dashboardControlsHtml,dashboardInRange,dashboardMobileQuickLinks,dashboardRangeCounts,dashboardRangeLabel,dashboardStatCard,dashboardTrendSvg} from './dashboardChartHelpers.js';
 import {appointmentRecords} from './appointmentService.js';
 import {getDoctors,getLowStock,getPatientById,getUserById} from './documentScanner.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {collegeBadge,currentSemester,fmtDate,fmtTime,getSemester,statusBadge} from './inputValidation.js';
 import {escapeHtml} from './issueReports.js';
 import {articleCategoryColor,captureCampusPageToken,healthResourceRecords,isCampusPageCurrent,navTo,viewArticle} from './navigationRaceProtection.js';

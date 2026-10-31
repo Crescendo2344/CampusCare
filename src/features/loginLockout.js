@@ -17,7 +17,7 @@ import {registrationIdSides,resetRegistrationIds} from './idVerification.js';
 import {registrationCaptchaToken,resetRegistrationCaptcha} from '../verification/registration-captcha.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
 // ================================================================
-// LOGIN ATTEMPT LOCKOUT — basic brute-force protection
+// SIGN-IN (repeated failures are rate-limited by Supabase Auth)
 // ================================================================
 
 
@@ -461,8 +461,5 @@ export async function sendVerificationEmailAgain(){
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
-  appState.loginLockout.LOGIN_ATTEMPTS_KEY='campuscare_login_attempts';
-  appState.loginLockout.MAX_LOGIN_ATTEMPTS=5;
-  appState.loginLockout.LOCKOUT_MS=30000;
   appState.loginLockout.pendingRegistrationEmail='';
 }

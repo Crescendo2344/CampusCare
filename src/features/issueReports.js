@@ -11,7 +11,7 @@ import {closeAllModals,closeTopModal,openModal,showFilePreview} from './modals.j
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
 import {getUserById} from './documentScanner.js';
 import {userAvatarHtml} from './userManagement.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {openCamera} from '../app/optional-features.js';
 import {bindAction,workflowData} from '../dependencies.js';
 import {ARTICLE_ICONS,articleIconName,biIcon} from '../ui/app-icons.js';

@@ -35,7 +35,7 @@
 .schedule-comparison p{color:var(--ink-muted);margin-top:.3rem;overflow-wrap:anywhere}
 .schedule-status{margin-top:.8rem;padding:.75rem;border-radius:8px;font-size:.82rem;line-height:1.5;background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning-border)}
 .schedule-status[data-status="ready"]{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}
-.schedule-approval-note{margin-top:.9rem}
+
 .schedule-request .modal-footer{flex-wrap:wrap}
 /* Stack sections on phones while retaining comfortable work-day touch targets. */
 @media(max-width:540px){

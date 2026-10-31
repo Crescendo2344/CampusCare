@@ -65,12 +65,6 @@ export function initializeFeature(){
   ],
   nextResourceId: 9,
 
-  messages: [
-  { id: 1, fromUserId: 6, toUserId: 2, subject: "Headache persists", message: "I still have a headache after taking Paracetamol.", createdAt: "2026-05-10 10:30", isRead: false, replyToId: null },
-  { id: 2, fromUserId: 2, toUserId: 6, subject: "RE: Headache persists", message: "Please come for a follow-up if symptoms continue.", createdAt: "2026-05-11 09:15", isRead: true, replyToId: 1 },
-  ],
-  nextMessageId: 3,
-
   medReminders: [
   { id: 1, patientId: 1, medicationName: "Amoxicillin 500mg", dosage: "3 times a day", startDate: "2026-05-01", endDate: "2026-05-08", timeOfDay: ["08:00","14:00","20:00"], lastSent: null, status: "active" },
   ],

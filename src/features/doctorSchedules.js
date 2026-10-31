@@ -3,7 +3,7 @@ import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {closeAllModals,openModal} from './modals.js';
 import {getDoctors,getUserById} from './documentScanner.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {fmtDate} from './inputValidation.js';
 import {clinicToday} from './scheduleAndDrafts.js';
 import {campusDateFieldHtml} from './datePicker.js';

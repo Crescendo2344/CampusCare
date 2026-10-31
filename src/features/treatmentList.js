@@ -11,7 +11,7 @@ import {patientDisplayId} from './patientService.js';
 import * as clinicalChecks from '../domain/clinical-validation.js';
 import {viewPatient} from './patientForm.js';
 import {fmtDate} from './inputValidation.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {bindAction} from '../dependencies.js';
 import {csvColumn,csvDate,csvFileName,downloadCsv,templateCsv} from '../shared/csv.js';
 // ================================================================

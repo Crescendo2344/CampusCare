@@ -13,7 +13,7 @@ import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme
 import {clinicToday} from './scheduleAndDrafts.js';
 import {offerDecisionUndo,openScheduleChangeRequest,syncRealWorkflowRequests,workflowAction} from './workflowRequests.js';
 import {addNotif} from './notifications.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {persistDB} from './persistence.js';
 import {openWorkflowRequestReview,renderUsers} from './userManagement.js';
 import {bindAction} from '../dependencies.js';

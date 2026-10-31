@@ -68,7 +68,6 @@ export function openCookiePolicy(){
           ${row('campuscare-remember-session','Remembers whether you chose “Remember me”.','Until changed')}
           ${row('campuscare-remembered-login','Fills in your username or email when “Remember me” is ticked. Passwords are never stored.','Until you untick “Remember me”')}
           ${row('campuscare_last_activity','Signs you out after a period of inactivity (security).','Until you sign out')}
-          ${row('campuscare_login_attempts','Pauses sign-in briefly after repeated failed attempts on this device (security).','Until the next successful sign-in')}
           ${row('campuscare-theme','Remembers light or dark mode.','Until changed')}
           ${row('campuscare-storage-notice','Remembers that you have seen the storage notice.','Until this policy changes')}
           ${row('Drafts','Unsent appointment or schedule drafts you saved.','Until the browser tab closes')}

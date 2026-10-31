@@ -15,11 +15,6 @@ test('responses from an earlier account do not populate the next account snapsho
  const service=createFeatureSyncService({getState:()=>state,callbacks:{...records,workflowAction:()=>response}});
  const pending=service.syncRealWorkflowRequests();state.auth.currentUser={role:'Patient',_realSupabase:true};resolve({requests:[{request_id:7}],doctor_leaves:[]});assert.deepEqual(await pending,[]);assert.deepEqual(state.data.DB.workflowRequests,[]);
 });
-test('messaging refresh rejects stale contacts as well as stale message rows',async()=>{
- const state=snapshot();let merges=0;
- const service=createFeatureSyncService({getState:()=>state,callbacks:{messageRecords:()=>state.data.DB.messages,realMessageToUi:records.realMessageToUi,mergeRealMessageContacts:()=>{merges++;},messageAction:async()=>{state.auth.currentUser=null;return {messages:[{message_id:1}],contacts:[{user_id:1}]};}}});
- assert.deepEqual(await service.syncRealMessages(),[]);assert.equal(merges,0);assert.deepEqual(state.data.DB.messages,[]);
-});
 test('fitness query errors retain the existing snapshot and query order',async()=>{
  const state=snapshot(),saved=[{id:1}];state.data.DB.fitnessAssessments=saved;const calls=[];
  state.supabaseClient.supabaseClient={from(table){calls.push(table);return {select(){return this;},order(column){calls.push(column);return this;},then(resolve,reject){return Promise.resolve({error:new Error('Fixture query failure')}).then(resolve,reject);}};}};
