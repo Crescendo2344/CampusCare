@@ -68,6 +68,7 @@ import * as feature65 from '../features/shellActions.js';
 import * as feature66 from '../features/doctorSchedules.js';
 import * as feature67 from '../features/requestAttachments.js';
 import * as feature68 from '../features/slotManager.js';
+import * as feature69 from '../features/legalPages.js';
 export const features={
 analyticsDisplay,
   authSession:feature0,
@@ -139,6 +140,7 @@ analyticsDisplay,
   doctorSchedules:feature66,
   requestAttachments:feature67,
   slotManager:feature68,
+  legalPages:feature69,
 };
 import {initializeOptionalState} from './optional-state.js';
 import * as analyticsDisplay from '../features/analyticsDisplay.js';
@@ -213,4 +215,5 @@ initializeOptionalState();
   feature66.initializeFeature();
   feature67.initializeFeature();
   feature68.initializeFeature();
+  feature69.initializeFeature();
 }

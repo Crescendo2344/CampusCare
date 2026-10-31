@@ -9,6 +9,7 @@ import {changeAccountPassword,changeProfilePhoto,checkPasswordConfirmation,hideA
 import {saveAccount} from './workflowRequests.js';
 import {openPrivacyNotice} from './loginLockout.js';
 import {openPrivacyRequestModal} from './privacy.js';
+import {openCookiePolicy,openTermsOfService} from './legalPages.js';
 import {setThemePreference,showConfirmDialog,themePreference,toast} from './theme.js';
 import {bindAction} from '../dependencies.js';
 import {logout} from './passwordRecovery.js';
@@ -180,6 +181,8 @@ export function renderMyAccount(){
           </p>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
             <button class="btn btn-sm" ${bindAction('click',(event,element)=>{openPrivacyNotice()})}>View Privacy Notice</button>
+            <button class="btn btn-sm" ${bindAction('click',()=>openTermsOfService())}>Terms of Service</button>
+            <button class="btn btn-sm" ${bindAction('click',()=>openCookiePolicy())}>Cookie &amp; Storage Policy</button>
             <button class="btn btn-sm btn-warning" ${bindAction('click',(event,element)=>{openPrivacyRequestModal()})}>Submit Privacy / Data Request</button>
           </div>
         </div>

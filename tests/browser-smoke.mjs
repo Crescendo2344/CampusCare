@@ -48,6 +48,8 @@ try{
     const blockedTelemetry=message.text().includes('odml.pa.googleapis.com');
     if(message.type()==='error'&&!message.text().includes('net::ERR')&&!expectedRejection&&!expectedThrottle&&!modelInfo&&!blockedTelemetry)errors.push(message.text());
   });
+  // The storage notice is exercised once (desktop Patient); every other run starts with it acknowledged.
+  if(mobile||role!=='Patient')await page.addInitScript(()=>{try{localStorage.setItem('campuscare-storage-notice','1.0');}catch{}});
   // Capture the public lifecycle event only inside this test realm, with no production globals added.
   await page.addInitScript(()=>document.addEventListener('campuscare:ready',event=>{window.__fixtureApp=event.detail;},{once:true}));
   // Keep the real detector/worker on desktop; only its synthetic frame results are varied for UI assertions.
@@ -134,6 +136,23 @@ try{
   });
   await page.goto(baseUrl);await page.waitForFunction(()=>Boolean(window.__fixtureApp));
   if(!mobile&&role==='Patient'){
+    // First visit: the storage notice explains essential storage and links the policy; Got it remembers the choice.
+    await page.locator('#storage-notice').waitFor();
+    await page.locator('#storage-notice-policy').click();
+    assert.match(await page.locator('.legal-doc').innerText(),/No advertising or tracking cookies|does not use advertising or tracking cookies/);
+    assert(await page.locator('.legal-table code',{hasText:'campuscare-theme'}).count());
+    await page.locator('#active-modal .close-btn').click();
+    await page.locator('#storage-notice-ok').click();
+    assert.equal(await page.locator('#storage-notice').count(),0);
+    assert.equal(await page.evaluate(()=>localStorage.getItem('campuscare-storage-notice')),'1.0');
+    // Terms of Service and the policy are reachable from the public footer by keyboard.
+    await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingRoute('contact',false));
+    await page.locator('.legal-links a',{hasText:'Terms of Service'}).focus();
+    await page.keyboard.press('Enter');
+    assert.match(await page.locator('.legal-doc h3').innerText(),/Terms of Service/);
+    assert.match(await page.locator('.legal-doc').innerText(),/Not for emergencies/);
+    await page.locator('#active-modal .close-btn').click();
+    await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingRoute('home',false));
     await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingRoute('contact',false));
     for(const theme of ['light','dark']){
       await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);

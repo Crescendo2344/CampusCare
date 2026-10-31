@@ -22,6 +22,7 @@ export const state={
   issueReports:{},
   dashboardChartHelpers:{},
   dashboard:{},
+  legalPages:{},
   workflowRequests:{},
   approvalQueue:{},
   messaging:{},

@@ -75,7 +75,7 @@ const registrationFieldRules={
     if(appState.documentScanner.lastOcrDocumentType==='COR')return 'COR is not accepted. Use the front and back of your Student or Employee ID.';
     return sides.front&&sides.back?'':'Provide the front and back of your Student or Employee ID.';
   },
-  'r-privacy-consent':()=>document.getElementById('r-privacy-consent')?.checked?'':'Please read and agree to the CampusCare Privacy Notice and Consent.',
+  'r-privacy-consent':()=>document.getElementById('r-privacy-consent')?.checked?'':'Please read and agree to the Terms of Service and the Privacy Notice and Consent.',
   // Clinic-assisted registration and patient edits (pm-*) use the same rules; account-only fields
   // exist only while creating, and photo steps only while the verification panel is on screen.
   'pm-fname':()=>nameValidationError(value('pm-fname'),'First name'),

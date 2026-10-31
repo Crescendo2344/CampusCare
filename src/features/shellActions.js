@@ -3,6 +3,7 @@ import {state as appState} from '../app/state.js';
 import {authTab,landingNavTo,showAuthPage,showLandingPage} from './authentication.js';
 import {toggleTheme} from './theme.js';
 import {sanitizeInput,validateRegistrationContact,validateRegistrationField} from './inputValidation.js';
+import {openCookiePolicy,openTermsOfService} from './legalPages.js';
 import {closePendingPanel,doLogin,doRegister,hidePasswordChecklist,openPrivacyNotice,openResendVerification,showPasswordChecklist,updatePasswordStrength} from './loginLockout.js';
 import {closeForgotPassword,hideRecoveryPasswordChecklist,logout,openForgotPassword,sendPasswordResetEmail,showForgotStep,showRecoveryPasswordChecklist,submitNewPassword,updateRecoveryPasswordStrength} from './passwordRecovery.js';
 import {recheckNameMatch,sanitizeRegistrationId,updateRegistrationIdentityFields} from './documentScanner.js';
@@ -62,6 +63,8 @@ export function initializeFeature(){
   registerNamedAction('id-current-camera',()=>{setVerificationScope('r');openCamera('id-'+(appState.camera.registrationIdSide||'front'));});
   registerNamedAction('shell-30',(event,element)=>{setVerificationScope('r');openCamera('selfie')});
   registerNamedAction('shell-35',(event,element)=>{event.preventDefault();openPrivacyNotice()});
+  registerNamedAction('legal-terms',event=>{event.preventDefault();openTermsOfService()});
+  registerNamedAction('legal-cookies',event=>{event.preventDefault();openCookiePolicy()});
   registerNamedAction('registration-security-retry',()=>{resetRegistrationCaptcha();prepareRegistrationCaptcha(appState.supabaseClient.SUPABASE_URL,appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY,{refresh:true}).catch(()=>{});});
   // Submitting the form (button or Enter) always runs client checks before any network request.
   registerNamedAction('registration-submit',(event,element)=>{event.preventDefault();doRegister()});

@@ -1472,3 +1472,14 @@ select:disabled::-ms-expand{display:none}
 .pd-card .empty-state .btn{margin-top:.5rem}
 .booking-dental-locked .booking-calendar-wrap,.booking-dental-locked #slot-grid,.booking-dental-locked .modern-date-btn{opacity:.5;pointer-events:none;filter:grayscale(.6)}
 .booking-dental-locked select:disabled,.booking-dental-locked textarea:disabled{opacity:.6;cursor:not-allowed}
+.legal-links{display:flex;justify-content:center;flex-wrap:wrap;gap:.35rem 1.1rem;margin-top:.5rem}
+.legal-links a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.legal-intro{font-size:.9rem;line-height:1.6;margin:0 0 1rem}
+.legal-table{font-size:.8rem}
+.legal-table td,.legal-table th{vertical-align:top}
+.legal-table code{font-size:.74rem;white-space:nowrap}
+.storage-notice{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9000;display:flex;align-items:center;gap:.8rem;width:min(720px,calc(100% - 32px));padding:.8rem 1rem;border-radius:14px;border:1px solid var(--line);background:var(--glass-surface-strong);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);color:var(--ink);box-shadow:var(--glass-shadow-lg)}
+.storage-notice>.bi{font-size:1.4rem;color:var(--primary)}
+.storage-notice p{margin:0;flex:1;font-size:.82rem;line-height:1.5}
+.storage-notice a{color:var(--primary);text-decoration:underline}
+@media(max-width:560px){.storage-notice{flex-wrap:wrap}.storage-notice .btn{width:100%}}
