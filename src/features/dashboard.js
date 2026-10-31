@@ -54,6 +54,8 @@ export function renderDashboard(){
       }
       c.innerHTML='<div class="alert alert-warning show">No patient record linked. Please contact admin.</div>';return;
     }
+    // Right after sign-in the patient's appointments, visits and medicines are still loading.
+    if(appState.auth.currentUser._realSupabase&&appState.dashboard.patientDataReady===false){showDatabaseSkeleton('dashboard');return;}
     const mine=appointmentRecords().filter(a=>a.patientId===pt.id);
     const upcoming=mine.filter(a=>a.status==='Scheduled'&&a.date>=today).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
     const semester=currentSemester();

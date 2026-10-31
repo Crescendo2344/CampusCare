@@ -129,19 +129,21 @@ async function restoreAuthenticatedAccount(){
           toast('Some database data could not be refreshed. Open the page again to retry.','warning');
         });
     }else if(appState.auth.currentUser.role==='Patient'){
+      // The dashboard shows its skeleton until this first load finishes; independent lists load in parallel.
+      appState.dashboard.patientDataReady=false;
+      const finished=()=>{if(!stillCurrent())return;appState.dashboard.patientDataReady=true;refreshActivePageAfterSync();};
       syncCurrentPatientFromSupabase()
         .then(()=>syncPublicSystemSettings())
-        .then(()=>syncRealDoctorDirectory())
-        .then(()=>syncRealAppointments())
-        .then(()=>syncClinicSurveys())
-        .then(()=>{rebuildConditionalNavigation();})
-        .then(()=>syncRealHealthResources())
-        .then(()=>syncRealIssueReports())
-        .then(()=>syncRealWorkflowRequests())
-        .then(()=>syncRealMedicationReminders())
-        .then(()=>syncRealTreatments())
-        .then(()=>{guard();refreshActivePageAfterSync();})
-        .catch(err=>{if(err!==cancelled&&stillCurrent())console.error('Patient background sync:',err);});
+        .then(()=>Promise.all([
+          syncRealDoctorDirectory().then(()=>syncRealAppointments()).then(()=>syncClinicSurveys()).then(()=>{rebuildConditionalNavigation();}),
+          syncRealHealthResources(),
+          syncRealIssueReports(),
+          syncRealWorkflowRequests(),
+          syncRealMedicationReminders(),
+          syncRealTreatments()
+        ]))
+        .then(()=>{guard();finished();})
+        .catch(err=>{if(err!==cancelled&&stillCurrent()){console.error('Patient background sync:',err);finished();}});
     }
 
     return true;

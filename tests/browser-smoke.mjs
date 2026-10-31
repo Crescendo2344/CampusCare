@@ -546,6 +546,11 @@ try{
   // Patients get a personal dashboard without a date range or chart.
   if(role==='Patient'){
     await page.locator('.pd-card').first().waitFor();assert.equal(await page.locator('.dashboard-range-endpoint, .dashboard-trend-card').count(),0);
+    // While the first sign-in load is still running, the dashboard shows its skeleton instead of empty numbers.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.dashboard.patientDataReady=false;features.dashboard.renderDashboard();});
+    assert.equal(await page.locator('#app-content .db-skeleton-wrap').count(),1);assert.equal(await page.locator('.pd-card').count(),0);
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.dashboard.patientDataReady=true;features.dashboard.renderDashboard();});
+    await page.locator('.pd-card').first().waitFor();
     // Medications, health tips and the records page read the patient's own data.
     await page.evaluate(()=>{const {state,features}=window.__fixtureApp,pt=state.auth.currentPatient,today=state.clinicInformation.TODAY;
       state.data.DB.medReminders.push({id:900,patientId:pt.id,medicationName:'Amoxicillin 500mg',dosage:'3 times a day',startDate:today,endDate:'2099-01-01',status:'active'});

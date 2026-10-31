@@ -338,8 +338,8 @@
     <!-- A real form so the browser's password manager offers to save and fill the sign-in. -->
     <form id="login-section" method="post" action="#" novalidate data-action-submit="login-submit">
       <div class="alert alert-danger" id="login-err" role="alert"></div>
-      <div class="form-group"><label for="li-user">Username or Email</label><input id="li-user" type="text" placeholder="Enter username or email" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
-      <div class="form-group"><label for="li-pass">Password</label><input id="li-pass" type="password" placeholder="Enter your password" autocomplete="current-password" data-action-input="shell-13"></div>
+      <div class="form-group"><label for="li-user">Username or Email</label><input id="li-user" name="username" type="text" placeholder="Enter username or email" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+      <div class="form-group"><label for="li-pass">Password</label><input id="li-pass" name="password" type="password" placeholder="Enter your password" autocomplete="current-password" data-action-input="shell-13"></div>
       <div class="auth-login-options">
         <label class="auth-remember" for="li-remember"><input type="checkbox" id="li-remember"> Remember me</label>
         <a href="#" class="auth-forgot-link" data-action-click="shell-16">Forgot password?</a>
