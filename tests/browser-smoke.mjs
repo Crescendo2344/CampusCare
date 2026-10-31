@@ -15,7 +15,10 @@ if(!baseUrl){
     let file=path.resolve(root,'.'+pathname);
     if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||fs.statSync(file).isDirectory())file=root+'/index.html';
     const type={'.html':'text/html','.js':'application/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml','.wasm':'application/wasm'}[path.extname(file)]||'application/octet-stream';
-    response.writeHead(200,{'Content-Type':type});fs.createReadStream(file).pipe(response);
+    // Serve the production security headers so a blocked resource fails the run like it would on Vercel.
+    // upgrade-insecure-requests is dropped here because this local server is plain HTTP.
+    const securityHeaders=Object.fromEntries(JSON.parse(fs.readFileSync('vercel.json','utf8')).headers[0].headers.map(h=>[h.key,h.value.replace('; upgrade-insecure-requests','')]));
+    response.writeHead(200,{'Content-Type':type,...securityHeaders});fs.createReadStream(file).pipe(response);
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   baseUrl=`http://127.0.0.1:${server.address().port}`;
@@ -41,7 +44,9 @@ try{
     const modelInfo=/^INFO: Created TensorFlow Lite XNNPACK delegate for CPU\.$/.test(message.text());
     const expectedRejection=/\/(resend-verification|request-password-reset)$/.test(message.location().url||'')&&message.text().includes('status of 404');
     const expectedThrottle=/\/register-patient$/.test(message.location().url||'')&&message.text().includes('status of 429');
-    if(message.type()==='error'&&!message.text().includes('net::ERR')&&!expectedRejection&&!expectedThrottle&&!modelInfo)errors.push(message.text());
+    // The content policy deliberately blocks the face-detection library's usage logging to Google.
+    const blockedTelemetry=message.text().includes('odml.pa.googleapis.com');
+    if(message.type()==='error'&&!message.text().includes('net::ERR')&&!expectedRejection&&!expectedThrottle&&!modelInfo&&!blockedTelemetry)errors.push(message.text());
   });
   // Capture the public lifecycle event only inside this test realm, with no production globals added.
   await page.addInitScript(()=>document.addEventListener('campuscare:ready',event=>{window.__fixtureApp=event.detail;},{once:true}));
