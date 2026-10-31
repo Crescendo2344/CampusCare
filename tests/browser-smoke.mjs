@@ -34,6 +34,7 @@ const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disab
 const authId='00000000-0000-4000-8000-000000000001';
 const now=Math.floor(Date.now()/1000),token=['eyJhbGciOiJIUzI1NiJ9',Buffer.from(JSON.stringify({sub:authId,role:'authenticated',exp:now+3600,iat:now})).toString('base64url'),'fixture-signature'].join('.');
 let cases=0;
+const a11yFindings=[],axeSource=fs.readFileSync('node_modules/axe-core/axe.min.js','utf8');
 try{
  for(const mobile of [false,true])for(const role of ['Patient','Doctor','Staff','Administrator']){
   const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1440,height:1000},isMobile:mobile,hasTouch:mobile,permissions:['camera','microphone']});
@@ -153,6 +154,17 @@ try{
     assert.match(await page.locator('.legal-doc').innerText(),/Not for emergencies/);
     await page.locator('#active-modal .close-btn').click();
     await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingRoute('home',false));
+    // Public pages (landing routes, login and registration) meet the same WCAG 2.1 AA checks in both themes.
+    await page.evaluate(axeSource);
+    for(const view of ['home','services','about','contact','login','reg'])for(const theme of ['light','dark']){
+      await page.evaluate(({view,theme})=>{if(!document.getElementById('a11y-still')){const st=document.createElement('style');st.id='a11y-still';st.textContent='*,*::before,*::after{transition:none!important;animation:none!important}';document.head.append(st);}
+        document.documentElement.dataset.theme=theme;const auth=window.__fixtureApp.features.authentication;
+        if(view==='login'||view==='reg')auth.showAuthPage(view);else auth.showLandingRoute(view,false);},{view,theme});
+      await page.waitForTimeout(60);
+      const found=await page.evaluate(async()=>(await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']},resultTypes:['violations']})).violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.slice(0,4).map(n=>({target:n.target.join(' '),summary:n.failureSummary}))})));
+      a11yFindings.push(...found.map(v=>({role:'Public',page:view,theme,...v})));
+    }
+    await page.evaluate(()=>{document.getElementById('a11y-still')?.remove();document.documentElement.dataset.theme='light';window.__fixtureApp.features.authentication.showLandingRoute('home',false);});
     await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingRoute('contact',false));
     for(const theme of ['light','dark']){
       await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
@@ -1067,6 +1079,31 @@ try{
     await page.waitForTimeout(120);
     assert(await page.locator('#app-content').innerHTML(),`${role}: empty ${id}`);
     if(process.env.CAMPUSCARE_ROUTE_SHOTS===role&&!mobile){await page.waitForTimeout(400);await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/route-${role}-${id.replace('nav-','')}.png`,fullPage:true});}
+    // Automated WCAG 2.1 A/AA check (axe-core) of every page each role can open, in light and dark themes.
+    if(!mobile)for(const theme of ['light','dark']){
+      // Colours are measured after the theme switch settles, not mid-transition.
+      await page.evaluate(theme=>{if(!document.getElementById('a11y-still')){const st=document.createElement('style');st.id='a11y-still';st.textContent='*,*::before,*::after{transition:none!important;animation:none!important}';document.head.append(st);}document.documentElement.dataset.theme=theme;document.getElementById('toast-wrap')?.replaceChildren();},theme);
+      await page.waitForTimeout(60);
+      if(!await page.evaluate(()=>Boolean(window.axe)))await page.evaluate(axeSource);
+      const found=await page.evaluate(async()=>(await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']},resultTypes:['violations']})).violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.slice(0,4).map(n=>({target:n.target.join(' '),summary:n.failureSummary}))})));
+      a11yFindings.push(...found.map(v=>({role,page:id,theme,...v})));
+      // Keyboard: anything clickable must be focusable (a native control or tabindex) so it works without a mouse.
+      if(theme==='light'){
+        const unreachable=await page.evaluate(()=>[...document.querySelectorAll('#app [data-action-click]')].filter(el=>el.offsetParent&&!el.matches('a[href],button,input,select,textarea,summary,label,[tabindex]')&&!el.closest('a[href],button,label')&&!el.classList.contains('td-actions')).slice(0,6).map(el=>el.outerHTML.slice(0,140)));
+        if(unreachable.length)a11yFindings.push({role,page:id,theme,id:'keyboard-unreachable',nodes:unreachable.map(target=>({target}))});
+      }
+    }
+  }
+  if(role==='Staff'&&!mobile){
+    // A clickable table row is reachable with Tab and opens with Enter, like a button.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('patients'));
+    const row=page.locator('#app-content tr[data-action-click]').first();
+    await row.waitFor();
+    assert.equal(await row.getAttribute('tabindex'),'0');
+    await row.focus();await page.keyboard.press('Enter');
+    await page.locator('#active-modal .modal').waitFor();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(()=>!document.querySelector('#active-modal .modal'));
   }
   // Messages is not part of CampusCare: no navigation entry, and old links land on the dashboard.
   assert(!navIds.includes('nav-messages'),`${role}: Messages must not be in the sidebar`);
@@ -1470,4 +1507,7 @@ try{
   await context.close();
  }
  console.log(`PASS: ${cases} Chromium role/device scenarios, with all Supabase requests intercepted`);
+  if(process.env.CAMPUSCARE_A11Y_REPORT)fs.writeFileSync(process.env.CAMPUSCARE_A11Y_REPORT,JSON.stringify(a11yFindings,null,1));
+  // Every page each role can open passes WCAG 2.1 AA automated checks in both themes, and is keyboard-reachable.
+  assert.deepEqual(a11yFindings,[],'Accessibility findings: '+JSON.stringify(a11yFindings.slice(0,5),null,1));
 }finally{await browser.close();if(server)await new Promise(resolve=>server.close(resolve));}

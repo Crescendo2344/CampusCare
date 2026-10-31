@@ -48,7 +48,7 @@ export async function renderPatients(){
       <select id="pt-session" aria-label="Student class session" ${bindAction('change',(event,element)=>{if(element.value)document.getElementById('pt-ptype').value='Student';renderPatientTable()})}>
         <option value="">All Class Sessions</option><option value="Morning">Morning Students</option><option value="Evening">Evening Students</option>
       </select>
-      <select id="pt-status" ${bindAction('change',(event,element)=>{renderPatientTable()})}>
+      <select id="pt-status" aria-label="Record status" ${bindAction('change',(event,element)=>{renderPatientTable()})}>
         <option value="active">Active Records</option>
         <option value="archived">Archived Records</option>
         <option value="all">All Records</option>

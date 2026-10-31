@@ -2,6 +2,7 @@
 import {features,initializeFeatures} from './features.js';
 import {registerCallbacks} from './callbacks.js';
 import {registerNamedAction} from '../ui/events.js';
+import {enhanceMarkup} from '../ui/accessible-markup.js';
 import {state} from './state.js';
 let initialized=false;
 export function mountApplication(){
@@ -10,6 +11,7 @@ export function mountApplication(){
   registerCallbacks(features);
   registerNamedAction('back-to-top',()=>window.scrollTo({top:0,behavior:'smooth'}));
   initializeFeatures();
+  enhanceMarkup();
   return {features,state};
 }
 export const application={features,state};

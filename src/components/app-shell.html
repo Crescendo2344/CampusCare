@@ -1,5 +1,6 @@
 <div id="app">
-  <div id="sidebar-backdrop" data-action-click="shell-48"></div>
+  <a class="skip-link" href="#app-content">Skip to main content</a>
+  <div id="sidebar-backdrop" data-action-click="shell-48" aria-hidden="true"></div>
   <!-- SIDEBAR -->
   <div id="sidebar">
     <button type="button" class="sb-brand" data-action-click="dashboard-home" aria-label="CampusCare dashboard home">
@@ -50,7 +51,7 @@
         <div id="top-date" aria-label="Current date"></div>
       </div>
     </div>
-    <div class="content" id="app-content">
+    <div class="content" id="app-content" role="main" tabindex="-1">
       <!-- pages injected here -->
     </div>
   </div>
