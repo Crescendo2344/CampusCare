@@ -1026,9 +1026,19 @@ try{
     await rows.first().locator('.fi-open').click();
     await page.locator('#issue-thread .fi-side').waitFor();
     assert.match(await page.locator('#issue-thread .fi-msg.internal').innerText(),/Internal note/);
-    await page.locator('#fi-composer .seg button[data-mode="internal"]').click();
+    // Saved replies insert their text and the counter follows what is typed.
+    await page.locator('#fi-composer .fi-saved summary').click();
+    await page.locator('#fi-composer .fi-saved-menu button',{hasText:'Need more details'}).click();
+    assert.match(await page.locator('#issue-reply-text').inputValue(),/Could you tell us the steps/);
+    assert.match(await page.locator('#fi-composer-count').innerText(),/^\d+ \/ 3000$/);
+    assert.equal(await page.locator('#fi-composer .fi-saved[open]').count(),0,'The menu closes after choosing');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#fi-composer').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/feedback-composer-reply.png`});
+    await page.locator('#fi-composer .fi-composer-tabs button[data-mode="internal"]').click();
     assert.equal(await page.locator('#fi-composer').getAttribute('data-mode'),'internal');
     assert(await page.locator('#issue-reply-resolve-btn').isHidden(),'Internal notes cannot resolve the report');
+    assert(await page.locator('#fi-composer-note').isVisible());
+    assert.equal(await page.locator('#issue-reply-btn').innerText(),'Add note');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#fi-composer').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/feedback-composer-internal.png`});
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/feedback-thread.png`});
     await page.locator('#issue-thread .close-btn').click();
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/feedback-queue.png`,fullPage:true});

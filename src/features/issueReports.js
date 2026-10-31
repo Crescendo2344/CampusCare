@@ -454,18 +454,26 @@ export function viewIssueThread(id){
       <div id="fi-reopen" hidden><textarea id="fi-reopen-text" rows="2" maxlength="3000" placeholder="What is still not working?"></textarea><button class="btn btn-sm btn-primary" ${bindAction('click',()=>respondToResolution(r.id,false))}>Reopen report</button></div>
     </div>`:`<div class="fi-event"><i class="bi ${r.reporterRating>0?'bi-hand-thumbs-up':'bi-arrow-counterclockwise'}" aria-hidden="true"></i><span>${r.reporterRating>0?'You confirmed the fix. Thank you!':'You reopened this report.'}</span></div>`):'';
 
-  const composer=canReply?`<div class="fi-composer ${isAdmin?'admin':''}" id="fi-composer" data-mode="reply">
-      ${isAdmin?`<div class="fi-composer-head">
-        <div class="seg" role="tablist" aria-label="Message type">
-          <button type="button" role="tab" class="active" aria-selected="true" data-mode="reply" ${bindAction('click',(event,element)=>setComposerMode(element,'reply'))}>Reply to reporter</button>
-          <button type="button" role="tab" aria-selected="false" data-mode="internal" ${bindAction('click',(event,element)=>setComposerMode(element,'internal'))}><i class="bi bi-lock" aria-hidden="true"></i> Internal note</button>
+  // One composer card: Reply / Internal note tabs, a borderless writing area and a toolbar with saved
+  // replies, a character count and the send buttons. Ctrl+Enter sends.
+  const composer=canReply?`<div class="fi-composer" id="fi-composer" data-mode="reply">
+      ${isAdmin?`<div class="fi-composer-tabs" role="tablist" aria-label="Message type">
+        <button type="button" role="tab" class="active" aria-selected="true" data-mode="reply" ${bindAction('click',(event,element)=>setComposerMode(element,'reply'))}><i class="bi bi-reply" aria-hidden="true"></i> Reply</button>
+        <button type="button" role="tab" aria-selected="false" data-mode="internal" ${bindAction('click',(event,element)=>setComposerMode(element,'internal'))}><i class="bi bi-lock" aria-hidden="true"></i> Internal note</button>
+      </div>
+      <p class="fi-composer-note" id="fi-composer-note" hidden><i class="bi bi-eye-slash" aria-hidden="true"></i> Only administrators can see internal notes.</p>`:''}
+      <textarea id="issue-reply-text" maxlength="3000" rows="3" aria-label="${isAdmin?'Reply':'Your reply'}" placeholder="${isAdmin?'Write a reply the reporter will see…':'Write a reply to the administrators…'}" ${bindAction('input',(event,element)=>updateComposerCount(element))} ${bindAction('keydown',(event)=>{if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();sendIssueReply(r.id);}})}></textarea>
+      <div class="fi-composer-bar">
+        ${isAdmin?`<details class="fi-saved">
+          <summary><i class="bi bi-lightning-charge" aria-hidden="true"></i> Saved replies</summary>
+          <div class="fi-saved-menu">${QUICK_REPLIES.map(([label,text])=>`<button type="button" ${bindAction('click',(event,element)=>insertSavedReply(element,text))}><strong>${escapeHtml(label)}</strong><span>${escapeHtml(text)}</span></button>`).join('')}</div>
+        </details>`:''}
+        <span class="fi-composer-count" id="fi-composer-count" aria-live="polite">0 / 3000</span>
+        <span class="fi-composer-hint">Ctrl + Enter to send</span>
+        <div class="fi-composer-actions">
+          ${isAdmin&&!closed?`<button class="btn btn-sm" id="issue-reply-resolve-btn" ${bindAction('click',()=>sendIssueReply(r.id,{resolve:true}))}><i class="bi bi-check2-circle" aria-hidden="true"></i> Send &amp; resolve</button>`:''}
+          <button class="btn btn-sm btn-primary" id="issue-reply-btn" ${bindAction('click',()=>sendIssueReply(r.id))}><i class="bi bi-send" aria-hidden="true"></i> <span>${isAdmin?'Send reply':'Send'}</span></button>
         </div>
-        <select aria-label="Insert a saved reply" ${bindAction('change',(event,element)=>{const reply=QUICK_REPLIES.find(([label])=>label===element.value);if(reply){const box=document.getElementById('issue-reply-text');box.value=(box.value?box.value.trimEnd()+'\n\n':'')+reply[1];box.focus();}element.value='';})}><option value="">Saved replies…</option>${QUICK_REPLIES.map(([label])=>`<option>${escapeHtml(label)}</option>`).join('')}</select>
-      </div>`:''}
-      <textarea id="issue-reply-text" maxlength="3000" rows="3" placeholder="${isAdmin?'Write a reply the reporter will see…':'Write a reply to the administrators…'}"></textarea>
-      <div class="fi-composer-actions">
-        ${isAdmin&&!closed?`<button class="btn btn-sm btn-success" id="issue-reply-resolve-btn" ${bindAction('click',()=>sendIssueReply(r.id,{resolve:true}))}>Send &amp; resolve</button>`:''}
-        <button class="btn btn-sm btn-primary" id="issue-reply-btn" ${bindAction('click',()=>sendIssueReply(r.id))}>${isAdmin?'Send reply':'Send'}</button>
       </div>
     </div>`:'<div class="fi-event"><i class="bi bi-lock" aria-hidden="true"></i><span>This report is closed. Its history stays here for reference.</span></div>';
 
@@ -509,12 +517,23 @@ export function viewIssueThread(id){
 function setComposerMode(button,mode){
   const box=document.getElementById('fi-composer');if(!box)return;
   box.dataset.mode=mode;
-  box.querySelectorAll('.seg button').forEach(b=>{const on=b.dataset.mode===mode;b.classList.toggle('active',on);b.setAttribute('aria-selected',String(on));});
+  box.querySelectorAll('.fi-composer-tabs button').forEach(b=>{const on=b.dataset.mode===mode;b.classList.toggle('active',on);b.setAttribute('aria-selected',String(on));});
+  const internal=mode==='internal';
   const text=document.getElementById('issue-reply-text');
-  text.placeholder=mode==='internal'?'Only administrators see internal notes…':'Write a reply the reporter will see…';
-  const send=document.getElementById('issue-reply-btn');if(send)send.textContent=mode==='internal'?'Add note':'Send reply';
-  const resolve=document.getElementById('issue-reply-resolve-btn');if(resolve)resolve.hidden=mode==='internal';
+  text.placeholder=internal?'Add a note for other administrators…':'Write a reply the reporter will see…';
+  const note=document.getElementById('fi-composer-note');if(note)note.hidden=!internal;
+  const label=document.querySelector('#issue-reply-btn span');if(label)label.textContent=internal?'Add note':'Send reply';
+  const resolve=document.getElementById('issue-reply-resolve-btn');if(resolve)resolve.hidden=internal;
   text.focus();
+}
+function updateComposerCount(text){
+  const count=document.getElementById('fi-composer-count');if(count)count.textContent=`${text.value.length} / 3000`;
+}
+function insertSavedReply(button,reply){
+  const box=document.getElementById('issue-reply-text');if(!box)return;
+  box.value=(box.value.trim()?box.value.trimEnd()+'\n\n':'')+reply;
+  button.closest('details')?.removeAttribute('open');
+  updateComposerCount(box);box.focus();
 }
 
 export async function sendIssueReply(id,{resolve=false}={}){
@@ -525,7 +544,7 @@ export async function sendIssueReply(id,{resolve=false}={}){
   const btn=document.getElementById(resolve?'issue-reply-resolve-btn':'issue-reply-btn');
   if(!body){toast(internal?'Write the note first.':'Write a reply first.','error');return;}
 
-  const old=btn?.textContent;
+  const old=btn?.innerHTML;
   if(btn){btn.disabled=true;btn.textContent='Sending…';}
 
   try{
@@ -563,7 +582,7 @@ export async function sendIssueReply(id,{resolve=false}={}){
     toast(e?.message||'Unable to send the reply.','error');
   }finally{
     if(btn&&document.body.contains(btn)){
-      btn.disabled=false;btn.textContent=old||'Send reply';
+      btn.disabled=false;if(old)btn.innerHTML=old;else btn.textContent='Send reply';
     }
   }
 }
