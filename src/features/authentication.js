@@ -99,9 +99,6 @@ export function pauseLandingCarouselTimer(){
   pauseLandingCarouselProgress();
 }
 
-export function snapLandingCarouselToNearest(){
-  positionLandingCarousel(landingCarouselRealIndex(),'smooth');
-}
 
 export function initializeLandingCarouselInteractions(){
   const {carousel,viewport}=getLandingCarouselParts();

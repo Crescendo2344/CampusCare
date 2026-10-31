@@ -144,17 +144,6 @@ export function approvalDataField(label,value,wide=false){
   </div>`;
 }
 
-export function approvalDocumentPreview(u){
-  if(!u.idFileData){
-    return `<div class="approval-preview-body"><span class="text-muted">No verification document available.</span></div>`;
-  }
-  const isPdf=/\.pdf(?:$|\?)/i.test(String(u.idFile||''))||
-    /application\/pdf/i.test(String(u.idFile||''));
-  if(isPdf){
-    return `<div class="approval-preview-body"><iframe src="${escapeHtml(u.idFileData)}" title="Submitted verification document"></iframe></div>`;
-  }
-  return `<div class="approval-preview-body"><img src="${escapeHtml(u.idFileData)}" alt="Submitted verification document"></div>`;
-}
 
 const REVIEW_CHECKS=[
   ['face','The face in the selfie matches the photo on the ID.'],

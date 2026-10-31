@@ -298,8 +298,6 @@ function offerStockUndo(it,message,transactionId,revertLocal){
   },{undoneMessage:`${it.name} stock change undone.`});
 }
 
-// Keep the old function name from stale buttons/bookmarks but use Archive.
-export function deleteInv(id){archiveInv(id);}
 
 export function openDisbursementModal(){
   const items=inventoryRecords().filter(i=>!i.archived);

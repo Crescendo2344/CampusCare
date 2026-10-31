@@ -1,8 +1,8 @@
 import {markReportStale} from '../reports/custom-report.js';
 // predictiveAnalytics: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
-import {appointmentRecords} from './appointmentService.js';
 import {isoDateOffset} from './dashboardChartHelpers.js';
+import {appointmentRecords} from './appointmentService.js';
 import {treatmentRecords} from './treatmentService.js';
 import {getPatientById} from './documentScanner.js';
 import {openReportDateRange} from './datePicker.js';

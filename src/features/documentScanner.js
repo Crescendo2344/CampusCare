@@ -1,7 +1,7 @@
 // documentScanner: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {resetRegistrationIds} from './idVerification.js';
-import {currentSemester,getSemester,previewFile,readFileAsDataURL,resetSelfiePreview} from './inputValidation.js';
+import {currentSemester,getSemester,resetSelfiePreview} from './inputValidation.js';
 import {escapeHtml} from './issueReports.js';
 import {applyNavBadges} from './topbarAndNavigation.js';
 import {appointmentRecords} from './appointmentService.js';
@@ -17,20 +17,6 @@ export function scannerStatus(html='',tone='',progress=null){
   return;
 }
 
-export function handleIdFileChange(input){
-  previewFile(input,'r-file-preview');
-  appState.camera.capturedIdDataUrl=null;
-  const file=input.files&&input.files[0];
-  if(!file){scannerStatus();return;}
-
-  scanRegistrationDocumentFile(file).catch(e=>{
-    console.error('Registration document scan:',e);
-    scannerStatus(
-      `Automatic scanning could not finish. You may still continue if the uploaded document is clear. <strong>${escapeHtml(e?.message||'')}</strong>`,
-      'warning'
-    );
-  });
-}
 
 export function loadTesseract(){
   return new Promise((resolve,reject)=>{
@@ -43,89 +29,9 @@ export function loadTesseract(){
   });
 }
 
-export function loadPdfJs(){
-  return new Promise((resolve,reject)=>{
-    if(window.pdfjsLib){resolve(window.pdfjsLib);return;}
-    const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    s.onload=()=>{
-      if(!window.pdfjsLib){reject(new Error('PDF scanner failed to initialize'));return;}
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      resolve(window.pdfjsLib);
-    };
-    s.onerror=()=>reject(new Error('Could not load the PDF scanner'));
-    document.head.appendChild(s);
-  });
-}
 
-export async function fileToOcrDataUrl(file){
-  if(file.type==='application/pdf'||/\.pdf$/i.test(file.name||'')){
-    scannerStatus('Preparing the first page of your PDF for scanning…','',12);
-    const pdfjs=await loadPdfJs();
-    const data=await file.arrayBuffer();
-    const pdf=await pdfjs.getDocument({data}).promise;
-    const page=await pdf.getPage(1);
-    const viewport=page.getViewport({scale:1.8});
-    const canvas=document.createElement('canvas');
-    canvas.width=Math.ceil(viewport.width);
-    canvas.height=Math.ceil(viewport.height);
-    const ctx=canvas.getContext('2d',{alpha:false});
-    ctx.fillStyle='#fff';
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    await page.render({canvasContext:ctx,viewport}).promise;
-    return canvas.toDataURL('image/jpeg',.94);
-  }
-  if(!file.type.startsWith('image/'))throw new Error('Please upload a clear image or PDF document.');
-  return await readFileAsDataURL(file);
-}
 
-export function enhanceOcrImage(dataUrl){
-  return new Promise((resolve,reject)=>{
-    const img=new Image();
-    img.onload=()=>{
-      const maxSide=1900;
-      const scale=Math.min(1,maxSide/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
-      const w=Math.max(1,Math.round((img.naturalWidth||img.width)*scale));
-      const h=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));
-      const canvas=document.createElement('canvas');
-      canvas.width=w; canvas.height=h;
-      const ctx=canvas.getContext('2d',{willReadFrequently:true});
-      ctx.fillStyle='#fff';
-      ctx.fillRect(0,0,w,h);
-      ctx.drawImage(img,0,0,w,h);
 
-      const image=ctx.getImageData(0,0,w,h);
-      const d=image.data;
-      for(let i=0;i<d.length;i+=4){
-        const gray=.299*d[i]+.587*d[i+1]+.114*d[i+2];
-        // Moderate contrast enhancement keeps colored IDs readable while
-        // making printed text clearer for OCR.
-        const contrast=Math.max(0,Math.min(255,(gray-128)*1.42+128));
-        d[i]=d[i+1]=d[i+2]=contrast;
-        d[i+3]=255;
-      }
-      ctx.putImageData(image,0,0);
-      resolve(canvas.toDataURL('image/jpeg',.93));
-    };
-    img.onerror=()=>reject(new Error('The uploaded image could not be read.'));
-    img.src=dataUrl;
-  });
-}
-
-export async function scanRegistrationDocumentFile(file){
-  appState.documentScanner.lastOcrRawText='';
-  appState.documentScanner.lastOcrCleanText='';
-  appState.documentScanner.lastOcrConfidence=0;
-  appState.documentScanner.lastOcrDocumentType='';
-  appState.documentScanner.lastOcrDetectedId='';
-
-  scannerStatus('Preparing your document…','',8);
-  const original=await fileToOcrDataUrl(file);
-  const enhanced=await enhanceOcrImage(original);
-  appState.camera.capturedIdDataUrl=original;
-
-  await analyzeIdImage(enhanced,original);
-}
 
 // Invalidate in-flight recognition when an ID is replaced or the person type changes.
 export function clearRegistrationScan(){
@@ -360,7 +266,6 @@ export function checkDentalQuota(patientId,excludeId=null){
 
 export function getLowStock(){return inventoryRecords().filter(i=>!i.archived&&i.qty<=i.threshold);}
 
-export function getPatientByUserId(uid){return appState.data.DB.patients.find(p=>p.userId===uid)||null;}
 export function getUserById(id){return appState.data.DB.users.find(u=>u.id===id);}
 export function getPatientById(id){return appState.data.DB.patients.find(p=>p.id===id);}
 

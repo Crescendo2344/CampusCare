@@ -173,15 +173,6 @@ export function renderApptTable(){
   el.innerHTML=`<div class="table-wrap"><table class="appt-table"><thead><tr><th scope="col">Time</th><th scope="col">Patient</th><th scope="col">Service</th>${doctorView?'':'<th scope="col">Doctor</th>'}<th scope="col">Priority</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${body}</tbody></table></div>${pager}`;
 }
 
-export function completeAppt(id){
-  const a=appointmentRecords().find(x=>x.id===Number(id));if(!a)return;
-  showConfirmDialog({
-    title:'Complete Appointment',
-    message:`Mark appointment #${a.dbAppointmentId||id} as completed?`,
-    confirmLabel:'Mark Completed',
-    onConfirm:recordOutcome(a,'Completed','Appointment marked as completed.','Unable to complete appointment.')
-  });
-}
 
 export function noShowAppt(id){
   const a=appointmentRecords().find(x=>x.id===Number(id));if(!a)return;

@@ -10,9 +10,6 @@ import {auditAction} from './emailDelivery.js';
 import {auditLog} from './auditAndBackups.js';
 import {persistDB} from './persistence.js';
 import {clearCampusSessionGuard} from './sessionSecurity.js';
-import {getPatientByUserId} from './documentScanner.js';
-import {checkReminders} from './assistant.js';
-import {initApp} from './appInitialization.js';
 // ================================================================
 // FORGOT PASSWORD — real Supabase email recovery
 // ================================================================
@@ -454,19 +451,6 @@ export function logout(){
   });
 }
 
-// Restore an active session (e.g. after a page refresh) so the person
-// isn't logged out just for reloading the tab.
-export function tryRestoreSession(){
-  const savedId=sessionStorage.getItem(appState.persistence.SESSION_KEY);
-  if(!savedId)return false;
-  const user=appState.data.DB.users.find(u=>u.id===parseInt(savedId));
-  if(!user||user.status!=='Active'){sessionStorage.removeItem(appState.persistence.SESSION_KEY);return false;}
-  appState.auth.currentUser=user;
-  if(user.role==='Patient')appState.auth.currentPatient=getPatientByUserId(user.id);
-  checkReminders();
-  initApp();
-  return true;
-}
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){

@@ -197,10 +197,6 @@ export function genId(...args){return formatters.genId(...args);}
 
 export function svgIcon(...args){return displayMarkup.svgIcon(...args);}
 
-export function previewFile(input,previewId){
-  const el=document.getElementById(previewId);
-  if(el&&input.files[0])el.textContent='✓ '+input.files[0].name;
-}
 
 export function setVerificationChip(id,state,text){
   const chip=document.getElementById(id);

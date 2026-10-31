@@ -20,12 +20,6 @@ import {bindAction,createOperationalService} from '../dependencies.js';
 // LOGIN ATTEMPT LOCKOUT — basic brute-force protection
 // ================================================================
 
-export function getLoginAttempts(){
-  try{ return JSON.parse(localStorage.getItem(appState.loginLockout.LOGIN_ATTEMPTS_KEY)||'{}'); }catch(e){ return {}; }
-}
-export function setLoginAttempts(data){
-  try{ localStorage.setItem(appState.loginLockout.LOGIN_ATTEMPTS_KEY,JSON.stringify(data)); }catch(e){}
-}
 
 // Browsers with the Credential Management API (Chrome, Edge, Opera) show their own "Save password?"
 // prompt here; others offer it from the submitted login form.
@@ -196,14 +190,6 @@ export async function syncRegistrationPrivacyVersion(){
 
 export async function privacyAction(payload){return createOperationalService({getClient:()=>appState.supabaseClient.supabaseClient,request:(...args)=>fetch(...args),baseUrl:appState.supabaseClient.SUPABASE_URL,publishableKey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY}).privacyAction(payload);}
 
-export async function syncPrivacyStatus(){
-  if(!appState.auth.currentUser?._realSupabase)return null;
-  const result=await privacyAction({action:'status'});
-  appState.data.DB.privacyStatus=result;
-  appState.data.DB.settings.privacyPolicyVersion=result.current_version||appState.data.DB.settings.privacyPolicyVersion||'1.0';
-  appState.data.DB.settings.privacyPolicyUpdated=result.policy_updated||appState.data.DB.settings.privacyPolicyUpdated||appState.clinicInformation.TODAY;
-  return result;
-}
 
 export async function syncPrivacyAdminSummary(){
   if(!appState.auth.currentUser?._realSupabase||appState.auth.currentUser.role!=='Administrator')return null;

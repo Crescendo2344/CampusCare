@@ -595,11 +595,6 @@ export function collectDentalRecordForm(){
   };
 }
 
-export function toggleDentalRecordSection(){
-  const section=document.getElementById('tm-dental-section');
-  const type=document.getElementById('tm-record-type')?.value||'Medical Clinic';
-  if(section)section.hidden=type!=='Dental Clinic';
-}
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){

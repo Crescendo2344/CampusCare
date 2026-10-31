@@ -4,7 +4,6 @@ import {escapeHtml} from './issueReports.js';
 import {state as appState} from '../app/state.js';
 import {closeAllModals,openModal} from './modals.js';
 import {showAlert,toast} from './theme.js';
-import {navTo} from './navigationRaceProtection.js';
 import {resetRegistrationFieldErrors,setRegistrationFieldError,validateRegistrationField,validateRegistrationForm} from './inputValidation.js';
 import {checkPasswordStrength,renderPasswordStrength} from './loginLockout.js';
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
@@ -330,7 +329,6 @@ export async function saveEditUser(id){
   document.getElementById('eu-reason').focus();
 }
 
-export function openDoctorScheduleEdit(docId){return openDoctorScheduleEditor(docId);}
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){

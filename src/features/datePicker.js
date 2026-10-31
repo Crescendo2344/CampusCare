@@ -10,7 +10,6 @@ import {refreshHealthIntelligence} from './predictiveAnalytics.js';
 import {renderApptTable} from './appointments.js';
 import {getPatientById} from './documentScanner.js';
 import {checkDentalWarn,onClinicChange,patientPriority} from './bookingForm.js';
-import {openCamera} from '../app/optional-features.js';
 import {bindAction} from '../dependencies.js';
 // ── Reusable CampusCare date picker ─────────────────────────────
 // Replaces the browser's native date UI so every date field uses the
@@ -151,24 +150,6 @@ export function filterBookPatients(q=''){
 }
 export function selectBookPatient(id){const p=getPatientById(id);if(!p)return;document.getElementById('b-pt').value=id;document.getElementById('b-pt-search').value=`${p.fname} ${p.lname}`;const priority=document.getElementById('b-priority');if(priority)priority.value=patientPriority(p);document.getElementById('b-pt-results').classList.remove('show');const wasLocked=Boolean(document.querySelector('.booking-dental-locked'));if(!checkDentalWarn()&&wasLocked)void onClinicChange()}
 
-export function assistedFile(input,kind){
- const f=input.files?.[0];if(!f)return;const r=new FileReader();
- r.onload=e=>{if(kind==='profile'){appState.datePicker.assistedProfile=e.target.result;const im=document.getElementById('pm-profile-preview');if(im){im.src=appState.datePicker.assistedProfile;im.style.display='block'}}else{appState.datePicker.assistedIdCor=e.target.result;const x=document.getElementById('pm-id-preview');if(x)x.textContent='Selected: '+f.name}};
- r.readAsDataURL(f);
-}
-export function captureAssistedPatientDraft(){
- const ids=['pm-fname','pm-lname','pm-email','pm-username','pm-idno','pm-birth','pm-gender','pm-blood','pm-contact','pm-college','pm-ptype','pm-height','pm-weight','pm-addr','pm-allergy','pm-history','pm-ename','pm-econtact'];
- const d={};ids.forEach(id=>{const el=document.getElementById(id);if(el)d[id]=el.value});return d;
-}
-export function restoreAssistedPatientDraft(){
- if(!appState.datePicker.assistedPatientDraft)return;
- Object.entries(appState.datePicker.assistedPatientDraft).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.value=value});
- appState.datePicker.assistedPatientDraft=null;
-}
-export function openAssistedPatientCamera(kind){
- appState.datePicker.assistedPatientDraft=captureAssistedPatientDraft();
- openCamera(kind==='profile'?'assisted-profile':'assisted-id');
-}
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){

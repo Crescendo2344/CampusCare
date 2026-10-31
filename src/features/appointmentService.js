@@ -1,11 +1,9 @@
 // appointmentService: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
-import {viewAppt} from './appointmentDetails.js';
 import {syncAdminDirectoryFromSupabase,syncCurrentPatientFromSupabase} from './patientService.js';
 import {appointmentData,createAppointmentService} from '../dependencies.js';
 // Page adapters own state updates and keep existing public handlers during migration.
 export function appointmentDisplayId(a){return appointmentData.appointmentDisplayId(a);}
-export function openAppointmentFromRow(id){viewAppt(Number(id));}
 export function appointmentRecords(){return appointmentData.appointmentRecords(appState.data.DB,appState.auth.currentUser);}
 export function realAppointmentToUi(a){return appointmentData.realAppointmentToUi(a,appState.data.DB);}
 export function appointmentService(){

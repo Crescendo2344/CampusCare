@@ -27,11 +27,6 @@ export function customReportControls(){
     <div class="form-group"><label for="rpt-search">Search matching records</label><input type="search" id="rpt-search" placeholder="Name, ID or keyword" ${bindAction('input',markReportStale)}></div>
   </div><p class="form-note">${type==='inventory'?'Current stock snapshot. Date range and college do not apply. Stock value uses recorded unit costs; quantities with different units are not added together.':type==='patients'?'Current non-archived patient snapshot. The date range does not reconstruct past patient counts.':'Filters combine with the date range and college above. Counts use the appointment date or treatment date.'}</p>`;
 }
-export function reportBars(rows,{forecast=false}={}){
-  if(!rows.length)return '<p class="form-note">No matching data. Try a wider date range or fewer filters.</p>';
-  const max=Math.max(1,...rows.map(r=>Number(r.value)));
-  return `<div class="report-bars" role="img" aria-label="${forecast?'Forecast by week':'Report breakdown; exact values are in the table below'}">${rows.slice(0,12).map(r=>`<div class="report-bar-row"><span title="${esc(r.label)}">${esc(r.label)}</span><div class="report-bar-track"><i style="width:${Math.max(0,Number(r.value)/max*100)}%"></i></div><strong>${Number(r.value).toLocaleString(undefined,{maximumFractionDigits:1})}</strong></div>`).join('')}</div>${rows.length>12?'<p class="form-note">First 12 groups shown. All groups are included in the table and export.</p>':''}`;
-}
 export function buildCustomReport(exportToolbar){
   const type=value('rpt-type'),definition=reportDefinitions[type];if(!definition)return;
   const from=value('rpt-from'),to=value('rpt-to');

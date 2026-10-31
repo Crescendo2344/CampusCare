@@ -1,6 +1,6 @@
 // bookingForm: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
-import {campusScheduleForDate,clinicToday,discardCampusDraft,validateCampusBooking} from './scheduleAndDrafts.js';
+import {clinicToday,discardCampusDraft,validateCampusBooking} from './scheduleAndDrafts.js';
 import {dayOfWeek,fmtDate,fmtTime,getSemester} from './inputValidation.js';
 import {appointmentAction,appointmentRecords,appointmentService,syncRealAppointments} from './appointmentService.js';
 import {checkDentalQuota,getDentalDoctors,getMedDoctors,getPatientById,getUserById} from './documentScanner.js';
@@ -18,40 +18,7 @@ import {addBookingDays,buildDoctorAvailability} from '../domain/booking-availabi
 import {bindAction,scheduleRules} from '../dependencies.js';
 // ── Book Appointment ──
 
-export function doctorOpenSlotCount(doc,date){
-  if(!doc||!date||date<clinicToday())return 0;
-  doc=campusScheduleForDate(doc,date);
-  if(appState.data.DB.doctorLeaves.some(l=>l.doctorId===doc.id&&l.date===date))return 0;
 
-  const dayName=dayOfWeek(date);
-  const workDays=doc.workDays||['Mon','Tue','Wed','Thu','Fri'];
-  if(!workDays.includes(dayName))return 0;
-
-  const taken=new Set(
-    appointmentRecords()
-      .filter(a=>
-        a.id!==Number(appState.bookingForm.activeBookingEditId) &&
-        a.doctorId===doc.id &&
-        a.date===date &&
-        a.status!=='Cancelled'
-      )
-      .map(a=>a.time)
-  );
-
-  const remaining=Math.max(0,Number(doc.maxPatients||20)-appointmentRecords().filter(a=>a.id!==Number(appState.bookingForm.activeBookingEditId)&&a.doctorId===doc.id&&a.date===date&&a.status!=='Cancelled').length);
-  return Math.min(remaining,appointmentSlotBaseTimes(doc).filter(t=>{
-    if(taken.has(t))return false;
-    const state=slotAvailabilityState(doc,date,t);
-    return !state.blocked;
-  }).length);
-}
-
-// Keep the public adapter name for saved drafts; doctor selection now precedes the date.
-export async function refreshAvailableDoctorsForDate(preferredDoctorId=null){
-  const select=document.getElementById('b-doc');if(!select)return;
-  if(preferredDoctorId)select.value=String(preferredDoctorId);
-  await onBookingDoctorChange();
-}
 
 // Day-by-day openings for one doctor. `editing` leaves that appointment's own time selectable.
 export async function fetchDoctorAvailability(doctor,from,to,editing=null){

@@ -2,7 +2,7 @@
 import {state as appState} from '../app/state.js';
 import {appointmentRecords} from './appointmentService.js';
 import {dayOfWeek} from './inputValidation.js';
-import {appointmentSlotBaseTimes,onClinicChange,openBookApptModal,refreshAvailableDoctorsForDate,chooseBookingDate,selectSlot,slotAvailabilityState} from './bookingForm.js';
+import {appointmentSlotBaseTimes,onClinicChange,openBookApptModal,chooseBookingDate,selectSlot,slotAvailabilityState} from './bookingForm.js';
 import {toast} from './theme.js';
 import {applyDueScheduleChanges,openScheduleChangeRequest} from './workflowRequests.js';
 import {getPatientById,getUserById} from './documentScanner.js';
@@ -61,7 +61,6 @@ export function updateSchedulePreview(){
 // Drafts are per account and stay only in this tab's session storage.
 // Do not capture passwords, uploads, signatures or treatment-record forms.
 
-export function campusSessionKey(kind){return appState.scheduleAndDrafts.campusDraftStorage.key(kind);}
 export function readCampusSession(kind,fallback){return appState.scheduleAndDrafts.campusDraftStorage.read(kind,fallback);}
 export function writeCampusSession(kind,value){appState.scheduleAndDrafts.campusDraftStorage.write(kind,value);}
 export function captureCampusDraft(kind){

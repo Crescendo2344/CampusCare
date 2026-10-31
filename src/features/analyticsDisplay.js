@@ -3,13 +3,6 @@ import {createFeatureSyncService} from '../services/feature-sync.js';
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {fmtDate} from './inputValidation.js';
-import {syncAdminDirectoryFromSupabase} from './patientService.js';
-import {syncRealAppointments} from './appointmentService.js';
-import {syncRealTreatments} from './treatmentService.js';
-import {syncRealInventory} from './inventoryService.js';
-import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
-import {showDatabaseSkeleton} from './loadingSkeletons.js';
-import {bindAction} from '../dependencies.js';
 
 export async function fetchAnalyticsSummary(from,to,college=''){
   return createFeatureSyncService({getState:()=>appState,callbacks:{}}).fetchAnalyticsSummary(from,to,college);
@@ -30,45 +23,7 @@ export function analyticsMiniBars(rows,valueKey='count'){
   }).join('')}</div>`;
 }
 
-export function analyticsVisitForecastHtml(summary){
-  const rows=summary?.visitForecast||[];
-  if(!rows.length)return '<div class="tech-note">No forecast is available yet.</div>';
 
-  return `<div class="table-wrap"><table>
-    <thead><tr><th>Month</th><th>Predicted Clinic Visits</th></tr></thead>
-    <tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.label)}</td><td><strong>${Number(r.predictedVisits||0)}</strong></td></tr>`).join('')}</tbody>
-  </table></div>
-  <div class="tech-note" style="margin-top:.5rem">
-    Method: ${escapeHtml(summary.forecastMeta?.method||'trend analysis')} ·
-    Confidence: <strong>${escapeHtml(summary.forecastMeta?.confidence||'Limited')}</strong> ·
-    ${Number(summary.forecastMeta?.historicalVisits||0)} historical visit${Number(summary.forecastMeta?.historicalVisits||0)===1?'':'s'} used.
-  </div>`;
-}
-
-export function analyticsMedicineForecastHtml(summary){
-  const rows=summary?.medicineForecast||[];
-  if(!rows.length){
-    return '<div class="tech-note">Medicine consumption forecasting appears after Medicine inventory items and disbursement history are available.</div>';
-  }
-
-  const byItem={};
-  rows.forEach(r=>{
-    (byItem[r.itemName]??=[]).push(r);
-  });
-
-  return `<div class="table-wrap"><table>
-    <thead><tr><th>Medicine</th><th>Month</th><th>Predicted Use</th><th>Projected Remaining</th><th>Recommended Reorder</th></tr></thead>
-    <tbody>${Object.entries(byItem).flatMap(([name,items])=>
-      items.map(r=>`<tr>
-        <td>${escapeHtml(name)}</td>
-        <td>${escapeHtml(r.label)}</td>
-        <td>${Number(r.predictedUsage||0)} ${escapeHtml(r.unit||'')}</td>
-        <td>${r.predictedRemainingStock==null?'—':`${Number(r.predictedRemainingStock)} ${escapeHtml(r.unit||'')}`}</td>
-        <td>${Number(r.recommendedReorderQty||0)} ${escapeHtml(r.unit||'')}</td>
-      </tr>`)
-    ).join('')}</tbody>
-  </table></div>`;
-}
 
 export function renderLiveAnalyticsCard(summary){
   if(!summary)return `<div class="card"><div class="empty-state"><p>Analytics data is unavailable.</p></div></div>`;

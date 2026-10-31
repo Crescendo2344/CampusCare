@@ -1,5 +1,4 @@
 // loadingSkeletons: imported feature APIs; state belongs to explicit application namespaces.
-import {state as appState} from '../app/state.js';
 import {beginCampusNavigation,isCampusPageCurrent,renderHealthEducation} from './navigationRaceProtection.js';
 import {renderDashboard} from './dashboard.js';
 import {renderMyAppointments} from './patientAppointments.js';
@@ -11,7 +10,6 @@ import {renderAppointments} from './appointments.js';
 import {renderApprovals} from './approvalQueue.js';
 import {renderTreatments} from './treatmentList.js';
 import {renderInventory} from './inventory.js';
-import {renderMessages} from './messaging.js';
 import {renderReports} from '../app/optional-features.js';
 import {renderUsers} from './userManagement.js';
 import {renderSettings} from './settingsAndCertificates.js';

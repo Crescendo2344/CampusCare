@@ -20,7 +20,6 @@ export function auditCategory(action='',entity=''){
   if(e==='issue_reports'||a.startsWith('ISSUE'))return 'feedback';
   return 'system';
 }
-export const isAuditCategory=id=>CATEGORY_IDS.has(id);
 
 // "APPOINTMENT_CANCEL_UNDONE" → "Appointment cancel undone"
 export function friendlyAuditAction(action=''){

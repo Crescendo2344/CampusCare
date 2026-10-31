@@ -3,7 +3,7 @@ import {createFeatureSyncService} from '../services/feature-sync.js';
 import {state as appState} from '../app/state.js';
 import {articleBannerHtml,captureCampusPageToken,deleteDraftArticle,healthResourceAction,healthResourceRecords,isCampusPageCurrent,renderHealthEducation,syncRealHealthResources} from './navigationRaceProtection.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
-import {fmtDate,readFileAsDataURL,resizeImageDataUrl} from './inputValidation.js';
+import {readFileAsDataURL,resizeImageDataUrl} from './inputValidation.js';
 import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {addNotif,updateNotifUI} from './notifications.js';
 import {persistDB} from './persistence.js';
@@ -11,7 +11,7 @@ import {closeAllModals,closeTopModal,openModal,showFilePreview} from './modals.j
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
 import {getUserById} from './documentScanner.js';
 import {userAvatarHtml} from './userManagement.js';
-import {docName,fmtShortTime} from './messaging.js';
+import {docName} from './messaging.js';
 import {openCamera} from '../app/optional-features.js';
 import {bindAction,workflowData} from '../dependencies.js';
 import {ARTICLE_ICONS,articleIconName,biIcon} from '../ui/app-icons.js';
@@ -636,13 +636,7 @@ async function respondToResolution(id,fixed){
   }catch(e){toast(e?.message||'Unable to send your answer.','error');}
 }
 
-export function resolveIssueReport(id){
-  openIssueDecisionModal(id,'Resolved');
-}
 
-export function dismissIssueReport(id){
-  openIssueDecisionModal(id,'Dismissed');
-}
 
 export function openIssueDecisionModal(id,decision){
   const r=issueReportRecords().find(x=>x.id===Number(id));if(!r)return;
@@ -852,19 +846,6 @@ export async function saveArticle(id){
   }
 }
 
-// Helper to escape HTML (prevent XSS)
-// Safely embed user-supplied text as a single-quoted JS string literal
-// inside an onclick="..." HTML attribute (prevents both breaking out of
-// the string and breaking out of the attribute).
-export function jsAttrSafe(s){
-  return String(s==null?'':s)
-    .replace(/\\/g,'\\\\')
-    .replace(/'/g,"\\'")
-    .replace(/"/g,'&quot;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/\n/g,' ');
-}
 
 export function escapeHtml(str) {
   if (!str) return '';

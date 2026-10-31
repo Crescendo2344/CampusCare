@@ -7,7 +7,6 @@ import {escapeHtml} from './issueReports.js';
 import {getUserById} from './documentScanner.js';
 import * as stockData from '../domain/inventory-status.js';
 import {archiveInv,openDisbursementModal,openInvModal,openUpdateQtyModal,restoreInv} from './inventoryForms.js';
-import {showFilePreview} from './modals.js';
 import {fmtDate} from './inputValidation.js';
 import {bindAction} from '../dependencies.js';
 import {csvFileName,downloadCsv} from '../shared/csv.js';

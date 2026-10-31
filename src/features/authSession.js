@@ -12,7 +12,7 @@ import {syncRealCertificates} from './certificateService.js';
 import {syncRealFitnessAssessments} from './fitnessAssessments.js';
 import {syncRealInventory} from './inventoryService.js';
 import {refreshRealApprovalQueue} from './approvalQueue.js';
-import {registrationToast,toast} from './theme.js';
+import {toast} from './theme.js';
 import {syncRealAppointments,syncRealDoctorDirectory} from './appointmentService.js';
 import {rebuildConditionalNavigation,syncClinicSurveys} from './dentalSurvey.js';
 import {renderDashboard} from './dashboard.js';
@@ -157,12 +157,6 @@ async function restoreAuthenticatedAccount(){
 // Normalize a real Supabase user so the existing CampusCare UI can display it
 // without showing generic "User / email / Role" placeholders.
 
-export function fetchWithTimeout(url,options={},timeoutMs=7000){
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),timeoutMs);
-  return fetch(url,{...options,signal:controller.signal})
-    .finally(()=>clearTimeout(timer));
-}
 
 export function getActiveNavPageId(){
   const active=document.querySelector('#sidebar nav [id^="nav-"].active');
@@ -189,20 +183,6 @@ export function refreshActivePageAfterSync(){
 // Registration has its own toast position so validation messages do not appear
 // as large inline alerts inside the registration form.
 
-// Convert registration-specific inline alert calls to the dedicated toast.
-// This leaves login, logout, dashboard and other CampusCare toasts unchanged.
-export function routeRegistrationFeedbackToToast(){
-  const reg=document.getElementById('reg-section');
-  if(!reg) return;
-  reg.querySelectorAll('.alert').forEach(a=>{
-    if(a.textContent.trim()){
-      const type=a.classList.contains('alert-error')?'error':
-                 a.classList.contains('alert-success')?'success':'info';
-      registrationToast(a.textContent.trim(),type);
-      a.style.display='none';
-    }
-  });
-}
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){

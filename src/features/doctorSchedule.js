@@ -1,6 +1,6 @@
 // doctorSchedule: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
-import {captureCampusPageToken,isCampusPageCurrent,navTo} from './navigationRaceProtection.js';
+import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {appointmentRecords,syncAppointmentContext,syncRealAppointments} from './appointmentService.js';
 import {escapeHtml} from './issueReports.js';

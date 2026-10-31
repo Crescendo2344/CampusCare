@@ -5,13 +5,12 @@ import {syncRealTreatments,treatmentRecords} from './treatmentService.js';
 import {escapeHtml} from './issueReports.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
-import {fmtDate,fmtDateTime} from './inputValidation.js';
+import {fmtDate} from './inputValidation.js';
 import {closeAllModals,openModal} from './modals.js';
 import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {persistDB} from './persistence.js';
 import {getPatientById,getUserById} from './documentScanner.js';
 import {viewPatient} from './patientForm.js';
-import {docName} from './messaging.js';
 import {loadJsPDF} from './settingsAndCertificates.js';
 import {paginate,pagerHtml} from '../ui/pager.js';
 import {bindAction,certificateData,createCertificateService} from '../dependencies.js';
@@ -61,22 +60,7 @@ export function certStatusBadge(s){
 // ---- DOCTOR WORKFLOW ----
 // The examining doctor decides whether to issue a certificate, writes it from the visit notes and signs it.
 
-// Return the newest clinical record for this patient, preferring the selected doctor's own record.
-export function getLatestTreatmentForCertificate(patientId,doctorId=null){
-  const byDoctor=treatmentRecords().filter(t=>t.patientId===patientId&&!t.archived&&(!doctorId||t.doctorId===doctorId));
-  const fallback=treatmentRecords().filter(t=>t.patientId===patientId&&!t.archived);
-  const list=byDoctor.length?byDoctor:fallback;
-  return list.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||b.id-a.id)[0]||null;
-}
 
-// Build the default certificate text from findings, diagnosis, notes, treatment and follow-up data.
-export function certificateAutofillFromTreatment(patientId,doctorId){
-  const t=getLatestTreatmentForCertificate(patientId,doctorId);
-  if(!t)return {findings:'',remarks:'',treatment:null};
-  const findings=[t.findings,t.diagnosis?`Diagnosis: ${t.diagnosis}`:''].filter(Boolean).join(' — ');
-  const remarks=[t.notes,t.prescription?`Prescription / Treatment: ${t.prescription}`:'',t.followupDate?`Follow-up: ${fmtDate(t.followupDate)}`:''].filter(Boolean).join(' ');
-  return {findings,remarks,treatment:t};
-}
 
 // Ensures newly generated and previously saved medical certificates include
 // the official CTU Main Campus logo. Older saved certificate HTML is upgraded

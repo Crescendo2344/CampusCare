@@ -13,7 +13,6 @@ import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {treatmentRecords} from './treatmentService.js';
 import {viewTreatment} from './treatmentForm.js';
 import {viewAppt} from './appointmentDetails.js';
-import {toast} from './theme.js';
 import {bindAction} from '../dependencies.js';
 // ================================================================
 // DASHBOARD A — Priority + Trends for every CampusCare user role.
@@ -195,14 +194,6 @@ export function renderDashboard(){
   </div>`;
 }
 
-export function markReminderTaken(id) {
-  const rem = appState.data.DB.medReminders.find(r => r.id === id);
-  if (rem) {
-    // For simplicity, just toast and optionally log. Could also create a taken log.
-    toast(`Marked ${rem.medicationName} as taken.`, 'success');
-    // Optionally disable for today and retrigger tomorrow? For demo, do nothing else.
-  }
-}
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){

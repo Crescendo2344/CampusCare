@@ -295,10 +295,6 @@ export async function submitDentalSurvey(){
   }
 }
 
-export function averageNumeric(values){
-  const nums=values.map(Number).filter(n=>Number.isFinite(n)&&n>0);
-  return nums.length?nums.reduce((a,b)=>a+b,0)/nums.length:0;
-}
 
 export async function renderSurveyResults(){
   const c=document.getElementById('app-content');

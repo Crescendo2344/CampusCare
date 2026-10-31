@@ -1,7 +1,7 @@
 // emailDelivery: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
-import {showConfirmDialog,toast} from './theme.js';
+import {toast} from './theme.js';
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
 import {captureCampusPageToken,isCampusPageCurrent,navTo} from './navigationRaceProtection.js';
 import {closeAllModals,openModal} from './modals.js';
@@ -297,8 +297,6 @@ export async function renderActivityLog(){
   renderActivityLogTable();
 }
 
-// "APPOINTMENT_CREATED" reads as "Appointment created".
-export function friendlyAction(action=''){return friendlyAuditAction(action);}
 
 function filteredActivity({ignoreCategory=false}={}){
   const ui=auditUi();
@@ -426,18 +424,6 @@ export async function exportActivityLog(){
   toast('Activity log exported as CSV.','success');
 }
 
-export function resetDemoData(){
-  showConfirmDialog({
-    title:'Reset to Demo Data',
-    message:'This erases every local change (accounts, appointments, records, inventory) and restores the original demo data. This cannot be undone. Continue?',
-    confirmLabel:'Reset Everything',danger:true,
-    onConfirm:()=>{
-      localStorage.removeItem(appState.persistence.DB_STORAGE_KEY);
-      sessionStorage.removeItem(appState.persistence.SESSION_KEY);
-      location.reload();
-    }
-  });
-}
 
 // Bring older cached CampusCare builds forward to the current on-site
 // clinic location/contact information without overwriting later manual edits.

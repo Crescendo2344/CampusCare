@@ -1,5 +1,4 @@
 // privacy: imported feature APIs; state belongs to explicit application namespaces.
-import {state as appState} from '../app/state.js';
 import {closeAllModals,openModal} from './modals.js';
 import {showAlert,toast} from './theme.js';
 import {privacyAction} from './loginLockout.js';

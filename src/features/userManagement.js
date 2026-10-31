@@ -10,7 +10,7 @@ import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
 import {getUserById} from './documentScanner.js';
 import {docName} from './messaging.js';
-import {collegeBadge,fmtDate,fmtTime,statusBadge} from './inputValidation.js';
+import {fmtDate,fmtTime,statusBadge} from './inputValidation.js';
 import {approveScheduleChange,rejectScheduleChange} from './workflowRequests.js';
 import {approveLeaveRequest,rejectLeaveRequest} from './doctorSchedule.js';
 import {approveNameChange,rejectNameChange} from './nameChangeRequests.js';

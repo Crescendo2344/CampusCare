@@ -108,10 +108,6 @@ export function loadTaskBadgeSeen(){
   }
 }
 
-export function saveTaskBadgeSeen(){
-  try{localStorage.setItem(taskBadgeSeenKey(),JSON.stringify(appState.topbarAndNavigation.navTaskSeen||{}));}
-  catch(_){}
-}
 
 export function navNotificationCounts(){
   return notificationData.notificationPageCounts(notificationRecords(),appState.auth.currentUser);
@@ -176,13 +172,6 @@ export function demoTaskBadgeSnapshot(){
 
 export async function taskBadgeAction(){return createOperationalService({getClient:()=>appState.supabaseClient.supabaseClient,request:(...args)=>fetch(...args),baseUrl:appState.supabaseClient.SUPABASE_URL,publishableKey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY}).taskBadgeAction();}
 
-export function unseenTaskCount(id){
-  const current=new Set(appState.topbarAndNavigation.navTaskItems[id]||[]);
-  const seen=new Set(appState.topbarAndNavigation.navTaskSeen[id]||[]);
-  let total=0;
-  current.forEach(token=>{if(!seen.has(token))total+=1;});
-  return total;
-}
 
 // Two kinds of sidebar badge:
 //  - work: items someone has to act on (approvals, low stock…). It clears only when the work is done.
@@ -213,7 +202,6 @@ export function navBadgeState(id,notificationCounts=null){
   if(updates>0)return {count:updates,kind:'update',label:plural(updates,'new update'),updates};
   return {count:0,kind:'',label:'',updates:0};
 }
-export function navBadgeCountFor(id,notificationCounts=null){return navBadgeState(id,notificationCounts).count;}
 
 export function applyNavBadges(){
   if(!appState.auth.currentUser)return;
