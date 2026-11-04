@@ -2,6 +2,7 @@
 import {state as appState} from '../app/state.js';
 import {closeAllModals,openModal} from './modals.js';
 import {bindAction} from '../dependencies.js';
+import {collapseOut} from '../ui/motion.js';
 
 export const TERMS_VERSION='1.0';
 export const TERMS_UPDATED='October 31, 2026';
@@ -93,7 +94,7 @@ export function initStorageNotice(){
   bar.querySelector('#storage-notice-policy').addEventListener('click',event=>{event.preventDefault();openCookiePolicy();});
   bar.querySelector('#storage-notice-ok').addEventListener('click',()=>{
     try{localStorage.setItem(STORAGE_NOTICE_KEY,COOKIE_POLICY_VERSION);}catch{ /* Storage may be blocked in private modes. */ }
-    bar.remove();
+    collapseOut(bar);
   });
 }
 

@@ -8,6 +8,7 @@ import {fmtDate} from './inputValidation.js';
 import {closeAllModals,openModal} from './modals.js';
 import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {persistDB} from './persistence.js';
+import {collapseOut} from '../ui/motion.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
 import {articleIconHtml} from '../ui/app-icons.js';
 import {articleBodyHtml,readingMinutes,relatedArticles} from '../domain/health-articles.js';
@@ -180,7 +181,7 @@ export async function renderHealthEducation() {
 }
 
 function articleCardHtml(art,editor,featured=false){
-  return `<article class="he-card ${featured?'featured':''}" tabindex="0" role="button" aria-label="Read ${escapeHtml(art.title)}" ${bindAction('click',()=>viewArticle(art.id))} ${bindAction('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();viewArticle(art.id);}})}>
+  return `<article class="he-card ${featured?'featured':''}" data-article-id="${art.id}" tabindex="0" role="button" aria-label="Read ${escapeHtml(art.title)}" ${bindAction('click',()=>viewArticle(art.id))} ${bindAction('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();viewArticle(art.id);}})}>
     <div class="he-card-media">${articleBannerHtml(art,featured?'featured':'card')}</div>
     <div class="he-card-body">
       <div class="he-card-tags"><span class="he-cat" style="--cat:${articleCategoryColor(art.category)[1]}">${escapeHtml(art.category)}</span>${editor&&!art.published?'<span class="badge badge-warning">Draft</span>':''}</div>
@@ -332,7 +333,9 @@ export function deleteDraftArticle(id){
         }
       }catch(e){toast(e?.message||'Unable to delete the draft.','error');return;}
       closeAllModals();
-      renderArticlesList();
+      // The card fades and the grid closes the gap before the list is redrawn.
+      const card=document.querySelector(`.he-card[data-article-id="${art.id}"]`);
+      if(card)collapseOut(card,()=>renderArticlesList());else renderArticlesList();
       toast('Draft deleted.','success');
     }
   });
@@ -343,6 +346,11 @@ export function initializeFeature(){
   appState.navigationRaceProtection.campusNavigationToken=0;
   appState.navigationRaceProtection.campusActivePageId='dashboard';
   appState.navigationRaceProtection.historySession=0;
+  // Article photos fade in from a blur over the topic-coloured banner once they have loaded.
+  document.addEventListener('load',event=>{
+    const img=event.target;
+    if(img?.tagName==='IMG'&&img.classList.contains('he-img'))img.classList.add('is-loaded');
+  },true);
   // Image errors do not bubble, so a capture listener drops a broken article photo and the banner shows instead.
   document.addEventListener('error',event=>{
     const img=event.target;

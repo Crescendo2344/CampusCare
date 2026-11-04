@@ -100,7 +100,7 @@ export async function renderReportIssue(){
           </div>
           <div id="ri-photo-preview" style="margin-top:.5rem"></div>
         </div>
-        <label class="fi-check"><input type="checkbox" id="ri-device" checked> Include my browser and screen details</label>
+        <label class="fi-check"><input type="checkbox" class="cc-switch" role="switch" id="ri-device" checked> Include my browser and screen details</label>
         <div class="fi-form-actions"><button class="btn btn-primary" id="ri-submit-btn" ${bindAction('click',()=>submitIssueReport())}>Send report</button></div>
       </div>
 
@@ -725,7 +725,7 @@ export function openArticleModal(id=null) {
           <div class="form-group"><label>Source URL (optional)</label><input id="art-source-url" maxlength="1500" value="${art?escapeHtml(art.sourceUrl||''):''}" placeholder="https://..."></div>
         </div>
 
-        <label class="fi-check"><input type="checkbox" id="art-published" ${art?(art.published?'checked':''):'checked'}> Publish now</label>
+        <label class="fi-check"><input type="checkbox" class="cc-switch" role="switch" id="art-published" ${art?(art.published?'checked':''):'checked'}> Publish now</label>
         </div><aside class="he-preview" aria-label="Card preview"><span class="he-preview-label">Preview</span><div id="art-preview"></div></aside></div>
       </div>
 

@@ -16,6 +16,7 @@ import {authTab} from './authentication.js';
 import {registrationIdSides,resetRegistrationIds} from './idVerification.js';
 import {registrationCaptchaToken,resetRegistrationCaptcha} from '../verification/registration-captcha.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
+import {shake} from '../ui/motion.js';
 // ================================================================
 // SIGN-IN (repeated failures are rate-limited by Supabase Auth)
 // ================================================================
@@ -98,7 +99,9 @@ export async function doLogin(){
   }catch(e){
     // Auth's own wording ("Invalid login credentials") is replaced with the same message used everywhere else.
     const message=String(e?.message||'');
-    toast(!message||/invalid login credentials/i.test(message)?'Invalid username/email or password.':message,'error');
+    const wrongCredentials=!message||/invalid login credentials|invalid username\/email or password/i.test(message);
+    toast(wrongCredentials?'Invalid username/email or password.':message,'error');
+    if(wrongCredentials){const field=document.getElementById('li-pass');shake(field);field?.select?.();}
   }finally{
     if(loginBtn){loginBtn.disabled=false;loginBtn.textContent=loginBtnText||'Login';}
   }

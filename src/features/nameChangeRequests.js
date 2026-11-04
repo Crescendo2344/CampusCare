@@ -14,6 +14,7 @@ import {renderMyAccount} from './accountSettings.js';
 import {checkPasswordStrength} from './loginLockout.js';
 import {authTab} from './authentication.js';
 import {bindAction} from '../dependencies.js';
+import {shake} from '../ui/motion.js';
 import {requestAttachmentFieldHtml,requestAttachmentLocal,requestAttachmentPayload} from './requestAttachments.js';
 // ================================================================
 // NAME CHANGE REQUESTS — names can't be self-edited; must go through admin
@@ -386,7 +387,7 @@ export async function changeAccountPassword(){
     toast('Password changed successfully. Please log in again with your new password.','success',6500);
   }catch(e){
     const message=e?.message||'Unable to change password.';
-    if(/current password/i.test(message))setPasswordFieldError('pw-cur',message);
+    if(/current password/i.test(message)){setPasswordFieldError('pw-cur',message);shake(document.getElementById('pw-cur'));}
     else showAlert(msg,message);
     if(btn){btn.disabled=false;btn.textContent=oldText||'Change Password';}
   }

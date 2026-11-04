@@ -322,7 +322,7 @@ export function openCertificateEditor(id,draft=null){
               <input id="cert-sign-upload" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" ${bindAction('change',(event,element)=>uploadCertSignature(element))}>
             </div>
             <div class="cert-sign-preview" style="margin-top:.55rem"><img id="cert-sign-preview-img" src="${appState.certificateService.certDraftSignature||''}" style="${appState.certificateService.certDraftSignature?'':'display:none'}" alt="Signature preview"><span id="cert-sign-empty" class="text-muted" style="${appState.certificateService.certDraftSignature?'display:none':''}">Draw, upload, paste, or use your saved signature.</span></div>
-            <label style="display:flex;gap:.45rem;align-items:flex-start;margin-top:.6rem;font-size:.76rem;color:var(--ink-muted)"><input type="checkbox" id="cert-save-signature"> <span>Save this signature to my profile for future certificates.</span></label>
+            <label style="display:flex;gap:.45rem;align-items:flex-start;margin-top:.6rem;font-size:.76rem;color:var(--ink-muted)"><input type="checkbox" class="cc-switch" role="switch" id="cert-save-signature"> <span>Save this signature to my profile for future certificates.</span></label>
           </div>
           <div class="card" style="margin:0"><div class="card-header"><h3>Clinical source</h3></div><p class="cert-autofill-note" id="cert-autofill-note">${visit?`Findings come from your visit notes of ${fmtDate(visit.date)}.`:autofill.findings?'Findings come from the fitness-to-compete assessment.':'Not linked to a visit. Write the findings in the document.'}</p></div>
         </div>

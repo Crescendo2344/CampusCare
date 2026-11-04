@@ -144,7 +144,8 @@ try{
     assert(await page.locator('.legal-table code',{hasText:'campuscare-theme'}).count());
     await page.locator('#active-modal .close-btn').click();
     await page.locator('#storage-notice-ok').click();
-    assert.equal(await page.locator('#storage-notice').count(),0);
+    // The notice slides away, then leaves the page.
+    await page.locator('#storage-notice').waitFor({state:'detached'});
     assert.equal(await page.evaluate(()=>localStorage.getItem('campuscare-storage-notice')),'1.0');
     // Terms of Service and the policy are reachable from the public footer by keyboard.
     await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingRoute('contact',false));
@@ -1143,12 +1144,25 @@ try{
       const body=document.querySelector('#pt-table tbody'),row=body.querySelector('tr');
       for(let i=0;i<24;i++)body.append(row.cloneNode(true));
     });
-    await page.waitForFunction(()=>{const wrap=document.querySelector('#pt-table .data-table-scroll');return wrap&&wrap.scrollHeight>wrap.clientHeight&&wrap.clientHeight<=innerHeight*.63;});
-    const patientScroll=page.locator('#pt-table .data-table-scroll');
-    assert.equal(await patientScroll.getAttribute('tabindex'),'0');
-    assert.equal(await patientScroll.locator('thead').evaluate(el=>getComputedStyle(el).position),'sticky');
-    await patientScroll.evaluate(el=>{el.scrollTop=el.scrollHeight;});
-    assert(await patientScroll.evaluate(el=>el.scrollTop>0));
+    if(mobile){
+      // Phones show each record as a card: name as the title, labelled fields and the actions underneath.
+      await page.waitForFunction(()=>document.querySelector('#pt-table table.cc-cards'));
+      // Only sortable headers stay, as sort chips; plain column headers are hidden.
+      assert(await page.locator('#pt-table th:not(:has(button))').first().isHidden());
+      assert(await page.locator('#pt-table th button').first().isVisible());
+      const card=page.locator('#pt-table tbody tr').first();
+      assert.equal(await card.locator('td.cc-cell-title').count(),1);
+      assert.equal(await card.locator('td.cc-cell-actions').count(),1);
+      assert.match(await card.locator('td[data-label]:not(.cc-cell-title)').first().evaluate(el=>getComputedStyle(el,'::before').content),/"\w/);
+      if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#pt-table').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/mobile-table-cards-${role}.png`});
+    }else{
+      await page.waitForFunction(()=>{const wrap=document.querySelector('#pt-table .data-table-scroll');return wrap&&wrap.scrollHeight>wrap.clientHeight&&wrap.clientHeight<=innerHeight*.63;});
+      const patientScroll=page.locator('#pt-table .data-table-scroll');
+      assert.equal(await patientScroll.getAttribute('tabindex'),'0');
+      assert.equal(await patientScroll.locator('thead').evaluate(el=>getComputedStyle(el).position),'sticky');
+      await patientScroll.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+      assert(await patientScroll.evaluate(el=>el.scrollTop>0));
+    }
     await page.locator('#pt-session').selectOption('Morning');assert.equal(await page.locator('#pt-ptype').inputValue(),'Student');
     assert.equal(await page.locator('#pt-table tbody tr').count(),1);assert.match(await page.locator('#pt-table').innerText(),/Fixture, Morning/);
     await page.locator('#pt-college').selectOption('COE');assert.equal(await page.locator('#pt-table tbody tr').count(),0);
