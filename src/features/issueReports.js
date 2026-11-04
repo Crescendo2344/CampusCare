@@ -847,16 +847,11 @@ export async function saveArticle(id){
 }
 
 
+// Escapes text for HTML content and for quoted attribute values alike.
+const HTML_ESCAPES={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
 export function escapeHtml(str) {
-  if (!str) return '';
-  return str.replace(/[&<>]/g, function(m) {
-    if (m === '&') return '&amp;';
-    if (m === '<') return '&lt;';
-    if (m === '>') return '&gt;';
-    return m;
-  }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
-    return c;
-  });
+  if (str===null||str===undefined||str==='') return '';
+  return String(str).replace(/[&<>"']/g, m=>HTML_ESCAPES[m]);
 }
 export function getUserName(id) {
   const u = appState.data.DB.users.find(u => u.id === id);
