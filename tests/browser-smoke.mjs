@@ -1443,7 +1443,7 @@ try{
       const art=(id,title,category,days,published=true)=>({id,dbResourceId:id,title,category,teaser:`${title} in brief.`,content:'Sleep matters during exams.\n\nTips:\n\n- Keep a schedule\n- Avoid caffeine late',sourceName:'WHO',sourceUrl:'https://www.who.int',icon:'bi-moon',photo:photos[id]||'',published,publishedAt:`2026-10-${String(days).padStart(2,'0')}T08:00:00Z`,createdAt:`2026-10-${String(days).padStart(2,'0')}T08:00:00Z`,_realSupabase:true});
       state.data.DB.healthResources=[art(1,'Sleep before exams','Sleep',20),art(2,'Hand washing','Hygiene',10),art(3,'Napping well','Sleep',5),art(4,'Healthy snacks','Nutrition',2),art(5,'Draft on stress','Mental Health',25,false)];
       features.navigationRaceProtection.renderArticlesList();});
-    assert.match(await page.locator('.he-card.featured h4').innerText(),role==='Staff'?/Draft on stress/:/Sleep before exams/);
+    assert.match(await page.locator('.he-card.featured h4').innerText(),/Sleep before exams/,'The featured article is the newest published one, never a draft');
     assert.match(await page.locator('.he-topic',{hasText:'Sleep'}).innerText(),/Sleep\s*2/);
     await page.locator('.he-topic',{hasText:'Sleep'}).click();
     assert.equal(await page.locator('#articles-list .he-card').count(),2);

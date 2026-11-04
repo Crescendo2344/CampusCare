@@ -231,8 +231,9 @@ export function renderArticlesList() {
     return;
   }
   // The newest article leads the library when nobody is searching or filtering.
-  const feature=!q&&!ui.category&&ui.sort==='newest'&&articles.length>2?articles[0]:null;
-  const rest=feature?articles.slice(1):articles;
+  // Drafts never take the featured spot; it is always the newest published article.
+  const feature=!q&&!ui.category&&ui.sort==='newest'&&articles.length>2?articles.find(r=>r.published)||null:null;
+  const rest=feature?articles.filter(r=>r!==feature):articles;
   container.innerHTML=`${feature?articleCardHtml(feature,editor,true):''}<div class="he-grid">${rest.map(art=>articleCardHtml(art,editor)).join('')}</div>`;
 }
 
