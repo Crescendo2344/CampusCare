@@ -1103,6 +1103,8 @@ try{
     await page.evaluate(id=>document.getElementById(id).click(),id);
     await page.waitForTimeout(120);
     assert(await page.locator('#app-content').innerHTML(),`${role}: empty ${id}`);
+    // Reminders are sent by Staff and Administrators; doctors never see the option.
+    if(role==='Doctor')assert.equal(await page.locator('#app-content').getByText('Send reminder').count(),0,`Doctor sees Send reminder on ${id}`);
     if(process.env.CAMPUSCARE_ROUTE_SHOTS===role&&!mobile){await page.waitForTimeout(400);await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/route-${role}-${id.replace('nav-','')}.png`,fullPage:true});}
     // Automated WCAG 2.1 A/AA check (axe-core) of every page each role can open, in light and dark themes.
     if(!mobile)for(const theme of ['light','dark']){

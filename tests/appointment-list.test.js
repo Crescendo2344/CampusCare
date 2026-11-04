@@ -20,6 +20,7 @@ test('actions follow role, ownership, status and timing',()=>{
   assert.deepEqual(appointmentActions(earlier,staff),{document:false,reschedule:true,cancel:false,noShow:true,remind:false});
   assert.deepEqual(appointmentActions(past,staff),{document:false,reschedule:false,cancel:false,noShow:true,remind:false});
   assert.equal(appointmentActions(past,doctor).document,true);
+  assert.equal(appointmentActions({...later,doctorId:7},doctor).remind,false,'Doctors do not send reminders');
   assert.equal(appointmentActions(later,{...doctor,userId:8}).document,false);
   assert(Object.values(appointmentActions(done,staff)).every(v=>!v));
 });

@@ -24,7 +24,8 @@ export function appointmentActions(a,{role,userId,today,now}){
     reschedule:open&&manage&&a.date>=today,
     cancel:open&&manage&&!started,
     noShow:open&&(manage||ownDoctor)&&started,
-    remind:open&&(manage||ownDoctor)&&!started
+    // Reminders are the front desk's job: Staff and Administrators send them, doctors do not.
+    remind:open&&manage&&!started
   };
 }
 

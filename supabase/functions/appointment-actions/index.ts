@@ -303,13 +303,13 @@ Deno.serve(async(req)=>{
       return json({ok:true});
     }
 
-    // In-app reminder to the patient, at most once per appointment every 12 hours.
+    // Reminder to the patient (in CampusCare and by email), at most once per appointment every 12 hours.
+    // Sending reminders is the front desk's job: Staff and Administrators only.
     if(action==="remind"){
       const id=Number(body.appointment_id||0);
       const appt=await loadAppointment(id);
       if(!appt)return json({error:"Appointment not found."},404);
-      const allowed=canManageAll||(actor.role==="Doctor"&&appt.doctor_id===actor.user_id);
-      if(!allowed)return json({error:"You cannot send reminders for this appointment."},403);
+      if(!canManageAll)return json({error:"Only clinic staff or an administrator can send appointment reminders."},403);
       if(!OPEN.includes(appt.status)||hasStarted(appt))return json({error:"Reminders can only be sent for upcoming scheduled appointments."},409);
 
       const patientUser=await patientAccount(appt.patient_id);
@@ -325,7 +325,7 @@ Deno.serve(async(req)=>{
       if(recentErr)throw recentErr;
       if((recent||0)>0)return json({error:"A reminder for this appointment was already sent in the last 12 hours."},429);
 
-      const {error:notifyErr}=await admin.from("notifications").insert({
+      const {data:notice,error:notifyErr}=await admin.from("notifications").insert({
         user_id:patientUser.user_id,
         title:"Appointment Reminder",
         message:`${visitLine(appt.clinic,appt.appointment_date,appt.appointment_time)}. ${await bringLine(patientUser.person_type,appt.appointment_date)}`,
@@ -335,10 +335,27 @@ Deno.serve(async(req)=>{
         reference_type:"appointments",
         reference_id:id,
         action_page:"my-appointments"
-      });
+      }).select("notification_id").single();
       if(notifyErr)throw notifyErr;
       await admin.from("audit_logs").insert({user_id:actor.user_id,action:"APPOINTMENT_REMINDER_SENT",entity_type:"appointments",entity_id:id,details:{}});
-      return json({ok:true});
+
+      // The database queues the email; send the queue now instead of waiting for the 5-minute job.
+      let email="none";
+      const {data:queued}=await admin.from("email_outbox").select("email_id").eq("notification_id",notice.notification_id).maybeSingle();
+      if(queued){
+        email="queued";
+        try{
+          const {data:cfg}=await admin.from("email_dispatch_config").select("dispatch_key").eq("config_id",1).maybeSingle();
+          if(cfg?.dispatch_key){
+            const res=await fetch(`${url}/functions/v1/email-dispatch`,{method:"POST",headers:{"Content-Type":"application/json","X-Dispatch-Key":cfg.dispatch_key},body:JSON.stringify({action:"dispatch"}),signal:AbortSignal.timeout(8000)});
+            const result=await res.json().catch(()=>({}));
+            const {data:row}=await admin.from("email_outbox").select("status").eq("email_id",queued.email_id).maybeSingle();
+            if(row?.status==="Sent")email="sent";
+            else if(result?.configured===false)email="not_configured";
+          }
+        }catch{ /* The 5-minute job sends it if this attempt fails. */ }
+      }
+      return json({ok:true,email});
     }
 
     if(action==="manage_slots"){

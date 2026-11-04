@@ -322,15 +322,18 @@ export async function sendApptNotif(id){
   if(!pt)return;
   const name=`${pt.fname} ${pt.lname}`;
   try{
+    let email='none';
     if(a._realSupabase){
-      await appointmentAction({action:'remind',appointment_id:a.dbAppointmentId});
+      email=(await appointmentAction({action:'remind',appointment_id:a.dbAppointmentId}))?.email||'none';
     }else{
       const u=appState.data.DB.users.find(x=>x.id===pt.userId);
       if(!u){toast(`${name} has no CampusCare account to notify.`,'warning');return;}
       const personnel=['Teaching Personnel','Non-Teaching Personnel'].includes(pt.personType);
       addNotif(u.id,'Appointment Reminder',`${a.clinic} · ${fmtDate(a.date)} at ${fmtTime(a.time)}. ${personnel?'Bring your Employee ID.':'Bring your signed COR for this semester and your Student ID.'}`,'warning');
     }
-    toast(`Reminder sent to ${name}. They will see it in their CampusCare notifications.`,'success');
+    // Say exactly where the reminder went: CampusCare always, email when delivery is set up.
+    const where={sent:'in CampusCare and by email',queued:'in CampusCare; the email is on its way',not_configured:'in CampusCare (email delivery is not set up yet)'}[email]||'in CampusCare';
+    toast(`Reminder sent to ${name} ${where}. It reminds them to bring their signed COR.`,'success');
   }catch(e){toast(e?.message||'Unable to send the reminder.','error');}
 }
 
