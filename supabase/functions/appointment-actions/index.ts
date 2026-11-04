@@ -15,6 +15,18 @@ const manilaNow=()=>{
   return {date:shifted.toISOString().slice(0,10),minutes:shifted.getUTCHours()*60+shifted.getUTCMinutes()};
 };
 const OPEN=["Scheduled","Confirmed"];
+// Notification wording is shared with the email template and the automatic reminder job.
+const prettyDate=(d:string)=>new Date(d+"T00:00:00Z").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric",timeZone:"UTC"});
+const prettyTime=(t:string)=>{const [h,m]=time5(t).split(":").map(Number);return `${h%12||12}:${String(m||0).padStart(2,"0")} ${h<12?"AM":"PM"}`;};
+// "1st Semester, SY 2026–2027" from the clinic's semester dates; July–December is the 1st Semester otherwise.
+const semesterLabel=(day:string,s:any)=>{
+  const within=(a:string,b:string)=>a&&b&&day>=a&&day<=b;
+  if(within(s?.semester_start,s?.semester_end)){const y=Number(String(s.semester_start).slice(0,4));return `1st Semester, SY ${y}–${y+1}`;}
+  if(within(s?.semester2_start,s?.semester2_end)){const y=s?.semester_start?Number(String(s.semester_start).slice(0,4)):Number(String(s.semester2_start).slice(0,4))-1;return `2nd Semester, SY ${y}–${y+1}`;}
+  const y=Number(day.slice(0,4)),m=Number(day.slice(5,7));
+  return m>=7?`1st Semester, SY ${y}–${y+1}`:`2nd Semester, SY ${y-1}–${y}`;
+};
+const PERSONNEL=["Teaching Personnel","Non-Teaching Personnel"];
 const hasStarted=(appt:any)=>{
   const now=manilaNow();
   return appt.appointment_date<now.date||(appt.appointment_date===now.date&&mins(appt.appointment_time)<=now.minutes);
@@ -51,6 +63,19 @@ Deno.serve(async(req)=>{
       return data?.patient_id||null;
     };
     const canManageAll=["Staff","Administrator"].includes(actor.role);
+    // The patient's account and what they should bring: a signed COR for students, an Employee ID for personnel.
+    const patientAccount=async(patientId:number)=>{
+      const {data:p}=await admin.from("patients").select("user_id").eq("patient_id",patientId).maybeSingle();
+      if(!p?.user_id)return null;
+      const {data:u}=await admin.from("users").select("user_id,person_type").eq("user_id",p.user_id).maybeSingle();
+      return u||null;
+    };
+    const bringLine=async(personType:string|null,date:string)=>{
+      if(PERSONNEL.includes(String(personType||"")))return "Bring your Employee ID.";
+      const {data:s}=await admin.from("system_settings").select("semester_start,semester_end,semester2_start,semester2_end").order("settings_id",{ascending:true}).limit(1).maybeSingle();
+      return `Bring your signed COR for ${semesterLabel(date,s)} and your Student ID.`;
+    };
+    const visitLine=(clinic:string,date:string,time:string)=>`${clinic||"Clinic"} · ${prettyDate(date)} at ${prettyTime(time)}`;
 
     if(action==="create"||action==="reschedule"){
       const appointmentId=Number(body.appointment_id||0);
@@ -176,10 +201,11 @@ Deno.serve(async(req)=>{
         entity_type:"appointments",entity_id:saved.appointment_id,
         details:{patient_id:patientId,doctor_id:doctorId,date,time,clinic,service:serviceName}
       });
-      await admin.from("notifications").insert({
-        user_id:(await admin.from("patients").select("user_id").eq("patient_id",patientId).single()).data?.user_id,
-        title:action==="create"?"Appointment confirmed":"Appointment rescheduled",
-        message:`${clinic} appointment on ${date} at ${time}. Please bring your signed COR (Certificate of Registration) for this semester when you arrive at the clinic.`,
+      const account=await patientAccount(patientId);
+      if(account)await admin.from("notifications").insert({
+        user_id:account.user_id,
+        title:action==="create"?"Appointment Confirmed":"Appointment Rescheduled",
+        message:`${visitLine(clinic,date,time)}. ${await bringLine(account.person_type,date)}`,
         type:"Appointment",
         channel:"In-app",
         delivery_status:"Created",
@@ -208,13 +234,12 @@ Deno.serve(async(req)=>{
       if(error)throw error;
       await admin.from("audit_logs").insert({user_id:actor.user_id,action:"APPOINTMENT_CANCELLED",entity_type:"appointments",entity_id:id,details:{reason:reason||null}});
 
-      const {data:patientUser}=await admin.from("patients")
-        .select("user_id").eq("patient_id",appt.patient_id).maybeSingle();
-      if(patientUser?.user_id){
+      const account=await patientAccount(appt.patient_id);
+      if(account){
         await admin.from("notifications").insert({
-          user_id:patientUser.user_id,
-          title:"Appointment cancelled",
-          message:`${appt.clinic||"Clinic"} appointment on ${appt.appointment_date} at ${time5(appt.appointment_time)} was cancelled.${reason?" Reason: "+reason:""}`,
+          user_id:account.user_id,
+          title:"Appointment Cancelled",
+          message:`${visitLine(appt.clinic,appt.appointment_date,appt.appointment_time)} was cancelled.${reason?" Reason: "+reason:""}`,
           type:"Appointment",
           channel:"In-app",
           delivery_status:"Created",
@@ -251,7 +276,7 @@ Deno.serve(async(req)=>{
       if(error)throw error;
       // The patient's "cancelled" notice no longer applies.
       await admin.from("notifications").delete()
-        .eq("reference_type","appointments").eq("reference_id",id).eq("title","Appointment cancelled")
+        .eq("reference_type","appointments").eq("reference_id",id).in("title",["Appointment Cancelled","Appointment cancelled"])
         .gte("created_at",new Date(new Date(appt.cancelled_at).getTime()-60000).toISOString());
       await admin.from("audit_logs").insert({user_id:actor.user_id,action:"APPOINTMENT_CANCEL_UNDONE",entity_type:"appointments",entity_id:id,details:{}});
       return json({ok:true});
@@ -287,7 +312,7 @@ Deno.serve(async(req)=>{
       if(!allowed)return json({error:"You cannot send reminders for this appointment."},403);
       if(!OPEN.includes(appt.status)||hasStarted(appt))return json({error:"Reminders can only be sent for upcoming scheduled appointments."},409);
 
-      const {data:patientUser}=await admin.from("patients").select("user_id").eq("patient_id",appt.patient_id).maybeSingle();
+      const patientUser=await patientAccount(appt.patient_id);
       if(!patientUser?.user_id)return json({error:"This patient has no CampusCare account to notify."},400);
 
       const since=new Date(Date.now()-12*60*60*1000).toISOString();
@@ -295,15 +320,15 @@ Deno.serve(async(req)=>{
         .select("notification_id",{count:"exact",head:true})
         .eq("user_id",patientUser.user_id)
         .eq("reference_type","appointments").eq("reference_id",id)
-        .eq("title","Appointment reminder")
+        .in("title",["Appointment Reminder","Appointment reminder"])
         .gte("created_at",since);
       if(recentErr)throw recentErr;
       if((recent||0)>0)return json({error:"A reminder for this appointment was already sent in the last 12 hours."},429);
 
       const {error:notifyErr}=await admin.from("notifications").insert({
         user_id:patientUser.user_id,
-        title:"Appointment reminder",
-        message:`Reminder: ${appt.clinic||"Clinic"} appointment on ${appt.appointment_date} at ${time5(appt.appointment_time)}. Please bring your signed COR (Certificate of Registration) for this semester when you arrive at the clinic.`,
+        title:"Appointment Reminder",
+        message:`${visitLine(appt.clinic,appt.appointment_date,appt.appointment_time)}. ${await bringLine(patientUser.person_type,appt.appointment_date)}`,
         type:"Appointment",
         channel:"In-app",
         delivery_status:"Created",
