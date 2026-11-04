@@ -9,6 +9,7 @@ import {closeAllModals,openModal} from './modals.js';
 import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {persistDB} from './persistence.js';
 import {collapseOut} from '../ui/motion.js';
+import {saveWarm} from '../services/warm-cache.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
 import {articleIconHtml} from '../ui/app-icons.js';
 import {articleBodyHtml,readingMinutes,relatedArticles} from '../domain/health-articles.js';
@@ -111,7 +112,10 @@ export function realHealthResourceToUi(r){
 }
 
 export async function syncRealHealthResources(){
-  return createFeatureSyncService({getState:()=>appState,callbacks:{healthResourceRecords,healthResourceAction,realHealthResourceToUi}}).syncRealHealthResources();
+  const rows=await createFeatureSyncService({getState:()=>appState,callbacks:{healthResourceRecords,healthResourceAction,realHealthResourceToUi}}).syncRealHealthResources();
+  // Only published articles are kept for a warm start; drafts stay on the server.
+  if(appState.auth.currentUser?._realSupabase)saveWarm('articles',(appState.data.DB.healthResources||[]).filter(r=>r._realSupabase&&r.published));
+  return rows;
 }
 
 export function articleCategoryColor(cat){
@@ -152,7 +156,11 @@ export async function renderHealthEducation() {
   const c=document.getElementById('app-content');if(!c)return;
   const pageToken=captureCampusPageToken();
 
-  if(appState.auth.currentUser?._realSupabase){
+  // Articles already on hand (from this visit or the last one) show at once and refresh behind the scenes.
+  const haveArticles=(appState.data.DB.healthResources||[]).some(r=>r._realSupabase);
+  if(appState.auth.currentUser?._realSupabase&&haveArticles){
+    syncRealHealthResources().then(()=>{if(isCampusPageCurrent('health_education',pageToken))renderArticlesList();}).catch(()=>{});
+  }else if(appState.auth.currentUser?._realSupabase){
     showDatabaseSkeleton('cards');
     try{await syncRealHealthResources();}
     catch(e){

@@ -544,6 +544,9 @@ try{
   await page.waitForFunction(role=>window.__fixtureApp.state.auth.currentUser?.role===role,role);
   // Date endpoints share one compact control; all app headers remain opaque in both themes.
   const rangeButton=page.getByRole('button',{name:/Select dashboard date range:/});
+  // The warm-start cache holds only clinic settings and published articles, never personal records.
+  const cached=await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('campuscare-cache:')).map(k=>k.slice(17)));
+  assert(cached.every(k=>['settings','articles'].includes(k)),'Only non-personal data is cached: '+cached);
   // Patients get a personal dashboard without a date range or chart.
   if(role==='Patient'){
     await page.locator('.pd-card').first().waitFor();assert.equal(await page.locator('.dashboard-range-endpoint, .dashboard-trend-card').count(),0);
@@ -575,6 +578,7 @@ try{
   for(const theme of ['light','dark']){
     await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
     await page.locator('#notif-btn').click();await page.locator('#notif-panel.show').waitFor();
+    if(theme==='light')assert(await page.evaluate(()=>document.getElementById('notif-btn').classList.contains('ringing')||getComputedStyle(document.querySelector('#notif-btn .bi-bell')).animationName==='cc-ring'),'The bell rings when opened');
     await page.waitForTimeout(150);
     await page.evaluate(()=>{
       const app=window.__fixtureApp,me=app.state.auth.currentUser,now=Date.now(),hour=36e5;

@@ -1498,3 +1498,35 @@ td.cc-cell-more{display:none}
   table.cc-cards tr:not(.cc-open) td.cc-cell-extra{display:none}
   table.cc-cards td.cc-cell-more{display:flex;justify-content:flex-start;padding-top:.35rem!important}
 }
+
+/* ===== Motion, round two ===== */
+/* Notification bell: it rings on hover, on click and when something new arrives; the badge bumps. */
+@keyframes cc-ring{0%{transform:rotate(0)}10%{transform:rotate(16deg)}22%{transform:rotate(-14deg)}34%{transform:rotate(11deg)}46%{transform:rotate(-8deg)}58%{transform:rotate(5deg)}70%{transform:rotate(-3deg)}82%,100%{transform:rotate(0)}}
+.notif-btn .bi-bell{display:inline-block;transform-origin:50% 8%}
+.notif-btn:hover .bi-bell,.notif-btn:focus-visible .bi-bell,.notif-btn.ringing .bi-bell{animation:cc-ring .8s var(--ease-out)}
+@keyframes cc-bump{0%{transform:scale(1)}35%{transform:scale(1.35)}65%{transform:scale(.9)}100%{transform:scale(1)}}
+#notif-count.bump{animation:cc-bump .5s var(--spring)}
+/* Buttons press in slightly, like a physical key. */
+.btn{transition:transform .12s var(--ease-out),box-shadow .18s,background .18s,border-color .18s,color .18s}
+.btn:active:not(:disabled){transform:scale(.97)}
+/* Each page settles in instead of snapping. */
+@keyframes cc-page-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+#app-content.cc-page-enter>*{animation:cc-page-in .28s var(--ease-out) both}
+#app-content.cc-page-enter>*:nth-child(2){animation-delay:.04s}
+#app-content.cc-page-enter>*:nth-child(3){animation-delay:.08s}
+/* Sidebar and list rows respond to the pointer. */
+.nav-item-btn i,.nav-item-btn svg{transition:transform .2s var(--spring)}
+.nav-item-btn:hover i,.nav-item-btn:hover svg{transform:translateX(2px) scale(1.08)}
+.pd-item,.he-related-item,.notif-item{transition:background .15s,transform .18s var(--ease-out)}
+.pd-item:hover,.he-related-item:hover,.notif-item:hover{transform:translateX(3px)}
+/* Clickable rows lift a touch. */
+tr[data-action-click]{transition:background .15s}
+.dashboard-attn-item.clickable{transition:transform .18s var(--ease-out),background .15s}
+.dashboard-attn-item.clickable:hover{transform:translateY(-1px)}
+/* The theme switch spins as it flips. */
+#theme-toggle-btn i,.theme-toggle i{transition:transform .45s var(--spring)}
+#theme-toggle-btn:active i,.theme-toggle:active i{transform:rotate(180deg)}
+@media (prefers-reduced-motion:reduce){
+  .notif-btn:hover .bi-bell,.notif-btn:focus-visible .bi-bell,.notif-btn.ringing .bi-bell,#notif-count.bump,#app-content.cc-page-enter>*{animation:none}
+  .btn:active:not(:disabled),.nav-item-btn:hover i,.nav-item-btn:hover svg,.pd-item:hover,.he-related-item:hover,.notif-item:hover,.dashboard-attn-item.clickable:hover{transform:none}
+}

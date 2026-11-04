@@ -71,6 +71,7 @@ export function openCookiePolicy(){
           ${row('campuscare_last_activity','Signs you out after a period of inactivity (security).','Until you sign out')}
           ${row('campuscare-theme','Remembers light or dark mode.','Until changed')}
           ${row('campuscare-storage-notice','Remembers that you have seen the storage notice.','Until this policy changes')}
+          ${row('campuscare-cache:…','Clinic details and published health articles, so pages open faster on your next visit. No personal or health information.','Refreshed each visit; ignored after 12 hours (articles) or 7 days (clinic details)')}
           ${row('Drafts','Unsent appointment or schedule drafts you saved.','Until the browser tab closes')}
         </tbody></table></div>`],
       ['health','bi-heart-pulse','Your health information',`<p>Your health records are kept on CampusCare's secured server, not in your browser's storage. They are loaded only while you are signed in and are cleared from the page when you sign out.</p>`],

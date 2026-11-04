@@ -4,6 +4,7 @@ import {authTab,landingNavTo,showAuthPage,showLandingPage} from './authenticatio
 import {toggleTheme} from './theme.js';
 import {sanitizeInput,validateRegistrationContact,validateRegistrationField} from './inputValidation.js';
 import {openCookiePolicy,openTermsOfService} from './legalPages.js';
+import {ringBell} from './notifications.js';
 import {closePendingPanel,doLogin,doRegister,hidePasswordChecklist,openPrivacyNotice,openResendVerification,showPasswordChecklist,updatePasswordStrength} from './loginLockout.js';
 import {closeForgotPassword,hideRecoveryPasswordChecklist,logout,openForgotPassword,sendPasswordResetEmail,showForgotStep,showRecoveryPasswordChecklist,submitNewPassword,updateRecoveryPasswordStrength} from './passwordRecovery.js';
 import {recheckNameMatch,sanitizeRegistrationId,updateRegistrationIdentityFields} from './documentScanner.js';
@@ -86,7 +87,7 @@ export function initializeFeature(){
   registerNamedAction('shell-53',(event,element)=>{renderTopSearch(element.value)});
   registerNamedAction('shell-54',(event,element)=>{handleTopSearchKey(event)});
   registerNamedAction('shell-55',(event,element)=>{renderTopSearch(element.value)});
-  registerNamedAction('shell-56',(event,element)=>{toggleNotifPanel()});
+  registerNamedAction('shell-56',(event,element)=>{ringBell();toggleNotifPanel()});
   registerNamedAction('shell-57',(event,element)=>{markAllRead()});
   registerNamedAction('notif-filter-all',()=>setNotificationFilter('all'));
   registerNamedAction('notif-filter-unread',()=>setNotificationFilter('unread'));

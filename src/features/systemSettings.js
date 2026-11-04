@@ -1,6 +1,7 @@
 import {createFeatureSyncService} from '../services/feature-sync.js';
 // systemSettings: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
+import {saveWarm} from '../services/warm-cache.js';
 import {configureSessionGuard} from './sessionSecurity.js';
 import {createOperationalService} from '../dependencies.js';
 // ================================================================
@@ -9,7 +10,9 @@ import {createOperationalService} from '../dependencies.js';
 export async function settingsAction(payload){return createOperationalService({getClient:()=>appState.supabaseClient.supabaseClient,request:(...args)=>fetch(...args),baseUrl:appState.supabaseClient.SUPABASE_URL,publishableKey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY}).settingsAction(payload);}
 
 export async function syncPublicSystemSettings(){
-  return createFeatureSyncService({getState:()=>appState,callbacks:{configureSessionGuard}}).syncPublicSystemSettings();
+  const settings=await createFeatureSyncService({getState:()=>appState,callbacks:{configureSessionGuard}}).syncPublicSystemSettings();
+  if(appState.auth.currentUser?._realSupabase&&settings)saveWarm('settings',settings);
+  return settings;
 }
 
 export async function syncRealSystemSettings(){

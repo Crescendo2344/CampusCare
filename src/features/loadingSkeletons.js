@@ -102,6 +102,9 @@ export async function withDatabaseSkeleton(task,type='table',targetId='app-conte
 export function renderPage(id){
   const c=document.getElementById('app-content');
   if(!c)return;
+  // Content arriving in the next moment settles in (see #app-content.cc-page-enter).
+  c.classList.remove('cc-page-enter');void c.offsetWidth;c.classList.add('cc-page-enter');
+  clearTimeout(c._pageEnterTimer);c._pageEnterTimer=setTimeout(()=>c.classList.remove('cc-page-enter'),700);
 
   const renderToken=beginCampusNavigation(id);
 

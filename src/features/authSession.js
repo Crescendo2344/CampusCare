@@ -1,5 +1,6 @@
 // authSession: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
+import {loadWarm} from '../services/warm-cache.js';
 import {initializeSupabaseClient} from './supabaseClient.js';
 import {normalizeSupabaseUser,syncAdminDirectoryFromSupabase,syncCurrentPatientFromSupabase} from './patientService.js';
 import {initApp} from './appInitialization.js';
@@ -37,6 +38,17 @@ export async function hydrateCurrentUserProfilePhoto(profile){
 }
 
 // Single-flight restoration prevents simultaneous login/auth events from initializing twice.
+// A returning visitor sees the clinic settings and health articles from the last visit right away;
+// the background sync replaces them within moments. Personal records always come from the server.
+function warmStartFromCache(){
+  const day=24*60*60*1000;
+  const settings=loadWarm('settings',7*day);
+  if(settings)appState.data.DB.settings={...appState.data.DB.settings,...settings};
+  const articles=loadWarm('articles',12*60*60*1000);
+  if(Array.isArray(articles)&&!(appState.data.DB.healthResources||[]).some(r=>r._realSupabase))
+    appState.data.DB.healthResources=[...(appState.data.DB.healthResources||[]).filter(r=>!r._realSupabase),...articles];
+}
+
 export async function syncCampusCareSessionUI(){
   if(appState.auth.sessionSyncPromise)return appState.auth.sessionSyncPromise;
   const pending=restoreAuthenticatedAccount();
@@ -67,6 +79,7 @@ async function restoreAuthenticatedAccount(){
     appState.auth.currentUser.lastLogin=session.user.last_sign_in_at||profile.last_login_at||appState.auth.currentUser.lastLogin||'';
     appState.auth.currentUser.emailConfirmedAt=session.user.email_confirmed_at||null;
     appState.auth.currentUser.emailVerificationSkipped=session.user?.app_metadata?.email_verification_skipped===true;
+    warmStartFromCache();
 
     if(String(appState.auth.currentUser.status).toLowerCase()!=='active'){
       await appState.supabaseClient.supabaseClient.auth.signOut();

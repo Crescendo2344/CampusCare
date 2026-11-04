@@ -39,6 +39,10 @@ export async function updateNotifUI(){
   const unread=notificationData.unreadNotifications(notificationRecords(),appState.auth.currentUser);
 
   const count=document.getElementById('notif-count');
+  // The bell rings and the badge bumps when something new arrives.
+  const previous=Number(count?.dataset.count||0);
+  if(count)count.dataset.count=String(unread.length);
+  if(unread.length>previous)ringBell(true);
   if(count){
     if(unread.length>0){
       count.textContent=unread.length>99?'99+':String(unread.length);
@@ -65,6 +69,13 @@ export function startNotificationRefresh(){
   appState.assistant.notificationRefreshTimer=setInterval(()=>{
     if(appState.auth.currentUser&&!document.hidden)updateNotifUI();
   },60000);
+}
+
+export function ringBell(bump=false){
+  const btn=document.getElementById('notif-btn');if(!btn)return;
+  btn.classList.remove('ringing');void btn.offsetWidth;btn.classList.add('ringing');
+  if(bump){const badge=document.getElementById('notif-count');badge?.classList.remove('bump');void badge?.offsetWidth;badge?.classList.add('bump');}
+  btn.addEventListener('animationend',()=>btn.classList.remove('ringing'),{once:true});
 }
 
 // Run side effects only after every feature's function exports are available.
