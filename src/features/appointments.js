@@ -332,8 +332,9 @@ export async function sendApptNotif(id){
       addNotif(u.id,'Appointment Reminder',`${a.clinic} · ${fmtDate(a.date)} at ${fmtTime(a.time)}. ${personnel?'Bring your Employee ID.':'Bring your signed COR for this semester and your Student ID.'}`,'warning');
     }
     // Say exactly where the reminder went: CampusCare always, email when delivery is set up.
-    const where={sent:'in CampusCare and by email',queued:'in CampusCare; the email is on its way',not_configured:'in CampusCare (email delivery is not set up yet)'}[email]||'in CampusCare';
-    toast(`Reminder sent to ${name} ${where}. It reminds them to bring their signed COR.`,'success');
+    const where={sent:'in CampusCare and by email',queued:'in CampusCare, and by email shortly',not_configured:'in CampusCare (email is not set up yet)'}[email]||'in CampusCare';
+    const bring=['Teaching Personnel','Non-Teaching Personnel'].includes(pt.personType)?'their Employee ID':'their signed COR and Student ID';
+    toast(`Reminder sent to ${name} ${where}. It asks them to bring ${bring}.`,'success');
   }catch(e){toast(e?.message||'Unable to send the reminder.','error');}
 }
 
