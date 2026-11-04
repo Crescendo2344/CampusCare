@@ -1490,8 +1490,9 @@ td.cc-cell-more{display:none}
   table.cc-cards td{display:flex;align-items:baseline;justify-content:space-between;gap:.75rem;padding:.28rem 0!important;border:0!important;text-align:right;font-size:.82rem;white-space:normal}
   table.cc-cards td::before{content:attr(data-label);flex:0 0 auto;max-width:45%;text-align:left;font-size:.72rem;font-weight:600;color:var(--ink-muted)}
   table.cc-cards td:empty{display:none}
-  table.cc-cards td.cc-cell-title{display:block;text-align:left;font-size:.92rem;font-weight:700;padding:0 6.5rem .45rem 0!important;margin-bottom:.25rem;border-bottom:1px solid var(--line-soft,var(--line))!important}
+  table.cc-cards td.cc-cell-title{display:block;text-align:left;font-size:.92rem;font-weight:700;padding:0 0 .45rem 0!important;margin-bottom:.25rem;border-bottom:1px solid var(--line-soft,var(--line))!important}
   table.cc-cards td.cc-cell-title::before,table.cc-cards td.cc-cell-slot::before,table.cc-cards td.cc-cell-actions::before,table.cc-cards td.cc-cell-more::before{content:none}
+  table.cc-cards tr:has(td.cc-cell-slot) td.cc-cell-title{padding-right:6.5rem!important}
   table.cc-cards td.cc-cell-slot{position:absolute;top:.7rem;right:.8rem;padding:0!important}
   table.cc-cards td.cc-cell-actions{justify-content:flex-start;flex-wrap:wrap;margin-top:.4rem;padding-top:.55rem!important;border-top:1px solid var(--line-soft,var(--line))!important}
   table.cc-cards td.cc-cell-actions .td-actions{display:flex;flex-wrap:wrap;gap:.4rem}

@@ -75,7 +75,9 @@ export function ringBell(bump=false){
   const btn=document.getElementById('notif-btn');if(!btn)return;
   btn.classList.remove('ringing');void btn.offsetWidth;btn.classList.add('ringing');
   if(bump){const badge=document.getElementById('notif-count');badge?.classList.remove('bump');void badge?.offsetWidth;badge?.classList.add('bump');}
-  btn.addEventListener('animationend',()=>btn.classList.remove('ringing'),{once:true});
+  // Only the bell's own animation ends the ring; the badge bump bubbles up here too.
+  const stop=event=>{if(event.animationName!=='cc-ring')return;btn.classList.remove('ringing');btn.removeEventListener('animationend',stop);};
+  btn.addEventListener('animationend',stop);
 }
 
 // Run side effects only after every feature's function exports are available.
