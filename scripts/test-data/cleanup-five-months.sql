@@ -1,10 +1,10 @@
--- Remove only the explicitly tracked CC-SAMPLE-5M-v1 batch.
+-- Remove only the explicitly tracked CC-SAMPLE-5M-v1 and CC-DOCTOR-JILT-v1 test batches (including the November top-up).
 -- Delete its uploaded fixtures through Storage first (see TEST-DATA.md).
 -- Foreign keys deliberately stop cleanup if testers added untracked dependent records.
 BEGIN;
 SELECT pg_advisory_xact_lock(hashtext('CC-SAMPLE-5M-v1'));
 CREATE TEMP TABLE sample_cleanup_ids ON COMMIT DROP AS
-  SELECT entity_type,entity_id FROM public.presentation_sample_entities WHERE label LIKE 'CC-SAMPLE-5M-v1|%';
+  SELECT entity_type,entity_id FROM public.presentation_sample_entities WHERE label LIKE 'CC-SAMPLE-5M-v1|%' OR label LIKE 'CC-DOCTOR-JILT-v1|%';
 CREATE TEMP TABLE sample_cleanup_auth ON COMMIT DROP AS
   SELECT u.auth_user_id FROM public.users u JOIN sample_cleanup_ids s ON s.entity_type='users' AND s.entity_id=u.user_id
   WHERE u.username LIKE 'ccsample.%' AND u.auth_user_id IS NOT NULL;
