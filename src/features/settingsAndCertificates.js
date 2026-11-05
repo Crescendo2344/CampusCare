@@ -126,9 +126,9 @@ export async function renderSettings(){
         </p>
         ${!appState.data.DB.emailDeliveryStatus?.configured?`
           <div class="alert alert-warning show" style="font-size:.76rem;margin-top:.6rem;display:block">
-            Emails are queued but not sent yet. Ask the system maintainer to add the email provider key
-            (<code>RESEND_API_KEY</code>) and sender address (<code>CAMPUSCARE_EMAIL_FROM</code>) as Supabase secrets.
-            Queued emails are delivered once these are set.
+            Emails are queued but not sent yet. Ask the system maintainer to add the mail server settings
+            (<code>SMTP_HOST</code>, <code>SMTP_PORT</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>) and sender address
+            (<code>CAMPUSCARE_EMAIL_FROM</code>) as Supabase secrets. Queued emails are delivered once these are set.
           </div>
         `:''}
       </div>

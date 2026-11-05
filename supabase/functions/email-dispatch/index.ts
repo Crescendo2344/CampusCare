@@ -110,7 +110,7 @@ Deno.serve(async(req)=>{
           configured:false,
           queued:true,
           email_id:row.email_id,
-          message:"Test email queued. Configure RESEND_API_KEY and CAMPUSCARE_EMAIL_FROM to enable external delivery."
+          message:"Test email queued. Add the SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and CAMPUSCARE_EMAIL_FROM secrets to enable delivery."
         });
       }
     }
