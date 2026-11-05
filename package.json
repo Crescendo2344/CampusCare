@@ -27,7 +27,9 @@
     "axe-core": "^4.10.3",
     "eslint-scope": "8.4.0",
     "jsdom": "^30.1.2",
+    "nodemailer": "^6.9.16",
     "playwright": "1.62.1",
+    "smtp-server": "^3.13.6",
     "vite": "^8.3.3"
   },
   "private": true,
