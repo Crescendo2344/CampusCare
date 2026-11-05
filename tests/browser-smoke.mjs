@@ -551,8 +551,13 @@ try{
   if(role==='Patient'){
     await page.locator('.pd-card').first().waitFor();assert.equal(await page.locator('.dashboard-range-endpoint, .dashboard-trend-card').count(),0);
     // While the first sign-in load is still running, the dashboard shows its skeleton instead of empty numbers.
-    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.dashboard.patientDataReady=false;features.dashboard.renderDashboard();});
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.dashboard.patientDataReady=false;features.loadingSkeletons.renderPage('dashboard');});
     assert.equal(await page.locator('#app-content .db-skeleton-wrap').count(),1);assert.equal(await page.locator('.pd-card').count(),0);
+    // A refresh of a page already on screen keeps it visible (dimmed, aria-busy) instead of flashing a full skeleton.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.dashboard.patientDataReady=true;features.dashboard.renderDashboard();});
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.dashboard.patientDataReady=false;features.dashboard.renderDashboard();});
+    assert.equal(await page.locator('#app-content .db-skeleton-wrap').count(),0);assert(await page.locator('.pd-card').count()>0);
+    assert.equal(await page.locator('#app-content').getAttribute('aria-busy'),'true');
     await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.dashboard.patientDataReady=true;features.dashboard.renderDashboard();});
     await page.locator('.pd-card').first().waitFor();
     // Medications, health tips and the records page read the patient's own data.
@@ -765,6 +770,16 @@ try{
   if(role==='Administrator'){
     // Request rows open a review with the requester, the change, the reason and the supporting file.
     await page.evaluate(()=>{window.__fixtureApp.state.userManagement.tab='requests';window.__fixtureApp.features.navigationRaceProtection.navTo('users');});
+    await page.locator('tr.req-row').first().waitFor();
+    // Switching tabs redraws only the tab: no page skeleton and no directory re-fetch.
+    const directoryReads=[];const onRequest=request=>{if(/\/rest\/v1\/users/.test(request.url()))directoryReads.push(request.url());};
+    page.on('request',onRequest);
+    for(const name of [/^Users/,/^Doctor schedules/,/^Requests/]){
+      await page.getByRole('tab',{name}).click();
+      assert.equal(await page.locator('#app-content .db-skeleton-wrap').count(),0,'Tab switch must not show the page skeleton');
+      assert.equal(await page.getByRole('tab',{name}).getAttribute('aria-selected'),'true');
+    }
+    page.off('request',onRequest);assert.deepEqual(directoryReads,[],'Tab switch must not reload the user directory');
     await page.locator('tr.req-row').first().waitFor();
     assert.equal(await page.locator('tr.req-row .req-attach-badge').count(),1);
     await page.locator('tr.req-row').first().click();
@@ -1105,7 +1120,7 @@ try{
     assert(await page.locator('#app-content').innerHTML(),`${role}: empty ${id}`);
     // Reminders are sent by Staff and Administrators; doctors never see the option.
     if(role==='Doctor')assert.equal(await page.locator('#app-content').getByText('Send reminder').count(),0,`Doctor sees Send reminder on ${id}`);
-    if(process.env.CAMPUSCARE_ROUTE_SHOTS===role&&!mobile){await page.waitForTimeout(400);await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/route-${role}-${id.replace('nav-','')}.png`,fullPage:true});}
+    if(process.env.CAMPUSCARE_ROUTE_SHOTS===role&&(mobile?process.env.CAMPUSCARE_ROUTE_SHOTS_MOBILE:!process.env.CAMPUSCARE_ROUTE_SHOTS_MOBILE)){await page.waitForTimeout(400);await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/route-${role}${mobile?'-mobile':''}-${id.replace('nav-','')}.png`,fullPage:true});}
     // Automated WCAG 2.1 A/AA check (axe-core) of every page each role can open, in light and dark themes.
     if(!mobile)for(const theme of ['light','dark']){
       // Colours are measured after the theme switch settles, not mid-transition.

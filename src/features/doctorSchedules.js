@@ -56,7 +56,7 @@ export function doctorSchedulesHtml(){
   return `<div class="dsb-stats">
       <div class="dsb-stat"><span>On duty today</span><strong>${onDuty.length}<small>/ ${doctors.length}</small></strong><em>${escapeHtml(fmtDate(today))}</em></div>
       <div class="dsb-stat ${onLeaveToday.length?'warn':''}"><span>On leave today</span><strong>${onLeaveToday.length}</strong><em>${onLeaveToday.length?onLeaveToday.map(d=>escapeHtml(docName(d))).join(', '):'Everyone is in'}</em></div>
-      <button type="button" class="dsb-stat ${pending?'attention':''}" ${bindAction('click',()=>{ui().tab='requests';renderUsers();})}><span>Schedule requests</span><strong>${pending}</strong><em>${pending?'Waiting for review →':'None waiting'}</em></button>
+      <button type="button" class="dsb-stat ${pending?'attention':''}" ${bindAction('click',()=>{ui().tab='requests';renderUsers({refresh:false});})}><span>Schedule requests</span><strong>${pending}</strong><em>${pending?'Waiting for review →':'None waiting'}</em></button>
       <div class="dsb-stat"><span>Leave in next 30 days</span><strong>${leaveSoon}</strong><em>Approved days off</em></div>
     </div>
     <div class="card">
@@ -114,7 +114,7 @@ export async function hydrateDoctorSchedules(){
   results.forEach((r,i)=>{if(r.status==='rejected'){console.error('Doctor schedule load:',r.reason);ui().weekly[doctors[i].id]={days:weeklyFromSummary(doctors[i]),activeRequest:null,at:Date.now()};}});
   if(appState.navigationRaceProtection.campusActivePageId==='users'&&ui().tab==='schedules'&&document.getElementById('dsb-rows')){
     const search=document.activeElement?.id==='dsb-search';
-    renderUsers();
+    renderUsers({refresh:false});
     if(search)document.getElementById('dsb-search')?.focus();
   }
 }
@@ -140,7 +140,7 @@ export async function openDoctorScheduleEditor(docId){
     <div class="modal-header"><div class="dse-headline">${userAvatarHtml(doc,40)}<div><h3 id="dse-title">Edit work schedule</h3><p class="form-note">${escapeHtml(docName(doc))} · ${escapeHtml(doc.specialty||'General')}</p></div></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body" ${bindAction('input',()=>refreshEditor())} ${bindAction('change',()=>refreshEditor())}>
       <div id="dse-msg"></div>
-      ${blocked?`<div class="alert alert-warning show">${escapeHtml(docName(doc))} has a schedule change request ${blocked.status==='Pending'?'waiting for review':'approved for '+escapeHtml(fmtDate(blocked.effective_date))}. Resolve it in <button type="button" class="link-btn" ${bindAction('click',()=>{closeAllModals();ui().tab='requests';renderUsers();})}>Requests</button> before changing the schedule here.</div>`:''}
+      ${blocked?`<div class="alert alert-warning show">${escapeHtml(docName(doc))} has a schedule change request ${blocked.status==='Pending'?'waiting for review':'approved for '+escapeHtml(fmtDate(blocked.effective_date))}. Resolve it in <button type="button" class="link-btn" ${bindAction('click',()=>{closeAllModals();ui().tab='requests';renderUsers({refresh:false});})}>Requests</button> before changing the schedule here.</div>`:''}
       <section class="dse-section"><div class="dse-section-head"><h4>Weekly hours</h4><div class="dse-presets">
         <button type="button" class="btn btn-xs" ${bindAction('click',()=>applyPreset('weekdays'))}>Mon–Fri, 8 AM – 5 PM</button>
         <button type="button" class="btn btn-xs" ${bindAction('click',()=>applyPreset('copy'))}>Copy first day to all</button>

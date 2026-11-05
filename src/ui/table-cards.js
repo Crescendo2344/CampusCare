@@ -1,6 +1,6 @@
 // On phones, page tables become cards instead of scrolling sideways:
 // Rank   – the first column is the card's title;
-// Slot   – a status badge sits in the card's top-right corner;
+// Slot   – the Status column's badge sits in the card's top-right corner (other badges stay labelled rows);
 // Label  – every other value is labelled with its column header;
 // Stack  – action buttons sit together at the bottom of the card;
 // Reveal – wide tables show their first few fields, the rest behind "More details";
@@ -9,6 +9,8 @@ const SHOWN_FIELDS=4;
 const SKIP='.dsb-table,[data-cards="off"]';
 
 export function cardifyTable(table){
+  // Only phones get cards; desktop tables keep their markup untouched.
+  if(!globalThis.matchMedia?.('(max-width:640px)').matches)return;
   if(!table.closest('#app-content')||table.matches(SKIP)||!table.tHead)return;
   const headers=[...table.tHead.querySelectorAll('th')].map(th=>th.textContent.trim());
   if(headers.length<3)return;
@@ -22,9 +24,16 @@ export function cardifyTable(table){
     [...row.cells].forEach((cell,i)=>{
       const label=headers[i]||'';
       if(label&&!cell.hasAttribute('data-label'))cell.setAttribute('data-label',label);
+      // One value container per cell, so a number, its unit and a badge stay together instead of
+      // becoming separate flex items that wrap letter by letter.
+      if(!cell.querySelector(':scope>.cc-val')&&cell.childNodes.length){
+        const val=document.createElement('div');val.className='cc-val';
+        while(cell.firstChild)val.append(cell.firstChild);
+        cell.append(val);
+      }
       if(i===0){cell.classList.add('cc-cell-title');return;}
       if(cell.querySelector('button,.td-actions,a.btn')&&!cell.querySelector('.badge')){cell.classList.add('cc-cell-actions');return;}
-      if((i===statusCol||(statusCol<0&&cell.querySelector('.badge')))&&!row.querySelector('.cc-cell-slot')){cell.classList.add('cc-cell-slot');return;}
+      if(i===statusCol&&!row.querySelector('.cc-cell-slot')){cell.classList.add('cc-cell-slot');return;}
       if(!label)return;
       shown++;
       if(wide&&shown>SHOWN_FIELDS){cell.classList.add('cc-cell-extra');hasExtra=true;}

@@ -232,7 +232,7 @@ function queueUi(){
   return ui;
 }
 
-export async function renderFeedbackIssues(){
+export async function renderFeedbackIssues({refresh=true}={}){
   const c=document.getElementById('app-content');if(!c)return;
   const pageToken=captureCampusPageToken();
 
@@ -241,7 +241,7 @@ export async function renderFeedbackIssues(){
     return;
   }
 
-  if(appState.auth.currentUser?._realSupabase){
+  if(refresh&&appState.auth.currentUser?._realSupabase){
     showDatabaseSkeleton('table');
     try{
       await Promise.all([syncAdminDirectoryFromSupabase(),syncRealIssueReports()]);
@@ -269,7 +269,7 @@ export async function renderFeedbackIssues(){
       ${stat('Resolved in 7 days',stats.resolvedThisWeek)}
       ${stat('Typical first reply',formatHours(stats.medianFirstResponse),'','Median time from a report to the first administrator reply')}
     </div>
-    <div class="appt-head"><div class="appt-views" role="tablist" aria-label="Report status">${tabs.map(([id,label,n])=>`<button type="button" role="tab" class="appt-view ${ui.tab===id?'active':''} ${id==='active'&&n?'attention':''}" aria-selected="${ui.tab===id}" ${bindAction('click',()=>{ui.tab=id;renderFeedbackIssues();})}>${label}<span class="appt-view-count">${n}</span></button>`).join('')}</div></div>
+    <div class="appt-head"><div class="appt-views" role="tablist" aria-label="Report status">${tabs.map(([id,label,n])=>`<button type="button" role="tab" class="appt-view ${ui.tab===id?'active':''} ${id==='active'&&n?'attention':''}" aria-selected="${ui.tab===id}" ${bindAction('click',()=>{ui.tab=id;renderFeedbackIssues({refresh:false});})}>${label}<span class="appt-view-count">${n}</span></button>`).join('')}</div></div>
     <div class="toolbar fi-toolbar">
       <input id="fi-search" type="search" placeholder="Search title, reporter, page or #" aria-label="Search reports" ${bindAction('input',()=>renderFeedbackIssuesList())}>
       <select id="fi-type" aria-label="Type" ${bindAction('change',()=>renderFeedbackIssuesList())}>

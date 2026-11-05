@@ -364,13 +364,13 @@
 @media(max-width:720px){
   .appt-toolbar input[type=search]{flex-basis:100%}
   .appt-toolbar select{flex:1 1 140px;min-width:0}
-  .appt-table thead{display:none}
-  .appt-table,.appt-table tbody,.appt-table tr,.appt-table td{display:block;width:100%}
-  .appt-table tr.appt-row{position:relative;padding:.75rem .9rem;border-bottom:1px solid var(--line-soft,var(--line))}
-  .appt-table td{border:0;padding:.15rem 0}
-  .appt-table td[data-label="Priority"],.appt-table td[data-label="Doctor"]{display:inline-block;width:auto;margin-right:.6rem;font-size:.8rem}
-  .appt-table td[data-label="Time"]{display:flex;gap:.5rem;align-items:baseline}
-  .appt-table td[data-label="Actions"] .td-actions{justify-content:flex-start;margin-top:.35rem}
+  .appt-table:not(.cc-cards) thead{display:none}
+  .appt-table:not(.cc-cards),.appt-table:not(.cc-cards) tbody,.appt-table:not(.cc-cards) tr,.appt-table:not(.cc-cards) td{display:block;width:100%}
+  .appt-table:not(.cc-cards) tr.appt-row{position:relative;padding:.75rem .9rem;border-bottom:1px solid var(--line-soft,var(--line))}
+  .appt-table:not(.cc-cards) td{border:0;padding:.15rem 0}
+  .appt-table:not(.cc-cards) td[data-label="Priority"],.appt-table:not(.cc-cards) td[data-label="Doctor"]{display:inline-block;width:auto;margin-right:.6rem;font-size:.8rem}
+  .appt-table:not(.cc-cards) td[data-label="Time"]{display:flex;gap:.5rem;align-items:baseline}
+  .appt-table:not(.cc-cards) td[data-label="Actions"] .td-actions{justify-content:flex-start;margin-top:.35rem}
   .appt-day-row th{display:block}
 }
 
@@ -425,11 +425,11 @@
   .approval-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
   .approval-review-modal .approval-compare{grid-template-columns:1fr}
   .approval-toolbar select{flex:1 1 140px;min-width:0}
-  .approval-table thead{display:none}
-  .approval-table,.approval-table tbody,.approval-table tr,.approval-table td{display:block;width:100%}
-  .approval-table tr.approval-row{padding:.75rem .9rem;border-bottom:1px solid var(--line-soft,var(--line))}
-  .approval-table td{border:0;padding:.15rem 0}
-  .approval-table td[data-label="Type"],.approval-table td[data-label="College / Dept."],.approval-table td[data-label="ID No."],.approval-table td[data-label="Waiting"]{display:inline-block;width:auto;margin-right:.6rem;font-size:.8rem}
+  .approval-table:not(.cc-cards) thead{display:none}
+  .approval-table:not(.cc-cards),.approval-table:not(.cc-cards) tbody,.approval-table:not(.cc-cards) tr,.approval-table:not(.cc-cards) td{display:block;width:100%}
+  .approval-table:not(.cc-cards) tr.approval-row{padding:.75rem .9rem;border-bottom:1px solid var(--line-soft,var(--line))}
+  .approval-table:not(.cc-cards) td{border:0;padding:.15rem 0}
+  .approval-table:not(.cc-cards) td[data-label="Type"],.approval-table:not(.cc-cards) td[data-label="College / Dept."],.approval-table:not(.cc-cards) td[data-label="ID No."],.approval-table:not(.cc-cards) td[data-label="Waiting"]{display:inline-block;width:auto;margin-right:.6rem;font-size:.8rem}
 }
 
 /* Treatments list and certificates. */
@@ -445,10 +445,10 @@
 @media(max-width:720px){
   .tr-toolbar input[type=search]{flex-basis:100%}
   .tr-toolbar select{flex:1 1 140px;min-width:0}
-  .treat-table thead,.cert-list-table thead{display:none}
-  .treat-table,.treat-table tbody,.treat-table tr,.treat-table td,.cert-list-table,.cert-list-table tbody,.cert-list-table tr,.cert-list-table td{display:block;width:100%}
-  .treat-table tr,.cert-list-table tr{padding:.75rem .9rem;border-bottom:1px solid var(--line-soft,var(--line))}
-  .treat-table td,.cert-list-table td{border:0;padding:.15rem 0}
+  .treat-table:not(.cc-cards) thead,.cert-list-table:not(.cc-cards) thead{display:none}
+  .treat-table:not(.cc-cards),.treat-table:not(.cc-cards) tbody,.treat-table:not(.cc-cards) tr,.treat-table:not(.cc-cards) td,.cert-list-table:not(.cc-cards),.cert-list-table:not(.cc-cards) tbody,.cert-list-table:not(.cc-cards) tr,.cert-list-table:not(.cc-cards) td{display:block;width:100%}
+  .treat-table:not(.cc-cards) tr,.cert-list-table:not(.cc-cards) tr{padding:.75rem .9rem;border-bottom:1px solid var(--line-soft,var(--line))}
+  .treat-table:not(.cc-cards) td,.cert-list-table:not(.cc-cards) td{border:0;padding:.15rem 0}
 }
 .fit-screening{display:grid;gap:.25rem;margin-bottom:.6rem}
 .fit-screen-row{display:grid;grid-template-columns:1fr auto auto;gap:.8rem;align-items:center;padding:.4rem .6rem;border-radius:10px;font-size:.84rem}
@@ -741,7 +741,7 @@ tr.dsb-row:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
 .dsb-cap-in{display:flex;align-items:center;justify-content:space-between;gap:.3rem}
 .dsb-cap span{display:block}
 .dsb-edit{padding:.2rem .4rem;flex-shrink:0}
-@media (max-width:640px){.dsb-table{table-layout:auto}tr.dsb-row .dsb-cell.work{display:block}tr.dsb-row td.dsb-cap{grid-column:1/-1}}
+@media (max-width:640px){.dsb-table{table-layout:auto}tr.dsb-row td.dsb-cap{grid-column:1/-1}}
 
 /* Add staff account */
 .au-modal{max-width:680px}
@@ -1472,32 +1472,47 @@ input.cc-switch:focus-visible{outline:2px solid var(--primary-mid);outline-offse
 /* Phone tables become cards (see src/ui/table-cards.js). */
 td.cc-cell-more{display:none}
 @media (max-width:640px){
-  .data-table-scroll:has(table.cc-cards){max-height:none!important;overflow:visible;border:0;background:transparent}
-  table.cc-cards{min-width:0!important;width:100%!important;max-width:100%!important;table-layout:auto;border:0;background:transparent}
-  table.cc-cards tbody,table.cc-cards tr{width:100%;max-width:100%;box-sizing:border-box}
-  table.cc-cards td{min-width:0!important;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
-  table.cc-cards td>*{min-width:0!important;max-width:100%}
+  .data-table-scroll:has(table.cc-cards),.table-wrap:has(table.cc-cards){max-height:none!important;overflow:visible!important;border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important}
+  table.cc-cards{min-width:0!important;width:100%!important;max-width:100%!important;border:0;background:transparent;border-collapse:separate;border-spacing:0}
   table.cc-cards thead{display:none}
   /* Sortable columns stay available as a row of sort chips above the cards. */
   table.cc-cards thead:has(th button){display:block;position:static!important}
-  table.cc-cards thead:has(th button) tr{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.6rem;padding:0;border:0;background:transparent}
+  table.cc-cards thead:has(th button) tr{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.6rem;padding:0;border:0;background:transparent}
   table.cc-cards thead:has(th button) th{display:none;padding:0!important;border:0!important;background:transparent!important;position:static!important}
   table.cc-cards thead:has(th button) th:has(button){display:block}
-  table.cc-cards thead:has(th button) th button{padding:.3rem .65rem;border:1px solid var(--line);border-radius:999px;background:var(--overlay);font-size:.74rem}
-  table.cc-cards tbody,table.cc-cards tr,table.cc-cards td{display:block}
-  table.cc-cards tr{position:relative;margin:0 0 .65rem;padding:.75rem .85rem .6rem;border:1px solid var(--line);border-radius:14px;background:var(--glass-surface-strong)}
-  table.cc-cards tr:hover{background:var(--glass-surface-strong)}
-  table.cc-cards td{display:flex;align-items:baseline;justify-content:space-between;gap:.75rem;padding:.28rem 0!important;border:0!important;text-align:right;font-size:.82rem;white-space:normal}
-  table.cc-cards td::before{content:attr(data-label);flex:0 0 auto;max-width:45%;text-align:left;font-size:.72rem;font-weight:600;color:var(--ink-muted)}
-  table.cc-cards td:empty{display:none}
-  table.cc-cards td.cc-cell-title{display:block;text-align:left;font-size:.92rem;font-weight:700;padding:0 0 .45rem 0!important;margin-bottom:.25rem;border-bottom:1px solid var(--line-soft,var(--line))!important}
+  table.cc-cards thead:has(th button) th button{min-height:32px;padding:.3rem .75rem;border:1px solid var(--line);border-radius:999px;background:var(--overlay);font-size:.76rem}
+  table.cc-cards tbody{display:flex;flex-direction:column;gap:.65rem}
+  /* Each row is one card laid out on a grid: title and status share the first line; fields follow. */
+  table.cc-cards tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:.6rem;width:100%;box-sizing:border-box;padding:.8rem .9rem .7rem;border:1px solid var(--line);border-radius:14px;background:var(--glass-surface-strong);box-shadow:none}
+  table.cc-cards tbody tr:hover{background:var(--glass-surface-strong)}
+  table.cc-cards td{grid-column:1 / -1;position:static!important;left:auto!important;right:auto!important;display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;min-width:0!important;max-width:100%;box-sizing:border-box;padding:.3rem 0!important;border:0!important;background:transparent!important;box-shadow:none!important;text-align:left;font-size:.82rem;white-space:normal}
+  table.cc-cards td::before{content:attr(data-label);flex:0 0 38%;max-width:38%;font-size:.72rem;font-weight:600;color:var(--ink-muted);padding-top:.1rem}
+  table.cc-cards td>.cc-val{flex:1 1 auto;min-width:0;text-align:right;overflow-wrap:anywhere}
+  table.cc-cards td>.cc-val>*{max-width:100%}
+  table.cc-cards td:empty,table.cc-cards td:has(>.cc-val:empty){display:none}
+  table.cc-cards td.cc-cell-title{grid-column:1;grid-row:1;display:block;padding:0 0 .5rem!important;font-size:.92rem;font-weight:700}
+  table.cc-cards td.cc-cell-title>.cc-val{text-align:left}
+  table.cc-cards td.cc-cell-slot{grid-column:2;grid-row:1;display:block;padding:0!important;justify-self:end}
+  table.cc-cards td.cc-cell-slot .badge,table.cc-cards td.cc-cell-slot .pill{white-space:nowrap}
+  /* The title shrinks beside the corner badge instead of running under it; chips inside it keep their shape. */
+  table.cc-cards td.cc-cell-title,table.cc-cards td.cc-cell-title>.cc-val,table.cc-cards td.cc-cell-title .approval-applicant,table.cc-cards td.cc-cell-title .approval-applicant>div{min-width:0}
+  table.cc-cards td.cc-cell-title strong{white-space:normal;overflow-wrap:break-word}
+  table.cc-cards td.cc-cell-title small{overflow-wrap:anywhere}
+  table.cc-cards td.cc-cell-title .approval-flags{display:flex;flex-wrap:wrap;gap:.25rem}
+  table.cc-cards td.cc-cell-title .badge,table.cc-cards td.cc-cell-title .approval-flags>*{white-space:nowrap;max-width:100%}
+  table.cc-cards td.cc-cell-slot{max-width:min(11rem,48vw);margin-left:.5rem}
+  table.cc-cards td.cc-cell-slot .badge,table.cc-cards td.cc-cell-slot .pill{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
+  table.cc-cards tbody tr>td:nth-child(2):not(.cc-cell-slot){border-top:1px solid var(--line-soft,var(--line))!important;padding-top:.5rem!important}
   table.cc-cards td.cc-cell-title::before,table.cc-cards td.cc-cell-slot::before,table.cc-cards td.cc-cell-actions::before,table.cc-cards td.cc-cell-more::before{content:none}
-  table.cc-cards tr:has(td.cc-cell-slot) td.cc-cell-title{padding-right:6.5rem!important}
-  table.cc-cards td.cc-cell-slot{position:absolute;top:.7rem;right:.8rem;padding:0!important}
-  table.cc-cards td.cc-cell-actions{justify-content:flex-start;flex-wrap:wrap;margin-top:.4rem;padding-top:.55rem!important;border-top:1px solid var(--line-soft,var(--line))!important}
-  table.cc-cards td.cc-cell-actions .td-actions{display:flex;flex-wrap:wrap;gap:.4rem}
+  table.cc-cards td.cc-cell-actions{margin-top:.35rem;padding-top:.6rem!important;border-top:1px solid var(--line-soft,var(--line))!important}
+  table.cc-cards td.cc-cell-actions>.cc-val{text-align:left;display:flex;flex-wrap:wrap;gap:.5rem}
+  table.cc-cards td.cc-cell-actions .td-actions{display:flex;flex-wrap:wrap;gap:.5rem}
+  table.cc-cards td.cc-cell-actions .btn{min-height:32px}
+  /* Row menus open toward the card's free space instead of off the left edge. */
+  table.cc-cards .row-menu-list{left:0;right:auto}
   table.cc-cards tr:not(.cc-open) td.cc-cell-extra{display:none}
-  table.cc-cards td.cc-cell-more{display:flex;justify-content:flex-start;padding-top:.35rem!important}
+  table.cc-cards td.cc-cell-more{display:block;padding-top:.4rem!important}
+  table.cc-cards td.cc-cell-more>.cc-val{text-align:left}
 }
 
 /* ===== Motion, round two ===== */
@@ -1531,3 +1546,35 @@ tr[data-action-click]{transition:background .15s}
   .notif-btn:hover .bi-bell,.notif-btn:focus-visible .bi-bell,.notif-btn.ringing .bi-bell,#notif-count.bump,#app-content.cc-page-enter>*{animation:none}
   .btn:active:not(:disabled),.nav-item-btn:hover i,.nav-item-btn:hover svg,.pd-item:hover,.he-related-item:hover,.notif-item:hover,.dashboard-attn-item.clickable:hover{transform:none}
 }
+/* Doctor schedule on phones: start and end times stack inside each narrow day chip. */
+@media (max-width:640px){
+  tr.dsb-row .dsb-cell{display:flex;flex-direction:column;align-items:center;gap:0;width:100%;box-sizing:border-box;padding:.25rem .1rem;font-size:.64rem;line-height:1.25;white-space:nowrap}
+  tr.dsb-row .dsb-cell.leave{white-space:normal;font-size:.6rem}
+  tr.dsb-row .dsb-cell.work{display:flex}
+  tr.dsb-row .dsb-cell.work b{display:block;letter-spacing:-.01em}
+  table.cc-cards.forecast-table .cc-val>span{display:block}
+  table.cc-cards.forecast-table .cc-val>small{margin-left:.25rem;color:var(--ink-muted)}
+  /* Group headings (such as appointment days) sit between cards without a card of their own. */
+  table.cc-cards tbody tr:not([data-cardified]){display:block;padding:.4rem .1rem 0;border:0;background:transparent}
+  table.cc-cards tbody tr:not([data-cardified])>*{display:block;padding:0!important;border:0!important;background:transparent!important;font-size:.76rem;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.04em}
+}
+/* Phone card headers: a title with several actions puts the actions on their own tidy row. */
+@media (max-width:640px){
+  .card-header{flex-wrap:wrap;gap:.6rem}
+  .card-header>h3,.card-header>div:first-child{flex:1 1 auto;min-width:0}
+  .card-header>div:has(>.btn+.btn){flex:1 1 100%;display:flex;flex-wrap:wrap;gap:.5rem;justify-content:flex-start}
+  .card-header>div:has(>.btn+.btn)>.btn{flex:1 1 auto;justify-content:center;min-height:36px}
+  /* Tab rows scroll sideways; the fading edge shows there is more. */
+  .report-tabs{flex-wrap:nowrap;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);padding-right:24px}
+  .report-tabs::-webkit-scrollbar{display:none}
+  .report-tabs>*{flex:0 0 auto;white-space:nowrap}
+}
+
+/* In-page refresh: the current view stays put, softly dimmed, while fresh data loads (no full skeleton flash). */
+#app-content.cc-refreshing{position:relative}
+#app-content.cc-refreshing>*{opacity:.6;pointer-events:none;transition:opacity .2s ease .12s}
+#app-content.cc-refreshing::before{content:"";position:absolute;inset:0 0 auto;height:3px;border-radius:3px;z-index:2;
+  background:linear-gradient(90deg,transparent,var(--primary,#7b1113),transparent);background-size:40% 100%;background-repeat:no-repeat;
+  animation:cc-refresh-sweep 1.1s ease-in-out infinite}
+@keyframes cc-refresh-sweep{from{background-position:-40% 0}to{background-position:140% 0}}
+@media (prefers-reduced-motion:reduce){#app-content.cc-refreshing::before{animation:none;background:var(--primary,#7b1113);opacity:.4}}

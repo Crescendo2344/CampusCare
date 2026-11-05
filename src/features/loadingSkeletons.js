@@ -85,9 +85,27 @@ export function databaseSkeletonHtml(type='table',rows=6){
   </div>`;
 }
 
+// A page that is already on screen keeps its content while it refreshes (dimmed and aria-busy) instead of
+// flashing back to a full skeleton; the skeleton is for arriving on a page, not for re-rendering it.
+function markRefreshing(target){
+  target.setAttribute('aria-busy','true');target.classList.add('cc-refreshing');
+  clearTimeout(target._refreshTimer);target._refreshTimer=setTimeout(()=>clearRefreshing(target),12000);
+  if(!target._refreshObserver){
+    target._refreshObserver=new MutationObserver(()=>clearRefreshing(target));
+    target._refreshObserver.observe(target,{childList:true});
+  }
+}
+function clearRefreshing(target){
+  clearTimeout(target._refreshTimer);
+  if(!target.classList.contains('cc-refreshing'))return;
+  target.classList.remove('cc-refreshing');target.removeAttribute('aria-busy');
+}
+
 export function showDatabaseSkeleton(type='table',targetId='app-content'){
   const target=document.getElementById(targetId);
   if(!target)return;
+  const onScreen=target.dataset.navFresh!=='1'&&target.childElementCount&&!target.querySelector(':scope>.db-skeleton-wrap');
+  if(onScreen){markRefreshing(target);return;}
   target.innerHTML=databaseSkeletonHtml(type);
 }
 
@@ -135,7 +153,11 @@ export function renderPage(id){
     'survey-results':()=>renderSurveyResults(),
   };
 
+  clearRefreshing(c);
   c.innerHTML='';
+  // Arriving on a page shows its skeleton; once the first render settles, refreshes keep content visible.
+  c.dataset.navFresh='1';
+  const settle=()=>{if(isCampusPageCurrent(id,renderToken))delete c.dataset.navFresh;};
   const renderer=renders[id];
   if(!renderer){
     c.innerHTML=`<div class="empty-state"><p>Page "${escapeHtml(id)}" coming soon.</p></div>`;
@@ -144,6 +166,8 @@ export function renderPage(id){
 
   try{
     const result=renderer();
+    if(result&&typeof result.finally==='function')result.finally(settle).catch(()=>{});
+    else settle();
     if(result&&typeof result.catch==='function'){
       result.catch(err=>{
         console.error(`CampusCare page "${id}" failed:`,err);

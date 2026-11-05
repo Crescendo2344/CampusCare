@@ -183,10 +183,10 @@ export async function openUserDetails(id){
   }
 }
 
-export async function renderUsers(){
+export async function renderUsers({refresh=true}={}){
   const c=document.getElementById('app-content');
   const pageToken=captureCampusPageToken();
-  if(appState.auth.currentUser?.role==='Administrator'){
+  if(refresh&&appState.auth.currentUser?.role==='Administrator'){
     showDatabaseSkeleton('table');
     try{await syncAdminDirectoryFromSupabase();}
     catch(e){
@@ -203,7 +203,7 @@ export async function renderUsers(){
     +(appState.data.DB.scheduleChangeRequests||[]).filter(r=>r.status==='Pending').length
     +(appState.data.DB.leaveRequests||[]).filter(r=>r.status==='Pending').length;
   const tabs=[['users','Users',null],['requests','Requests',pendingRequests],['schedules','Doctor schedules',null]];
-  const tabBar=`<div class="appt-head"><div class="appt-views" role="tablist" aria-label="User management sections">${tabs.map(([id,label,count])=>`<button type="button" role="tab" class="appt-view ${ui.tab===id?'active':''} ${count?'attention':''}" aria-selected="${ui.tab===id}" ${bindAction('click',()=>{ui.tab=id;renderUsers();})}>${label}${count!==null?`<span class="appt-view-count">${count}</span>`:''}</button>`).join('')}</div>
+  const tabBar=`<div class="appt-head"><div class="appt-views" role="tablist" aria-label="User management sections">${tabs.map(([id,label,count])=>`<button type="button" role="tab" class="appt-view ${ui.tab===id?'active':''} ${count?'attention':''}" aria-selected="${ui.tab===id}" ${bindAction('click',()=>{ui.tab=id;renderUsers({refresh:false});})}>${label}${count!==null?`<span class="appt-view-count">${count}</span>`:''}</button>`).join('')}</div>
     ${ui.tab==='users'?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>openAddUserModal())}>+ Add User</button>`:''}</div>`;
   if(ui.tab==='requests'){
     c.innerHTML=tabBar+`
