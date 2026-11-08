@@ -1578,3 +1578,10 @@ tr[data-action-click]{transition:background .15s}
   animation:cc-refresh-sweep 1.1s ease-in-out infinite}
 @keyframes cc-refresh-sweep{from{background-position:-40% 0}to{background-position:140% 0}}
 @media (prefers-reduced-motion:reduce){#app-content.cc-refreshing::before{animation:none;background:var(--primary,#7b1113);opacity:.4}}
+
+/* Show/hide on every password field. */
+.pw-reveal{position:relative;display:flex;width:100%}
+.pw-reveal>input{flex:1;min-width:0;padding-right:2.6rem}
+.pw-reveal-btn{position:absolute;right:.3rem;top:50%;transform:translateY(-50%);min-width:32px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:none;color:var(--ink-muted);cursor:pointer}
+.pw-reveal-btn:hover{color:var(--ink)}
+.pw-reveal-btn:focus-visible{outline:2px solid var(--primary);outline-offset:1px}

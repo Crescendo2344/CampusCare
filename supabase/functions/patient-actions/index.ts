@@ -70,11 +70,46 @@ Deno.serve(async(req)=>{
       .maybeSingle();
 
     if(!actor||actor.status!=="Active")return json({error:"Active CampusCare account required."},403);
-    if(!["Staff","Administrator"].includes(actor.role))
-      return json({error:"Staff or Administrator access required."},403);
 
     const body=await req.json().catch(()=>({}));
     const action=String(body.action||"update").toLowerCase();
+
+    // Patients fill in what registration does not ask for: address, emergency contact and health
+    // background, plus course and major when they shift. Identity fields stay with the clinic.
+    if(action==="self_update"){
+      if(actor.role!=="Patient")return json({error:"Only patients can update their own health details."},403);
+      const {data:own,error:ownErr}=await admin.from("patients").select("patient_id,archived_at").eq("user_id",actor.user_id).maybeSingle();
+      if(ownErr)throw ownErr;
+      if(!own)return json({error:"Your patient record was not found."},404);
+      if(own.archived_at)return json({error:"Your patient record is archived. Please contact the clinic."},409);
+      const blood=clean(body.blood_type,20)||"Unknown";
+      if(!allowedBlood.includes(blood))return json({error:"Choose a valid blood type."},400);
+      const emergencyNumber=clean(body.emergency_contact_number,24);
+      let normalizedEmergency:string|null=null;
+      if(emergencyNumber){
+        normalizedEmergency=normalizePhilippineMobile(emergencyNumber);
+        if(!normalizedEmergency)return json({error:"Enter the emergency contact number as 09XXXXXXXXX or +639XXXXXXXXX.",field_errors:{emergency_contact_number:"Use 09XXXXXXXXX or +639XXXXXXXXX."}},400);
+      }
+      const {error:selfErr}=await admin.from("patients").update({
+        address:clean(body.address,300)||null,
+        emergency_contact_name:clean(body.emergency_contact_name,100)||null,
+        emergency_contact_number:normalizedEmergency,
+        blood_type:blood,
+        height_cm:numberOrNull(body.height_cm,40,260),
+        weight_kg:numberOrNull(body.weight_kg,1,500),
+        allergies:clean(body.allergies,300)||null,
+        medical_history:clean(body.medical_history,5000)||null,
+        course:clean(body.course,120)||null,
+        major:clean(body.major,120)||null,
+        updated_at:new Date().toISOString()
+      }).eq("patient_id",own.patient_id);
+      if(selfErr)throw selfErr;
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"PATIENT_SELF_UPDATED",entity_type:"patients",entity_id:own.patient_id,details:{}});
+      return json({ok:true});
+    }
+
+    if(!["Staff","Administrator"].includes(actor.role))
+      return json({error:"Staff or Administrator access required."},403);
 
     if(action==="create_assisted"){
       const first=clean(body.first_name,50);
@@ -185,6 +220,8 @@ Deno.serve(async(req)=>{
       const {error:patientUpdateErr}=await admin.from("patients").update({
         birth_date:birthDate,sex:sex||null,blood_type:blood,
         class_session:personType==="Student"?classSession:null,
+        course:personType==="Student"?clean(body.course,120)||null:null,
+        major:personType==="Student"?clean(body.major,120)||null:null,
         address:address||null,height_cm:height,weight_kg:weight,
         emergency_contact_name:emergencyName||null,
         emergency_contact_number:emergencyContact||null,
@@ -327,6 +364,8 @@ Deno.serve(async(req)=>{
         emergency_contact_number:clean(body.emergency_contact_number,100)||null,
         medical_history:clean(body.medical_history,5000)||null,
         allergies:clean(body.allergies,3000)||null,
+        ...(body.course===undefined?{}:{course:personType==="Student"?clean(body.course,120)||null:null}),
+        ...(body.major===undefined?{}:{major:personType==="Student"?clean(body.major,120)||null:null}),
         updated_at:new Date().toISOString()
       }).eq("patient_id",patientId);
       if(updateErr)throw updateErr;

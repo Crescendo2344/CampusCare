@@ -52,6 +52,7 @@ export function syncPatientFormType(){
   }
   const session=document.getElementById('pm-session-group');
   if(session)session.hidden=type!=='Student';
+  for(const id of ['pm-course-group','pm-major-group']){const group=document.getElementById(id);if(group)group.hidden=type!=='Student';}
   for(const id of ['pm-idno','pm-college','pm-class-session'])validateRegistrationField(id,false);
 }
 
@@ -112,6 +113,15 @@ export function openPatientModal(id=null){
             <label for="pm-class-session">Class Session <span class="required">*</span></label>
             <select id="pm-class-session" ${live()}>${options([['Morning'],['Evening']],['Morning','Evening'].includes(pt?.classSession)?pt.classSession:'','Select session')}</select>
             <p class="registration-field-error" id="pm-class-session-error" aria-live="polite" hidden></p>
+          </div>
+          <div class="form-group" id="pm-course-group">
+            <label for="pm-course">Course</label>
+            <input id="pm-course" maxlength="120" autocomplete="off" placeholder="e.g. BS Information Technology" value="${escapeHtml(pt?.course||'')}">
+            <p class="form-note field-hint">Update this when the student shifts to another program.</p>
+          </div>
+          <div class="form-group" id="pm-major-group">
+            <label for="pm-major">Major</label>
+            <input id="pm-major" maxlength="120" autocomplete="off" placeholder="If any, e.g. Automotive" value="${escapeHtml(pt?.major||'')}">
           </div>
         </div>
       </fieldset>
@@ -212,6 +222,8 @@ export async function savePatient(id){
     college:value('pm-college'),
     person_type:personType,
     class_session:personType==='Student'?value('pm-class-session'):null,
+    course:personType==='Student'?value('pm-course'):'',
+    major:personType==='Student'?value('pm-major'):'',
     height_cm:value('pm-height')||null,
     weight_kg:value('pm-weight')||null,
     address:value('pm-addr'),
@@ -257,7 +269,7 @@ export async function savePatient(id){
         fname:payload.first_name,lname:payload.last_name,age,birthDate:payload.birth_date,
         gender:payload.sex,blood:payload.blood_type,
         contact:payload.contact_number,college:payload.college,
-        personType,classSession:payload.class_session||'',
+        personType,classSession:payload.class_session||'',course:payload.course||'',major:payload.major||'',
         height:payload.height_cm?`${payload.height_cm}cm`:'',
         weight:payload.weight_kg?`${payload.weight_kg}kg`:'',
         address:payload.address,allergies:payload.allergies,
@@ -356,6 +368,7 @@ export async function viewPatient(id){
             <span>Blood <strong>${val(pt.blood)}</strong></span>
             <span>${priorityBadge(pt.personType)} ${collegeBadge(pt.college)}</span>
             ${pt.personType==='Student'?`<span>Class session <strong>${val(pt.classSession||'Not recorded')}</strong></span>`:''}
+            ${pt.personType==='Student'&&pt.course?`<span>Course <strong>${escapeHtml(pt.course)}${pt.major?` · ${escapeHtml(pt.major)}`:''}</strong></span>`:''}
           </div>
         </div>
       </div>

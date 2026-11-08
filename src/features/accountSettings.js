@@ -14,6 +14,7 @@ import {setThemePreference,showConfirmDialog,themePreference,toast} from './them
 import {bindAction} from '../dependencies.js';
 import {logout} from './passwordRecovery.js';
 import {patientDisplayId} from './patientService.js';
+import {healthDetailsCard,registrationDetailsCard} from './profileDetails.js';
 // ================================================================
 // MY ACCOUNT
 // ================================================================
@@ -120,6 +121,8 @@ export function renderMyAccount(){
             : ''}
           <button class="btn btn-primary btn-sm" id="account-save-button" ${bindAction('click',(event,element)=>{saveAccount()})}>Save Changes</button>
         </div>
+        ${registrationDetailsCard(u,pt)}
+        ${u.role==='Patient'?healthDetailsCard(pt):''}
         <div class="card">
           <div class="card-header">
             <div>

@@ -217,17 +217,17 @@ export function reviewApproval(id){
               ${approvalDataField('Sex',u.sex)}
             </div>
           </section>
-          <details class="approval-review-section approval-more">
-            <summary>Health and emergency details</summary>
-            <div class="approval-data-grid">
-              ${approvalDataField('Address',u.address,true)}
-              ${approvalDataField('Emergency contact',u.emergencyName)}
-              ${approvalDataField('Emergency number',u.emergencyContact)}
-              ${approvalDataField('Blood type',u.bloodType)}
-              ${approvalDataField('Allergies',u.allergies)}
-              ${approvalDataField('Medical history',u.medicalHistory,true)}
-            </div>
-          </details>
+          ${(()=>{
+            // Only what the registration actually captured: online sign-up asks for none of these,
+            // clinic-assisted registration may. Empty fields are not shown as if they were missing.
+            const health=[['Address',u.address,true],['Emergency contact',u.emergencyName],['Emergency number',u.emergencyContact],
+              ['Blood type',u.bloodType&&u.bloodType!=='Unknown'?u.bloodType:''],['Allergies',u.allergies],['Medical history',u.medicalHistory,true]]
+              .filter(([,value])=>String(value||'').trim());
+            return health.length?`<section class="approval-review-section">
+            <h4>Health and emergency details</h4>
+            <div class="approval-data-grid">${health.map(([label,value,wide])=>approvalDataField(label,value,wide)).join('')}</div>
+          </section>`:'';
+          })()}
         </div>
       </div>
 
