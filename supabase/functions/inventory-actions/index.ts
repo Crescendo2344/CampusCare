@@ -18,7 +18,7 @@ const UNDO_WINDOW_MS=15*60*1000;
 async function notifyLowStock(admin:any,item:any){
   if(Number(item.quantity)>Number(item.threshold))return;
   const {data:recipients}=await admin.from("users")
-    .select("user_id").in("role",["Staff","Administrator"]).eq("status","Active");
+    .select("user_id").eq("role","Staff").eq("status","Active");
 
   const rows=(recipients||[]).map((u:any)=>({
     user_id:u.user_id,
@@ -136,15 +136,16 @@ Deno.serve(async(req)=>{
 
     const body=await req.json();
     const action=String(body.action||"").toLowerCase();
-    const canManage=["Staff","Administrator"].includes(actor.role);
+    // Inventory is run by staff; administrators handle accounts only.
+    const canManage=actor.role==="Staff";
 
     if(action==="generate_forecasts"){
-      if(!canManage)return json({error:"Staff or Administrator access required."},403);
+      if(!canManage)return json({error:"Staff access required."},403);
       const forecasts=await regenerateForecasts(admin,null);
       return json({ok:true,forecast_count:forecasts.length});
     }
 
-    if(!canManage)return json({error:"Staff or Administrator access required."},403);
+    if(!canManage)return json({error:"Staff access required."},403);
 
     if(action==="create"||action==="update"){
       const itemId=Number(body.item_id||0);
@@ -360,8 +361,8 @@ Deno.serve(async(req)=>{
     }
 
     if(action==="archive"||action==="restore"){
-      if(actor.role!=="Administrator")
-        return json({error:"Administrator access required."},403);
+      if(actor.role!=="Staff")
+        return json({error:"Staff access required."},403);
 
       const itemId=Number(body.item_id||0);
       const archived=action==="archive";

@@ -1,9 +1,11 @@
 // bookingForm: imported feature APIs; state belongs to explicit application namespaces.
+import {queueLabel} from './reappointment.js';
+import {CLINIC_SERVICES,doctorRendersService} from '../../supabase/functions/_shared/clinic-services.js';
 import {state as appState} from '../app/state.js';
 import {clinicToday,discardCampusDraft,validateCampusBooking} from './scheduleAndDrafts.js';
 import {dayOfWeek,fmtDate,fmtTime,getSemester} from './inputValidation.js';
 import {appointmentAction,appointmentRecords,appointmentService,syncRealAppointments} from './appointmentService.js';
-import {checkDentalQuota,getDentalDoctors,getMedDoctors,getPatientById,getUserById} from './documentScanner.js';
+import {checkDentalQuota,dentalQuotaState,getDentalDoctors,getMedDoctors,getPatientById,getUserById} from './documentScanner.js';
 import {escapeHtml} from './issueReports.js';
 import {docName} from './displayNames.js';
 import {closeAllModals,openModal} from './modals.js';
@@ -32,6 +34,21 @@ export async function fetchDoctorAvailability(doctor,from,to,editing=null){
   return buildDoctorAvailability({doctor,from,to,today:from,nowMinutes,appointments:appointmentRecords().filter(a=>a.doctorId===doctor.id&&a.id!==editing?.id),leaves:(appState.data.DB.doctorLeaves||[]).filter(l=>l.doctorId===doctor.id),overrides:(appState.data.DB.settings.slotOverrides||[]).filter(o=>o.doctorId===doctor.id).flatMap(o=>[...(o.blockedTimes||[]).map(time=>({date:o.date,time,available:false})),...(o.availableTimes||[]).map(time=>({date:o.date,time,available:true}))]),settings:{lunchStart:appState.data.DB.settings.lunchBreakStart,lunchEnd:appState.data.DB.settings.lunchBreakEnd}});
 }
 
+// For patients, slots inside the clinic's booking lead time are kept for reappointments the clinic places.
+export function applyBookingLead(days,role=appState.auth.currentUser?.role,now=Date.now()){
+  const lead=Number(appState.data.DB.settings?.bookingLeadHours??24);
+  if(role!=='Patient'||!(lead>0))return days;
+  const cutoff=now+lead*3600*1000;
+  return days.map(day=>{
+    let changed=false;
+    const slots=day.slots.map(slot=>{
+      if(!slot.available||new Date(`${day.date}T${slot.time}:00+08:00`).getTime()>=cutoff)return slot;
+      changed=true;return {...slot,available:false,kind:'reserved',label:'Reappointments only'};
+    });
+    return changed?{...day,slots,openSlots:Math.min(day.openSlots,slots.filter(x=>x.available).length)}:day;
+  });
+}
+
 export async function onBookingDoctorChange(){
   const select=document.getElementById('b-doc'),note=document.getElementById('b-doctor-note'),dateInput=document.getElementById('b-date');
   if(!select||!dateInput)return;
@@ -52,8 +69,8 @@ export async function onBookingDoctorChange(){
     const days=await fetchDoctorAvailability(doctor,from,to,editing);
     // A late request must never overwrite a different doctor, closed form, or signed-out account.
     if(requestId!==appState.bookingForm.availabilityRequest||select!==document.getElementById('b-doc')||appState.auth.currentUser!==owner)return;
-    appState.bookingForm.availabilityDays=days;
-    const nearest=days.find(day=>day.openSlots>0);
+    appState.bookingForm.availabilityDays=applyBookingLead(days);
+    const nearest=appState.bookingForm.availabilityDays.find(day=>day.openSlots>0);
     note.textContent=nearest?`Next opening: ${fmtDate(nearest.date)} · ${nearest.openSlots} available time${nearest.openSlots===1?'':'s'}. Select a highlighted date below.`:'No openings in the next 12 months. Please choose another doctor.';
     renderCalendar(days);loadTimeSlots();
   }catch(error){
@@ -109,6 +126,11 @@ export function openBookApptModal(apptId=null){
         </div>
       </div>
 
+      <div class="form-group full"><label for="b-reason">Chief complaint <span class="required">*</span></label>
+        <textarea id="b-reason" rows="2" maxlength="1000" placeholder="What brings you to the clinic? e.g. fever since yesterday, toothache on the lower left" aria-describedby="b-reason-help">${editing?escapeHtml(editing.reason||''):''}</textarea>
+        <p class="form-note" id="b-reason-help">The doctor reads this before your visit.</p>
+      </div>
+
       <div class="form-group full">
         <label>Available Doctor <span class="required">*</span></label>
         <select id="b-doc" ${bindAction('change',(event,element)=>{onBookingDoctorChange()})}>
@@ -138,9 +160,6 @@ export function openBookApptModal(apptId=null){
         <input type="hidden" id="b-time" value="${editing?editing.time:''}">
       </div>
 
-      <div class="form-group full"><label>Reason / Chief Complaint</label>
-        <textarea id="b-reason" rows="2">${editing?escapeHtml(editing.reason||''):''}</textarea>
-      </div>
     </div>
     <div class="modal-footer">
       <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
@@ -170,24 +189,33 @@ export async function onClinicChange(preferredDoctorId=null,editing=null){
   if(!clinic||!svc||!doc)return;
 
   const isDental=clinic.value==='Dental Clinic';
-  const medSvcs=['General Checkup','Follow-up','Consultation','Physical Exam'];
-  const dentSvcs=['Dental Checkup','Tooth Extraction','Dental Cleaning','Tooth Filling'];
-  const svcs=isDental?dentSvcs:medSvcs;
-  const previousService=svc.value;
+  const svcs=CLINIC_SERVICES[isDental?'Dental Clinic':'Medical Clinic'];
+  const previousService=editing?.service||svc.value;
 
   svc.innerHTML=svcs.map(s=>`<option>${s}</option>`).join('');
   if(svcs.includes(previousService))svc.value=previousService;
+  svc.onchange=()=>fillBookingDoctors(isDental,doc.value);
 
   if(checkDentalWarn())return;
-  const doctors=isDental?getDentalDoctors():getMedDoctors();
-  doc.innerHTML='<option value="">Choose a doctor</option>'+doctors.map(d=>`<option value="${d.id}">${escapeHtml(docName(d))} — ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('');
-  doc.disabled=!doctors.length;
-  if(preferredDoctorId&&doctors.some(d=>d.id===Number(preferredDoctorId)))doc.value=String(preferredDoctorId);
+  fillBookingDoctors(isDental,preferredDoctorId);
   await onBookingDoctorChange();
   if(editing){
     if([...svc.options].some(o=>o.value===editing.service))svc.value=editing.service;
     if(chooseBookingDate(editing.date))selectSlot(editing.time);
   }
+}
+
+// Doctors are listed with the services they render, and only those who render the chosen service.
+function fillBookingDoctors(isDental,preferredDoctorId=null){
+  const svc=document.getElementById('b-service'),doc=document.getElementById('b-doc');
+  if(!svc||!doc)return;
+  const doctors=(isDental?getDentalDoctors():getMedDoctors()).filter(d=>doctorRendersService(d,svc.value));
+  const services=d=>(d.servicesRendered?.length?d.servicesRendered:CLINIC_SERVICES[isDental?'Dental Clinic':'Medical Clinic']).join(', ');
+  const keep=preferredDoctorId??doc.value;
+  doc.innerHTML=`<option value="">${doctors.length?'Choose a doctor':'No doctor offers this service'}</option>`+doctors.map(d=>`<option value="${d.id}">${escapeHtml(docName(d))} — ${escapeHtml(services(d))}</option>`).join('');
+  doc.disabled=!doctors.length;
+  if(keep&&doctors.some(d=>d.id===Number(keep)))doc.value=String(keep);
+  if(String(keep||'')!==doc.value)void onBookingDoctorChange();
 }
 
 // A patient who has used the semester's Dental Clinic visit cannot pick a dental doctor, service,
@@ -198,10 +226,14 @@ export function checkDentalWarn(){
   const warnEl=document.getElementById('dental-warn');
   if(!clinicEl||!ptEl||!warnEl)return false;
   const ptId=parseInt(ptEl.value);
-  const locked=clinicEl.value==='Dental Clinic'&&Boolean(ptId)&&checkDentalQuota(ptId,appState.bookingForm.activeBookingEditId);
+  const quota=ptId?dentalQuotaState(ptId,appState.bookingForm.activeBookingEditId):null;
+  const locked=clinicEl.value==='Dental Clinic'&&Boolean(quota?.blocked);
   const self=appState.auth.currentUser.role==='Patient';
   warnEl.classList.toggle('show',locked);
-  warnEl.innerHTML=locked?`<i class="bi bi-exclamation-triangle" aria-hidden="true"></i> ${self?'You have already used your Dental Clinic visit for this semester.':'This patient has already used their Dental Clinic visit for this semester.'} Choose Medical Clinic to continue.`:'';
+  const why=quota?.limitReached
+    ?(self?'You have completed your Dental Clinic visit for this semester.':'This patient has completed their Dental Clinic visit for this semester.')
+    :(self?`You already have a Dental Clinic appointment on ${quota?.open?fmtDate(quota.open.date):'an upcoming date'}.`:`This patient already has a Dental Clinic appointment on ${quota?.open?fmtDate(quota.open.date):'an upcoming date'}.`);
+  warnEl.innerHTML=locked?`<i class="bi bi-exclamation-triangle" aria-hidden="true"></i> ${why} Choose Medical Clinic to continue.`:'';
   const modal=clinicEl.closest('.modal');
   modal?.classList.toggle('booking-dental-locked',locked);
   for(const id of ['b-service','b-doc','b-reason','b-confirm']){const el=document.getElementById(id);if(el)el.disabled=locked;}
@@ -209,7 +241,7 @@ export function checkDentalWarn(){
     appState.bookingForm.availabilityRequest=(appState.bookingForm.availabilityRequest||0)+1;
     appState.bookingForm.availabilityDays=[];
     const doc=document.getElementById('b-doc');if(doc)doc.innerHTML='<option value="">Not available</option>';
-    const note=document.getElementById('b-doctor-note');if(note)note.textContent='Dental Clinic booking is closed for this patient until next semester.';
+    const note=document.getElementById('b-doctor-note');if(note)note.textContent=quota?.limitReached?'Dental Clinic booking is closed for this patient until next semester.':'Finish or cancel the upcoming dental appointment first.';
     document.getElementById('b-date').value='';document.getElementById('b-time').value='';
     document.getElementById('b-date-label').textContent='Not available';
     const today=clinicToday();
@@ -233,6 +265,11 @@ export function slotAvailabilityState(doc,date,time){
   if(blocked.includes(time))return {blocked:true,label:'Unavailable',kind:'blocked'};
   if(isDefaultLunchSlot(time,doc)&&!available.includes(time))return {blocked:true,label:'Lunch break',kind:'lunch'};
   if(date===clinicToday()){const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date()),nowMin=timeToMinutes(parts);if(timeToMinutes(time)<=nowMin)return {blocked:true,label:'Past time',kind:'past'};}
+  // Patients book ahead by the clinic's lead time; nearer slots stay open for clinic reappointments.
+  if(appState.auth.currentUser?.role==='Patient'){
+    const lead=Number(appState.data.DB.settings?.bookingLeadHours??24);
+    if(lead>0&&new Date(`${date}T${time}:00+08:00`).getTime()<Date.now()+lead*3600*1000)return {blocked:true,label:'Reappointments only',kind:'reserved'};
+  }
   return {blocked:false,label:'Available',kind:'available'};
 }
 
@@ -274,6 +311,7 @@ export async function saveAppt(editId){
   hideAlert(msg);
 
   if(!ptId||!clinic||!svc||!docId||!date){showAlert(msg,'All required fields must be filled.');return;}
+  if(reason.length<3){showAlert(msg,'Describe your complaint or reason for the visit.');document.getElementById('b-reason')?.focus();return;}
   if(!time){showAlert(msg,'Please select a time slot.');return;}
   if(date<appState.clinicInformation.TODAY){showAlert(msg,'Cannot book in the past.');return;}
 
@@ -290,7 +328,7 @@ export async function saveAppt(editId){
   if(slotState&&slotState.blocked){showAlert(msg,`This slot is unavailable (${slotState.label}). Please choose another time.`);loadTimeSlots();return;}
 
   if(clinic==='Dental Clinic'&&checkDentalQuota(ptId,editId)){
-    showAlert(msg,'Dental Clinic booking denied: Semester limit reached.');return;
+    showAlert(msg,dentalQuotaState(ptId,editId).limitReached?'Dental Clinic booking denied: the semester limit of completed visits is reached.':'There is already an upcoming Dental Clinic appointment.');return;
   }
 
   const priority=patientPriority(pt)||'Student';
@@ -335,7 +373,9 @@ export async function saveAppt(editId){
     if(forSelf)await renderMyAppointments();
     else await renderAppointments();
     // Patients get a confirmation that spells out what to bring; staff get a reminder to pass on.
-    if(forSelf)showBookingConfirmation({rescheduled:Boolean(existing),clinic,service:svc,doctor:doc,date,time,patient:pt});
+    const booked=appointmentRecords().find(x=>x.patientId===ptId&&x.date===date&&x.time===time&&x.status==='Scheduled');
+    const queue=booked?queueLabel(booked):'';
+    if(forSelf)showBookingConfirmation({rescheduled:Boolean(existing),clinic,service:svc,doctor:doc,date,time,patient:pt,queue});
     else toast(existing?`Rescheduled for ${fmtDate(date)} at ${fmtTime(time)}. Remind the patient to bring a signed COR.`:`Booked for ${fmtDate(date)} at ${fmtTime(time)}. Remind the patient to bring a signed COR.`,'success',6000,{title:existing?'Appointment rescheduled':'Appointment booked'});
   }catch(e){
     showAlert(msg,e?.message||'Unable to save appointment.');
@@ -371,7 +411,7 @@ export function corChecklistHtml(date,personType='Student'){
   </section>`;
 }
 
-export function showBookingConfirmation({rescheduled,clinic,service,doctor,date,time,patient}){
+export function showBookingConfirmation({rescheduled,clinic,service,doctor,date,time,patient,queue=''}){
   clearToasts();
   openModal(`<div class="modal booking-done" role="dialog" aria-labelledby="booking-done-title">
     <div class="modal-body">
@@ -382,6 +422,7 @@ export function showBookingConfirmation({rescheduled,clinic,service,doctor,date,
         <div><dt>When</dt><dd>${escapeHtml(dayOfWeek(date))}, ${escapeHtml(fmtDate(date))} · ${escapeHtml(fmtTime(time))}</dd></div>
         <div><dt>Where</dt><dd>${escapeHtml(clinic)}${service?' · '+escapeHtml(service):''}</dd></div>
         ${doctor?`<div><dt>With</dt><dd>${escapeHtml(docName(doctor))}</dd></div>`:''}
+        ${queue?`<div><dt>Queue</dt><dd>${escapeHtml(queue)}</dd></div>`:''}
       </dl>
       ${corChecklistHtml(date,patient?.personType)}
     </div>

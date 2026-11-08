@@ -5,7 +5,7 @@ import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {patientDisplayId,syncAdminDirectoryFromSupabase} from './patientService.js';
 import {syncRealWorkflowRequests} from './workflowRequests.js';
 import {escapeHtml} from './issueReports.js';
-import {archivePatient,openPatientModal,restorePatient,viewPatient} from './patientForm.js';
+import {openPatientModal,restorePatient,viewPatient} from './patientForm.js';
 import {getUserById} from './documentScanner.js';
 import {showFilePreview} from './modals.js';
 import {collegeBadge,fmtDate,priorityBadge} from './inputValidation.js';
@@ -171,7 +171,7 @@ export function renderPatientTable(){
       <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
         <button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewPatient((p.id))})}>View</button>
         ${canEdit&&!p.archived?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openPatientModal((p.id))})}>Edit</button>`:''}
-        ${appState.auth.currentUser.role==='Administrator'?(p.archived?`<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{restorePatient((p.id))})}>Restore</button>`:`<button class="btn btn-xs btn-warning" ${bindAction('click',(event,element)=>{archivePatient((p.id))})}><i class="bi bi-archive" aria-hidden="true"></i> Archive</button>`):''}
+        ${appState.auth.currentUser.role==='Staff'&&p.archived?`<button class="btn btn-xs btn-success" title="Archived automatically after five years without a visit" ${bindAction('click',(event,element)=>{restorePatient((p.id))})}>Restore</button>`:''}
       </div></td>
     </tr>`;}).join('')
   }</tbody></table></div>${pager}`;

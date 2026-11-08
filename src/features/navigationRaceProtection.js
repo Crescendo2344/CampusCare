@@ -60,9 +60,9 @@ const RETIRED_PAGES=new Set(['messages','my-certificates','certificates']);
 export function navTo(id,{historyMode='push'}={}){
   if(!appState.auth.currentUser)return;
   if(RETIRED_PAGES.has(id))id='dashboard';
-  // Fitness-to-compete assessments are a doctor's clinical work only.
-  // Clinical records (visit notes and fitness assessments) belong to doctors.
-  if(['fitness','treatments'].includes(id)&&appState.auth.currentUser.role!=='Doctor')id='dashboard';
+  // Each role opens only the pages in its own menu (admin: accounts; staff: front desk; doctor: clinical).
+  const allowed=(appState.topbarAndNavigation.NAV_CONFIG?.[appState.auth.currentUser.role]||[]).map(item=>item.id).filter(Boolean);
+  if(allowed.length&&!allowed.includes(id))id='dashboard';
   recordPageHistory(id,historyMode);
   if(window.innerWidth<=768) toggleSidebar(false);
   document.querySelectorAll('[id^="nav-"]').forEach(el=>el.classList.remove('active'));

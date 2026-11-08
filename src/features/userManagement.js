@@ -128,7 +128,7 @@ export async function openUserDetails(id){
                 ${userDetailField('Verification Document',documentTitle)}
                 ${userDetailField('Account Created',formatLastLogin(d.auth_created_at||d.created_at))}
                 ${userDetailField('Last Login',formatLastLogin(d.last_sign_in_at||d.last_login_at))}
-                ${d.role==='Doctor'?userDetailField('Doctor Specialty',d.specialty):''}
+                ${d.role==='Doctor'?userDetailField('Specialization',d.specialty)+userDetailField('Services rendered',(d.services_rendered||[]).join(', '),true):''}
                 ${d.role==='Doctor'?userDetailField('Work Schedule',roleSchedule,true):''}
               </div>
             </section>

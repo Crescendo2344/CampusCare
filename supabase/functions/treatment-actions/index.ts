@@ -239,6 +239,25 @@ Deno.serve(async(req)=>{
       return json({ok:true,dental_record:saved});
     }
 
+    // A saved visit record is never rewritten: its doctor appends a dated clarification instead.
+    if(action==="amend"){
+      if(actor.role!=="Doctor")return json({error:"Only the treating doctor can clarify a visit record."},403);
+      const treatmentId=Number(body.treatment_id||0);
+      const note=clean(body.note,1000);
+      if(!treatmentId)return json({error:"Treatment ID is required."},400);
+      if(note.length<5)return json({error:"Write the clarification (at least 5 characters)."},400);
+      const {data:record}=await admin.from("treatments").select("treatment_id,doctor_id,status,amendments").eq("treatment_id",treatmentId).maybeSingle();
+      if(!record)return json({error:"Treatment record not found."},404);
+      if(Number(record.doctor_id)!==Number(actor.user_id))return json({error:"Only the doctor who wrote this record can clarify it."},403);
+      if(record.status==="Archived")return json({error:"Restore the record before clarifying it."},409);
+      const entry={at:new Date().toISOString(),by:actor.user_id,by_name:`Dr. ${actor.first_name||""} ${actor.last_name||""}`.trim(),note};
+      const amendments=[...(Array.isArray(record.amendments)?record.amendments:[]),entry].slice(-50);
+      const {error:amendErr}=await admin.from("treatments").update({amendments}).eq("treatment_id",treatmentId);
+      if(amendErr)throw amendErr;
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"TREATMENT_CLARIFIED",entity_type:"treatments",entity_id:treatmentId,details:{note_length:note.length}});
+      return json({ok:true,amendments});
+    }
+
     // Visit notes are clinical records: only the doctor who wrote one can archive or restore it.
     if(action==="archive"||action==="restore"){
       if(actor.role!=="Doctor")

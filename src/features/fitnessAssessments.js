@@ -79,11 +79,14 @@ export async function renderFitnessAssessments({refresh=true}={}){
   let rows=fitnessRecords().slice();
   if(role==='Patient'&&appState.auth.currentPatient)rows=rows.filter(x=>x.patientId===appState.auth.currentPatient.id);
   if(role==='Doctor')rows=rows.filter(x=>!x.doctorId||x.doctorId===appState.auth.currentUser.id);
+  // Staff release finished results only; the assessment itself is the doctor's.
+  if(role==='Staff')rows=rows.filter(x=>x.status==='Completed');
   const ui=appState.fitnessList??={};
   ui.tab??=role==='Patient'?'all':'open';ui.query??='';
+  if(role==='Staff')ui.tab='Completed';
   const today=appState.clinicInformation.TODAY;
   const open=x=>x.status==='Requested'||x.status==='In Assessment';
-  const tabs=[['open','To assess',rows.filter(open).length],['Completed','Completed',rows.filter(x=>x.status==='Completed').length],['Cancelled','Cancelled',rows.filter(x=>x.status==='Cancelled').length],['all','All',rows.length]];
+  const tabs=role==='Staff'?[['Completed','Completed',rows.length]]:[['open','To assess',rows.filter(open).length],['Completed','Completed',rows.filter(x=>x.status==='Completed').length],['Cancelled','Cancelled',rows.filter(x=>x.status==='Cancelled').length],['all','All',rows.length]];
   const q=ui.query.trim().toLowerCase();
   const list=rows
     .filter(x=>ui.tab==='all'||(ui.tab==='open'?open(x):x.status===ui.tab))
@@ -567,9 +570,27 @@ export function viewFitnessAssessment(id){
       ${appState.auth.currentUser.role==='Doctor'&&x.doctorId===appState.auth.currentUser.id&&['Fit to Compete','Fit with Restrictions'].includes(x.decision)&&screening.clearanceState(x,appState.clinicInformation.TODAY)==='valid'
         ? `<button class="btn" ${bindAction('click',()=>{closeAllModals();openNewCertificateModal(x.patientId,null,{purpose:'Sports / Athletics Participation',event:x.sport,fitness:x.decision==='Fit to Compete'?'Fit':'Fit with restrictions',restrictions:x.restrictions,findings:[x.examFindings,`Fitness-to-compete assessment of ${fmtDate(x.date)}: ${x.decision}.`].filter(Boolean).join(' ')})})}><i class="bi bi-file-earmark-medical" aria-hidden="true"></i> Issue Certificate</button>`
         : ''}
+      ${x.status==='Completed'?`<button class="btn" ${bindAction('click',(event,element)=>printFitnessResult(element))}><i class="bi bi-printer" aria-hidden="true"></i> Print</button>`:''}
       <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
     </div>
   </div>`);
+}
+
+// Prints the result shown in the open details window (for release to the patient or coach).
+function printFitnessResult(button){
+  const modal=button.closest('.modal');
+  const body=modal?.querySelector('.modal-body');if(!body)return;
+  const title=modal.querySelector('.modal-header h3')?.textContent||'Fitness assessment';
+  const frame=document.createElement('iframe');
+  frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
+  frame.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.append(frame);
+  const styles=[...document.querySelectorAll('link[rel="stylesheet"],style')].map(node=>node.outerHTML).join('');
+  const doc=frame.contentDocument;
+  doc.open();
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>${styles}<style>body{background:#fff;color:#000;padding:24px;font-family:Arial,sans-serif}button{display:none!important}</style></head><body><h2 style="margin:0 0 4px">CTU Main Medical &amp; Dental Clinic</h2><h3 style="margin:0 0 16px">${escapeHtml(title)}</h3>${body.innerHTML}</body></html>`);
+  doc.close();
+  setTimeout(()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),1000);},200);
 }
 
 // Run side effects only after every feature's function exports are available.

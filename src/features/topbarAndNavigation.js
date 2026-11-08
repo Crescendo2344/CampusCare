@@ -198,6 +198,11 @@ export function navBadgeState(id,notificationCounts=null){
     ? Math.max(0,Number(counts[id])||0)
     : (appState.topbarAndNavigation.navTaskItems?.[id]||[]).length;
   const role=appState.auth.currentUser?.role;
+  // A patient's proposed new times stay counted on My Appointments until they accept or pick another.
+  if(role==='Patient'&&id==='my-appointments'){
+    const waiting=(appState.data.DB.appointments||[]).filter(a=>a.patientResponse==='Awaiting'&&a.status==='Scheduled'&&a.patientId===appState.auth.currentPatient?.id).length;
+    if(waiting)return {count:waiting+updates,kind:'task',label:plural(waiting,'new time to answer')+(updates?` and ${plural(updates,'new update')}`:''),updates};
+  }
   if(tasks>0)return {count:tasks,kind:id==='inventory'?'urgent':'task',label:taskBadgeLabel(id,tasks,role)+(updates?` and ${plural(updates,'new update')}`:''),updates};
   if(updates>0)return {count:updates,kind:'update',label:plural(updates,'new update'),updates};
   return {count:0,kind:'',label:'',updates:0};
@@ -440,14 +445,16 @@ export function initializeFeature(){
     {id:'report-issue',label:'Report an Issue'},
   ],
   Staff:[
-    {section:'Staff Panel'},
+    {section:'Front Desk'},
     {id:'dashboard',label:'Dashboard'},
-    {id:'patients',label:'Patient Records'},
     {id:'appointments',label:'Appointments'},
-    {id:'approvals',label:'Approval Queue'},
+    {id:'patients',label:'Patient Records'},
     {id:'inventory',label:'Inventory'},
+    {section:'Release'},
+    {id:'cert-requests',label:'Medical Certificates'},
+    {id:'fitness',label:'Fitness Assessments'},
+    {section:'Content &amp; Insights'},
     {id:'health_education',label:'Health Education'},
-    {section:'Insights'},
     {id:'survey-results',label:'Survey Results'},
     {id:'reports',label:'Reports'},
     {section:'Account'},
@@ -455,19 +462,16 @@ export function initializeFeature(){
     {id:'report-issue',label:'Report an Issue'},
   ],
   Administrator:[
-    {section:'Administration'},
+    {section:'Accounts'},
     {id:'dashboard',label:'Dashboard'},
-    {id:'patients',label:'Patient Records'},
-    {id:'appointments',label:'Appointments'},
-    {id:'approvals',label:'Approval Queue'},
-    {id:'inventory',label:'Inventory'},
-    {section:'Management'},
+    {id:'approvals',label:'Account Verification'},
     {id:'users',label:'User Management'},
+    {section:'Oversight'},
+    {id:'reports',label:'Reports &amp; Analytics'},
     {id:'survey-results',label:'Survey Results'},
-    {id:'reports',label:'Reports & Analytics'},
     {id:'feedback-issues',label:'Feedback &amp; Issues'},
-    {id:'settings',label:'System Settings'},
     {id:'activity-log',label:'Activity Log'},
+    {id:'settings',label:'System Settings'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
   ],

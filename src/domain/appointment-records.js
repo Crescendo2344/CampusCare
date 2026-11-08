@@ -34,6 +34,12 @@ export function realAppointmentToUi(a,db){
     createdAt:a.created_at||'',
     cancelledAt:a.cancelled_at||'',
     cancellationReason:a.cancellation_reason||'',
+    // A reappointment: the clinic proposed this time because the original visit could not push through.
+    patientResponse:a.patient_response||'',
+    reappointFromDate:a.reappoint_from_date||'',
+    reappointFromTime:String(a.reappoint_from_time||'').slice(0,5),
+    reappointReason:a.reappoint_reason||'',
+    reappointedAt:a.reappointed_at||'',
     _realSupabase:true
   };
 }

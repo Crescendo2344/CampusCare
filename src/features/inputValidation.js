@@ -98,8 +98,6 @@ const registrationFieldRules={
   'au-user':()=>usernameValidationError(value('au-user')),
   'au-email':()=>value('au-email').trim()?emailValidationError(value('au-email')):'Enter an email address.',
   'au-contact':()=>contactValidationError(value('au-contact')),
-  'au-pass':()=>enabled('au-pass')?passwordValidationError(value('au-pass'),{username:value('au-user'),email:value('au-email')}):'',
-  'au-pass2':()=>enabled('au-pass2')?confirmPasswordValidationError(value('au-pass'),value('au-pass2')):'',
   'pm-selfie':()=>!document.getElementById('pm-selfie-group')||appState.camera.verificationScopes?.pm?.selfie?'':'Take a live verification selfie of the patient holding their ID.',
   'pm-id':()=>{
     if(!document.getElementById('pm-id-group'))return '';

@@ -16,9 +16,13 @@ test('appointments fall into upcoming, needs-outcome and history lists',()=>{
 test('actions follow role, ownership, status and timing',()=>{
   const staff={role:'Staff',userId:1,today,now},doctor={role:'Doctor',userId:7,today,now};
   const later=appt(1,'2026-10-23','14:00'),earlier=appt(2,'2026-10-23','08:00'),past=appt(3,'2026-10-20','09:00'),done=appt(4,'2026-10-20','09:00','Completed');
-  assert.deepEqual(appointmentActions(later,staff),{document:false,reschedule:true,cancel:true,noShow:false,remind:true});
-  assert.deepEqual(appointmentActions(earlier,staff),{document:false,reschedule:true,cancel:false,noShow:true,remind:false});
-  assert.deepEqual(appointmentActions(past,staff),{document:false,reschedule:false,cancel:false,noShow:true,remind:false});
+  assert.deepEqual(appointmentActions(later,staff),{document:false,reschedule:true,cancel:false,reappoint:true,noShow:false,remind:true});
+  assert.deepEqual(appointmentActions(earlier,staff),{document:false,reschedule:true,cancel:false,reappoint:true,noShow:true,remind:false});
+  assert.deepEqual(appointmentActions(past,staff),{document:false,reschedule:false,cancel:false,reappoint:true,noShow:true,remind:false});
+  // The clinic never cancels; a visit that cannot push through is returned for reappointment.
+  assert.equal(appointmentActions({...later,doctorId:7},doctor).reappoint,true,'The appointment doctor can propose a new time');
+  assert.equal(appointmentActions(later,{role:'Administrator',userId:1,today,now}).reappoint,false,'Administrators do not handle bookings');
+  assert.equal(appointmentActions({...later,patientResponse:'Awaiting'},staff).remind,false,'No reminder while the patient decides on a new time');
   assert.equal(appointmentActions(past,doctor).document,true);
   assert.equal(appointmentActions({...later,doctorId:7},doctor).remind,false,'Doctors do not send reminders');
   assert.equal(appointmentActions(later,{...doctor,userId:8}).document,false);

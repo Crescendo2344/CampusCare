@@ -168,11 +168,14 @@ Deno.serve(async(req)=>{
           const result=await mailer.send({to:mail.recipient_email,subject:mail.subject,html:mail.html_body,text:mail.text_body});
           if(result.fallbackReason){fallbacks++;console.warn("SMTP unavailable, sent through Resend API:",result.fallbackReason);}
 
+          // A new account's emailed password is not kept once it has been delivered.
+          const secret=mail.template_key==="credentials";
           await admin.from("email_outbox").update({
             status:"Sent",
             sent_at:now(),
             provider_message_id:result.id,
             last_error:null,
+            ...(secret?{html_body:"<p>Sign-in details were delivered. The password is not stored.</p>",text_body:"Sign-in details were delivered. The password is not stored."}:{}),
             updated_at:now()
           }).eq("email_id",mail.email_id);
 

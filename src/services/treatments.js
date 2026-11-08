@@ -22,7 +22,7 @@ export function createTreatmentService({getClient,request,baseUrl,publishableKey
   async function loadTreatments(){
     const {data,error}=await getClient()
       .from('treatments')
-      .select('treatment_id,patient_id,doctor_id,appointment_id,examination_findings,diagnosis,prescription,clinical_notes,vitals,imaging_notes,treatment_date,follow_up_date,status,archived_at,archived_by,created_at')
+      .select('treatment_id,patient_id,doctor_id,appointment_id,examination_findings,diagnosis,prescription,clinical_notes,vitals,imaging_notes,treatment_date,follow_up_date,status,archived_at,archived_by,created_at,amendments')
       .order('treatment_date',{ascending:false})
       .order('treatment_id',{ascending:false});
 

@@ -5,48 +5,35 @@ import {state as appState} from '../app/state.js';
 import {closeAllModals,openModal} from './modals.js';
 import {showAlert,toast} from './theme.js';
 import {resetRegistrationFieldErrors,setRegistrationFieldError,validateRegistrationField,validateRegistrationForm} from './inputValidation.js';
-import {checkPasswordStrength,renderPasswordStrength} from './loginLockout.js';
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
-import {passwordValidationError} from '../../supabase/functions/_shared/registration-validation.js';
 import {normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {adminUserAction,renderUsers,userAvatarHtml} from './userManagement.js';
 import {bindAction} from '../dependencies.js';
 import {openDoctorScheduleEditor} from './doctorSchedules.js';
+import {CLINIC_SERVICES,SPECIALIZATIONS,clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
 // ── Add User Modal ──
 // Staff accounts follow the same field rules as public registration; patients register themselves
 // or are added through Patient Records, where identity verification happens.
 const ROLE_CHOICES=[
   ['Doctor','bi-heart-pulse','Sees patients, records treatments, certificates and fitness assessments. Gets a weekly clinic schedule.'],
-  ['Staff','bi-person-workspace','Handles appointments, patient records and inventory at the clinic desk.'],
-  ['Administrator','bi-shield-lock','Full access, including user accounts, approvals, settings and backups.']
+  ['Staff','bi-person-workspace','Oversees bookings, keeps patient records and inventory, and releases certificates at the front desk.']
 ];
-const SPECIALTIES=['General Medicine','Dental'];
-const AU_SERVER_FIELDS={first_name:'au-fname',last_name:'au-lname',username:'au-user',email:'au-email',contact_number:'au-contact',password:'au-pass'};
+// Administrator accounts are not created here: an administrator only adds doctors and staff.
+const specialties=()=>Object.keys(SPECIALIZATIONS);
+const AU_SERVER_FIELDS={first_name:'au-fname',last_name:'au-lname',username:'au-user',email:'au-email',contact_number:'au-contact',id_number:'au-empno',services_rendered:'au-services'};
 
 function addUserState(){return appState.userManagement.addUser??={};}
 
-export function generateTemporaryPassword(context={}){
-  const sets=['ABCDEFGHJKLMNPQRSTUVWXYZ','abcdefghijkmnpqrstuvwxyz','23456789','!@#$%&*?'],all=sets.join('');
-  // Rejection sampling keeps every character equally likely.
-  const pick=n=>{const limit=256-256%n,b=new Uint8Array(1);do crypto.getRandomValues(b);while(b[0]>=limit);return b[0]%n;};
-  for(;;){
-    const chars=sets.map(set=>set[pick(set.length)]);
-    while(chars.length<14)chars.push(all[pick(all.length)]);
-    for(let i=chars.length-1;i>0;i--){const j=pick(i+1);[chars[i],chars[j]]=[chars[j],chars[i]];}
-    const password=chars.join('');
-    if(!passwordValidationError(password,context))return password;
-  }
-}
 
 const field=(id,label,input,{required=true,hint=''}={})=>`<div class="form-group">
   <label for="${id}">${label} ${required?'<span class="required">*</span>':'<span class="text-muted registration-optional">(optional)</span>'}</label>${input}
   ${hint?`<p class="form-note field-hint" id="${id}-help">${hint}</p>`:''}<p class="registration-field-error" id="${id}-error" aria-live="polite" hidden></p></div>`;
-const live=id=>`${bindAction('blur',()=>validateRegistrationField(id))} ${bindAction('input',()=>{validateRegistrationField(id,false);if(id==='au-pass'){updateAddUserPassword();validateRegistrationField('au-pass2',false);}})}`;
+const live=id=>`${bindAction('blur',()=>validateRegistrationField(id))} ${bindAction('input',()=>validateRegistrationField(id,false))}`;
 
 export function openAddUserModal(){
   if(appState.auth.currentUser?.role!=='Administrator'){toast('Administrator access required.','warning');return;}
   const st=addUserState();
-  Object.assign(st,{role:'Doctor',passwordMode:'generate',generated:generateTemporaryPassword(),created:null});
+  Object.assign(st,{role:'Doctor',created:null});
   resetRegistrationFieldErrors('au-');
   openModal(`<div class="modal au-modal" role="dialog" aria-labelledby="au-title">
     <div class="modal-header"><div><h3 id="au-title">Add staff account</h3></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
@@ -56,7 +43,8 @@ export function openAddUserModal(){
         <section class="au-section"><h4><span class="au-step">1</span> Role</h4>
           <div class="au-roles" role="radiogroup" aria-label="Role">${ROLE_CHOICES.map(([role,icon,text])=>`<label class="au-role"><input type="radio" name="au-role" value="${role}" ${role===st.role?'checked':''} ${bindAction('change',()=>setAddUserRole(role))}><span class="au-role-card"><i class="bi ${icon}" aria-hidden="true"></i><strong>${role}</strong><small>${text}</small></span></label>`).join('')}</div>
           <div id="au-doctor" class="au-doctor">
-            <div class="form-row">${field('au-spec','Specialty',`<select id="au-spec">${SPECIALTIES.map(x=>`<option>${x}</option>`).join('')}</select>`)}</div>
+            <div class="form-row">${field('au-spec','Specialization',`<select id="au-spec" ${bindAction('change',()=>renderServicesRendered())}>${specialties().map(x=>`<option>${x}</option>`).join('')}</select>`,{hint:'Field of expertise.'})}</div>
+            <fieldset class="au-services" id="au-services" aria-describedby="au-services-error"><legend>Services rendered <span class="required">*</span></legend><div id="au-services-list"></div><p class="registration-field-error" id="au-services-error" aria-live="polite" hidden></p></fieldset>
             <p class="form-note au-note"><i class="bi bi-calendar-week" aria-hidden="true"></i> Starts with Mon–Fri, 8 AM – 5 PM, 60-minute appointments (up to 9 a day). You can change it after creating the account.</p>
           </div>
         </section>
@@ -64,6 +52,7 @@ export function openAddUserModal(){
           <div class="form-row">
             ${field('au-fname','First name',`<input id="au-fname" maxlength="50" autocomplete="off" ${live('au-fname')} aria-describedby="au-fname-error">`)}
             ${field('au-lname','Last name',`<input id="au-lname" maxlength="50" autocomplete="off" ${live('au-lname')} aria-describedby="au-lname-error">`)}
+            ${field('au-empno','Employee No.',`<input id="au-empno" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="e.g. 14982" ${bindAction('input',(event,element)=>{element.value=element.value.replace(/\D/g,'').slice(0,5);setRegistrationFieldError('au-empno','',false);})} aria-describedby="au-empno-help au-empno-error">`,{hint:'The 5-digit CTU employee number.'})}
           </div>
         </section>
         <section class="au-section"><h4><span class="au-step">3</span> Sign-in details</h4>
@@ -74,28 +63,7 @@ export function openAddUserModal(){
           </div>
         </section>
         <section class="au-section"><h4><span class="au-step">4</span> Password</h4>
-          <div class="au-pw-modes" role="radiogroup" aria-label="Password">
-            <label><input type="radio" name="au-pw-mode" value="generate" checked ${bindAction('change',()=>setPasswordMode('generate'))}><span><strong>Generate a temporary password</strong><small>Share it privately; they change it after signing in.</small></span></label>
-            <label><input type="radio" name="au-pw-mode" value="manual" ${bindAction('change',()=>setPasswordMode('manual'))}><span><strong>Set a password</strong><small>Type one now, following the sign-up rules.</small></span></label>
-          </div>
-          <div id="au-pw-generate" class="au-generated"><code id="au-generated">${escapeHtml(st.generated)}</code>
-            <button type="button" class="btn btn-sm" ${bindAction('click',()=>copyText(addUserState().generated,'Password copied.'))}><i class="bi bi-clipboard"></i> Copy</button>
-            <button type="button" class="btn btn-sm" ${bindAction('click',()=>regeneratePassword())}><i class="bi bi-arrow-repeat"></i> New</button></div>
-          <div id="au-pw-manual" hidden>
-            <div class="form-row">
-              ${field('au-pass','Password',`<div class="au-pw-wrap"><input id="au-pass" type="password" maxlength="64" autocomplete="new-password" disabled ${live('au-pass')} aria-describedby="au-pass-error"><button type="button" class="au-eye" aria-label="Show password" ${bindAction('click',(event,element)=>togglePasswordVisibility(element))}><i class="bi bi-eye"></i></button></div>`)}
-              ${field('au-pass2','Confirm password',`<input id="au-pass2" type="password" maxlength="64" autocomplete="new-password" disabled ${live('au-pass2')} aria-describedby="au-pass2-error">`)}
-            </div>
-            <div id="au-pass-strength" class="password-checklist show" data-level="0" aria-live="polite">
-              <div class="strength-bars" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-              <div id="au-pass-strength-label" class="password-strength-label weak">Password strength</div>
-              <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>8–64 characters</span></div>
-              <div class="password-check" data-check="upper"><span class="pw-check-icon"></span><span>One uppercase letter</span></div>
-              <div class="password-check" data-check="lower"><span class="pw-check-icon"></span><span>One lowercase letter</span></div>
-              <div class="password-check" data-check="number"><span class="pw-check-icon"></span><span>One number</span></div>
-              <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
-            </div>
-          </div>
+          <p class="form-note au-note"><i class="bi bi-envelope-lock" aria-hidden="true"></i> CampusCare generates a password and emails it straight to the new user. Nobody else sees it, including you. They must change it the first time they sign in.</p>
         </section>
       </div>
       <section id="au-review" hidden></section>
@@ -103,7 +71,15 @@ export function openAddUserModal(){
     <div class="modal-footer" id="au-actions"><button type="button" class="btn btn-primary" ${bindAction('click',()=>reviewNewUser())}>Review account</button></div>
   </div>`);
   setAddUserRole(st.role);
+  renderServicesRendered();
   document.getElementById('au-fname')?.focus();
+}
+
+// Doctors pick the services they render from their clinic's list; all are ticked to start.
+function renderServicesRendered(){
+  const list=document.getElementById('au-services-list');if(!list)return;
+  const clinic=clinicForSpecialization(document.getElementById('au-spec')?.value);
+  list.innerHTML=CLINIC_SERVICES[clinic].map(service=>`<label class="au-service"><input type="checkbox" value="${escapeHtml(service)}" checked ${bindAction('change',()=>setRegistrationFieldError('au-services','',false))}> <span>${escapeHtml(service)}</span></label>`).join('');
 }
 
 function setAddUserRole(role){
@@ -112,65 +88,39 @@ function setAddUserRole(role){
   if(doctor)doctor.hidden=role!=='Doctor';
 }
 
-function setPasswordMode(mode){
-  addUserState().passwordMode=mode;
-  const manual=mode==='manual';
-  document.getElementById('au-pw-generate').hidden=manual;
-  document.getElementById('au-pw-manual').hidden=!manual;
-  for(const id of ['au-pass','au-pass2'])document.getElementById(id).disabled=!manual;
-  if(manual)document.getElementById('au-pass').focus();
-  else{resetRegistrationFieldErrors('au-pass');}
-}
 
-function regeneratePassword(){
-  const st=addUserState();
-  st.generated=generateTemporaryPassword({username:document.getElementById('au-user')?.value,email:document.getElementById('au-email')?.value});
-  document.getElementById('au-generated').textContent=st.generated;
-}
 
-function togglePasswordVisibility(button){
-  const show=document.getElementById('au-pass').type==='password';
-  for(const id of ['au-pass','au-pass2'])document.getElementById(id).type=show?'text':'password';
-  button.setAttribute('aria-label',show?'Hide password':'Show password');
-  button.innerHTML=`<i class="bi ${show?'bi-eye-slash':'bi-eye'}"></i>`;
-}
 
-function updateAddUserPassword(){
-  const pw=document.getElementById('au-pass')?.value||'',el=document.getElementById('au-pass-strength');
-  if(!el)return;
-  const {checks}=checkPasswordStrength(pw);
-  el.querySelectorAll('.password-check').forEach(item=>item.classList.toggle('met',Boolean(checks[item.dataset.check])));
-  renderPasswordStrength(el,document.getElementById('au-pass-strength-label'),pw);
-}
 
-async function copyText(text,message){
-  try{await navigator.clipboard.writeText(text);toast(message,'success');}
-  catch{toast('Copy is not available here. Select the text and copy it manually.','warning');}
-}
 
 function newUserValues(){
   const st=addUserState(),val=id=>document.getElementById(id)?.value||'';
-  return {role:st.role,specialty:st.role==='Doctor'?val('au-spec'):null,first_name:val('au-fname').trim(),last_name:val('au-lname').trim(),
-    username:val('au-user').trim(),email:val('au-email').trim().toLowerCase(),contact_number:normalizePhilippineMobile(val('au-contact'))||val('au-contact').trim(),
-    password:st.passwordMode==='manual'?val('au-pass'):st.generated};
+  const services=[...document.querySelectorAll('#au-services-list input:checked')].map(i=>i.value);
+  return {role:st.role,specialty:st.role==='Doctor'?val('au-spec'):null,services_rendered:st.role==='Doctor'?services:[],
+    first_name:val('au-fname').trim(),last_name:val('au-lname').trim(),id_number:val('au-empno').trim(),
+    username:val('au-user').trim(),email:val('au-email').trim().toLowerCase(),contact_number:normalizePhilippineMobile(val('au-contact'))||val('au-contact').trim()};
 }
 
 // Check everything, then show a read-only summary before anything is created.
 export function reviewNewUser(){
   const msg=document.getElementById('adduser-msg');msg.innerHTML='';
   const invalid=validateRegistrationForm('au-');
+  const v=newUserValues();
+  if(!/^\d{5}$/.test(v.id_number)){setRegistrationFieldError('au-empno','Enter the 5-digit employee number.',true);invalid.push('au-empno');}
+  if(v.role==='Doctor'&&!v.services_rendered.length){setRegistrationFieldError('au-services','Tick at least one service.',true);invalid.push('au-services');}
   if(invalid.length){document.getElementById(invalid[0])?.focus();return;}
-  const v=newUserValues(),st=addUserState();
   const row=(label,value)=>`<div class="info-row"><span class="info-label">${label}</span><span class="info-val">${value}</span></div>`;
   document.getElementById('au-form').hidden=true;
   const review=document.getElementById('au-review');review.hidden=false;
   review.innerHTML=`<h4 class="au-review-title">Check the new account</h4>
     ${row('Name',escapeHtml(v.first_name+' '+v.last_name))}
     ${row('Role',escapeHtml(v.role)+(v.specialty?' · '+escapeHtml(v.specialty):''))}
+    ${v.role==='Doctor'?row('Services rendered',escapeHtml(v.services_rendered.join(', '))):''}
+    ${row('Employee No.',escapeHtml(v.id_number))}
     ${row('Username','@'+escapeHtml(v.username))}${row('Email',escapeHtml(v.email))}
     ${row('Mobile',v.contact_number?escapeHtml(v.contact_number):'<span class="text-muted">Not provided</span>')}
-    ${row('Password',st.passwordMode==='manual'?'Set by you':'Temporary, generated')}
-    <p class="form-note au-note"><i class="bi bi-info-circle" aria-hidden="true"></i> The account is active right away and its email is marked as verified.</p>`;
+    ${row('Password','Generated and emailed to them only')}
+    <p class="form-note au-note"><i class="bi bi-info-circle" aria-hidden="true"></i> The account is active right away. They must change the emailed password when they first sign in.</p>`;
   document.getElementById('au-actions').innerHTML=`<button type="button" class="btn" ${bindAction('click',()=>backToAddUserForm())}>Back</button><button type="button" class="btn btn-primary" id="au-create" ${bindAction('click',()=>saveNewUser())}>Create account</button>`;
 }
 
@@ -185,7 +135,7 @@ export async function saveNewUser(){
   try{
     const result=await adminUserAction({action:'create',...v,
       ...(v.role==='Doctor'?{work_days:['Mon','Tue','Wed','Thu','Fri'],start_time:'08:00',end_time:'17:00',slot_duration:60,max_patients:9}:{})});
-    st.created={...v,userId:result.user_id};
+    st.created={...v,userId:result.user_id,emailStatus:result.email_status||'queued'};
     showCreatedAccount();
     if(appState.navigationRaceProtection.campusActivePageId==='users')void renderUsers();
   }catch(e){
@@ -203,13 +153,12 @@ export async function saveNewUser(){
 }
 
 function showCreatedAccount(){
-  const c=addUserState().created,manual=addUserState().passwordMode==='manual';
-  const details=`Username: ${c.username}\nEmail: ${c.email}${manual?'':`\nTemporary password: ${c.password}`}`;
+  const c=addUserState().created;
+  const status={sent:'The sign-in details were emailed to',queued:'The sign-in details are queued for',not_configured:'Email is not set up yet. The sign-in details will be sent once it is, to'}[c.emailStatus]||'The sign-in details are queued for';
   document.getElementById('au-review').innerHTML=`<div class="au-done"><span class="au-done-icon" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
-    <h4>${escapeHtml(c.first_name+' '+c.last_name)} can now sign in</h4>
-    <p class="form-note">${escapeHtml(c.role)} account created. Share the sign-in details privately${manual?'':' and ask them to change the password after signing in'}.</p>
-    <dl class="au-creds"><div><dt>Username</dt><dd>@${escapeHtml(c.username)}</dd></div><div><dt>Email</dt><dd>${escapeHtml(c.email)}</dd></div>${manual?'':`<div><dt>Temporary password</dt><dd><code>${escapeHtml(c.password)}</code></dd></div>`}</dl>
-    <button type="button" class="btn btn-sm" ${bindAction('click',()=>copyText(details,'Sign-in details copied.'))}><i class="bi bi-clipboard"></i> Copy sign-in details</button></div>`;
+    <h4>${escapeHtml(c.first_name+' '+c.last_name)}'s account is ready</h4>
+    <p class="form-note">${escapeHtml(status)} <strong>${escapeHtml(c.email)}</strong>. The password is not shown here; they change it when they first sign in.</p>
+    <dl class="au-creds"><div><dt>Username</dt><dd>@${escapeHtml(c.username)}</dd></div><div><dt>Email</dt><dd>${escapeHtml(c.email)}</dd></div><div><dt>Employee No.</dt><dd>${escapeHtml(c.id_number)}</dd></div></dl></div>`;
   document.getElementById('au-actions').innerHTML=`<button type="button" class="btn" ${bindAction('click',()=>openAddUserModal())}>Add another</button>
     ${c.role==='Doctor'?`<button type="button" class="btn" ${bindAction('click',()=>openCreatedDoctorSchedule())}>Set schedule</button>`:''}
     <button type="button" class="btn btn-primary" ${bindAction('click',()=>closeAllModals())}>Done</button>`;
@@ -227,11 +176,22 @@ async function openCreatedDoctorSchedule(){
 // Editing an account is two deliberate steps, as in admin consoles such as Google Workspace and Okta:
 // edit the details (changed fields are marked), then review every change with a reason and confirm by
 // typing the account's username before anything is saved.
-const EDIT_LABELS={first_name:'First name',last_name:'Last name',email:'Email',contact_number:'Mobile number',specialty:'Specialty'};
+const EDIT_LABELS={first_name:'First name',last_name:'Last name',email:'Email',contact_number:'Mobile number',specialty:'Specialization',services_rendered:'Services rendered'};
 function editState(){return appState.userManagement.editUser??={};}
-function editOriginal(u){return {...u,first_name:u.fname,last_name:u.lname,contact_number:u.contact||''};}
+function editOriginal(u){return {...u,first_name:u.fname,last_name:u.lname,contact_number:u.contact||'',services_rendered:u.servicesRendered||[]};}
 function editInputs(u){
-  return {first_name:document.getElementById('eu-fname').value,last_name:document.getElementById('eu-lname').value,email:document.getElementById('eu-email').value,contact_number:document.getElementById('eu-contact').value,...(u.role==='Doctor'?{specialty:document.getElementById('eu-spec').value}:{})};
+  return {first_name:document.getElementById('eu-fname').value,last_name:document.getElementById('eu-lname').value,email:document.getElementById('eu-email').value,contact_number:document.getElementById('eu-contact').value,...(u.role==='Doctor'?{specialty:document.getElementById('eu-spec').value,services_rendered:[...document.querySelectorAll('#eu-services input:checked')].map(i=>i.value)}:{})};
+}
+// A doctor's services come from their clinic's list; an empty saved list means every service.
+function editServicesHtml(specialization,current=[]){
+  const all=CLINIC_SERVICES[clinicForSpecialization(specialization)];
+  const ticked=current?.length?current:all;
+  return all.map(service=>`<label class="au-service"><input type="checkbox" value="${escapeHtml(service)}" ${ticked.includes(service)?'checked':''}> <span>${escapeHtml(service)}</span></label>`).join('');
+}
+function renderEditServices(u){
+  const host=document.getElementById('eu-services');
+  const spec=document.getElementById('eu-spec')?.value;
+  if(host)host.innerHTML=editServicesHtml(spec,spec===u.specialty?u.servicesRendered:[]);
 }
 function confirmWord(u){return u.username||u.email;}
 
@@ -254,7 +214,8 @@ export function openEditUserModal(id){
           ${field('eu-email','email','Email',`<input id="eu-email" type="email" maxlength="150" autocomplete="off" value="${escapeHtml(u.email)}">`)}
           ${field('eu-contact','contact_number','Mobile number',`<input id="eu-contact" type="tel" placeholder="09XXXXXXXXX" autocomplete="off" value="${escapeHtml(u.contact||'')}">`)}
         </div></section>
-        ${u.role==='Doctor'?`<section class="eu-section"><h4>Professional</h4><div class="form-row">${field('eu-spec','specialty','Specialty',`<select id="eu-spec">${['General Medicine','Dental'].map(value=>`<option ${u.specialty===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div></section>`:''}
+        ${u.role==='Doctor'?`<section class="eu-section"><h4>Professional</h4><div class="form-row">${field('eu-spec','specialty','Specialization',`<select id="eu-spec" ${bindAction('change',()=>renderEditServices(u))}>${specialties().map(value=>`<option ${u.specialty===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div>
+          <fieldset class="au-services"><legend>Services rendered</legend><div id="eu-services">${editServicesHtml(u.specialty,u.servicesRendered)}</div></fieldset></section>`:''}
         <dl class="eu-locked"><div><dt>Username</dt><dd>@${escapeHtml(u.username||'—')}</dd></div><div><dt>Role</dt><dd>${escapeHtml(u.role)}</dd></div><div><dt>Account status</dt><dd>${escapeHtml(u.status)}</dd></div></dl>
       </div>
       <section id="edituser-review" hidden></section>
@@ -319,7 +280,7 @@ export async function saveEditUser(id){
       const result=await adminUserAction({action:'update',user_id:u.dbUserId,...patch,confirmed:true,reason,notify});
       const saved=result.user;
       if(!saved)throw new Error('The update could not be verified. Reload the account before retrying.');
-      Object.assign(u,{fname:saved.first_name,lname:saved.last_name,email:saved.email,contact:saved.contact_number||'',contactNo:saved.contact_number||'',specialty:saved.specialty||''});
+      Object.assign(u,{fname:saved.first_name,lname:saved.last_name,email:saved.email,contact:saved.contact_number||'',contactNo:saved.contact_number||'',specialty:saved.specialty||'',servicesRendered:saved.services_rendered||u.servicesRendered||[]});
       if(modal.isConnected)closeAllModals();toast(`${saved.first_name} ${saved.last_name}'s account updated.`,'success');
       if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
     }catch(error){if(modal.isConnected)showAlert(msg,error?.message||'Unable to update user.');else toast(error?.message||'Unable to update user.','error');}

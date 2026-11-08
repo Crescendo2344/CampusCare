@@ -667,7 +667,7 @@ try{
       await reminder.locator('.toast-close').click();
       await page.waitForFunction(()=>![...document.querySelectorAll('#toast-wrap .toast')].some(t=>/signed COR/.test(t.textContent)&&!t.classList.contains('leaving')));
     }
-    if(['Staff','Administrator'].includes(role)){
+    if(role==='Staff'){
       // Time slots are managed from the Appointments page: pick a doctor and a day, toggle times, save.
       await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('appointments'));
       page.__wideAvailability=true;
@@ -839,13 +839,22 @@ try{
     // Add staff account: role cards, registration rules inline, a review step, then sign-in details.
     await page.evaluate(()=>window.__fixtureApp.features.userForm.openAddUserModal());
     await page.locator('.au-modal').waitFor();
-    assert.equal(await page.locator('.au-role').count(),3);
-    assert(await page.locator('#au-doctor').isVisible(),'Doctors choose a specialty');
+    // Only doctors and staff can be added; administrators are never created here.
+    assert.equal(await page.locator('.au-role').count(),2);
+    assert.equal(await page.locator('.au-role',{hasText:'Administrator'}).count(),0);
+    assert(await page.locator('#au-doctor').isVisible(),'Doctors choose a specialization');
+    assert.equal(await page.locator('#au-services-list input:checked').count(),4,'Every service of the clinic starts ticked');
+    await page.locator('#au-spec').selectOption('Dental');
+    assert.match(await page.locator('#au-services-list').innerText(),/Oral Prophylaxis/);
     await page.locator('.au-role',{hasText:'Staff'}).click();
     assert(await page.locator('#au-doctor').isHidden());
     await page.getByRole('button',{name:'Review account'}).click();
     assert(await page.locator('#au-fname-error').isVisible());assert(await page.locator('#au-email-error').isVisible());
+    assert(await page.locator('#au-empno-error').isVisible(),'The employee number is required');
     await page.locator('#au-fname').fill('Ma. Clara');await page.locator('#au-lname').fill('Dela Cruz');
+    await page.locator('#au-empno').fill('1a4');
+    assert.equal(await page.locator('#au-empno').inputValue(),'14','Digits only');
+    await page.locator('#au-empno').fill('14982');
     await page.locator('#au-user').fill('mclara');
     await page.locator('#au-email').fill('mclara@gmial.com');await page.locator('#au-email').blur();
     await page.locator('#au-email-error').getByRole('button',{name:'Use @gmail.com'}).click();
@@ -854,13 +863,8 @@ try{
     assert(await page.locator('#au-contact-error').isVisible());
     await page.locator('#au-contact').fill('+639171234567');
     assert(await page.locator('#au-contact-error').isHidden());
-    assert.match(await page.locator('#au-generated').innerText(),/^\S{14}$/);
-    await page.locator('.au-pw-modes label',{hasText:'Set a password'}).click();
-    await page.locator('#au-pass').fill('weakpass');await page.locator('#au-pass').blur();
-    assert.match(await page.locator('#au-pass-error').innerText(),/uppercase/);
-    await page.locator('#au-pass').fill('Clinic2026!x');await page.locator('#au-pass2').fill('Clinic2026!y');await page.locator('#au-pass2').blur();
-    assert.match(await page.locator('#au-pass2-error').innerText(),/do not match/);
-    await page.locator('#au-pass2').fill('Clinic2026!x');
+    // The password is generated and emailed by the server; it is never shown or typed here.
+    assert.equal(await page.locator('#au-generated, #au-pass').count(),0);
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.au-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/add-user-${mobile?'mobile':'desktop'}.png`});
     await page.getByRole('button',{name:'Review account'}).click();
     await page.locator('#au-review').getByText('Check the new account').waitFor();
@@ -868,7 +872,9 @@ try{
     await page.locator('.au-done').waitFor();
     const created=requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='create').at(-1);
     assert.equal(created.body.role,'Staff');assert.equal(created.body.contact_number,'09171234567');
-    assert.equal(created.body.password,'Clinic2026!x');assert.equal(created.body.specialty,null);
+    assert.equal(created.body.id_number,'14982');assert.equal(created.body.specialty,null);
+    assert.equal(created.body.password,undefined,'No password leaves the browser');
+    assert.doesNotMatch(await page.locator('.au-done').innerText(),/password:/i);
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.au-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/add-user-done-${mobile?'mobile':'desktop'}.png`});
     await page.getByRole('button',{name:'Done'}).click();
     await page.evaluate(()=>window.__fixtureApp.features.loginLockout.openPrivacyNotice());
@@ -879,58 +885,6 @@ try{
     assert.equal(await page.locator('#nav-fitness').count(),0);
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('fitness'));
     await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
-    // Clinic-side cancellation: a reason the patient sees, then typing CANCEL to confirm.
-    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const pt=state.data.DB.patients.find(p=>p._realSupabase)||state.data.DB.patients[0];const doc=state.data.DB.users.find(u=>u.role==='Doctor'&&u._realSupabase);
-      state.data.DB.appointments.push({id:990077,dbAppointmentId:77,_realSupabase:true,patientId:pt.id,doctorId:doc?.id,clinic:'Medical Clinic',service:'General Checkup',date:'2026-12-01',time:'09:00',status:'Scheduled'});
-      features.appointments.cancelAppt(990077);});
-    await page.locator('.cancel-flow').waitFor();
-    assert(await page.locator('#cancel-next').isDisabled(),'A reason is required');
-    await page.locator('#cancel-reason-choice').selectOption('Doctor unavailable');
-    await page.locator('#cancel-appt-reason').fill('Please rebook next week.');
-    await page.locator('#cancel-next').click();
-    assert(await page.locator('#cancel-final').isDisabled(),'Typing CANCEL is required');
-    await page.locator('#cancel-confirm-text').fill('cancel');
-    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.cancel-flow').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/cancel-confirm-${mobile?'mobile':'desktop'}.png`});
-    await page.locator('#cancel-final').click();
-    await page.waitForFunction(()=>!document.querySelector('.cancel-flow'));
-    await page.waitForTimeout(300);
-    const cancelled=requests.filter(r=>r.path.endsWith('/appointment-actions')&&r.body?.action==='cancel').at(-1);
-    assert.equal(cancelled.body.appointment_id,77);assert.equal(cancelled.body.reason,'Doctor unavailable. Please rebook next week.');
-    // Inventory forecast: 3 months by default, presets and custom days (7–365), a plan column and a CSV with options.
-    await page.evaluate(()=>{
-      const {state,features}=window.__fixtureApp,today=state.clinicInformation.TODAY,anchor=features.predictiveAnalytics.healthAnalyticsAnchorDate().date,back=n=>{const d=new Date(anchor+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-n);return d.toISOString().slice(0,10);};
-      state.data.DB.inventory=[{id:500001,dbItemId:1,_realSupabase:true,name:'Gauze pads',category:'Supplies',qty:100,threshold:20,unit:'pcs',unitCost:2}];
-      state.data.DB.inventoryTransactions=[{id:1,_realSupabase:true,itemId:500001,type:'Disbursement',qty:5,date:back(3)}];
-      state.data.DB.inventoryForecasts=[{itemId:500001,forecastMonth:today.slice(0,7)+'-01',predictedUsage:150}];
-      state.inventoryList.forecastDays=undefined;
-      document.getElementById('app-content').innerHTML='<div id="inv-forecast"></div>';
-      document.getElementById('inv-forecast').innerHTML=features.inventoryService.forecastSectionHtml();
-    });
-    assert.equal(await page.locator('.fc-preset.active').innerText(),'3 months');
-    assert.match(await page.locator('.forecast-table thead').innerText(),/Plan for 3 months/);
-    assert.match(await page.locator('.fc-plan').innerText(),/Order \d+ pcs/);
-    await page.locator('.fc-preset',{hasText:'30 days'}).click();
-    assert.equal(await page.locator('.forecast-table thead th').count(),7,'Item, five weeks and the plan');
-    await page.locator('#fc-days').fill('400');await page.locator('#fc-days').press('Enter');
-    assert.match(await page.locator('.forecast-table thead').innerText(),/Plan for 1 year/);
-    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#inv-forecast').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/inventory-forecast-${mobile?'mobile':'desktop'}.png`});
-    // Items without a photo show a placeholder that opens a larger view with a shortcut to add one.
-    await page.locator('.forecast-table .item-thumb.empty').first().click();
-    await page.locator('#active-modal .item-view-empty').waitFor();
-    assert.equal(await page.locator('#active-modal').getByRole('button',{name:'Add photo'}).count(),await page.evaluate(()=>['Staff','Administrator'].includes(window.__fixtureApp.state.auth.currentUser.role))?1:0);
-    await page.locator('#active-modal .close-btn').click();
-    await page.locator('.fc-preset',{hasText:'3 months'}).click();
-    await page.getByRole('button',{name:'Download CSV'}).click();
-    await page.locator('.fc-csv').waitFor();
-    await page.locator('input[name="fc-layout"][value="detailed"]').check();
-    await page.locator('input[name="fc-col"][value="category"]').uncheck();
-    const [forecastCsv]=await Promise.all([page.waitForEvent('download'),page.locator('.fc-csv').getByRole('button',{name:'Download',exact:true}).click()]);
-    assert.match(forecastCsv.suggestedFilename(),/^campuscare-inventory-forecast-90-days-from-\d{4}-\d{2}-\d{2}\.csv$/);
-    const forecastText=(await import('node:fs')).readFileSync(await forecastCsv.path(),'utf8');
-    assert(forecastText.startsWith('\ufeff'),'UTF-8 marker for Excel');
-    const forecastLines=forecastText.slice(1).trimEnd().split('\r\n');
-    assert.match(forecastLines[0],/^Item Name,Item: No\.,Item: Unit,Stock: On Hand,Stock: Reorder Level,Period: Start,Period: End,Period: Projected Use,Period: Stock Left$/);
-    assert(forecastLines.length>=4,'One row per item per month');
     // Use synthetic registration images to exercise the real review/preview controls without patient data.
     await page.evaluate(()=>{
       const {state,features}=window.__fixtureApp,canvas=document.createElement('canvas');canvas.width=40;canvas.height=60;
@@ -988,6 +942,65 @@ try{
       await page.evaluate(()=>localStorage.removeItem('campuscare-theme'));
     }
   }
+  if(role==='Staff'){
+    // The clinic does not cancel: a visit that cannot push through gets an apology and a proposed new time.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const pt=state.data.DB.patients.find(p=>p._realSupabase)||state.data.DB.patients[0];const doc=state.data.DB.users.find(u=>u.role==='Doctor'&&u._realSupabase);
+      state.data.DB.appointments.push({id:990077,dbAppointmentId:77,_realSupabase:true,patientId:pt.id,doctorId:doc?.id,clinic:'Medical Clinic',service:'General Checkup',date:'2026-12-01',time:'09:00',status:'Scheduled',reason:'Fever'});
+      window.__allowed=features.appointments.appointmentAllowedActions(state.data.DB.appointments.at(-1));
+      features.reappointment.openReappointModal(990077);});
+    assert.equal(await page.evaluate(()=>window.__allowed.cancel),false,'Staff cannot cancel an appointment');
+    await page.locator('.reappoint-modal').waitFor();
+    assert(await page.locator('#ra-send').isDisabled(),'A reason, date and time are required');
+    await page.locator('#ra-reason').selectOption('The doctor is unavailable at that time');
+    await page.waitForFunction(()=>document.querySelectorAll('#ra-date option').length>1);
+    await page.locator('#ra-date').selectOption({index:1});
+    await page.locator('#ra-slots .slot').first().click();
+    assert.match(await page.locator('#ra-preview').innerText(),/We apologize that your appointment will not push through/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.reappoint-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reappoint-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#ra-send').click();
+    await page.waitForFunction(()=>!document.querySelector('.reappoint-modal'));
+    const reappointed=requests.filter(r=>r.path.endsWith('/appointment-actions')&&r.body?.action==='reappoint').at(-1);
+    assert.equal(reappointed.body.appointment_id,77);assert.equal(reappointed.body.reappoint_reason,'The doctor is unavailable at that time');
+    assert.match(reappointed.body.appointment_date,/^\d{4}-\d{2}-\d{2}$/);assert.match(reappointed.body.appointment_time,/^\d{2}:\d{2}$/);
+    // Sending refreshes the page the staff member is on; let it settle before the next check replaces it.
+    await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId&&!document.querySelector('#app-content .db-skeleton-wrap'));
+    await page.waitForTimeout(600);
+    // Inventory forecast: 3 months by default, presets and custom days (7–365), a plan column and a CSV with options.
+    await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp,today=state.clinicInformation.TODAY,anchor=features.predictiveAnalytics.healthAnalyticsAnchorDate().date,back=n=>{const d=new Date(anchor+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-n);return d.toISOString().slice(0,10);};
+      state.data.DB.inventory=[{id:500001,dbItemId:1,_realSupabase:true,name:'Gauze pads',category:'Supplies',qty:100,threshold:20,unit:'pcs',unitCost:2}];
+      state.data.DB.inventoryTransactions=[{id:1,_realSupabase:true,itemId:500001,type:'Disbursement',qty:5,date:back(3)}];
+      state.data.DB.inventoryForecasts=[{itemId:500001,forecastMonth:today.slice(0,7)+'-01',predictedUsage:150}];
+      state.inventoryList.forecastDays=undefined;
+      document.getElementById('app-content').innerHTML='<div id="inv-forecast"></div>';
+      document.getElementById('inv-forecast').innerHTML=features.inventoryService.forecastSectionHtml();
+    });
+    assert.equal(await page.locator('.fc-preset.active').innerText(),'3 months');
+    assert.match(await page.locator('.forecast-table thead').innerText(),/Plan for 3 months/);
+    assert.match(await page.locator('.fc-plan').innerText(),/Order \d+ pcs/);
+    await page.locator('.fc-preset',{hasText:'30 days'}).click();
+    assert.equal(await page.locator('.forecast-table thead th').count(),7,'Item, five weeks and the plan');
+    await page.locator('#fc-days').fill('400');await page.locator('#fc-days').press('Enter');
+    assert.match(await page.locator('.forecast-table thead').innerText(),/Plan for 1 year/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#inv-forecast').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/inventory-forecast-${mobile?'mobile':'desktop'}.png`});
+    // Items without a photo show a placeholder that opens a larger view with a shortcut to add one.
+    await page.locator('.forecast-table .item-thumb.empty').first().click();
+    await page.locator('#active-modal .item-view-empty').waitFor();
+    assert.equal(await page.locator('#active-modal').getByRole('button',{name:'Add photo'}).count(),await page.evaluate(()=>['Staff','Administrator'].includes(window.__fixtureApp.state.auth.currentUser.role))?1:0);
+    await page.locator('#active-modal .close-btn').click();
+    await page.locator('.fc-preset',{hasText:'3 months'}).click();
+    await page.getByRole('button',{name:'Download CSV'}).click();
+    await page.locator('.fc-csv').waitFor();
+    await page.locator('input[name="fc-layout"][value="detailed"]').check();
+    await page.locator('input[name="fc-col"][value="category"]').uncheck();
+    const [forecastCsv]=await Promise.all([page.waitForEvent('download'),page.locator('.fc-csv').getByRole('button',{name:'Download',exact:true}).click()]);
+    assert.match(forecastCsv.suggestedFilename(),/^campuscare-inventory-forecast-90-days-from-\d{4}-\d{2}-\d{2}\.csv$/);
+    const forecastText=(await import('node:fs')).readFileSync(await forecastCsv.path(),'utf8');
+    assert(forecastText.startsWith('\ufeff'),'UTF-8 marker for Excel');
+    const forecastLines=forecastText.slice(1).trimEnd().split('\r\n');
+    assert.match(forecastLines[0],/^Item Name,Item: No\.,Item: Unit,Stock: On Hand,Stock: Reorder Level,Period: Start,Period: End,Period: Projected Use,Period: Stock Left$/);
+    assert(forecastLines.length>=4,'One row per item per month');
+  }
   if(role==='Administrator'&&!mobile){
     // Signed-in devices list each session; other devices can be signed out one by one.
     await page.evaluate(()=>{
@@ -1018,7 +1031,7 @@ try{
     await page.evaluate(()=>{const client=window.__fixtureApp.state.supabaseClient.supabaseClient;client.rpc=window.__realRpc;});
   }
   if(process.env.CAMPUSCARE_VISUAL_DIR&&role==='Administrator'&&!mobile){
-    for(const route of ['inventory','users','survey-results','feedback-issues','settings','activity-log','my-account']){
+    for(const route of ['users','survey-results','feedback-issues','settings','activity-log','my-account']){
       await page.evaluate(route=>window.__fixtureApp.features.navigationRaceProtection.navTo(route),route);
       await page.waitForTimeout(400);
       await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/admin-${route}.png`,fullPage:true});
@@ -1063,7 +1076,7 @@ try{
     await page.locator('#issue-thread .close-btn').click();
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/feedback-queue.png`,fullPage:true});
   }
-  if(['Staff','Administrator'].includes(role)){
+  if(role==='Staff'){
     // Inventory is split into tabs like Reports & Analytics; a summary card jumps back to the item list.
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('inventory'));
     await page.locator('#inv-tab-items').waitFor();
@@ -1152,7 +1165,7 @@ try{
   await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('messages'));
   await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
   assert.equal(await page.locator('#msgr-shell').count(),0);
-  if(['Staff','Administrator'].includes(role)){
+  if(role==='Staff'){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('patients'));
     await page.locator('#pt-session').waitFor();
     await page.evaluate(()=>{

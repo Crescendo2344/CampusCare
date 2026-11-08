@@ -26,6 +26,7 @@ export function normalizeSupabaseUser(profile){
     profileImage: profile.profile_signed_url??profile.profileImage??'',
     profilePhoto: profile.profile_signed_url??profile.profilePhoto??'',
     specialty: profile.specialty??'',
+    servicesRendered: Array.isArray(profile.services_rendered)?profile.services_rendered:[],
     workDays: profile.work_days??profile.workDays??[],
     startTime: profile.start_time??profile.startTime??'',
     endTime: profile.end_time??profile.endTime??'',

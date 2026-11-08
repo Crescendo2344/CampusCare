@@ -31,6 +31,7 @@ export const state={
   datePicker:{},
   bookingForm:{},
   slotManager:{},
+  reappointment:{},
   patientForm:{},
   inventoryForms:{},
   scheduleAndDrafts:{},

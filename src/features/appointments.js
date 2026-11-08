@@ -23,6 +23,7 @@ import {addNotif} from './notifications.js';
 import {bindAction} from '../dependencies.js';
 import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {canManageSlots,openSlotManager} from './slotManager.js';
+import {openReappointModal,queueNumber} from './reappointment.js';
 import {csvDate,csvFileName,csvTime,downloadCsv} from '../shared/csv.js';
 // ================================================================
 // APPOINTMENTS PAGE (Staff/Admin/Doctor)
@@ -114,7 +115,7 @@ function apptActionButtons(a,allowed,{compact=true}={}){
     allowed.reschedule&&`<button type="button" role="menuitem" ${bindAction('click',()=>{closeAllModals();openRescheduleModal(a.id)})}><i class="bi bi-calendar2-week" aria-hidden="true"></i> Reschedule</button>`,
     allowed.remind&&`<button type="button" role="menuitem" ${bindAction('click',()=>sendApptNotif(a.id))}><i class="bi bi-bell" aria-hidden="true"></i> Send reminder</button>`,
     allowed.noShow&&`<button type="button" role="menuitem" ${bindAction('click',()=>noShowAppt(a.id))}><i class="bi bi-person-x" aria-hidden="true"></i> Mark no-show</button>`,
-    allowed.cancel&&`<button type="button" role="menuitem" class="danger" ${bindAction('click',()=>cancelAppt(a.id))}><i class="bi bi-x-circle" aria-hidden="true"></i> Cancel appointment</button>`
+    allowed.reappoint&&`<button type="button" role="menuitem" ${bindAction('click',()=>{closeAllModals();openReappointModal(a.id)})}><i class="bi bi-calendar2-x" aria-hidden="true"></i> ${listData.appointmentHasStarted(a,{today:clinicToday(),now:clinicNow()})?'Return for reappointment':'Can’t push through · propose new time'}</button>`
   ].filter(Boolean);
   return {primary,more};
 }
@@ -158,12 +159,12 @@ export function renderApptTable(){
     lastDay=a.date;
     const overdue=listData.appointmentView(a,today)==='outcome';
     return `${heading}<tr class="appt-row" ${bindAction('click',()=>viewAppt(a.id))}>
-      <td data-label="Time"><strong class="appt-time">${fmtTime(a.time)}</strong><div class="text-muted">#${appointmentDisplayId(a)}</div></td>
+      <td data-label="Time"><strong class="appt-time">${fmtTime(a.time)}</strong><div class="text-muted">#${appointmentDisplayId(a)}${a.status==='Scheduled'?` · No. ${queueNumber(a)}`:''}</div></td>
       <td data-label="Patient"><div class="pt-identity">${pt?patientAvatarHtml(pt,32):''}<div>${pt?`<button type="button" class="link-btn" ${bindAction('click',(event)=>{event.stopPropagation();viewPatient(pt.id)})}><strong>${escapeHtml(name)}</strong></button>`:`<strong>${escapeHtml(name)}</strong>`}<div class="text-muted">${pt?`P-${patientDisplayId(pt)} · `:''}${escapeHtml(a.college||pt?.college||'—')}</div></div></div></td>
       <td data-label="Service"><strong>${escapeHtml(a.service||a.clinic||'—')}</strong><div class="text-muted">${escapeHtml(a.clinic||'')}</div></td>
       ${doctorView?'':`<td data-label="Doctor">${doc?`Dr. ${escapeHtml(doc.fname+' '+doc.lname)}`:'<span class="text-muted">Unassigned</span>'}</td>`}
       <td data-label="Priority">${priorityBadge(a.priority||pt?.personType||'')}</td>
-      <td data-label="Status">${statusBadge(a.status)}${overdue?'<div class="appt-overdue">Outcome needed</div>':''}</td>
+      <td data-label="Status">${statusBadge(a.status)}${a.patientResponse==='Awaiting'&&a.status==='Scheduled'?'<div class="appt-overdue">Waiting for patient’s answer</div>':''}${overdue?'<div class="appt-overdue">Outcome needed</div>':''}</td>
       <td data-label="Actions"><div class="td-actions" ${bindAction('click',(event)=>{event.stopPropagation()})}>${primary}${apptMenuHtml(more,`appointment #${appointmentDisplayId(a)}`)}</div></td>
     </tr>`;
   }).join('');

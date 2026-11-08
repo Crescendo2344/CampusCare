@@ -143,14 +143,16 @@ export function renderDashboard(){
     const todayCompleted=appointmentRecords().filter(a=>dashboardInRange(a.date)&&a.status==='Completed').length;
     let attention='';
     if(lowStock.length)attention+=dashboardAttentionItem(`${lowStock.length} low-stock item${lowStock.length>1?'s':''}`,`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`,'danger');
-    if(pendingUsers.length)attention+=dashboardAttentionItem(`${pendingUsers.length} registration${pendingUsers.length>1?'s':''} to review`,'New patients are waiting in the Approval Queue.','warn');
+    // Past bookings still open have no recorded result yet (the doctor or front desk closes them).
+    const needsOutcome=appointmentRecords().filter(a=>['Scheduled','Confirmed'].includes(a.status)&&a.date<today);
+    if(needsOutcome.length)attention+=dashboardAttentionItem(`${needsOutcome.length} past booking${needsOutcome.length>1?'s':''} without an outcome`,'Mark them completed, no-show, or return for reappointment.','warn');
     if(!attention)attention=dashboardAttentionItem('Operations look good','No urgent clinic items need attention.','success');
     c.innerHTML=`<div class="dashboard-a">
       <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Monitor clinic flow and operational tasks for the selected date.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{navTo('appointments')})}>Manage Appointments</button>${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
         ${dashboardStatCard("Today's appointments",allToday.length,`${allToday.filter(a=>a.status==='Completed').length} completed · ${allToday.filter(a=>a.status==='Scheduled').length} remaining`,note('Across all clinics today'),'bi-clock')}
         ${dashboardStatCard('Appointments in range',allRange.length,`<strong>${todayCompleted}</strong> completed · ${rangeLabel}`,trend(appointmentRecords().filter(a=>a.status!=='Cancelled')),'bi-calendar-event')}
-        ${dashboardStatCard('Pending approvals',pendingUsers.length,pendingUsers.length?'Registrations awaiting review':'No registrations waiting',trend(pendingUsers,'bad',r=>r.createdAt,'new'),'bi-hourglass-split',pendingUsers.length?'attention':'')}
+        ${dashboardStatCard('Needs outcome',needsOutcome.length,needsOutcome.length?'Past bookings to close':'Every past booking is closed',note('Completed, no-show or reappointment'),'bi-clipboard-check',needsOutcome.length?'attention':'')}
         ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory needs review':'Inventory levels healthy',note(lowStock.length?`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`:'All items above their thresholds'),'bi-exclamation-triangle',lowStock.length?'critical':'')}
       </div>
       ${dashboardMobileQuickLinks(role)}
@@ -163,37 +165,34 @@ export function renderDashboard(){
     return;
   }
 
-  // ADMINISTRATOR DASHBOARD
-  const scheduled=appointmentRecords().filter(a=>a.status==='Scheduled');
-  const patientCohort=(appState.auth.currentUser?.role==='Administrator'?appState.data.DB.patients.filter(p=>p._realSupabase):appState.data.DB.patients).filter(p=>!p.archived);
-  const activePatients=patientCohort.length;
-  const completedToday=appointmentRecords().filter(a=>dashboardInRange(a.date)&&a.status==='Completed').length;
+  // ADMINISTRATOR DASHBOARD — accounts and oversight; bookings, patients and stock are the staff's.
+  const users=appState.data.DB.users.filter(u=>u._realSupabase||!appState.auth.currentUser?._realSupabase);
+  const patientCohort=(appState.auth.currentUser?._realSupabase?appState.data.DB.patients.filter(p=>p._realSupabase):appState.data.DB.patients).filter(p=>!p.archived);
+  const team=['Doctor','Staff'].map(r=>[r,users.filter(u=>u.role===r&&u.status==='Active').length]);
+  const suspended=users.filter(u=>u.status==='Suspended').length;
   let attention='';
-  if(pendingUsers.length)attention+=dashboardAttentionItem(`${pendingUsers.length} pending user approval${pendingUsers.length>1?'s':''}`,'Review new CampusCare registrations.','warn');
-  if(lowStock.length)attention+=dashboardAttentionItem(`${lowStock.length} low-stock item${lowStock.length>1?'s':''}`,`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`,'danger');
-  if(!attention)attention=dashboardAttentionItem('All systems normal','No urgent administrative items need attention.','success');
-  const doctors=getDoctors();
-  const doctorLoad=doctors.map(d=>({name:`Dr. ${d.lname}`,count:allToday.filter(a=>a.doctorId===d.id).length,max:d.maxPatients||20}));
+  if(pendingUsers.length)attention+=dashboardAttentionItem(`${pendingUsers.length} account${pendingUsers.length>1?'s':''} to verify`,'New registrations are waiting in Account Verification.','warn');
+  if(suspended)attention+=dashboardAttentionItem(`${suspended} suspended account${suspended>1?'s':''}`,'Review them in User Management.','info');
+  if(!attention)attention=dashboardAttentionItem('All accounts in order','No registrations are waiting for verification.','success');
+  const waiting=[...pendingUsers].sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||''))).slice(0,6);
   c.innerHTML=`<div class="dashboard-a">
-    <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>CampusCare clinic activity, priorities, and service load.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-sm" ${bindAction('click',(event,element)=>{navTo('reports')})}>Open Reports & Analytics</button>${dashboardControlsHtml()}</div></div>
+    <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Accounts, verification and clinic-wide oversight.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-sm" ${bindAction('click',(event,element)=>{navTo('reports')})}>Open Reports & Analytics</button>${dashboardControlsHtml()}</div></div>
     <div class="dashboard-a-grid">
-      ${dashboardStatCard('Appointments in range',allRange.length,`<strong>${completedToday}</strong> completed · ${rangeLabel}`,trend(appointmentRecords().filter(a=>a.status!=='Cancelled'),'good'),'bi-calendar-event')}
-      ${dashboardStatCard('Active patients',activePatients,'Registered, not archived',trend(patientCohort,'good',r=>r.createdAt,'new'),'bi-people')}
-      ${dashboardStatCard('Pending approvals',pendingUsers.length,pendingUsers.length?'Registrations awaiting review':'No registrations waiting',trend(pendingUsers,'bad',r=>r.createdAt,'new'),'bi-hourglass-split',pendingUsers.length?'attention':'')}
-      ${dashboardStatCard('Low stock',lowStock.length,lowStock.length?'Inventory action required':'Inventory levels healthy',note(lowStock.length?`${lowStock.slice(0,2).map(i=>i.name).join(', ')}${lowStock.length>2?' and more':''}`:'All items above their thresholds'),'bi-exclamation-triangle',lowStock.length?'critical':'')}
+      ${dashboardStatCard('Accounts to verify',pendingUsers.length,pendingUsers.length?'Registrations awaiting review':'No registrations waiting',trend(pendingUsers,'bad',r=>r.createdAt,'new'),'bi-hourglass-split',pendingUsers.length?'attention':'')}
+      ${dashboardStatCard('Active patients',patientCohort.length,'Verified, not archived',trend(patientCohort,'good',r=>r.createdAt,'new'),'bi-people')}
+      ${dashboardStatCard('Clinic team',team.reduce((n,[,c])=>n+c,0),team.map(([r,c])=>`${c} ${r==='Doctor'?'doctor':'staff'}${c===1||r==='Staff'?'':'s'}`).join(' · '),note('Active doctor and staff accounts'),'bi-person-badge')}
+      ${dashboardStatCard('Visits in range',allRange.filter(a=>a.status==='Completed').length,`Completed visits · ${rangeLabel}`,trend(appointmentRecords().filter(a=>a.status==='Completed'),'good'),'bi-graph-up')}
     </div>
     ${dashboardMobileQuickLinks(role)}
     <div class="dashboard-a-main">
       <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">${rangeLabel}</div></div><div style="display:flex;align-items:center;gap:.45rem">${dashboardChartControlHtml()}<button class="btn btn-xs" ${bindAction('click',(event,element)=>{navTo('reports')})}>Analyze</button></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
       <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
     </div>
-    <div class="dashboard-a-secondary">
-      <div class="card"><div class="card-header"><h3>Today's Appointments</h3><button class="btn btn-xs" ${bindAction('click',(event,element)=>{navTo('appointments')})}>View All</button></div>${allToday.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${allToday.slice(0,7).map(a=>{const pt=getPatientById(a.patientId),d=getUserById(a.doctorId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${a.clinic}</td><td>${d?docName(d):'Unknown'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments today.</p></div>'}</div>
-      <div class="card"><div class="card-header"><h3>Doctor Load · ${fmtDate(today)}</h3></div>${doctorLoad.length?doctorLoad.map(d=>{const pct=Math.min(100,Math.round(d.count/Math.max(1,d.max)*100));return `<div class="dashboard-progress-row"><span>${escapeHtml(d.name)}</span><div class="dashboard-progress-track"><div class="dashboard-progress-fill" style="width:${pct}%"></div></div><strong>${d.count}</strong></div>`;}).join(''):'<div class="empty-state"><p>No active doctors.</p></div>'}</div>
+    <div class="card"><div class="card-header"><h3>Waiting for Verification</h3><button class="btn btn-xs" ${bindAction('click',()=>navTo('approvals'))}>Open queue</button></div>
+      ${waiting.length?`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Registered</th></tr></thead><tbody>${waiting.map(u=>`<tr><td><strong>${escapeHtml(u.lname)}, ${escapeHtml(u.fname)}</strong></td><td>${escapeHtml(u.personType||'Patient')}</td><td>${u.createdAt?fmtDate(String(u.createdAt).slice(0,10)):'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No registrations are waiting.</p></div>'}
     </div>
   </div>`;
 }
-
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){

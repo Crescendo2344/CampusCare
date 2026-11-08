@@ -32,6 +32,7 @@ export function realTreatmentToUi(t){
     archivedAt:t.archived_at||'',
     archivedBy:t.archived_by?100000+Number(t.archived_by):null,
     createdAt:t.created_at||'',
+    amendments:Array.isArray(t.amendments)?t.amendments:[],
     dentalRecord:null,
     _realSupabase:true
   };

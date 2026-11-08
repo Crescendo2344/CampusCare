@@ -108,8 +108,9 @@ Deno.serve(async(req)=>{
       return json({ok:true});
     }
 
-    if(!["Staff","Administrator"].includes(actor.role))
-      return json({error:"Staff or Administrator access required."},403);
+    // Patient records are kept by clinic staff; administrators handle accounts only.
+    if(actor.role!=="Staff")
+      return json({error:"Staff access required."},403);
 
     if(action==="create_assisted"){
       const first=clean(body.first_name,50);
@@ -380,39 +381,11 @@ Deno.serve(async(req)=>{
       return json({ok:true});
     }
 
-    if(action==="archive"){
-      if(actor.role!=="Administrator")return json({error:"Administrator access required to archive a patient record."},403);
-      if(patient.archived_at)return json({ok:true,already_archived:true});
-
-      const today=new Date(Date.now()+8*60*60*1000).toISOString().slice(0,10);
-      const {count}=await admin.from("appointments")
-        .select("appointment_id",{count:"exact",head:true})
-        .eq("patient_id",patientId)
-        .gte("appointment_date",today)
-        .in("status",["Scheduled","Confirmed"]);
-      if((count||0)>0)
-        return json({error:"This patient still has upcoming scheduled appointments. Cancel or complete those appointments before archiving the record."},409);
-
-      await admin.from("patients").update({
-        archived_at:new Date().toISOString(),
-        archived_previous_user_status:target.status,
-        updated_at:new Date().toISOString()
-      }).eq("patient_id",patientId);
-
-      await admin.from("users").update({status:"Archived"}).eq("user_id",target.user_id);
-
-      await admin.from("audit_logs").insert({
-        user_id:actor.user_id,
-        action:"PATIENT_RECORD_ARCHIVED",
-        entity_type:"patients",entity_id:patientId,
-        details:{target_user_id:target.user_id,previous_status:target.status}
-      });
-
-      return json({ok:true});
-    }
+    // Records archive automatically after five years without a visit (see archive_inactive_patients).
+    if(action==="archive")return json({error:"Patient records are archived automatically after five years without a visit."},410);
 
     if(action==="restore"){
-      if(actor.role!=="Administrator")return json({error:"Administrator access required to restore a patient record."},403);
+      if(actor.role!=="Staff")return json({error:"Staff access required to restore a patient record."},403);
       if(!patient.archived_at)return json({ok:true,already_active:true});
 
       const previous=["Pending","Active","Suspended"].includes(String(patient.archived_previous_user_status))

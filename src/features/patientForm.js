@@ -427,26 +427,7 @@ export function printPatientSummary(id){
   setTimeout(()=>frame.remove(),2000);
 }
 
-export function archivePatient(id){
-  const p=appState.data.DB.patients.find(x=>x.id===Number(id));
-  if(!p)return;
-
-  showConfirmDialog({
-    title:'Archive Patient Record',
-    message:`Archive <strong>${escapeHtml(p.fname)} ${escapeHtml(p.lname)}</strong>'s patient record? The linked account will also be disabled. Upcoming scheduled appointments must be cleared first.`,
-    confirmLabel:'Archive',
-    danger:true,
-    onConfirm:async()=>{
-      try{
-        await setPatientArchived(p,true);
-        toastWithUndo(`${p.fname} ${p.lname}'s record archived.`,()=>setPatientArchived(p,false),{undoneMessage:'Patient record restored.'});
-      }catch(e){
-        toast(e?.message||'Unable to archive the patient record.','error',7000);
-      }
-    }
-  });
-}
-
+// Records archive automatically after five years without a visit (private.archive_inactive_patients).
 export function restorePatient(id){
   const p=appState.data.DB.patients.find(x=>x.id===Number(id));
   if(!p)return;

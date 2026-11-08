@@ -183,17 +183,16 @@ export function dashboardMobileQuickLinks(role){
       ['my-account','fa-user-gear','Account']
     ],
     Staff:[
-      ['patients','fa-hospital-user','Patients'],
       ['appointments','fa-calendar-check','Appointments'],
-      ['approvals','fa-user-check','Approvals'],
+      ['patients','fa-hospital-user','Patients'],
       ['inventory','fa-boxes-stacked','Inventory'],
+      ['cert-requests','fa-file-circle-check','Certificates'],
       ['health_education','fa-book-medical','Health Education'],
       ['my-account','fa-user-gear','Account']
     ],
     Administrator:[
-      ['patients','fa-hospital-user','Patients'],
-      ['appointments','fa-calendar-check','Appointments'],
-      ['approvals','fa-user-check','Approvals'],
+      ['approvals','fa-user-check','Verification'],
+      ['feedback-issues','fa-comments','Feedback'],
       ['reports','fa-chart-line','Reports'],
       ['users','fa-users-gear','Users'],
       ['settings','fa-gears','Settings']

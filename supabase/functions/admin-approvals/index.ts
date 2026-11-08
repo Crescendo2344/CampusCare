@@ -24,8 +24,8 @@ Deno.serve(async(req)=>{
       .select("user_id,role,status")
       .eq("auth_user_id",user.id)
       .maybeSingle();
-    if(!actor||!["Administrator","Staff"].includes(actor.role)||actor.status!=="Active"){
-      return json({error:"Administrator or Staff access required."},403);
+    if(!actor||actor.role!=="Administrator"||actor.status!=="Active"){
+      return json({error:"Administrator access required."},403);
     }
 
     if(req.method==="GET"){

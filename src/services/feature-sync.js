@@ -170,7 +170,7 @@ async function syncPublicSystemSettings(){
 
   const {data,error}=await appState.supabaseClient.supabaseClient
     .from('system_settings')
-    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days,privacy_policy_version,privacy_policy_updated,session_timeout_minutes')
+    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days,privacy_policy_version,privacy_policy_updated,session_timeout_minutes,booking_lead_hours')
     .order('settings_id',{ascending:true})
     .limit(1)
     .maybeSingle();
@@ -189,6 +189,7 @@ async function syncPublicSystemSettings(){
     semester2Start:data.semester2_start||appState.data.DB.settings.semester2Start||'',
     semester2End:data.semester2_end||appState.data.DB.settings.semester2End||'',
     dentalLimitPerSemester:Number(data.dental_visit_limit_per_semester||1),
+    bookingLeadHours:Number(data.booking_lead_hours??24),
     appointmentReminderDays:Number(data.appointment_reminder_days??1),
     privacyPolicyVersion:data.privacy_policy_version||appState.data.DB.settings.privacyPolicyVersion||'1.0',
     privacyPolicyUpdated:data.privacy_policy_updated||appState.data.DB.settings.privacyPolicyUpdated||appState.clinicInformation.TODAY,
@@ -219,6 +220,7 @@ async function syncRealSystemSettings(){
     semester2Start:s.semester2_start||appState.data.DB.settings.semester2Start||'',
     semester2End:s.semester2_end||appState.data.DB.settings.semester2End||'',
     dentalLimitPerSemester:Number(s.dental_visit_limit_per_semester||1),
+    bookingLeadHours:Number(s.booking_lead_hours??24),
     appointmentReminderDays:Number(s.appointment_reminder_days??1),
     privacyPolicyVersion:s.privacy_policy_version||appState.data.DB.settings.privacyPolicyVersion||'1.0',
     privacyPolicyUpdated:s.privacy_policy_updated||appState.data.DB.settings.privacyPolicyUpdated||appState.clinicInformation.TODAY

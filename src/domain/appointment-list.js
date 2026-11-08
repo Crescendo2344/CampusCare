@@ -16,16 +16,19 @@ export function appointmentHasStarted(a,{today,now}){
 
 // Allowed actions per role; the server enforces the same status and timing rules.
 export function appointmentActions(a,{role,userId,today,now}){
-  const open=a.status===OPEN,manage=role==='Staff'||role==='Administrator';
+  // The front desk (staff) oversees bookings; administrators handle accounts only.
+  const open=a.status===OPEN,manage=role==='Staff';
   const ownDoctor=role==='Doctor'&&a.doctorId===userId;
   const started=appointmentHasStarted(a,{today,now});
   return {
     document:open&&ownDoctor&&a.date<=today,
     reschedule:open&&manage&&a.date>=today,
-    cancel:open&&manage&&!started,
+    // The clinic does not cancel: when a visit cannot push through it is returned for reappointment.
+    cancel:false,
+    reappoint:open&&(manage||ownDoctor),
     noShow:open&&(manage||ownDoctor)&&started,
-    // Reminders are the front desk's job: Staff and Administrators send them, doctors do not.
-    remind:open&&manage&&!started
+    // Reminders are the front desk's job: staff send them, doctors do not.
+    remind:open&&manage&&!started&&a.patientResponse!=='Awaiting'
   };
 }
 

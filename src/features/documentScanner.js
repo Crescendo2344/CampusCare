@@ -253,15 +253,18 @@ export function updateRegistrationIdentityFields(){
   else scannerStatus();
 }
 
-export function checkDentalQuota(patientId,excludeId=null){
+// The Dental Clinic limit counts completed visits only; cancelled, no-show and upcoming bookings do not use
+// it up. One open dental booking at a time keeps the limit from being booked past.
+export function dentalQuotaState(patientId,excludeId=null){
   const sem=currentSemester();
-  return appointmentRecords().filter(a=>
-    a.patientId===patientId&&
-    a.clinic==='Dental Clinic'&&
-    a.status!=='Cancelled'&&
-    getSemester(a.date)===sem&&
-    a.id!==excludeId
-  ).length>=appState.data.DB.settings.dentalLimitPerSemester;
+  const dental=appointmentRecords().filter(a=>a.patientId===patientId&&a.clinic==='Dental Clinic'&&a.id!==excludeId);
+  const completed=dental.filter(a=>a.status==='Completed'&&getSemester(a.date)===sem).length;
+  const open=dental.find(a=>['Scheduled','Confirmed'].includes(a.status))||null;
+  const limit=appState.data.DB.settings.dentalLimitPerSemester;
+  return {completed,limit,open,limitReached:completed>=limit,blocked:completed>=limit||Boolean(open)};
+}
+export function checkDentalQuota(patientId,excludeId=null){
+  return dentalQuotaState(patientId,excludeId).blocked;
 }
 
 export function getLowStock(){return inventoryRecords().filter(i=>!i.archived&&i.qty<=i.threshold);}

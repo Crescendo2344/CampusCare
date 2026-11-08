@@ -1,4 +1,5 @@
 // appointmentDetails: imported feature APIs; state belongs to explicit application namespaces.
+import {openReappointModal,queueLabel,reappointmentNoticeHtml} from './reappointment.js';
 import {state as appState} from '../app/state.js';
 import {appointmentDisplayId,appointmentRecords} from './appointmentService.js';
 import {getPatientById,getUserById} from './documentScanner.js';
@@ -6,7 +7,7 @@ import {closeAllModals,openModal} from './modals.js';
 import {viewPatient} from './patientForm.js';
 import {escapeHtml} from './issueReports.js';
 import {fmtDate,fmtTime,priorityBadge,statusBadge} from './inputValidation.js';
-import {appointmentAllowedActions,cancelAppt,noShowAppt,sendApptNotif} from './appointments.js';
+import {appointmentAllowedActions,noShowAppt,sendApptNotif} from './appointments.js';
 import {patientAvatarHtml} from './patientManagement.js';
 import {patientDisplayId} from './patientService.js';
 import {clinicToday} from './scheduleAndDrafts.js';
@@ -32,7 +33,8 @@ export function viewAppt(id){
     a.createdAt&&`Booked ${fmtDate(String(a.createdAt).slice(0,10))}${createdBy?` by ${escapeHtml(createdBy.fname+' '+createdBy.lname)}`:''}`,
     a.status==='Cancelled'&&`Cancelled${a.cancelledAt?' '+fmtDate(String(a.cancelledAt).slice(0,10)):''}${a.cancellationReason?` — ${escapeHtml(a.cancellationReason)}`:''}`,
     a.status==='Completed'&&'Visit completed and documented',
-    a.status==='No-show'&&'Patient did not arrive (no-show)'
+    a.status==='No-show'&&'Patient did not arrive (no-show)',
+    a.reappointFromDate&&`Returned for reappointment from ${fmtDate(a.reappointFromDate)}${a.reappointFromTime?', '+fmtTime(a.reappointFromTime):''}${a.reappointReason?` — ${escapeHtml(a.reappointReason)}`:''}${a.patientResponse==='Accepted'?' · patient accepted the new time':a.patientResponse==='Awaiting'?' · waiting for the patient':''}`
   ].filter(Boolean);
 
   openModal(`<div class="modal appt-detail">
@@ -49,18 +51,20 @@ export function viewAppt(id){
         </div>
         <div class="appt-detail-status">${statusBadge(a.status)}</div>
       </div>
-      ${overdue?'<div class="alert alert-warning show" style="display:block">This appointment date has passed but it is still marked Scheduled. Record the outcome: the doctor adds visit notes, or mark it as a no-show.</div>':''}
+      ${overdue?'<div class="alert alert-warning show" style="display:block">This appointment date has passed but it is still marked Scheduled. Record the outcome: the doctor adds visit notes, mark it as a no-show, or return it for reappointment.</div>':''}
+      ${role==='Patient'?reappointmentNoticeHtml(a,{onPickAnother:id=>{closeAllModals();openRescheduleModal(id);}}):''}
       ${row('Clinic',escapeHtml(a.clinic||'—'))}
       ${row('Service',escapeHtml(a.service||'—'))}
       ${row('Doctor',doc?`Dr. ${escapeHtml(doc.fname+' '+doc.lname)}${doc.specialty?` · ${escapeHtml(doc.specialty)}`:''}`:'Unassigned')}
       ${row('Priority',priorityBadge(a.priority||pt?.personType||''))}
-      ${row('Reason for visit',escapeHtml(a.reason||'—'))}
+      ${a.status==='Scheduled'?row('Queue',escapeHtml(queueLabel(a))):''}
+      ${row('Chief complaint',escapeHtml(a.reason||'—'))}
       ${a.notes?row('Notes',escapeHtml(a.notes)):''}
       ${role==='Patient'&&a.status==='Scheduled'&&a.date>=today?corChecklistHtml(a.date,pt?.personType):''}
       ${history.length?`<h4 class="appt-detail-section">History</h4><ul class="appt-history">${history.map(item=>`<li>${item}</li>`).join('')}</ul>`:''}
     </div>
     <div class="modal-footer appt-detail-actions">
-      ${allowed.cancel?`<button class="btn btn-danger" ${bindAction('click',()=>cancelAppt(a.id))}>Cancel appointment</button>`:''}
+      ${allowed.reappoint?`<button class="btn btn-warning" ${bindAction('click',()=>{closeAllModals();openReappointModal(a.id)})}><i class="bi bi-calendar2-x" aria-hidden="true"></i> ${overdue?'Return for reappointment':'Can’t push through'}</button>`:''}
       ${allowed.noShow?`<button class="btn" ${bindAction('click',()=>noShowAppt(a.id))}>Mark no-show</button>`:''}
       ${allowed.remind?`<button class="btn" ${bindAction('click',()=>sendApptNotif(a.id))}><i class="bi bi-bell" aria-hidden="true"></i> Send reminder</button>`:''}
       ${allowed.reschedule?`<button class="btn btn-warning" ${bindAction('click',()=>{closeAllModals();openRescheduleModal(a.id)})}>Reschedule</button>`:''}

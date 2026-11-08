@@ -1585,3 +1585,26 @@ tr[data-action-click]{transition:background .15s}
 .pw-reveal-btn{position:absolute;right:.3rem;top:50%;transform:translateY(-50%);min-width:32px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:none;color:var(--ink-muted);cursor:pointer}
 .pw-reveal-btn:hover{color:var(--ink)}
 .pw-reveal-btn:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+
+/* Add User: services a doctor renders. */
+.au-services{border:1px solid var(--line);border-radius:12px;padding:.6rem .8rem .7rem;margin:.2rem 0 .6rem}
+.au-services legend{font-size:.82rem;font-weight:600;padding:0 .3rem}
+#au-services-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.35rem .8rem}
+@media(max-width:520px){#au-services-list{grid-template-columns:1fr}}
+.au-service{display:flex;align-items:center;gap:.45rem;font-size:.86rem;min-height:32px;cursor:pointer}
+
+/* Slots inside the booking lead time are kept for clinic reappointments. */
+.slot.reserved{background:var(--info-bg,var(--overlay));color:var(--ink-muted);cursor:not-allowed;opacity:.75;border-style:dashed}
+
+/* Reappointment: the clinic proposes a new time; the patient accepts or picks another. */
+.reappoint-notice{display:flex;gap:.8rem;align-items:flex-start;padding:.9rem 1rem;margin:0 0 1rem;border-radius:14px;background:var(--warning-bg);border:1px solid var(--warning-border);color:var(--ink)}
+.reappoint-notice>i{font-size:1.4rem;color:var(--warning);line-height:1}
+.reappoint-notice strong{display:block;margin-bottom:.15rem}
+.reappoint-notice span{display:block;font-size:.88rem}
+.reappoint-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.6rem}
+.reappoint-modal .ra-current{display:flex;gap:.7rem;align-items:center;padding:.7rem .85rem;margin-bottom:.9rem;border-radius:12px;background:var(--overlay);border:1px solid var(--line-soft,var(--line))}
+.reappoint-modal .ra-current i{font-size:1.3rem;color:var(--danger)}
+.reappoint-modal .ra-current span{display:block;font-size:.84rem;color:var(--ink-muted)}
+.reappoint-modal #ra-reason-other{margin-top:.45rem}
+.reappoint-modal .ra-preview{font-size:.82rem;padding:.65rem .8rem;border-radius:10px;background:var(--info-bg,var(--overlay));line-height:1.5}
+.queue-no{font-size:.74rem}

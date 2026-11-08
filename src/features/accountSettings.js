@@ -48,7 +48,7 @@ export function openProfileDetails(){
     row('Blood type',escapeHtml(pt.blood||'Unknown')),
     row('Allergies',pt.allergies?.trim()?`<span class="text-danger">${escapeHtml(pt.allergies)}</span>`:'None recorded')
   ].join(''):u.role==='Doctor'?[
-    row('Specialty',escapeHtml(u.specialty||'General Medicine')),
+    row('Specialization',escapeHtml(u.specialty||'General Medicine')),
     row('Work days',escapeHtml((u.workDays||[]).join(', ')||'—')),
     row('Hours',`${fmtTime(u.startTime||'08:00')} – ${fmtTime(u.endTime||'17:00')}`)
   ].join(''):'';

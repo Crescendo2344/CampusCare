@@ -148,7 +148,9 @@ const CERT_TABS=[['Awaiting Signature','Drafts'],['Issued','Issued'],['Cancelled
 export async function renderCertRequests(filter=null,{refresh=true}={}){
   const c=document.getElementById('app-content');
   if(!c)return;
-  if(!isDoctor()){
+  // Doctors prepare, sign, issue and void; front-desk staff release issued certificates (view, PDF, print).
+  const releaseOnly=appState.auth.currentUser?.role==='Staff';
+  if(!isDoctor()&&!releaseOnly){
     c.innerHTML='<div class="alert alert-warning show" style="display:block">Medical certificates are issued by clinic doctors only.</div>';
     return;
   }
@@ -166,20 +168,21 @@ export async function renderCertRequests(filter=null,{refresh=true}={}){
     if(!isCampusPageCurrent('cert-requests',pageToken))return;
   }
   const ui=appState.certificateService;
-  const mine=certificateRecords().filter(r=>r.doctorId===appState.auth.currentUser.id);
-  if(!filter)filter=ui.certTab||(mine.some(r=>r.status==='Awaiting Signature')?'Awaiting Signature':'Issued');
+  const mine=releaseOnly?certificateRecords().filter(r=>['Issued','Cancelled'].includes(r.status)):certificateRecords().filter(r=>r.doctorId===appState.auth.currentUser.id);
+  const tabs=releaseOnly?CERT_TABS.filter(([id])=>id!=='Awaiting Signature'):CERT_TABS;
+  if(!filter||!tabs.some(([id])=>id===filter))filter=releaseOnly?'Issued':ui.certTab||(mine.some(r=>r.status==='Awaiting Signature')?'Awaiting Signature':'Issued');
   ui.certTab=filter;
   const q=String(ui.certQuery||'').trim().toLowerCase();
   const patientName=r=>{const pt=getPatientById(r.patientId);return pt?`${pt.lname}, ${pt.fname}`:'Unknown patient';};
-  const counts=Object.fromEntries(CERT_TABS.map(([id])=>[id,id==='all'?mine.length:mine.filter(r=>r.status===id).length]));
+  const counts=Object.fromEntries(tabs.map(([id])=>[id,id==='all'?mine.length:mine.filter(r=>r.status===id).length]));
   const list=mine
     .filter(r=>filter==='all'||r.status===filter)
     .filter(r=>!q||`${patientName(r)} ${r.certNo} ${r.purpose} ${r.details}`.toLowerCase().includes(q))
     .sort((a,b)=>String(b.issuedAt||b.preparedAt||b.requestedAt).localeCompare(String(a.issuedAt||a.preparedAt||a.requestedAt))||b.id-a.id);
 
   const page=paginate('cert-requests',list,{signature:filter+'|'+q});
-  c.innerHTML=`<div class="appt-head"><div class="appt-views" role="tablist" aria-label="Certificate lists">${CERT_TABS.map(([id,label])=>`<button type="button" role="tab" class="appt-view ${filter===id?'active':''} ${id==='Awaiting Signature'&&counts[id]?'attention':''}" aria-selected="${filter===id}" ${bindAction('click',()=>renderCertRequests(id,{refresh:false}))}>${label}<span class="appt-view-count">${counts[id]}</span></button>`).join('')}</div>
-      <button class="btn btn-primary btn-sm" ${bindAction('click',()=>openNewCertificateModal())}>+ New Certificate</button></div>
+  c.innerHTML=`<div class="appt-head"><div class="appt-views" role="tablist" aria-label="Certificate lists">${tabs.map(([id,label])=>`<button type="button" role="tab" class="appt-view ${filter===id?'active':''} ${id==='Awaiting Signature'&&counts[id]?'attention':''}" aria-selected="${filter===id}" ${bindAction('click',()=>renderCertRequests(id,{refresh:false}))}>${label}<span class="appt-view-count">${counts[id]}</span></button>`).join('')}</div>
+      ${releaseOnly?'<span class="text-muted cert-release-note">Release issued certificates to patients. Only doctors can prepare, sign or void them.</span>':`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>openNewCertificateModal())}>+ New Certificate</button>`}</div>
     <div class="toolbar"><input type="search" id="cert-search" placeholder="Search patient, certificate no. or purpose" aria-label="Search certificates" value="${escapeHtml(ui.certQuery||'')}" ${bindAction('input',(event,element)=>{ui.certQuery=element.value;clearTimeout(ui.certSearchTimer);ui.certSearchTimer=setTimeout(()=>renderCertRequests(filter,{refresh:false}).then(()=>{const input=document.getElementById('cert-search');if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length);}}),250);})}></div>
     <div class="card">${list.length?`<div class="table-wrap"><table class="cert-list-table"><thead><tr><th scope="col">Certificate</th><th scope="col">Patient</th><th scope="col">Purpose</th><th scope="col">Date</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${page.rows.map(r=>{
       const pt=getPatientById(r.patientId);
@@ -192,7 +195,7 @@ export async function renderCertRequests(filter=null,{refresh=true}={}){
         <td data-label="Status">${certStatusBadge(r.status)}${r.status==='Cancelled'&&r.declineReason?`<div class="text-muted">${escapeHtml(r.declineReason)}</div>`:''}</td>
         <td data-label="Actions"><div class="td-actions">
           ${r.status==='Awaiting Signature'?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>openCertificateEditor(r.id))}>Continue</button><button class="btn btn-xs" ${bindAction('click',()=>discardCertificateDraft(r.id))}>Discard</button>`:''}
-          ${r.status==='Issued'?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>downloadCertPdf(r.id))}><i class="bi bi-download" aria-hidden="true"></i> PDF</button><button class="btn btn-xs btn-danger" ${bindAction('click',()=>openVoidCertificateModal(r.id))}>Void</button>`:''}
+          ${r.status==='Issued'?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>downloadCertPdf(r.id))}><i class="bi bi-download" aria-hidden="true"></i> PDF</button><button class="btn btn-xs" ${bindAction('click',()=>printCertificate(r.id))}><i class="bi bi-printer" aria-hidden="true"></i> Print</button>${releaseOnly?'':`<button class="btn btn-xs btn-danger" ${bindAction('click',()=>openVoidCertificateModal(r.id))}>Void</button>`}`:''}
         </div></td>
       </tr>`;}).join('')}</tbody></table></div>${pagerHtml(page,()=>renderCertRequests(filter,{refresh:false}))}`
       :`<div class="empty-state"><i class="bi bi-file-earmark-medical" aria-hidden="true" style="font-size:1.6rem"></i><p>${q?'No certificates match your search.':filter==='Awaiting Signature'?'No drafts. Start a new certificate after a consultation.':'No certificates here yet.'}</p></div>`}</div>`;
@@ -537,6 +540,24 @@ export async function signCert(){
 export function loadHtml2Canvas(){return new Promise((resolve,reject)=>{if(window.html2canvas){resolve(window.html2canvas);return}const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';script.onload=()=>window.html2canvas?resolve(window.html2canvas):reject(new Error('html2canvas failed'));script.onerror=()=>reject(new Error('Could not load html2canvas'));document.head.appendChild(script)})}
 
 // Export the exact saved document styling and signature to PDF.
+// Printing uses the same signed document as the PDF, in a hidden frame with the app's certificate styles.
+export function printCertificate(id){
+  const r=certificateRecords().find(x=>x.id===Number(id));
+  if(!r||r.status!=='Issued'||!r.documentHtml){toast('Only issued certificates can be printed.','error');return;}
+  const frame=document.createElement('iframe');
+  frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
+  frame.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.append(frame);
+  const styles=[...document.querySelectorAll('link[rel="stylesheet"],style')].map(node=>node.outerHTML).join('');
+  const doc=frame.contentDocument;
+  doc.open();
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(r.certNo||'Medical certificate')}</title>${styles}<style>@page{size:A4;margin:0}body{margin:0;background:#fff}.cert-paper{box-shadow:none!important;margin:0 auto!important}</style></head><body><div class="cert-paper">${normalizeCertificateDocumentMetadata(r,r.documentHtml)}</div></body></html>`);
+  doc.close();
+  const run=()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),1000);};
+  const images=[...doc.images].filter(img=>!img.complete);
+  if(images.length)Promise.all(images.map(img=>new Promise(res=>{img.onload=img.onerror=res;}))).then(run);else setTimeout(run,150);
+}
+
 export async function downloadCertPdf(id){
   const r=certificateRecords().find(x=>x.id===Number(id));
   if(!r||r.status!=='Issued'){
