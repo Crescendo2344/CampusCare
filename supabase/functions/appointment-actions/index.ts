@@ -158,9 +158,13 @@ Deno.serve(async(req)=>{
         .select("user_id,role,status,work_days,start_time,end_time,slot_duration,specialty,services_rendered")
         .eq("user_id",doctorId).maybeSingle();
       if(!doctor||doctor.role!=="Doctor"||doctor.status!=="Active")return json({error:"Selected doctor is unavailable."},400);
-      if(clinicForSpecialization(doctor.specialty||"General Medicine")!==clinic)return json({error:"That doctor works in the other clinic."},400);
-      if(!(CLINIC_SERVICES[clinic]||[]).includes(serviceName))return json({error:"Choose a service offered by this clinic."},400);
-      if(!doctorRendersService(doctor,serviceName))return json({error:"The selected doctor does not render that service. Choose another doctor or service."},400);
+      // New or changed bookings follow the current service list; an existing booking keeps what it was booked as.
+      const unchanged=existing&&existing.service===serviceName&&existing.doctor_id===doctorId;
+      if(!unchanged){
+        if(clinicForSpecialization(doctor.specialty||"General Medicine")!==clinic)return json({error:"That doctor works in the other clinic."},400);
+        if(!(CLINIC_SERVICES[clinic]||[]).includes(serviceName))return json({error:"Choose a service offered by this clinic."},400);
+        if(!doctorRendersService(doctor,serviceName))return json({error:"The selected doctor does not render that service. Choose another doctor or service."},400);
+      }
 
       const weekday=new Date(date+"T00:00:00Z").getUTCDay();
       const {data:ruleRows,error:ruleErr}=await admin.from("doctor_schedule_rules")
@@ -383,7 +387,7 @@ Deno.serve(async(req)=>{
       const id=Number(body.appointment_id||0);
       const appt=await loadAppointment(id);
       if(!appt)return json({error:"Appointment not found."},404);
-      if(!canManageAll)return json({error:"Only clinic staff or an administrator can send appointment reminders."},403);
+      if(!canManageAll)return json({error:"Only clinic staff can send appointment reminders."},403);
       if(!OPEN.includes(appt.status)||hasStarted(appt))return json({error:"Reminders can only be sent for upcoming scheduled appointments."},409);
 
       const patientUser=await patientAccount(appt.patient_id);

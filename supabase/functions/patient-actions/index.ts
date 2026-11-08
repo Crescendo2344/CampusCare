@@ -403,7 +403,7 @@ Deno.serve(async(req)=>{
       await admin.from("notifications").insert({
         user_id:target.user_id,
         title:"Patient Record Restored",
-        message:"Your CampusCare patient record has been restored by an administrator.",
+        message:"Your CampusCare patient record has been restored by the clinic.",
         type:"Account",channel:"In-app",delivery_status:"Created",
         reference_type:"patients",reference_id:patientId,action_page:"my-records"
       });
