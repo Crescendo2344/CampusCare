@@ -36,21 +36,22 @@ export function openInvModal(id=null){
         </div>
       </div>
 
-      <div class="form-row">
-        <div class="form-group full"><label>Item Name <span class="required">*</span></label><input id="im-name" maxlength="255" value="${it?escapeHtml(it.name):''}"></div>
-        <div class="form-group"><label>Category</label>
+      <fieldset class="inv-form-group"><legend>Item</legend><div class="form-row">
+        <div class="form-group full"><label for="im-name">Name <span class="required">*</span></label><input id="im-name" maxlength="255" placeholder="e.g. Paracetamol 500 mg tablet" value="${it?escapeHtml(it.name):''}"></div>
+        <div class="form-group"><label for="im-cat">Category</label>
           <select id="im-cat">${['Medicine','Dental','Supplies','Equipment','Laboratory'].map(c=>`<option ${it&&it.category===c?'selected':''}>${c}</option>`).join('')}</select>
         </div>
-        <div class="form-group"><label>Supplier</label><input id="im-supplier" maxlength="255" value="${it?escapeHtml(it.supplier||''):''}"></div>
-        <div class="form-group"><label>Quantity <span class="required">*</span></label><input id="im-qty" type="number" value="${it?it.qty:''}" min="0" step="1"></div>
-        <div class="form-group"><label>Threshold <span class="required">*</span></label><input id="im-thresh" type="number" value="${it?it.threshold:''}" min="0" step="1"></div>
-        <div class="form-group"><label>Unit <span class="required">*</span></label><input id="im-unit" maxlength="80" value="${it?escapeHtml(it.unit||'pcs'):'pcs'}"></div>
-        <div class="form-group"><label>Unit Cost (₱)</label><input id="im-cost" type="number" value="${it?it.unitCost||'':''}" min="0" step="0.01"></div>
-        <div class="form-group"><label>Expiry Date</label>${campusDateFieldHtml('im-expiry',it?it.expiryDate||'':'','Expiry Date')}</div>
-        <div class="form-group full"><label>Target Disbursement Date</label>
-          ${campusDateFieldHtml('im-disb',it?it.disbursementDate||'':'','Target Disbursement Date')}
-        </div>
-      </div>
+        <div class="form-group"><label for="im-unit">Counted in <span class="required">*</span></label><input id="im-unit" maxlength="80" list="im-unit-list" value="${it?escapeHtml(it.unit||'pcs'):'pcs'}"><datalist id="im-unit-list">${['pcs','tablets','capsules','bottles','boxes','vials','sachets','packs','tubes','rolls'].map(u=>`<option value="${u}">`).join('')}</datalist></div>
+      </div></fieldset>
+      <fieldset class="inv-form-group"><legend>Stock</legend><div class="form-row">
+        <div class="form-group"><label for="im-qty">${it?'On hand':'Opening stock'} <span class="required">*</span></label><input id="im-qty" type="number" inputmode="numeric" value="${it?it.qty:''}" min="0" step="1"></div>
+        <div class="form-group"><label for="im-thresh">Reorder level <span class="required">*</span></label><input id="im-thresh" type="number" inputmode="numeric" value="${it?it.threshold:''}" min="0" step="1" aria-describedby="im-thresh-hint"><small class="text-muted" id="im-thresh-hint">Staff are alerted when stock falls to this number.</small></div>
+        <div class="form-group"><label for="im-expiry">Expiry date</label>${campusDateFieldHtml('im-expiry',it?it.expiryDate||'':'','Expiry date')}</div>
+      </div></fieldset>
+      <fieldset class="inv-form-group"><legend>Supplier</legend><div class="form-row">
+        <div class="form-group"><label for="im-supplier">Supplier</label><input id="im-supplier" maxlength="255" list="im-supplier-list" placeholder="Pick or type a supplier" value="${it?escapeHtml(it.supplier||''):''}"><datalist id="im-supplier-list">${[...new Set(inventoryRecords().map(i=>String(i.supplier||'').trim()).filter(Boolean))].sort().map(v=>`<option value="${escapeHtml(v)}">`).join('')}</datalist></div>
+        <div class="form-group"><label for="im-cost">Unit cost (₱)</label><input id="im-cost" type="number" inputmode="decimal" value="${it?it.unitCost||'':''}" min="0" step="0.01"></div>
+      </div></fieldset>
     </div>
     <div class="modal-footer">
       <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
@@ -73,6 +74,7 @@ export function previewInvPhoto(input){
 }
 
 export async function saveInv(id){
+  const it0=id&&id!=='null'?inventoryRecords().find(i=>i.id===Number(id)):null;
   const name=document.getElementById('im-name').value.trim();
   const qty=parseInt(document.getElementById('im-qty').value,10);
   const thresh=parseInt(document.getElementById('im-thresh').value,10);
@@ -82,11 +84,11 @@ export async function saveInv(id){
   hideAlert(msg);
 
   if(!name||!unit||Number.isNaN(qty)||Number.isNaN(thresh)){
-    showAlert(msg,'Name, quantity, threshold, and unit are required.');
+    showAlert(msg,'Name, stock, reorder level and unit are required.');
     return;
   }
   if(qty<0||thresh<0){
-    showAlert(msg,'Quantity and threshold cannot be negative.');
+    showAlert(msg,'Stock and reorder level cannot be negative.');
     return;
   }
 
@@ -110,7 +112,7 @@ export async function saveInv(id){
     unit,
     unitCost:parseFloat(document.getElementById('im-cost').value)||0,
     expiryDate:document.getElementById('im-expiry').value,
-    disbursementDate:document.getElementById('im-disb').value,
+    disbursementDate:it0?.disbursementDate||'',
     photo
   };
 

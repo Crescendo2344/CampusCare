@@ -10,6 +10,7 @@ import {archiveInv,openDisbursementModal,openInvModal,openUpdateQtyModal,restore
 import {fmtDate} from './inputValidation.js';
 import {bindAction} from '../dependencies.js';
 import {csvFileName,downloadCsv} from '../shared/csv.js';
+import {itemsOnOrder,loadStockOrders,openPurchaseOrderModal,ordersPanelHtml,pendingRequestCount,renderOrdersTable,renderRequestsTable,requestsPanelHtml} from './stockOrders.js';
 // ================================================================
 // INVENTORY
 // ================================================================
@@ -20,7 +21,7 @@ export async function renderInventory(){
 
   if(appState.auth.currentUser?._realSupabase){
     showDatabaseSkeleton('table');
-    try{await syncRealInventory(true);}
+    try{await Promise.all([syncRealInventory(true),loadStockOrders()]);}
     catch(e){
       if(!isCampusPageCurrent('inventory',pageToken))return;
       console.error('Inventory sync:',e);
@@ -31,13 +32,14 @@ export async function renderInventory(){
     if(!isCampusPageCurrent('inventory',pageToken))return;
   }
 
-  const canEdit=appState.auth.currentUser.role==='Staff'||appState.auth.currentUser.role==='Administrator';
+  const canEdit=appState.auth.currentUser.role==='Staff';
   const today=appState.clinicInformation.TODAY;
   const sum=stockData.inventorySummary(inventoryRecords(),today);
   const ui=appState.inventoryList??={};ui.txLimit=20;
   const stat=(label,value,tone='',filter='')=>`<button type="button" class="approval-stat inv-stat ${tone}" ${filter?bindAction('click',()=>{switchInventoryView('items');const el=document.getElementById('inv-stock');if(el){el.value=filter;renderInvTable();}}):'disabled'}><span>${label}</span><strong>${value}</strong></button>`;
   ui.view??='items';
-  const views=[['items','Items','bi-box-seam'],['movements','Stock movements','bi-arrow-left-right'],['forecast','Forecast & reorder','bi-graph-up-arrow']];
+  const pending=pendingRequestCount();
+  const views=[['items','Items','bi-box-seam'],['requests',`Medicine requests${pending?` <span class="badge badge-warning">${pending}</span>`:''}`,'bi-capsule'],['orders','Purchase orders','bi-cart'],['movements','Stock movements','bi-arrow-left-right'],['forecast','Forecast & reorder','bi-graph-up-arrow']];
 
   c.innerHTML=`
     <div class="approval-summary inv-summary">
@@ -81,13 +83,15 @@ export async function renderInventory(){
         </select>
         <select id="inv-status" aria-label="Record status" ${bindAction('change',()=>renderInvTable())}>
           <option value="active">Active items</option>
-          ${appState.auth.currentUser.role==='Administrator'?'<option value="archived">Archived items</option><option value="all">All items</option>':''}
+          ${appState.auth.currentUser.role==='Staff'?'<option value="archived">Archived items</option><option value="all">All items</option>':''}
         </select>
       </div>
       <p class="patient-filter-summary" id="inv-summary-line" role="status" aria-live="polite"></p>
       <div id="inv-table"></div>
     </div>
     </section>
+    <section id="inv-panel-requests" role="tabpanel" aria-labelledby="inv-tab-requests" ${ui.view==='requests'?'':'hidden'}>${requestsPanelHtml()}</section>
+    <section id="inv-panel-orders" role="tabpanel" aria-labelledby="inv-tab-orders" ${ui.view==='orders'?'':'hidden'}>${ordersPanelHtml()}</section>
     <section id="inv-panel-movements" role="tabpanel" aria-labelledby="inv-tab-movements" ${ui.view==='movements'?'':'hidden'}>
     <div class="card">
       <div class="card-header"><h3>Stock movements</h3>
@@ -110,6 +114,8 @@ export async function renderInventory(){
   });
   renderInvTable();
   renderDisbTable();
+  renderRequestsTable();
+  renderOrdersTable();
   mountInventoryForecastAi();
 }
 
@@ -150,13 +156,14 @@ export function renderInvTable(){
   const el=document.getElementById('inv-table');
   if(!el)return;
   const items=filteredItems(),today=appState.clinicInformation.TODAY;
-  const canEdit=appState.auth.currentUser.role==='Staff'||appState.auth.currentUser.role==='Administrator';
+  const canEdit=appState.auth.currentUser.role==='Staff';
   const line=document.getElementById('inv-summary-line');
   if(line)line.textContent=`${items.length} item${items.length===1?'':'s'}`;
   if(!items.length){
     el.innerHTML='<div class="empty-state"><i class="bi bi-box-seam" aria-hidden="true" style="font-size:1.6rem"></i><p>No inventory items match these filters.</p></div>';
     return;
   }
+  const onOrder=itemsOnOrder();
   const stockBadge={out:['badge-danger','Out of stock'],low:['badge-danger','Reorder'],medium:['badge-warning','Medium'],ok:['badge-success','Sufficient']};
   el.innerHTML=`<div class="table-wrap"><table class="treat-table inv-table">
     <thead><tr><th scope="col">Item</th><th scope="col">Category</th><th scope="col">Stock</th><th scope="col">Expiry</th><th scope="col">Forecast</th><th scope="col">Unit cost</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
@@ -171,13 +178,13 @@ export function renderInvTable(){
         <td data-label="Category"><span class="badge badge-gray">${escapeHtml(i.category)}</span></td>
         <td data-label="Stock"><div class="inv-stock-line"><strong>${i.qty}</strong> ${escapeHtml(i.unit)} <span class="badge ${cls}">${label}</span></div><div class="progress-bar" title="Reorder level ${i.threshold} ${escapeHtml(i.unit)}"><div class="progress-fill" style="width:${pct}%;background:${st==='out'||st==='low'?'var(--danger)':st==='medium'?'var(--warning)':'var(--success)'}"></div></div><div class="text-muted">Reorder at ${i.threshold} ${escapeHtml(i.unit)}</div></td>
         <td data-label="Expiry">${i.expiryDate?`${fmtDate(i.expiryDate)}${exp.state==='expired'?'<span class="tr-due overdue">Expired</span>':exp.state==='soon'?`<span class="tr-due today">${exp.days}d left</span>`:''}`:'<span class="text-muted">—</span>'}</td>
-        <td data-label="Forecast">${inventoryForecastBadge(f)}${f.hasData?`<div class="text-muted">${f.daysRemaining}d remaining · reorder ${f.reorderQty} ${escapeHtml(i.unit)}</div>`:'<div class="text-muted">Needs disbursement history</div>'}</td>
+        <td data-label="Forecast">${inventoryForecastBadge(f)}${f.hasData?`<div class="text-muted">Runs out in about ${Math.max(0,Math.floor(f.daysRemaining))} days</div>`:'<div class="text-muted">Needs disbursement history</div>'}${onOrder.has(i.dbItemId)?'<div><span class="badge badge-info">On order</span></div>':canEdit&&!i.archived&&((f.hasData&&f.daysRemaining<=30)||i.qty<=i.threshold)?`<button class="btn btn-xs btn-primary inv-order-now" ${bindAction('click',()=>openPurchaseOrderModal([{item_id:i.dbItemId,quantity:Math.max(Number(f.reorderQty)||0,i.threshold*2-i.qty,1)}]))}>Order now</button>`:''}</td>
         <td data-label="Unit cost">₱${Number(i.unitCost||0).toFixed(2)}</td>
         <td data-label="Actions"><div class="td-actions">
           ${canEdit&&!i.archived?`<button class="btn btn-xs btn-info" ${bindAction('click',()=>openUpdateQtyModal(i.id))}>Adjust stock</button>
             <button class="btn btn-xs" ${bindAction('click',()=>openInvModal(i.id))}>Edit</button>`:''}
-          ${appState.auth.currentUser.role==='Administrator'&&!i.archived?`<button class="btn btn-xs btn-warning" ${bindAction('click',()=>archiveInv(i.id))}>Archive</button>`:''}
-          ${appState.auth.currentUser.role==='Administrator'&&i.archived?`<button class="btn btn-xs btn-success" ${bindAction('click',()=>restoreInv(i.id))}>Restore</button>`:''}
+          ${appState.auth.currentUser.role==='Staff'&&!i.archived?`<button class="btn btn-xs btn-warning" ${bindAction('click',()=>archiveInv(i.id))}>Archive</button>`:''}
+          ${appState.auth.currentUser.role==='Staff'&&i.archived?`<button class="btn btn-xs btn-success" ${bindAction('click',()=>restoreInv(i.id))}>Restore</button>`:''}
         </div></td>
       </tr>`;
     }).join('')}</tbody>

@@ -1608,3 +1608,15 @@ tr[data-action-click]{transition:background .15s}
 .reappoint-modal #ra-reason-other{margin-top:.45rem}
 .reappoint-modal .ra-preview{font-size:.82rem;padding:.65rem .8rem;border-radius:10px;background:var(--info-bg,var(--overlay));line-height:1.5}
 .queue-no{font-size:.74rem}
+
+/* Medicine requests and purchase orders */
+.inv-form-group{border:1px solid var(--glass-border-soft);border-radius:12px;padding:.75rem .9rem .25rem;margin:0 0 .8rem}
+.inv-form-group legend{font-size:.78rem;font-weight:700;letter-spacing:.02em;color:var(--ink-muted);padding:0 .35rem}
+.inv-order-now{margin-top:.3rem}
+.so-due{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;padding:.75rem .9rem;margin-bottom:.8rem;border-radius:12px;background:color-mix(in srgb,var(--warning) 12%,transparent);border:1px solid color-mix(in srgb,var(--warning) 35%,transparent)}
+.so-due>i{font-size:1.2rem;color:var(--warning)}
+.so-due>div{flex:1;min-width:200px;display:flex;flex-direction:column;gap:.15rem}
+.so-due span{font-size:.82rem;color:var(--ink-muted)}
+.so-po-line{display:grid;grid-template-columns:minmax(0,1fr) 90px 120px auto;gap:.5rem;align-items:center;margin-bottom:.5rem}
+@media (max-width:560px){.so-po-line{grid-template-columns:1fr 1fr auto}.so-po-line select{grid-column:1/-1}}
+.inv-tabs .badge{margin-left:.35rem}

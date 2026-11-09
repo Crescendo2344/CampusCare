@@ -10,6 +10,7 @@ import {renderAppointments} from './appointments.js';
 import {renderApprovals} from './approvalQueue.js';
 import {renderTreatments} from './treatmentList.js';
 import {renderInventory} from './inventory.js';
+import {renderMedicineRequests,renderPurchaseOrderApprovals} from './stockOrders.js';
 import {renderReports} from '../app/optional-features.js';
 import {renderUsers} from './userManagement.js';
 import {renderSettings} from './settingsAndCertificates.js';
@@ -139,6 +140,8 @@ export function renderPage(id){
     'cert-requests':()=>renderCertRequests(),
     treatments:()=>renderTreatments(),
     inventory:()=>renderInventory(),
+    'medicine-requests':()=>renderMedicineRequests(),
+    'purchase-orders':()=>renderPurchaseOrderApprovals(),
     reports:()=>renderReports(),
     users:()=>renderUsers(),
     settings:()=>renderSettings(),

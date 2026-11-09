@@ -384,7 +384,9 @@ export function initializeFeature(){
   'report-issue':['issue','feedback','support'],
   'feedback-issues':['feedback','issues','support'],
   fitness:['fitness','fit to compete','sports clearance','athletics assessment'],
-  'activity-log':['activity','audit','audit trail','logs']
+  'activity-log':['activity','audit','audit trail','logs'],
+  'medicine-requests':['medicine request','request medicine','dispense'],
+  'purchase-orders':['purchase order','po','order stock','approve order']
 };
   appState.topbarAndNavigation.topSearchIndex=-1;
   document.addEventListener('click',e=>{
@@ -403,6 +405,8 @@ export function initializeFeature(){
   appointments:'bi-calendar3',
   treatments:'bi-activity',
   inventory:'bi-box-seam',
+  'medicine-requests':'bi-capsule',
+  'purchase-orders':'bi-cart-check',
   reports:'bi-bar-chart-line',
   health_education:'bi-book',
   users:'bi-people',
@@ -438,6 +442,7 @@ export function initializeFeature(){
     {id:'treatments',label:'Treatments'},
     {id:'fitness',label:'Fitness Assessments'},
     {id:'cert-requests',label:'Medical Certificates'},
+    {id:'medicine-requests',label:'Medicine Requests'},
     {section:'Reports'},
     {id:'reports',label:'My Reports'},
     {section:'Account'},
@@ -467,6 +472,7 @@ export function initializeFeature(){
     {id:'approvals',label:'Account Verification'},
     {id:'users',label:'User Management'},
     {section:'Oversight'},
+    {id:'purchase-orders',label:'Purchase Orders'},
     {id:'reports',label:'Reports &amp; Analytics'},
     {id:'survey-results',label:'Survey Results'},
     {id:'feedback-issues',label:'Feedback &amp; Issues'},
