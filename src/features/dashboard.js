@@ -171,7 +171,7 @@ export function renderDashboard(){
   const team=['Doctor','Staff'].map(r=>[r,users.filter(u=>u.role===r&&u.status==='Active').length]);
   const suspended=users.filter(u=>u.status==='Suspended').length;
   let attention='';
-  if(pendingUsers.length)attention+=dashboardAttentionItem(`${pendingUsers.length} account${pendingUsers.length>1?'s':''} to verify`,'New registrations are waiting in Account Verification.','warn');
+  if(pendingUsers.length)attention+=dashboardAttentionItem(`${pendingUsers.length} account${pendingUsers.length>1?'s':''} to verify`,'New registrations are waiting in the Approval Queue.','warn');
   if(suspended)attention+=dashboardAttentionItem(`${suspended} suspended account${suspended>1?'s':''}`,'Review them in User Management.','info');
   if(!attention)attention=dashboardAttentionItem('All accounts in order','No registrations are waiting for verification.','success');
   const waiting=[...pendingUsers].sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||''))).slice(0,6);

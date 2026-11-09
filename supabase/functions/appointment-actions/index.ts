@@ -87,7 +87,7 @@ Deno.serve(async(req)=>{
       if(action!=="create"&&!existing)return json({error:"Appointment not found."},404);
       if(action!=="create"&&!OPEN.includes(existing.status))return json({error:"Only scheduled appointments can be moved."},409);
       const reappoint=action==="reappoint";
-      if(reappoint&&!(actor.role==="Staff"||(actor.role==="Doctor"&&existing.doctor_id===actor.user_id)))
+      if(reappoint&&!(canManageAll||(actor.role==="Doctor"&&existing.doctor_id===actor.user_id)))
         return json({error:"Only the doctor of this appointment or the front desk can propose a new time."},403);
 
       let patientId=Number(body.patient_id||existing?.patient_id||0);
