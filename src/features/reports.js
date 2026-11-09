@@ -56,7 +56,7 @@ export async function renderReports(){
   const reportTypeOptions=[
     '<option value="appointments">Appointments</option>',
     '<option value="treatments">Treatments</option>',
-    ...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?['<option value="inventory">Inventory</option>']:[]),
+    ...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?['<option value="inventory">Inventory</option>','<option value="medicine_use">Medicine consumption</option>']:[]),
     '<option value="patients">Patients</option>',
     ...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?['<option value="students">Student Coverage &amp; Registration</option>']:[])
   ].join('');
@@ -76,7 +76,7 @@ export async function renderReports(){
     </div>
     <div class="report-tabs" role="tablist" aria-label="Analytics views">${[['overview','Overview','bi-grid'],['builder','Custom Reports','bi-sliders'],['forecast','Forecast','bi-graph-up-arrow']].map(([id,label,icon])=>`<button type="button" role="tab" id="report-tab-${id}" data-report-view="${id}" aria-controls="report-panel-${id}" aria-selected="${id==='overview'}" ${bindAction('click',()=>switchReportView(id))}><i class="bi ${icon}" aria-hidden="true"></i>${label}</button>`).join('')}</div>
     <section id="report-panel-overview" role="tabpanel" aria-labelledby="report-tab-overview">
-      <div class="report-template-grid">${[['appointments','Appointments by clinic'],['treatments','Treatments by diagnosis'],...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?[['students','Student service coverage'],['inventory','Stock by category']]:[])].map(([type,label])=>`<button type="button" class="report-template" ${bindAction('click',()=>{document.getElementById('rpt-type').value=type;updateReportMetricOptions();const group=document.getElementById('rpt-group');if(group)group.value=type==='appointments'?'clinic':type==='treatments'?'diagnosis':'category';})}><span>${label}</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>`).join('')}</div>
+      <div class="report-template-grid">${[['appointments','Appointments by clinic'],['treatments','Treatments by diagnosis'],...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?[['students','Student service coverage'],['inventory','Stock by category'],['medicine_use','Medicine used by month']]:[]),['appointments','Visits by service / procedure']].map(([type,label])=>`<button type="button" class="report-template" ${bindAction('click',()=>{document.getElementById('rpt-type').value=type;updateReportMetricOptions();const group=document.getElementById('rpt-group');if(group)group.value=label.includes('service / procedure')?'service':type==='appointments'?'clinic':type==='treatments'?'diagnosis':type==='medicine_use'?'month':'category';})}><span>${label}</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>`).join('')}</div>
       <div id="health-intelligence-wrap">${appState.auth.currentUser?._realSupabase?renderLiveAnalyticsCard(appState.reports.currentAnalyticsSummary):renderHealthIntelligenceCard(defaultFrom,defaultTo)}</div>
     </section>
     <section id="report-panel-builder" role="tabpanel" aria-labelledby="report-tab-builder" hidden>
