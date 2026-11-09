@@ -1,11 +1,11 @@
 // authSession: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
+import {loadWarm} from '../services/warm-cache.js';
 import {initializeSupabaseClient} from './supabaseClient.js';
 import {normalizeSupabaseUser,syncAdminDirectoryFromSupabase,syncCurrentPatientFromSupabase} from './patientService.js';
 import {initApp} from './appInitialization.js';
 import {syncPublicSystemSettings} from './systemSettings.js';
 import {syncRealMedicationReminders,syncRealTreatments} from './treatmentService.js';
-import {syncRealMessages,refreshMessageViews} from './messaging.js';
 import {syncRealHealthResources} from './navigationRaceProtection.js';
 import {syncRealIssueReports} from './issueReports.js';
 import {syncRealWorkflowRequests} from './workflowRequests.js';
@@ -13,7 +13,7 @@ import {syncRealCertificates} from './certificateService.js';
 import {syncRealFitnessAssessments} from './fitnessAssessments.js';
 import {syncRealInventory} from './inventoryService.js';
 import {refreshRealApprovalQueue} from './approvalQueue.js';
-import {registrationToast,toast} from './theme.js';
+import {toast} from './theme.js';
 import {syncRealAppointments,syncRealDoctorDirectory} from './appointmentService.js';
 import {rebuildConditionalNavigation,syncClinicSurveys} from './dentalSurvey.js';
 import {renderDashboard} from './dashboard.js';
@@ -38,6 +38,17 @@ export async function hydrateCurrentUserProfilePhoto(profile){
 }
 
 // Single-flight restoration prevents simultaneous login/auth events from initializing twice.
+// A returning visitor sees the clinic settings and health articles from the last visit right away;
+// the background sync replaces them within moments. Personal records always come from the server.
+function warmStartFromCache(){
+  const day=24*60*60*1000;
+  const settings=loadWarm('settings',7*day);
+  if(settings)appState.data.DB.settings={...appState.data.DB.settings,...settings};
+  const articles=loadWarm('articles',12*60*60*1000);
+  if(Array.isArray(articles)&&!(appState.data.DB.healthResources||[]).some(r=>r._realSupabase))
+    appState.data.DB.healthResources=[...(appState.data.DB.healthResources||[]).filter(r=>!r._realSupabase),...articles];
+}
+
 export async function syncCampusCareSessionUI(){
   if(appState.auth.sessionSyncPromise)return appState.auth.sessionSyncPromise;
   const pending=restoreAuthenticatedAccount();
@@ -68,6 +79,7 @@ async function restoreAuthenticatedAccount(){
     appState.auth.currentUser.lastLogin=session.user.last_sign_in_at||profile.last_login_at||appState.auth.currentUser.lastLogin||'';
     appState.auth.currentUser.emailConfirmedAt=session.user.email_confirmed_at||null;
     appState.auth.currentUser.emailVerificationSkipped=session.user?.app_metadata?.email_verification_skipped===true;
+    warmStartFromCache();
 
     if(String(appState.auth.currentUser.status).toLowerCase()!=='active'){
       await appState.supabaseClient.supabaseClient.auth.signOut();
@@ -79,19 +91,25 @@ async function restoreAuthenticatedAccount(){
     // Do not keep the whole page blocked while secondary directory data loads.
     initApp();
 
+    // Background work belongs to this signed-in account. If the person logs out or another
+    // restore takes over, its late results and failures are ignored instead of reported.
+    const syncOwner=appState.auth.currentUser,syncRun=(appState.auth.backgroundSyncRun||0)+1;
+    appState.auth.backgroundSyncRun=syncRun;
+    const stillCurrent=()=>appState.auth.currentUser===syncOwner&&appState.auth.backgroundSyncRun===syncRun;
+    const cancelled=new Error('Background sync superseded');
+    const guard=()=>{if(!stillCurrent())throw cancelled;};
+
     if(['Administrator','Staff','Doctor'].includes(appState.auth.currentUser.role)){
       // Keep the already-rendered page visible while clinical directory and
       // certificate data synchronize in the background.
       syncAdminDirectoryFromSupabase()
         .then(async()=>{
+          guard();
           if(typeof syncPublicSystemSettings==='function'){
             try{await syncPublicSystemSettings();}catch(err){console.error('Settings sync:',err);}
           }
-          if(typeof syncRealTreatments==='function'){
+          if(typeof syncRealTreatments==='function'&&['Doctor','Patient'].includes(appState.auth.currentUser?.role)){
             try{await syncRealTreatments();}catch(err){console.error('Treatment sync:',err);}
-          }
-          if(typeof syncRealMessages==='function'){
-            try{await syncRealMessages();}catch(err){console.error('Message sync:',err);}
           }
           if(typeof syncRealHealthResources==='function'){
             try{await syncRealHealthResources();}catch(err){console.error('Health Education sync:',err);}
@@ -105,37 +123,40 @@ async function restoreAuthenticatedAccount(){
           if(typeof syncRealCertificates==='function'){
             try{await syncRealCertificates();}catch(err){console.error('Certificate sync:',err);}
           }
-          if(typeof syncRealFitnessAssessments==='function'){
+          if(syncOwner.role==='Doctor'&&typeof syncRealFitnessAssessments==='function'){
             try{await syncRealFitnessAssessments();}catch(err){console.error('Fitness sync:',err);}
           }
-          if(['Staff','Administrator'].includes(appState.auth.currentUser.role)&&typeof syncRealInventory==='function'){
+          guard();
+          if(['Staff','Administrator'].includes(syncOwner.role)&&typeof syncRealInventory==='function'){
             try{await syncRealInventory(true);}catch(err){console.error('Inventory sync:',err);}
           }
-          if(appState.auth.currentUser.role==='Administrator'&&typeof refreshRealApprovalQueue==='function'){
+          if(syncOwner.role==='Administrator'&&typeof refreshRealApprovalQueue==='function'){
             try{await refreshRealApprovalQueue(false);}catch(err){console.error('Approval sync:',err);}
           }
+          guard();
           refreshActivePageAfterSync();
         })
         .catch(err=>{
+          if(err===cancelled||!stillCurrent())return;
           console.error('Clinical directory background sync:',err);
           toast('Some database data could not be refreshed. Open the page again to retry.','warning');
         });
     }else if(appState.auth.currentUser.role==='Patient'){
+      // The dashboard shows its skeleton until this first load finishes; independent lists load in parallel.
+      appState.dashboard.patientDataReady=false;
+      const finished=()=>{if(!stillCurrent())return;appState.dashboard.patientDataReady=true;refreshActivePageAfterSync();};
       syncCurrentPatientFromSupabase()
         .then(()=>syncPublicSystemSettings())
-        .then(()=>syncRealDoctorDirectory())
-        .then(()=>syncRealAppointments())
-        .then(()=>syncClinicSurveys())
-        .then(()=>{rebuildConditionalNavigation();})
-        .then(()=>syncRealMessages())
-        .then(()=>syncRealHealthResources())
-        .then(()=>syncRealIssueReports())
-        .then(()=>syncRealWorkflowRequests())
-        .then(()=>syncRealMedicationReminders())
-        .then(()=>syncRealCertificates())
-        .then(()=>syncRealFitnessAssessments())
-        .then(()=>refreshActivePageAfterSync())
-        .catch(err=>console.error('Patient background sync:',err));
+        .then(()=>Promise.all([
+          syncRealDoctorDirectory().then(()=>syncRealAppointments()).then(()=>syncClinicSurveys()).then(()=>{rebuildConditionalNavigation();}),
+          syncRealHealthResources(),
+          syncRealIssueReports(),
+          syncRealWorkflowRequests(),
+          syncRealMedicationReminders(),
+          syncRealTreatments()
+        ]))
+        .then(()=>{guard();finished();})
+        .catch(err=>{if(err!==cancelled&&stillCurrent()){console.error('Patient background sync:',err);finished();}});
     }
 
     return true;
@@ -149,12 +170,6 @@ async function restoreAuthenticatedAccount(){
 // Normalize a real Supabase user so the existing CampusCare UI can display it
 // without showing generic "User / email / Role" placeholders.
 
-export function fetchWithTimeout(url,options={},timeoutMs=7000){
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),timeoutMs);
-  return fetch(url,{...options,signal:controller.signal})
-    .finally(()=>clearTimeout(timer));
-}
 
 export function getActiveNavPageId(){
   const active=document.querySelector('#sidebar nav [id^="nav-"].active');
@@ -171,8 +186,7 @@ export function refreshActivePageAfterSync(){
   if(pageId!==appState.navigationRaceProtection.campusActivePageId)return;
 
   try{
-    if(pageId==='messages'&&document.getElementById('msgr-shell'))refreshMessageViews();
-    else if(pageId==='dashboard')renderDashboard();
+    if(pageId==='dashboard')renderDashboard();
     else renderPage(pageId);
   }catch(err){
     console.error('Page refresh after database sync:',err);
@@ -182,20 +196,6 @@ export function refreshActivePageAfterSync(){
 // Registration has its own toast position so validation messages do not appear
 // as large inline alerts inside the registration form.
 
-// Convert registration-specific inline alert calls to the dedicated toast.
-// This leaves login, logout, dashboard and other CampusCare toasts unchanged.
-export function routeRegistrationFeedbackToToast(){
-  const reg=document.getElementById('reg-section');
-  if(!reg) return;
-  reg.querySelectorAll('.alert').forEach(a=>{
-    if(a.textContent.trim()){
-      const type=a.classList.contains('alert-error')?'error':
-                 a.classList.contains('alert-success')?'success':'info';
-      registrationToast(a.textContent.trim(),type);
-      a.style.display='none';
-    }
-  });
-}
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){

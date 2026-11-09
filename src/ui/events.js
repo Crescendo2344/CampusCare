@@ -8,7 +8,7 @@ export function bindAction(type,callback){
   return `data-action-${type}="${id}"`;
 }
 export function installActionEvents(root=document){
-  const types=['click','dblclick','change','input','keydown','keyup','submit','focus','blur','error','load','mouseover','mouseout','mouseenter','mouseleave'];
+  const types=['click','dblclick','change','input','keydown','keyup','submit','focus','blur','error','load','mouseover','mouseout','mouseenter','mouseleave','toggle'];
   const cleanups=[];
   for(const type of types){
     const listener=event=>{

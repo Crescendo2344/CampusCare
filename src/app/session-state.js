@@ -6,7 +6,7 @@ export function clearAccountState(){
   state.auth.currentUser=null;
   state.auth.currentPatient=null;
   state.navigationRaceProtection.campusNavigationToken=(state.navigationRaceProtection.campusNavigationToken||0)+1;
-  if(state.messaging.messagePollTimer){clearInterval(state.messaging.messagePollTimer);state.messaging.messagePollTimer=null;}
+  if(state.assistant.notificationRefreshTimer){clearInterval(state.assistant.notificationRefreshTimer);state.assistant.notificationRefreshTimer=null;}
   state.reports.currentAnalyticsSummary=null;
   state.reportCharts.lastReportRows=[];
   state.doctorPatients.myPatients=[];
@@ -14,8 +14,8 @@ export function clearAccountState(){
   // Stop an active camera stream rather than keeping the device running after sign-out.
   state.camera._cameraStream?.getTracks().forEach(track=>track.stop());
   state.camera._cameraStream=null;
-  state.messaging.activeConversationId=null;
-  state.messaging.pendingAttachment=null;
+  state.camera.captureLighting?.dispose?.();
+  state.camera.captureLighting=null;
   state.approvalQueue.realPendingApprovals=[];
   state.bookingForm.availabilityRequest=(state.bookingForm.availabilityRequest||0)+1;
   state.bookingForm.availabilityDays=[];

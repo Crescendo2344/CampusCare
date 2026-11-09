@@ -28,6 +28,16 @@ test('forecast learns only from selected past dates, includes zero days, and sta
  const changed=buildForecast(events,{from:'2026-01-01',to:'2026-01-15',today:'2026-02-01',weeks:8,method:'average'});
  assert.equal(changed.total,1027);assert.equal(changed.rows.length,8);
 });
+test('forecast horizons run from 7 days to 1 year, 3 months by default, weekly then monthly',()=>{
+ const events=[{date:'2026-01-01',amount:7},{date:'2026-01-07',amount:7},{date:'2026-01-14',amount:14}];
+ const quarter=buildForecast(events,{...range,today:'2026-02-01',method:'average'});
+ assert.equal(quarter.horizon,90);assert.equal(quarter.rows.length,13);assert.equal(quarter.projected,180);
+ assert.equal(quarter.rows.at(-1).end,'2026-05-02','The last week is cut at the horizon');
+ const year=buildForecast(events,{...range,today:'2026-02-01',days:365,method:'average'});
+ assert.equal(year.rows.length,13);assert.equal(year.rows[1].label,'Mar 2026');assert.equal(year.projected,730);
+ assert.equal(buildForecast(events,{...range,today:'2026-02-01',days:7}).rows.length,1);
+ assert.throws(()=>buildForecast(events,{...range,today:'2026-02-01',days:6}),/supported/);
+});
 test('weekday method divides by occurrences, handles leap dates, and rejects invalid or thin history',()=>{
  const events=[{date:'2024-02-12',amount:7},{date:'2024-02-19',amount:7},{date:'2024-02-26',amount:7}];
  const f=buildForecast(events,{from:'2024-02-12',to:'2024-03-03',today:'2024-03-03',weeks:4,method:'weekday'});

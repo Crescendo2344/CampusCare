@@ -13,18 +13,6 @@ import {bindAction} from '../dependencies.js';
 // ================================================================
 // DASHBOARD
 // ================================================================
-// Small inline sparkline used inside the Dashboard A stat cards.
-export function dashboardSparkline(values){
-  // Each card supplies its own records and a visible explanation of what the mini graph measures.
-  const description=Array.isArray(values)?'Appointments by date':values?.label||'Current snapshot';
-  const vals=(Array.isArray(values)?values:values?.values||[]).map(Number).filter(Number.isFinite);
-  const caption=`<div class="das-trend-caption">${escapeHtml(description)}</div>`;
-  if(!vals.length)return caption;
-  const w=180,h=26,p=2,min=Math.min(...vals),max=Math.max(...vals),span=(max-min)||1;
-  const pts=vals.map((v,i)=>`${p+(i*(w-2*p)/Math.max(1,vals.length-1))},${h-p-((v-min)/span)*(h-2*p)}`).join(' ');
-  return `<div class="das-spark"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(description)}"><title>${escapeHtml(description)}</title><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/></svg></div>${caption}`;
-}
-
 // Dashboard filter state. A From/To range controls the dashboard and trend card.
 export function isoDateOffset(base,days){const d=new Date(base+'T12:00:00');d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
 
@@ -53,7 +41,7 @@ export function openDashboardDatePicker(){
   appState.dashboardChartHelpers.dashboardPendingFrom=appState.dashboardChartHelpers.dashboardDateFrom;
   appState.dashboardChartHelpers.dashboardPendingTo='';
   appState.dashboardChartHelpers.dashboardRangeStage='from';
-  openModal(`<div class="modal"><div class="modal-header"><div><h3>Select Dashboard Date Range</h3><div class="text-muted">Use one calendar: choose the From date first, then the To date.</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div id="dashboard-range-msg"></div><div class="dashboard-range-picker"><div class="dashboard-range-summary"><div class="dashboard-range-value"><span>From</span><strong id="dashboard-range-from-label">Not selected</strong></div><div class="dashboard-range-arrow">→</div><div class="dashboard-range-value"><span>To</span><strong id="dashboard-range-to-label">Not selected</strong></div></div><div class="dashboard-range-step" id="dashboard-range-step">1. Select the From date</div><div id="dashboard-range-calendar"></div></div></div><div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{applyDashboardDateRange()})}>Apply Date Range</button></div></div>`);
+  openModal(`<div class="modal"><div class="modal-header"><div><h3>Select Dashboard Date Range</h3></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div id="dashboard-range-msg"></div><div class="dashboard-range-picker"><div class="dashboard-range-summary"><div class="dashboard-range-value"><span>From</span><strong id="dashboard-range-from-label">Not selected</strong></div><div class="dashboard-range-arrow">→</div><div class="dashboard-range-value"><span>To</span><strong id="dashboard-range-to-label">Not selected</strong></div></div><div class="dashboard-range-step" id="dashboard-range-step">1. Select the From date</div><div id="dashboard-range-calendar"></div></div></div><div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{applyDashboardDateRange()})}>Apply Date Range</button></div></div>`);
   initModernCalendar('dashboard-range-calendar',appState.dashboardChartHelpers.dashboardDateFrom,'','chooseDashboardRangeDate',{rangeMode:true,rangeStart:'',rangeEnd:''});
   updateDashboardRangePickerUI();
 }
@@ -94,6 +82,7 @@ export function applyDashboardDateRange(){
   if(!appState.dashboardChartHelpers.dashboardPendingFrom||!appState.dashboardChartHelpers.dashboardPendingTo){showAlert(msg,'Please select both a From and To date.','warning');return;}
   if(appState.dashboardChartHelpers.dashboardPendingFrom>appState.dashboardChartHelpers.dashboardPendingTo){showAlert(msg,'The From date must be on or before the To date.','warning');return;}
   appState.dashboardChartHelpers.dashboardDateFrom=appState.dashboardChartHelpers.dashboardPendingFrom; appState.dashboardChartHelpers.dashboardDateTo=appState.dashboardChartHelpers.dashboardPendingTo;
+  appState.dashboardChartHelpers.dashboardRangeChosen=true;
   closeAllModals(); renderDashboard();
 }
 export function dashboardRangeLabel(){return `${fmtDate(appState.dashboardChartHelpers.dashboardDateFrom)} – ${fmtDate(appState.dashboardChartHelpers.dashboardDateTo)}`;}
@@ -157,8 +146,7 @@ export function dashboardTrendSvg(points,label='Visits',chartType=appState.dashb
 
 export function dashboardTarget(text=''){
   const s=String(text).toLowerCase(),r=appState.auth.currentUser?.role;
-  if(s.includes('message')||s.includes('chat'))return 'messages';
-  if(s.includes('certificate'))return r==='Patient'?'my-certificates':'cert-requests';
+  if(s.includes('certificate'))return r==='Doctor'?'cert-requests':'';
   if(s.includes('approval')||s.includes('registration'))return 'approvals';
   if(s.includes('stock')||s.includes('inventory'))return 'inventory';
   if(s.includes('patient'))return r==='Doctor'?'my-patients':'patients';
@@ -166,8 +154,11 @@ export function dashboardTarget(text=''){
   if(s.includes('reminder'))return r==='Patient'?'my-records':'treatments';
   return '';
 }
-export function dashboardStatCard(label,value,meta,values,icon='•',tone=''){
-  const target=dashboardTarget(label+' '+(meta||''));return `<div class="dashboard-a-stat ${tone} ${target?'clickable':''}" ${target?`role="button" tabindex="0" ${bindAction('click',(event,element)=>{navTo((String(target)))})} ${bindAction('keydown',(event,element)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();navTo((String(target)))}})}`:''}><div class="das-top"><div class="das-label">${label}</div><div class="das-icon">${icon}</div></div><div class="das-value">${value}</div><div class="das-meta">${meta||'&nbsp;'}</div>${dashboardSparkline(values)}</div>`;
+// Stat cards are read-only summaries: a number, what it covers, and how it moved.
+export function dashboardStatCard(label,value,meta,trend,icon='•',tone=''){
+  const arrow={up:'▲',down:'▼',flat:'–'}[trend?.direction]||'';
+  const trendHtml=trend?`<div class="das-trend ${trend.direction||'info'} ${trend.sentiment||'neutral'}">${arrow?`<span class="das-trend-arrow" aria-hidden="true">${arrow}</span>`:''}<span>${escapeHtml(trend.text)}</span></div>`:'';
+  return `<div class="dashboard-a-stat ${tone}"><div class="das-top"><div class="das-label">${label}</div><div class="das-icon" aria-hidden="true">${/^bi-[a-z0-9-]+$/.test(icon)?`<i class="bi ${icon}"></i>`:icon}</div></div><div class="das-value">${value}</div><div class="das-meta">${meta||'&nbsp;'}</div>${trendHtml}</div>`;
 }
 export function dashboardAttentionItem(title,detail,tone=''){
   const target=dashboardTarget(title+' '+detail);return `<div class="dashboard-attn-item ${target?'clickable':''}" ${target?`role="button" tabindex="0" ${bindAction('click',(event,element)=>{navTo((String(target)))})} ${bindAction('keydown',(event,element)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();navTo((String(target)))}})}`:''}><span class="dashboard-attn-dot ${tone}"></span><div class="dashboard-attn-copy"><strong>${title}</strong><span>${detail}</span></div></div>`;
@@ -179,33 +170,31 @@ export function dashboardMobileQuickLinks(role){
     Patient:[
       ['my-appointments','fa-calendar-plus','Appointments'],
       ['my-records','fa-notes-medical','Health Records'],
-      ['my-certificates','fa-file-medical','Certificates'],
-      ['messages','fa-comments','Messages'],
       ['health_education','fa-book-medical','Health Tips'],
+      ['dental-survey','fa-tooth','Dental Survey'],
       ['my-account','fa-user-gear','Account']
     ],
     Doctor:[
       ['schedule','fa-calendar-days','Schedule'],
       ['my-patients','fa-hospital-user','My Patients'],
       ['appointments','fa-stethoscope','Appointments'],
-      ['messages','fa-comments','Messages'],
+      ['treatments','fa-notes-medical','Treatments'],
       ['cert-requests','fa-file-circle-check','Certificates'],
       ['my-account','fa-user-gear','Account']
     ],
     Staff:[
-      ['patients','fa-hospital-user','Patients'],
       ['appointments','fa-calendar-check','Appointments'],
-      ['cert-requests','fa-file-medical','Certificates'],
+      ['patients','fa-hospital-user','Patients'],
       ['inventory','fa-boxes-stacked','Inventory'],
-      ['messages','fa-comments','Messages'],
+      ['cert-requests','fa-file-circle-check','Certificates'],
+      ['health_education','fa-book-medical','Health Education'],
       ['my-account','fa-user-gear','Account']
     ],
     Administrator:[
-      ['patients','fa-hospital-user','Patients'],
-      ['appointments','fa-calendar-check','Appointments'],
-      ['approvals','fa-user-check','Approvals'],
+      ['approvals','fa-user-check','Verification'],
+      ['feedback-issues','fa-comments','Feedback'],
       ['reports','fa-chart-line','Reports'],
-      ['messages','fa-comments','Messages'],
+      ['users','fa-users-gear','Users'],
       ['settings','fa-gears','Settings']
     ]
   };
@@ -214,6 +203,13 @@ export function dashboardMobileQuickLinks(role){
 }
 
 // Run side effects only after every feature's function exports are available.
+// Until someone picks a range, the dashboard shows the last 7 days up to the current clinic date.
+export function followTodayIfDefaultRange(){
+  const ui=appState.dashboardChartHelpers;
+  if(ui.dashboardRangeChosen)return;
+  ui.dashboardDateTo=ui.dashboardPendingTo=appState.clinicInformation.TODAY;
+  ui.dashboardDateFrom=ui.dashboardPendingFrom=isoDateOffset(appState.clinicInformation.TODAY,-6);
+}
 export function initializeFeature(){
   appState.dashboardChartHelpers.dashboardDateFrom=isoDateOffset(appState.clinicInformation.TODAY,-6);
   appState.dashboardChartHelpers.dashboardDateTo=appState.clinicInformation.TODAY;

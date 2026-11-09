@@ -1,7 +1,7 @@
 // inventoryForms: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {inventoryAction,inventoryRecords,syncRealInventory} from './inventoryService.js';
-import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
+import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {closeAllModals,openModal} from './modals.js';
 import {openCamera} from '../app/optional-features.js';
 import {escapeHtml} from './issueReports.js';
@@ -36,22 +36,22 @@ export function openInvModal(id=null){
         </div>
       </div>
 
-      <div class="form-row">
-        <div class="form-group full"><label>Item Name <span class="required">*</span></label><input id="im-name" maxlength="255" value="${it?escapeHtml(it.name):''}"></div>
-        <div class="form-group"><label>Category</label>
+      <fieldset class="inv-form-group"><legend>Item</legend><div class="form-row">
+        <div class="form-group full"><label for="im-name">Name <span class="required">*</span></label><input id="im-name" maxlength="255" placeholder="e.g. Paracetamol 500 mg tablet" value="${it?escapeHtml(it.name):''}"></div>
+        <div class="form-group"><label for="im-cat">Category</label>
           <select id="im-cat">${['Medicine','Dental','Supplies','Equipment','Laboratory'].map(c=>`<option ${it&&it.category===c?'selected':''}>${c}</option>`).join('')}</select>
         </div>
-        <div class="form-group"><label>Supplier</label><input id="im-supplier" maxlength="255" value="${it?escapeHtml(it.supplier||''):''}"></div>
-        <div class="form-group"><label>Quantity <span class="required">*</span></label><input id="im-qty" type="number" value="${it?it.qty:''}" min="0" step="1"></div>
-        <div class="form-group"><label>Threshold <span class="required">*</span></label><input id="im-thresh" type="number" value="${it?it.threshold:''}" min="0" step="1"></div>
-        <div class="form-group"><label>Unit <span class="required">*</span></label><input id="im-unit" maxlength="80" value="${it?escapeHtml(it.unit||'pcs'):'pcs'}"></div>
-        <div class="form-group"><label>Unit Cost (₱)</label><input id="im-cost" type="number" value="${it?it.unitCost||'':''}" min="0" step="0.01"></div>
-        <div class="form-group"><label>Expiry Date</label>${campusDateFieldHtml('im-expiry',it?it.expiryDate||'':'','Expiry Date')}</div>
-        <div class="form-group full"><label>Target Disbursement Date</label>
-          ${campusDateFieldHtml('im-disb',it?it.disbursementDate||'':'','Target Disbursement Date')}
-          <div class="form-note">Optional planning date for this inventory batch.</div>
-        </div>
-      </div>
+        <div class="form-group"><label for="im-unit">Counted in <span class="required">*</span></label><input id="im-unit" maxlength="80" list="im-unit-list" value="${it?escapeHtml(it.unit||'pcs'):'pcs'}"><datalist id="im-unit-list">${['pcs','tablets','capsules','bottles','boxes','vials','sachets','packs','tubes','rolls'].map(u=>`<option value="${u}">`).join('')}</datalist></div>
+      </div></fieldset>
+      <fieldset class="inv-form-group"><legend>Stock</legend><div class="form-row">
+        <div class="form-group"><label for="im-qty">${it?'On hand':'Opening stock'} <span class="required">*</span></label><input id="im-qty" type="number" inputmode="numeric" value="${it?it.qty:''}" min="0" step="1"></div>
+        <div class="form-group"><label for="im-thresh">Reorder level <span class="required">*</span></label><input id="im-thresh" type="number" inputmode="numeric" value="${it?it.threshold:''}" min="0" step="1" aria-describedby="im-thresh-hint"><small class="text-muted" id="im-thresh-hint">Staff are alerted when stock falls to this number.</small></div>
+        <div class="form-group"><label for="im-expiry">Expiry date</label>${campusDateFieldHtml('im-expiry',it?it.expiryDate||'':'','Expiry date')}</div>
+      </div></fieldset>
+      <fieldset class="inv-form-group"><legend>Supplier</legend><div class="form-row">
+        <div class="form-group"><label for="im-supplier">Supplier</label><input id="im-supplier" maxlength="255" list="im-supplier-list" placeholder="Pick or type a supplier" value="${it?escapeHtml(it.supplier||''):''}"><datalist id="im-supplier-list">${[...new Set(inventoryRecords().map(i=>String(i.supplier||'').trim()).filter(Boolean))].sort().map(v=>`<option value="${escapeHtml(v)}">`).join('')}</datalist></div>
+        <div class="form-group"><label for="im-cost">Unit cost (₱)</label><input id="im-cost" type="number" inputmode="decimal" value="${it?it.unitCost||'':''}" min="0" step="0.01"></div>
+      </div></fieldset>
     </div>
     <div class="modal-footer">
       <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
@@ -74,6 +74,7 @@ export function previewInvPhoto(input){
 }
 
 export async function saveInv(id){
+  const it0=id&&id!=='null'?inventoryRecords().find(i=>i.id===Number(id)):null;
   const name=document.getElementById('im-name').value.trim();
   const qty=parseInt(document.getElementById('im-qty').value,10);
   const thresh=parseInt(document.getElementById('im-thresh').value,10);
@@ -83,11 +84,11 @@ export async function saveInv(id){
   hideAlert(msg);
 
   if(!name||!unit||Number.isNaN(qty)||Number.isNaN(thresh)){
-    showAlert(msg,'Name, quantity, threshold, and unit are required.');
+    showAlert(msg,'Name, stock, reorder level and unit are required.');
     return;
   }
   if(qty<0||thresh<0){
-    showAlert(msg,'Quantity and threshold cannot be negative.');
+    showAlert(msg,'Stock and reorder level cannot be negative.');
     return;
   }
 
@@ -111,7 +112,7 @@ export async function saveInv(id){
     unit,
     unitCost:parseFloat(document.getElementById('im-cost').value)||0,
     expiryDate:document.getElementById('im-expiry').value,
-    disbursementDate:document.getElementById('im-disb').value,
+    disbursementDate:it0?.disbursementDate||'',
     photo
   };
 
@@ -168,46 +169,58 @@ export function openUpdateQtyModal(id){
   if(it.archived){toast('Restore this item before updating quantity.','warning');return;}
 
   openModal(`<div class="modal modal-sm">
-    <div class="modal-header"><h3>Update Quantity – ${escapeHtml(it.name)}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+    <div class="modal-header"><h3>Adjust stock – ${escapeHtml(it.name)}</h3><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
       <div id="uq-msg"></div>
-      <div class="alert alert-info show" style="font-size:.8rem">Current: <strong>${it.qty} ${escapeHtml(it.unit)}</strong> · Threshold: ${it.threshold}</div>
-      <div class="form-group"><label>New Quantity <span class="required">*</span></label><input type="number" id="uq-qty" value="${it.qty}" min="0" step="1"></div>
-      <div class="form-group"><label>Reason for Update</label><input id="uq-reason" maxlength="500" placeholder="Restocked, physical count correction, damaged stock, etc."></div>
+      <div class="alert alert-info show" style="font-size:.8rem;display:block">On hand: <strong>${it.qty} ${escapeHtml(it.unit)}</strong> · Reorder at ${it.threshold} ${escapeHtml(it.unit)}</div>
+      <div class="form-group"><label for="uq-qty">Counted / new quantity <span class="required">*</span></label><input type="number" id="uq-qty" value="${it.qty}" min="0" step="1" ${bindAction('input',(event,element)=>{const n=parseInt(element.value,10),d=Number.isNaN(n)?0:n-it.qty,el=document.getElementById('uq-change');if(el)el.textContent=d?`Change: ${d>0?'+':''}${d} ${it.unit}`:'No change';})}><p class="form-note" id="uq-change">No change</p></div>
+      <div class="form-group"><label for="uq-reason-type">Reason <span class="required">*</span></label><select id="uq-reason-type"><option value="">Select a reason</option>${['Received new stock','Physical count correction','Damaged or contaminated','Expired stock removed','Returned to supplier','Other'].map(r=>`<option>${r}</option>`).join('')}</select></div>
+      <div class="form-group"><label for="uq-reason">Note <span class="text-muted">(required for Other)</span></label><input id="uq-reason" maxlength="400" placeholder="e.g. Delivery receipt no., count sheet reference"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
-      <button class="btn btn-primary" id="uq-btn" ${bindAction('click',(event,element)=>{updateQty((id))})}>Update</button>
+      <button class="btn btn-primary" id="uq-btn" ${bindAction('click',()=>updateQty(id))}>Save adjustment</button>
     </div>
   </div>`);
 }
 
 export async function updateQty(id){
   const newQty=parseInt(document.getElementById('uq-qty').value,10);
-  const reason=document.getElementById('uq-reason').value.trim();
+  const reasonType=document.getElementById('uq-reason-type')?.value||'';
+  const note=document.getElementById('uq-reason').value.trim();
+  const reason=[reasonType,note].filter(Boolean).join(': ');
   const msg=document.getElementById('uq-msg');
   const btn=document.getElementById('uq-btn');
   hideAlert(msg);
 
-  if(Number.isNaN(newQty)||newQty<0){
-    showAlert(msg,'Enter a valid non-negative quantity.');
-    return;
-  }
-
   const it=inventoryRecords().find(i=>i.id===Number(id));
   if(!it)return;
+  if(Number.isNaN(newQty)||newQty<0){
+    showAlert(msg,'Enter a whole number of zero or more.');
+    return;
+  }
+  if(newQty===Number(it.qty)){
+    showAlert(msg,'The quantity is unchanged.');
+    return;
+  }
+  // Every stock change needs a reason for the audit trail.
+  if(!reasonType||(reasonType==='Other'&&note.length<3)){
+    showAlert(msg,reasonType?'Describe the reason in the note.':'Choose the reason for this adjustment.');
+    return;
+  }
 
   const old=btn?.textContent;
   if(btn){btn.disabled=true;btn.textContent='Updating…';}
 
   try{
+    const previousQty=Number(it.qty);
+    let transactionId=null;
     if(it._realSupabase){
-      await inventoryAction({
+      ({transaction_id:transactionId}=await inventoryAction({
         action:'set_quantity',
         item_id:it.dbItemId,
         quantity:newQty,
         reason
-      });
+      }));
       await syncRealInventory(false);
     }else{
       it.qty=newQty;
@@ -216,8 +229,8 @@ export async function updateQty(id){
     }
 
     closeAllModals();
-    toast(`${it.name} updated to ${newQty} ${it.unit}.`,'success');
     await renderInventory();
+    offerStockUndo(it,`${it.name} updated to ${newQty} ${it.unit}.`,transactionId,()=>{it.qty=previousQty;});
   }catch(e){
     showAlert(msg,e?.message||'Unable to update inventory quantity.');
   }finally{
@@ -226,6 +239,17 @@ export async function updateQty(id){
       btn.textContent=old||'Update';
     }
   }
+}
+
+async function setInventoryArchived(it,archived){
+  if(it._realSupabase){
+    await inventoryAction({action:archived?'archive':'restore',item_id:it.dbItemId});
+    await syncRealInventory(false);
+  }else{
+    it.archived=archived;
+    persistDB();
+  }
+  await renderInventory();
 }
 
 export function archiveInv(id){
@@ -237,17 +261,9 @@ export function archiveInv(id){
     confirmLabel:'Archive',
     danger:true,
     onConfirm:async()=>{
-      try{
-        if(it._realSupabase){
-          await inventoryAction({action:'archive',item_id:it.dbItemId});
-          await syncRealInventory(false);
-        }else{
-          it.archived=true;
-          persistDB();
-        }
-        toast('Inventory item archived.','success');
-        await renderInventory();
-      }catch(e){toast(e?.message||'Unable to archive inventory item.','error');}
+      try{await setInventoryArchived(it,true);}
+      catch(e){toast(e?.message||'Unable to archive inventory item.','error');return;}
+      toastWithUndo(`${it.name} archived.`,()=>setInventoryArchived(it,false),{undoneMessage:`${it.name} restored.`});
     }
   });
 }
@@ -260,23 +276,30 @@ export function restoreInv(id){
     message:`Restore <strong>${escapeHtml(it.name)}</strong> to the active inventory list?`,
     confirmLabel:'Restore',
     onConfirm:async()=>{
-      try{
-        if(it._realSupabase){
-          await inventoryAction({action:'restore',item_id:it.dbItemId});
-          await syncRealInventory(false);
-        }else{
-          it.archived=false;
-          persistDB();
-        }
-        toast('Inventory item restored.','success');
-        await renderInventory();
-      }catch(e){toast(e?.message||'Unable to restore inventory item.','error');}
+      try{await setInventoryArchived(it,false);}
+      catch(e){toast(e?.message||'Unable to restore inventory item.','error');return;}
+      toastWithUndo(`${it.name} restored.`,()=>setInventoryArchived(it,true),{undoneMessage:`${it.name} archived again.`});
     }
   });
 }
 
-// Keep the old function name from stale buttons/bookmarks but use Archive.
-export function deleteInv(id){archiveInv(id);}
+// A stock change just saved can be taken back: online the server reverses its transaction,
+// in the offline demo the local change is reverted.
+function offerStockUndo(it,message,transactionId,revertLocal){
+  if(it._realSupabase&&!transactionId){toast(message,'success');return;}
+  toastWithUndo(message,async()=>{
+    if(it._realSupabase){
+      await inventoryAction({action:'undo_transaction',transaction_id:transactionId});
+      await syncRealInventory(false);
+    }else{
+      revertLocal();
+      auditLog('INVENTORY_CHANGE_UNDONE',`Undid a stock change for ${it.name}.`,'Inventory',it.id);
+      persistDB();
+    }
+    await renderInventory();
+  },{undoneMessage:`${it.name} stock change undone.`});
+}
+
 
 export function openDisbursementModal(){
   const items=inventoryRecords().filter(i=>!i.archived);
@@ -323,14 +346,15 @@ export async function saveDisbursement(){
   if(btn){btn.disabled=true;btn.textContent='Recording…';}
 
   try{
+    let transactionId=null;
     if(it._realSupabase){
-      await inventoryAction({
+      ({transaction_id:transactionId}=await inventoryAction({
         action:'disburse',
         item_id:it.dbItemId,
         quantity:qty,
         transaction_date:date,
         notes
-      });
+      }));
       await syncRealInventory(false);
     }else{
       it.qty-=qty;
@@ -338,10 +362,14 @@ export async function saveDisbursement(){
       appState.data.DB.disbursements.push({id:appState.data.DB.nextDisbId++,itemId,qty,date,notes,userId:appState.auth.currentUser.id});
       persistDB();
     }
+    const localDisbursement=appState.data.DB.disbursements?.at(-1);
 
     closeAllModals();
-    toast(`Disbursed ${qty} ${it.unit} of ${it.name}.`,'success');
     await renderInventory();
+    offerStockUndo(it,`Disbursed ${qty} ${it.unit} of ${it.name}.`,transactionId,()=>{
+      it.qty+=qty;
+      appState.data.DB.disbursements=appState.data.DB.disbursements.filter(d=>d!==localDisbursement);
+    });
   }catch(e){
     showAlert(msg,e?.message||'Unable to record disbursement.');
   }finally{

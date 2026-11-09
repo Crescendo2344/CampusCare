@@ -15,7 +15,8 @@ export function createPatientService({getClient,request,baseUrl,publishableKey})
     });
 
     const result=await response.json().catch(()=>({}));
-    if(!response.ok||!result.ok)throw new Error(result.error||'Patient action failed.');
+    // Field-level problems travel with the error so forms can show them beside each control.
+    if(!response.ok||!result.ok)throw Object.assign(new Error(result.error||'Patient action failed.'),{fieldErrors:result.field_errors||null});
     return result;
   }
 
@@ -23,10 +24,10 @@ export function createPatientService({getClient,request,baseUrl,publishableKey})
     const client=getClient();
     const [{data:users,error:userErr},{data:patients,error:patientErr}]=await Promise.all([
       client.from('users')
-        .select('user_id,auth_user_id,first_name,last_name,username,email,contact_number,role,status,verified,person_type,college,id_number,profile_image_url,specialty,work_days,start_time,end_time,slot_duration,max_patients,created_at,last_login_at,password_changed_at,saved_signature_data')
+        .select('user_id,auth_user_id,first_name,last_name,username,email,contact_number,role,status,verified,person_type,college,id_number,profile_image_url,specialty,services_rendered,work_days,start_time,end_time,slot_duration,max_patients,created_at,last_login_at,password_changed_at,saved_signature_data')
         .order('user_id',{ascending:true}),
       client.from('patients')
-        .select('patient_id,user_id,class_session,birth_date,sex,blood_type,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,medical_history,allergies,archived_at,updated_at')
+        .select('patient_id,user_id,class_session,course,major,birth_date,sex,blood_type,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,medical_history,allergies,archived_at,updated_at')
         .order('patient_id',{ascending:true})
     ]);
 

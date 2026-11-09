@@ -7,11 +7,32 @@ import {fmtDate} from './inputValidation.js';
 import {getPatientById,getUserById} from './documentScanner.js';
 import {treatmentRecords} from './treatmentService.js';
 import {appointmentRecords} from './appointmentService.js';
-import {closeAllModals,openModal} from './modals.js';
+import {closeTopModal,openModal} from './modals.js';
+import {joinSoapNote,splitSoapNote,summarizeFhirBundle} from '../domain/clinical-display.js';
+import {patientDisplayId} from './patientService.js';
 import {toast} from './theme.js';
 import {databaseSkeletonHtml} from './loadingSkeletons.js';
 import {bindAction,createInventoryService,inventoryData} from '../dependencies.js';
+import {aiInsightsPanelHtml,mountAiInsights} from '../reports/ai-insights.js';
+import {DEFAULT_HORIZON,FORECAST_PRESETS,MAX_HORIZON,MIN_HORIZON,clampHorizon,projectItem} from '../domain/inventory-projection.js';
+import {csvDate,csvFileName,csvReadableDate,downloadCsv,toCsv} from '../shared/csv.js';
 // Compatibility adapters own application state; the data modules receive explicit dependencies.
+// Item photo or placeholder; either opens a larger view, with a shortcut to add a photo.
+export function itemAvatarHtml(item,size=36){
+  return `<button type="button" class="item-thumb ${item.photo?'':'empty'}" style="--thumb:${size}px" aria-label="View ${escapeHtml(item.name)}" ${bindAction('click',event=>{event.stopPropagation();openItemImage(item);})}>${item.photo?`<img src="${escapeHtml(item.photo)}" alt="" loading="lazy">`:'<i class="bi bi-image" aria-hidden="true"></i>'}</button>`;
+}
+export function openItemImage(item){
+  const canEdit=['Staff','Administrator'].includes(appState.auth.currentUser?.role)&&!item.archived;
+  openModal(`<div class="modal">
+    <div class="modal-header"><h3>${escapeHtml(item.name)}</h3><button class="close-btn" ${bindAction('click',()=>closeTopModal())}>✕</button></div>
+    <div class="modal-body"><div class="item-view">
+      ${item.photo?`<img src="${escapeHtml(item.photo)}" alt="${escapeHtml(item.name)}">`:'<div class="item-view-empty"><i class="bi bi-image" aria-hidden="true"></i><span>No photo yet</span></div>'}
+      <div class="item-view-meta">${Number(item.qty??0)} ${escapeHtml(item.unit||'')} in stock${item.category?` · ${escapeHtml(item.category)}`:''}</div>
+    </div></div>
+    ${canEdit?`<div class="modal-footer"><button type="button" class="btn btn-primary" ${bindAction('click',()=>{closeTopModal();import('./inventoryForms.js').then(m=>m.openInvModal(item.id));})}><i class="bi bi-camera" aria-hidden="true"></i> ${item.photo?'Change photo':'Add photo'}</button></div>`:''}
+  </div>`);
+}
+
 export function inventoryRecords(){return inventoryData.inventoryRecords(appState.data.DB,appState.auth.currentUser);}
 export function inventoryTransactionRecords(){return inventoryData.inventoryTransactionRecords(appState.data.DB,appState.auth.currentUser);}
 export function inventoryForecastRecords(){return inventoryData.inventoryForecastRecords(appState.data.DB,appState.auth.currentUser);}
@@ -67,7 +88,7 @@ export function inventoryMonthlyUsageHtml(){
   return `<div class="table-wrap"><table>
     <thead><tr><th>Item</th>${months.map(m=>`<th>${escapeHtml(m.label)}</th>`).join('')}<th>6-Month Total</th></tr></thead>
     <tbody>${active.map(x=>`<tr>
-      <td>${escapeHtml(x.item.name)}<div class="text-muted">${escapeHtml(x.item.unit)}</div></td>
+      <td><div class="item-cell">${itemAvatarHtml(x.item,30)}<div>${escapeHtml(x.item.name)}<div class="text-muted">${escapeHtml(x.item.unit)}</div></div></div></td>
       ${x.values.map(v=>`<td>${v}</td>`).join('')}
       <td><strong>${x.total}</strong></td>
     </tr>`).join('')}</tbody>
@@ -148,52 +169,146 @@ export function inventoryForecastBadge(f){
   return `<span class="badge ${cls}">${f.risk==='high'?'High risk':f.risk==='medium'?'Watch':'Stable'}</span>`;
 }
 
-export function getThreeMonthForecast(item){
-  if(appState.auth.currentUser?._realSupabase&&item._realSupabase){
-    return inventoryForecastRecords()
-      .filter(f=>f.itemId===item.id)
-      .slice()
-      .sort((a,b)=>String(a.forecastMonth).localeCompare(String(b.forecastMonth)))
-      .slice(0,3)
-      .map(f=>{
-        const d=new Date((f.forecastMonth||appState.clinicInformation.TODAY)+'T12:00:00');
-        return {
-          label:d.toLocaleDateString('en-PH',{month:'long',year:'numeric'}),
-          projected:Number(f.predictedUsage||0),
-          remaining:f.predictedRemainingStock,
-          reorder:Number(f.recommendedReorderQty||0)
-        };
-      });
-  }
-
-  const f=getInventoryForecast(item);if(!f.hasData)return [];
-  const base=new Date((healthAnalyticsAnchorDate().date||appState.clinicInformation.TODAY)+'T12:00:00');
-  const rows=[];
-  for(let i=1;i<=3;i++){
-    const d=new Date(base.getFullYear(),base.getMonth()+i,1,12);
-    const year=d.getFullYear(),month=d.getMonth();
-    const days=new Date(year,month+1,0).getDate();
-    const projected=Math.max(0,Math.round(f.adjustedDaily*days*Math.pow(1.02,i-1)));
-    rows.push({label:d.toLocaleDateString('en-PH',{month:'long',year:'numeric'}),projected,remaining:null,reorder:f.reorderQty});
-  }
-  return rows;
+// ---------- Adjustable inventory forecast ----------
+function forecastDays(){return clampHorizon(appState.inventoryList.forecastDays??DEFAULT_HORIZON);}
+function horizonLabel(days){
+  const preset=FORECAST_PRESETS.find(([d])=>d===days);
+  return preset?preset[1]:`${days} days`;
 }
 
-export function threeMonthForecastTableHtml(){
-  const items=inventoryRecords()
-    .filter(i=>!i.archived&&i.category!=='Equipment')
-    .map(i=>({i,rows:getThreeMonthForecast(i)}))
-    .filter(x=>x.rows.length);
+// One projection per active consumable with usage history; items without history are counted, not guessed.
+export function inventoryForecastProjections(days=forecastDays()){
+  const start=appState.clinicInformation.TODAY;
+  const items=inventoryRecords().filter(i=>!i.archived&&i.category!=='Equipment');
+  const rows=[],missing=[];
+  for(const item of items){
+    const f=getInventoryForecast(item);
+    if(!f.hasData){missing.push(item);continue;}
+    const monthlyUsage={};
+    if(appState.auth.currentUser?._realSupabase&&item._realSupabase){
+      for(const r of inventoryForecastRecords().filter(x=>x.itemId===item.id))monthlyUsage[String(r.forecastMonth).slice(0,7)]=Number(r.predictedUsage||0);
+    }
+    rows.push({item,p:projectItem({qty:Number(item.qty??0),threshold:Number(item.threshold||0),start,days,dailyRate:f.adjustedDaily,monthlyUsage})});
+  }
+  // Items that need action soonest come first.
+  rows.sort((a,b)=>(a.p.reorderBy||'9999').localeCompare(b.p.reorderBy||'9999')||a.item.name.localeCompare(b.item.name));
+  return {rows,missing,days,start};
+}
 
-  if(!items.length)return '<div class="tech-note">Add inventory items and record disbursements to generate the 3-month forecast.</div>';
+function forecastCellHtml(period,item){
+  const unit=escapeHtml(item.unit||'');
+  const after=period.stockAfter<0
+    ?`<span class="fc-out">Short by ${Math.abs(period.stockAfter)} ${unit}</span>`
+    :period.stockAfter<=Number(item.threshold||0)?`<span class="fc-low">${period.stockAfter} ${unit} left · below reorder level</span>`
+    :`<span>${period.stockAfter} ${unit} left</span>`;
+  return `<td><strong>${period.use} ${unit}</strong><small>used</small>${after}</td>`;
+}
 
-  return `<div class="table-wrap"><table class="forecast-table">
-    <thead><tr><th>Item</th>${items[0].rows.map(r=>`<th>${escapeHtml(r.label)}</th>`).join('')}</tr></thead>
-    <tbody>${items.map(x=>`<tr>
-      <td>${escapeHtml(x.i.name)}<div class="text-muted">${escapeHtml(x.i.unit)}</div></td>
-      ${x.rows.map(r=>`<td><strong>${r.projected}</strong><div class="text-muted">projected use${r.remaining!=null?` · ${r.remaining} left`:''}${r.reorder?` · reorder ${r.reorder}`:''}</div></td>`).join('')}
+function forecastPlanHtml({item,p}){
+  const unit=escapeHtml(item.unit||'');
+  if(!p.reorderQty)return `<td class="fc-plan ok"><strong>Enough stock</strong><span>${p.stockAtEnd} ${unit} left on ${escapeHtml(fmtDate(p.end))}</span></td>`;
+  return `<td class="fc-plan ${p.stockoutDate?'risk':'watch'}"><strong>Order ${p.reorderQty} ${unit}</strong><span>by ${escapeHtml(fmtDate(p.reorderBy))}${p.stockoutDate?` · runs out ${escapeHtml(fmtDate(p.stockoutDate))}`:''}</span></td>`;
+}
+
+export function forecastSectionHtml(){
+  const {rows,missing,days}=inventoryForecastProjections();
+  const isPreset=FORECAST_PRESETS.some(([d])=>d===days);
+  const controls=`<div class="fc-controls">
+    <div class="fc-presets" role="group" aria-label="Forecast period">${FORECAST_PRESETS.map(([d,label])=>`<button type="button" class="fc-preset ${d===days?'active':''}" aria-pressed="${d===days}" ${bindAction('click',()=>setForecastDays(d))}>${label}</button>`).join('')}</div>
+    <label class="fc-custom">Custom <input type="number" id="fc-days" min="${MIN_HORIZON}" max="${MAX_HORIZON}" value="${isPreset?'':days}" placeholder="${MIN_HORIZON}–${MAX_HORIZON}" aria-label="Custom forecast period in days" ${bindAction('change',(event,element)=>setForecastDays(element.value))} ${bindAction('keydown',(event,element)=>{if(event.key==='Enter'){event.preventDefault();setForecastDays(element.value);}})}> days</label>
+    <button type="button" class="btn btn-sm" ${rows.length?'':'disabled'} ${bindAction('click',()=>openForecastCsvDialog())}><i class="bi bi-download" aria-hidden="true"></i> Download CSV</button>
+  </div>`;
+  if(!rows.length)return controls+'<div class="tech-note">Add inventory items and record disbursements to generate a forecast.</div>';
+  const periods=rows[0].p.periods;
+  return controls+`<div class="table-wrap"><table class="forecast-table">
+    <thead><tr><th>Item</th>${periods.map(p=>`<th>${escapeHtml(p.label)}</th>`).join('')}<th>Plan for ${escapeHtml(horizonLabel(days))}</th></tr></thead>
+    <tbody>${rows.map(({item,p})=>`<tr>
+      <td class="fc-item"><div class="item-cell">${itemAvatarHtml(item,36)}<div><strong>${escapeHtml(item.name)}</strong><span>${Number(item.qty??0)} ${escapeHtml(item.unit||'')} in stock · reorder at ${Number(item.threshold||0)}</span><span>About ${p.averageDaily.toFixed(1)} ${escapeHtml(item.unit||'')} a day</span></div></div></td>
+      ${p.periods.map(period=>forecastCellHtml(period,item)).join('')}
+      ${forecastPlanHtml({item,p})}
     </tr>`).join('')}</tbody>
-  </table></div>`;
+  </table></div>${missing.length?`<p class="fc-missing">${missing.length} item${missing.length===1?'':'s'} not shown because there is no usage history yet: ${missing.slice(0,5).map(i=>escapeHtml(i.name)).join(', ')}${missing.length>5?' and more':''}.</p>`:''}`;
+}
+
+// The AI panel reads the same projection the table shows, limited to the items that need attention first.
+export function mountInventoryForecastAi(){
+  mountAiInsights('inv-forecast-ai','inventory',()=>{
+    const {rows,missing,days,start}=inventoryForecastProjections();
+    return {
+      today:start,period:horizonLabel(days),days,
+      items:rows.slice(0,60).map(({item,p})=>({
+        item:item.name,category:item.category,unit:item.unit,on_hand:Number(item.qty??0),reorder_level:Number(item.threshold||0),
+        average_daily_use:Math.round(p.averageDaily*10)/10,projected_use:p.totalUse,stock_at_end:p.stockAtEnd,
+        runs_out:p.stockoutDate||null,suggested_order:p.reorderQty,order_by:p.reorderBy||null,expiry:item.expiryDate||null,
+        periods:p.periods.map(x=>({period:x.label,use:x.use,left:x.stockAfter}))
+      })),
+      items_not_shown:Math.max(0,rows.length-60),
+      // Items with no disbursement history yet: stock level only, no projection.
+      items_without_usage_history:missing.slice(0,60).map(item=>({item:item.name,category:item.category,unit:item.unit,on_hand:Number(item.qty??0),reorder_level:Number(item.threshold||0),expiry:item.expiryDate||null}))
+    };
+  });
+}
+
+export function setForecastDays(value){
+  const raw=Number(value);
+  if(!Number.isFinite(raw)||raw<=0){toast(`Enter a forecast period between ${MIN_HORIZON} and ${MAX_HORIZON} days.`,'warning');return;}
+  const days=clampHorizon(raw);
+  if(days!==Math.round(raw))toast(`Forecasts cover ${MIN_HORIZON} to ${MAX_HORIZON} days, so ${days} days is shown.`,'info');
+  appState.inventoryList.forecastDays=days;
+  const host=document.getElementById('inv-forecast');if(host)host.innerHTML=forecastSectionHtml();
+  const badge=document.getElementById('inv-forecast-badge');if(badge)badge.textContent=`${horizonLabel(days)} forecast`;
+}
+
+// ---------- Forecast CSV with chosen layout, columns and date style ----------
+// Labels shown in the column picker; the file uses the grouped "Group: Field" header beside each.
+const FORECAST_COLUMNS=[
+  ['itemNo','Item #',true,'Item: No.'],['category','Category',true,'Item: Category'],['unit','Unit',true,'Item: Unit'],['onHand','Quantity on hand',true,'Stock: On Hand'],['reorderLevel','Reorder level',true,'Stock: Reorder Level'],
+  ['dailyUse','Average daily use',true,'Usage: Average Daily'],['totalUse','Projected use',true,'Usage: Projected'],['stockAtEnd','Stock at end of period',true,'Stock: At Period End'],
+  ['runsOut','Runs out on',true,'Plan: Runs Out On'],['orderQty','Suggested order quantity',true,'Plan: Suggested Order'],['orderBy','Order by',true,'Plan: Order By']
+];
+
+export function openForecastCsvDialog(){
+  const days=forecastDays();
+  openModal(`<div class="modal modal-sm fc-csv" role="dialog" aria-labelledby="fc-csv-title">
+    <div class="modal-header"><h3 id="fc-csv-title">Download forecast CSV</h3><button class="close-btn" ${bindAction('click',()=>closeTopModal())}>✕</button></div>
+    <div class="modal-body">
+      <fieldset class="fc-field"><legend>Layout</legend>
+        <label><input type="radio" name="fc-layout" value="summary" checked> One row per item</label>
+        <label><input type="radio" name="fc-layout" value="detailed"> One row per item for each ${days<=31?'week':'month'}</label></fieldset>
+      <fieldset class="fc-field"><legend>Columns</legend><div class="fc-columns">${FORECAST_COLUMNS.map(([key,label,on])=>`<label><input type="checkbox" name="fc-col" value="${key}" ${on?'checked':''}> ${label}</label>`).join('')}</div></fieldset>
+      <fieldset class="fc-field"><legend>Dates</legend>
+        <label><input type="radio" name="fc-dates" value="iso" checked> 2026-10-27 (sorts correctly)</label>
+        <label><input type="radio" name="fc-dates" value="readable"> Oct 27, 2026</label></fieldset>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" ${bindAction('click',()=>downloadForecastCsv())}><i class="bi bi-download" aria-hidden="true"></i> Download</button></div>
+  </div>`,{preserveParent:Boolean(appState.clinicInformation.activeModal?.isConnected)});
+}
+
+export function downloadForecastCsv(){
+  const {rows,days,start}=inventoryForecastProjections();
+  const layout=document.querySelector('input[name="fc-layout"]:checked')?.value||'summary';
+  const readable=document.querySelector('input[name="fc-dates"]:checked')?.value==='readable';
+  const chosen=new Set([...document.querySelectorAll('input[name="fc-col"]:checked')].map(el=>el.value));
+  const date=v=>v?(readable?csvReadableDate(v):csvDate(v)):'';
+  const value={
+    itemNo:({item})=>inventoryDisplayId(item),category:({item})=>item.category||'',unit:({item})=>item.unit||'',
+    onHand:({item})=>Number(item.qty??0),reorderLevel:({item})=>Number(item.threshold||0),
+    dailyUse:({p})=>p.averageDaily.toFixed(2),totalUse:({p})=>p.totalUse,stockAtEnd:({p})=>p.stockAtEnd,
+    runsOut:({p})=>date(p.stockoutDate),orderQty:({p})=>p.reorderQty,orderBy:({p})=>date(p.reorderBy)
+  };
+  const columns=FORECAST_COLUMNS.filter(([key])=>chosen.has(key));
+  let table;
+  if(layout==='detailed'){
+    // Per-period rows keep the item's identifying columns and add the period's own figures.
+    const idCols=columns.filter(([key])=>['itemNo','category','unit','onHand','reorderLevel'].includes(key));
+    table=[['Item Name',...idCols.map(([,,,header])=>header),'Period: Start','Period: End','Period: Projected Use','Period: Stock Left']];
+    for(const r of rows)for(const period of r.p.periods)table.push([r.item.name,...idCols.map(([key])=>value[key](r)),date(period.start),date(period.end),period.use,period.stockAfter]);
+  }else{
+    table=[['Item Name',...columns.map(([,,,header])=>header)],...rows.map(r=>[r.item.name,...columns.map(([key])=>value[key](r))])];
+  }
+  downloadCsv(csvFileName(`inventory forecast ${days} days from ${start}`),toCsv(table));
+  closeTopModal();
+  toast('Forecast CSV downloaded.','success');
 }
 
 export function predictiveInventorySummaryHtml(){
@@ -204,20 +319,20 @@ export function predictiveInventorySummaryHtml(){
 
   return `<div class="card">
     <div class="card-header">
-      <div><h3>Predictive Inventory</h3><div class="tech-note">Forecast consumption for the next 3 months using recorded disbursements.</div></div>
-      <span class="intel-badge">3-month forecast</span>
+      <div><h3>Predictive Inventory</h3><div class="tech-note">Projected use and stock from recorded disbursements.</div></div>
+      <span class="intel-badge" id="inv-forecast-badge">${escapeHtml(horizonLabel(forecastDays()))} forecast</span>
     </div>
     <div class="intel-grid">
       <div class="intel-card ${atRisk.length?'intel-risk-medium':'intel-risk-low'}"><div class="intel-kicker">At risk in 14 days</div><div class="intel-value">${atRisk.length}</div><div class="intel-meta">Consumable item${atRisk.length===1?'':'s'} projected to run low soon</div></div>
       <div class="intel-card"><div class="intel-kicker">Soonest projected depletion</div><div class="intel-value" style="font-size:.95rem">${soon?escapeHtml(soon.item.name):'No immediate risk'}</div><div class="intel-meta">${soon?`${soon.f.daysRemaining} days · ${fmtDate(soon.f.stockoutDate)}`:'Based on available history'}</div></div>
       <div class="intel-card"><div class="intel-kicker">Forecast coverage</div><div class="intel-value">${forecasts.length}/${items.length}</div><div class="intel-meta">Active items with usable demand history</div></div>
     </div>
-    ${atRisk.length?`<div class="intel-alert-list">${atRisk.slice(0,4).map(({item,f})=>`<div class="intel-alert-item"><div class="intel-alert-icon">${f.risk==='high'?'⚠️':'📦'}</div><div class="intel-alert-copy"><strong>${escapeHtml(item.name)} — ${f.daysRemaining} days remaining</strong><span>Projected depletion ${fmtDate(f.stockoutDate)}. Suggested reorder: ${f.reorderQty} ${escapeHtml(item.unit)}. Current forecast usage ≈ ${f.adjustedDaily.toFixed(1)} ${escapeHtml(item.unit)}/day.</span></div></div>`).join('')}</div>`:`<div class="tech-note">No item with sufficient usage history is forecast to deplete within 14 days.</div>`}
-    <div class="section-label" style="margin-top:1rem">3-Month Consumption Forecast</div>
-    ${threeMonthForecastTableHtml()}
+    ${aiInsightsPanelHtml('inv-forecast-ai','inventory')}
+    ${atRisk.length?`<div class="intel-alert-list">${atRisk.slice(0,4).map(({item,f})=>`<div class="intel-alert-item"><div class="intel-alert-icon ${f.risk==='high'?'danger':'warning'}">${f.risk==='high'?'<i class="bi bi-exclamation-triangle" aria-hidden="true"></i>':'<i class="bi bi-box-seam" aria-hidden="true"></i>'}</div><div class="intel-alert-copy"><strong>${escapeHtml(item.name)} — ${f.daysRemaining} days remaining</strong><span>Projected depletion ${fmtDate(f.stockoutDate)}. Suggested reorder: ${f.reorderQty} ${escapeHtml(item.unit)}. Current forecast usage ≈ ${f.adjustedDaily.toFixed(1)} ${escapeHtml(item.unit)}/day.</span></div></div>`).join('')}</div>`:`<div class="tech-note">No item with sufficient usage history is forecast to deplete within 14 days.</div>`}
+    <div class="section-label" style="margin-top:1rem">Consumption forecast</div>
+    <div id="inv-forecast">${forecastSectionHtml()}</div>
     <div class="section-label" style="margin-top:1rem">Monthly Usage Analytics</div>
     ${inventoryMonthlyUsageHtml()}
-    <div class="tech-note" style="margin-top:.5rem">Forecasts are planning estimates based on recorded disbursements. They are not guaranteed future demand.</div>
   </div>`;
 }
 // ---------- Clinical Copilot / FHIR backend ----------
@@ -281,39 +396,89 @@ export function buildClinicalCopilot(patientId){
   return {pt,treatments,appointments,latest,alerts,summary,history,soap};
 }
 
+// Copilot and FHIR dialogs open above the patient chart and close back to it.
+const openOverChart=html=>openModal(html,{preserveParent:Boolean(appState.clinicInformation.activeModal?.isConnected)});
+const alertIcon=type=>type==='danger'?'bi-exclamation-octagon-fill':type==='warning'?'bi-clock-history':'bi-info-circle-fill';
+
+function copilotShell(pt,body){
+  return `<div class="modal modal-xl copilot-modal">
+    <div class="modal-header"><div><h3><i class="bi bi-stars" aria-hidden="true"></i> Clinical Copilot</h3><div class="copilot-subtitle">${escapeHtml(pt.lname)}, ${escapeHtml(pt.fname)} · P-${patientDisplayId(pt)}</div></div><button class="close-btn" aria-label="Close Clinical Copilot" ${bindAction('click',()=>closeTopModal())}>✕</button></div>
+    <div class="modal-body" id="clinical-copilot-content">${body}</div>
+  </div>`;
+}
+
+// Normalised copilot view: snapshot facts, attention cards, history timeline and an editable SOAP draft.
+function renderCopilot(pt,patientId,x){
+  const el=document.getElementById('clinical-copilot-content');
+  if(!el)return;
+  const allergy=pt.allergies&&!/^(none|n\/a|na|nkda)$/i.test(pt.allergies.trim());
+  const facts=[
+    ['Age / Sex',`${pt.age===''||pt.age==null?'—':pt.age} · ${pt.gender||'—'}`],
+    ['Blood type',pt.blood||'—'],
+    ['Allergies',pt.allergies||'None recorded',allergy],
+    ['Records',`${x.counts.treatments} treatment${x.counts.treatments===1?'':'s'} · ${x.counts.appointments} appointment${x.counts.appointments===1?'':'s'}`]
+  ];
+  const soap=splitSoapNote(x.draft);
+  const soapLabels={S:'Subjective — symptoms and concerns',O:'Objective — findings and vitals',A:'Assessment',P:'Plan — treatment and follow-up'};
+  el.innerHTML=`
+    <div class="copilot-banner"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Summarises existing CampusCare records only. It does not diagnose or prescribe — review the full chart and confirm everything with the patient before using any draft.</span></div>
+    <div class="copilot-layout">
+      <div class="copilot-column">
+        <section class="copilot-card">
+          <h4>Patient snapshot</h4>
+          <dl class="copilot-facts">${facts.map(([label,value,warn])=>`<div><dt>${label}</dt><dd class="${warn?'text-danger':''}">${escapeHtml(value)}</dd></div>`).join('')}</dl>
+          <p class="copilot-summary">${escapeHtml(x.summary||'')}</p>
+        </section>
+        <section class="copilot-card">
+          <h4>Needs attention <span class="copilot-count">${x.alerts.length}</span></h4>
+          ${x.alerts.length?`<ul class="copilot-alerts">${x.alerts.map(a=>`<li class="copilot-alert ${escapeHtml(a.type||'info')}"><i class="bi ${alertIcon(a.type)}" aria-hidden="true"></i><div><strong>${escapeHtml(a.title||'Attention')}</strong><span>${escapeHtml(a.detail||'')}</span></div></li>`).join('')}</ul>`
+            :'<p class="copilot-empty"><i class="bi bi-check-circle" aria-hidden="true"></i> No automatic warnings. Still review the complete chart.</p>'}
+        </section>
+        <section class="copilot-card">
+          <h4>Recent clinical history</h4>
+          ${x.history.length?`<ol class="copilot-timeline">${x.history.map(item=>`<li><span class="copilot-time">${escapeHtml(item.date||'')}</span><strong>${escapeHtml(item.title)}</strong>${item.detail?`<span>${escapeHtml(item.detail)}</span>`:''}</li>`).join('')}</ol>`:'<p class="copilot-empty">No recent treatment history.</p>'}
+        </section>
+      </div>
+      <section class="copilot-card copilot-note">
+        <div class="copilot-note-head"><h4>Draft visit note</h4><span class="intel-badge">Human review required</span></div>
+        ${soap?Object.entries(soapLabels).map(([key,label])=>`<label class="copilot-soap-field"><span><b>${key}</b> ${label}</span><textarea data-soap="${key}" rows="${key==='O'?4:3}">${escapeHtml(soap[key])}</textarea></label>`).join('')
+          :`<textarea id="copilot-soap" rows="14">${escapeHtml(x.draft||'')}</textarea>`}
+        <div class="copilot-note-actions">
+          <button class="btn btn-sm" ${bindAction('click',()=>renderCopilot(pt,patientId,x))}><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Reset draft</button>
+          <button class="btn btn-primary btn-sm" ${bindAction('click',()=>copyCopilotDraft())}><i class="bi bi-clipboard" aria-hidden="true"></i> Copy note</button>
+        </div>
+      </section>
+    </div>
+    <div class="copilot-footer">
+      <span class="tech-note">${escapeHtml(x.method)}</span>
+      <div class="fhir-toolbar">
+        <button class="btn btn-sm" ${bindAction('click',()=>viewPatientFHIR(patientId))}><i class="bi bi-filetype-json" aria-hidden="true"></i> FHIR Preview</button>
+        <button class="btn btn-sm" ${bindAction('click',()=>downloadPatientFHIR(patientId))}><i class="bi bi-download" aria-hidden="true"></i> Export FHIR</button>
+      </div>
+    </div>`;
+}
+
+// "2026-10-20 — Diagnosis; treatment: …" history lines become timeline entries.
+const historyItem=line=>{
+  if(line&&typeof line==='object')return {date:line.date?fmtDate(line.date):'',title:line.diagnosis||line.title||'Visit',detail:line.prescription?`Treatment: ${line.prescription}`:line.detail||''};
+  const [date,rest='']=String(line).split(/\s+—\s+/);
+  const [title,...detail]=(rest||date).split(/;\s*/);
+  return {date:rest?date:'',title:title||'Visit',detail:detail.join('; ').replace(/^treatment:\s*/i,'Treatment: ')};
+};
+
 export async function openClinicalCopilot(patientId){
   const pt=getPatientById(patientId);
   if(!pt)return;
 
   if(!appState.auth.currentUser?._realSupabase){
     const x=buildClinicalCopilot(patientId);if(!x)return;
-    openModal(`<div class="modal modal-xl">
-      <div class="modal-header"><h3>Clinical Copilot — ${escapeHtml(x.pt.fname+' '+x.pt.lname)}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-      <div class="modal-body">
-        <div class="copilot-hero">
-          <div><div class="copilot-title">✦ Clinical Copilot</div><div class="copilot-disclaimer">Demo fallback: this summarizes the local CampusCare record. It does not diagnose, prescribe, or replace clinical judgment. The clinician must verify all output before use.</div></div>
-          <span class="intel-badge">Human review required</span>
-        </div>
-        <div class="copilot-section"><h4>Patient snapshot</h4><div class="copilot-summary">${escapeHtml(x.summary)}</div></div>
-        <div class="copilot-section"><h4>Attention items</h4>
-          <div class="intel-alert-list">${x.alerts.length?x.alerts.map(a=>`<div class="intel-alert-item"><div class="intel-alert-icon">${a.type==='danger'?'⚠️':a.type==='warning'?'⏱':'ℹ️'}</div><div class="intel-alert-copy"><strong>${escapeHtml(a.title)}</strong><span>${escapeHtml(a.detail)}</span></div></div>`).join(''):`<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No automatic warning generated</strong><span>Review the complete chart before making clinical decisions.</span></div></div>`}</div>
-        </div>
-        <div class="grid-2" style="margin-top:.85rem">
-          <div class="copilot-section" style="margin-top:0"><h4>Recent clinical history</h4><div class="copilot-summary">${escapeHtml(x.history)}</div></div>
-          <div class="copilot-section" style="margin-top:0"><h4>Draft structured note</h4><textarea id="copilot-soap" rows="10" style="width:100%;padding:.7rem;border-radius:11px;border:1px solid var(--line);background:var(--overlay);color:var(--ink)">${escapeHtml(x.soap)}</textarea></div>
-        </div>
-      </div>
-      <div class="modal-footer" style="justify-content:space-between">
-        <div class="fhir-toolbar">
-          <button class="btn btn-info btn-sm" ${bindAction('click',(event,element)=>{viewPatientFHIR((patientId))})}>FHIR Preview</button>
-          <button class="btn btn-sm" ${bindAction('click',(event,element)=>{downloadPatientFHIR((patientId))})}>Export FHIR JSON</button>
-        </div>
-        <div style="display:flex;gap:.45rem">
-          <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
-          <button class="btn btn-primary" ${bindAction('click',(event,element)=>{copyCopilotDraft()})}>Copy Draft Note</button>
-        </div>
-      </div>
-    </div>`);
+    openOverChart(copilotShell(pt,''));
+    renderCopilot(pt,patientId,{
+      summary:x.summary,alerts:x.alerts,draft:x.soap,
+      history:x.treatments.slice(0,5).map(t=>({date:fmtDate(t.date),title:t.diagnosis||'No diagnosis recorded',detail:t.prescription?`Treatment: ${t.prescription}`:''})),
+      counts:{treatments:x.treatments.length,appointments:x.appointments.length},
+      method:'Local record summary (offline demo data)'
+    });
     return;
   }
 
@@ -321,90 +486,17 @@ export async function openClinicalCopilot(patientId){
     toast('The real patient database record could not be identified.','error');
     return;
   }
-
-  openModal(`<div class="modal modal-xl">
-    <div class="modal-header"><h3>Clinical Copilot — ${escapeHtml(pt.fname+' '+pt.lname)}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-    <div class="modal-body" id="clinical-copilot-content">
-      <div class="copilot-hero">
-        <div>
-          <div class="copilot-title">✦ Clinical Copilot</div>
-          <div class="copilot-disclaimer">Loading clinical records…</div>
-        </div>
-        <span class="intel-badge">Clinic records</span>
-      </div>
-      ${databaseSkeletonHtml('cards',4)}
-    </div>
-  </div>`);
-
+  openOverChart(copilotShell(pt,`<p class="tech-note">Loading clinical records…</p>${databaseSkeletonHtml('cards',4)}`));
   try{
-    const result=await clinicalIntelligenceAction({
-      action:'copilot',
-      patient_id:Number(pt.dbPatientId)
-    });
+    const result=await clinicalIntelligenceAction({action:'copilot',patient_id:Number(pt.dbPatientId)});
     const x=result.copilot;
-    const el=document.getElementById('clinical-copilot-content');
-    if(!el||!x)return;
-
-    const history=(x.recent_history||[]).length
-      ? x.recent_history.join('\n')
-      : 'No recent treatment history.';
-
-    el.innerHTML=`
-      <div class="copilot-hero">
-        <div>
-          <div class="copilot-title">✦ Clinical Copilot</div>
-          <div class="copilot-disclaimer">
-            This server-side assistant summarizes existing CampusCare records using transparent rules. It does not diagnose,
-            prescribe, or replace clinical judgment. Verify the complete chart and the patient before using any draft.
-          </div>
-        </div>
-        <span class="intel-badge">Human review required</span>
-      </div>
-
-      <div class="copilot-section"><h4>Patient snapshot</h4><div class="copilot-summary">${escapeHtml(x.summary||'')}</div></div>
-
-      <div class="copilot-section"><h4>Attention items</h4>
-        <div class="intel-alert-list">${(x.alerts||[]).length
-          ? x.alerts.map(a=>`<div class="intel-alert-item">
-              <div class="intel-alert-icon">${a.type==='danger'?'⚠️':a.type==='warning'?'⏱':'ℹ️'}</div>
-              <div class="intel-alert-copy"><strong>${escapeHtml(a.title||'Attention')}</strong><span>${escapeHtml(a.detail||'')}</span></div>
-            </div>`).join('')
-          : `<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No automatic warning generated</strong><span>Review the complete chart before making clinical decisions.</span></div></div>`}
-        </div>
-      </div>
-
-      <div class="grid-2" style="margin-top:.85rem">
-        <div class="copilot-section" style="margin-top:0">
-          <h4>Recent clinical history</h4>
-          <div class="copilot-summary">${escapeHtml(history)}</div>
-        </div>
-        <div class="copilot-section" style="margin-top:0">
-          <h4>Draft structured note</h4>
-          <textarea id="copilot-soap" rows="10" style="width:100%;padding:.7rem;border-radius:11px;border:1px solid var(--line);background:var(--overlay);color:var(--ink)">${escapeHtml(x.draft_note||'')}</textarea>
-        </div>
-      </div>
-
-      <div class="tech-note" style="margin-top:.8rem">
-        Method: ${escapeHtml(x.method||'Explainable clinical-record summarization')} ·
-        ${Number(x.record_counts?.treatments||0)} treatment record${Number(x.record_counts?.treatments||0)===1?'':'s'} ·
-        ${Number(x.record_counts?.appointments||0)} appointment record${Number(x.record_counts?.appointments||0)===1?'':'s'}
-      </div>
-    `;
-
-    const modal=el.closest('.modal');
-    if(modal&&!modal.querySelector('.modal-footer')){
-      modal.insertAdjacentHTML('beforeend',`
-        <div class="modal-footer" style="justify-content:space-between">
-          <div class="fhir-toolbar">
-            <button class="btn btn-info btn-sm" ${bindAction('click',(event,element)=>{viewPatientFHIR((patientId))})}>FHIR Preview</button>
-            <button class="btn btn-sm" ${bindAction('click',(event,element)=>{downloadPatientFHIR((patientId))})}>Export FHIR JSON</button>
-          </div>
-          <div style="display:flex;gap:.45rem">
-            <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
-            <button class="btn btn-primary" ${bindAction('click',(event,element)=>{copyCopilotDraft()})}>Copy Draft Note</button>
-          </div>
-        </div>`);
-    }
+    if(!x)throw new Error('The Clinical Copilot returned no summary for this patient. Try again later.');
+    renderCopilot(pt,patientId,{
+      summary:x.summary||'',alerts:x.alerts||[],draft:x.draft_note||'',
+      history:(x.recent_history||[]).map(historyItem),
+      counts:{treatments:Number(x.record_counts?.treatments||0),appointments:Number(x.record_counts?.appointments||0)},
+      method:`Method: ${x.method||'Explainable clinical-record summarization'}`
+    });
   }catch(e){
     const el=document.getElementById('clinical-copilot-content');
     if(el)el.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load the Clinical Copilot.')}</div>`;
@@ -412,7 +504,8 @@ export async function openClinicalCopilot(patientId){
 }
 
 export function copyCopilotDraft(){
-  const text=document.getElementById('copilot-soap')?.value||'';
+  const fields=[...document.querySelectorAll('#clinical-copilot-content [data-soap]')];
+  const text=fields.length?joinSoapNote(Object.fromEntries(fields.map(field=>[field.dataset.soap,field.value]))):document.getElementById('copilot-soap')?.value||'';
   if(!text)return;
   if(navigator.clipboard?.writeText){
     navigator.clipboard.writeText(text).then(()=>toast('Copilot draft copied. Review it before saving to the record.','success')).catch(()=>toast('Could not access clipboard.','warning'));
@@ -526,50 +619,58 @@ export function campusCareFHIRBundle(patientId){
   };
 }
 
+// FHIR export preview: what the bundle contains in plain terms first, raw JSON on its own tab.
+function fhirShell(pt,body){
+  return `<div class="modal modal-xl fhir-modal">
+    <div class="modal-header"><div><h3><i class="bi bi-filetype-json" aria-hidden="true"></i> FHIR Record Export</h3><div class="copilot-subtitle">${escapeHtml(pt.lname)}, ${escapeHtml(pt.fname)} · P-${patientDisplayId(pt)} · FHIR R4 collection bundle</div></div><button class="close-btn" aria-label="Close FHIR preview" ${bindAction('click',()=>closeTopModal())}>✕</button></div>
+    <div class="modal-body" id="fhir-preview-body">${body}</div>
+  </div>`;
+}
+function renderFhirPreview(patientId,bundle,note){
+  const el=document.getElementById('fhir-preview-body');
+  if(!el)return;
+  const summary=summarizeFhirBundle(bundle);
+  const json=JSON.stringify(bundle,null,2);
+  const show=tab=>{
+    el.querySelectorAll('[data-fhir-tab]').forEach(button=>{const on=button.dataset.fhirTab===tab;button.classList.toggle('active',on);button.setAttribute('aria-selected',String(on));});
+    el.querySelectorAll('[data-fhir-panel]').forEach(panel=>{panel.hidden=panel.dataset.fhirPanel!==tab;});
+  };
+  el.innerHTML=`
+    <div class="fhir-counts">${summary.counts.map(c=>`<span class="fhir-count"><strong>${c.count}</strong> ${escapeHtml(c.type)}</span>`).join('')}<span class="fhir-count total"><strong>${summary.total}</strong> resources</span></div>
+    <p class="fhir-note"><i class="bi bi-info-circle" aria-hidden="true"></i> ${escapeHtml(note)}</p>
+    <div class="pt-tabs" role="tablist">
+      <button type="button" role="tab" class="pt-tab active" data-fhir-tab="summary" aria-selected="true" ${bindAction('click',()=>show('summary'))}>Summary</button>
+      <button type="button" role="tab" class="pt-tab" data-fhir-tab="json" aria-selected="false" ${bindAction('click',()=>show('json'))}>JSON</button>
+    </div>
+    <div data-fhir-panel="summary"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Details</th><th>Date</th><th>Status</th><th>ID</th></tr></thead><tbody>${summary.rows.map(r=>`<tr><td><span class="badge badge-info">${escapeHtml(r.type)}</span></td><td>${escapeHtml(r.detail)}</td><td>${r.date?fmtDate(r.date):'—'}</td><td>${escapeHtml(r.status||'—')}</td><td class="text-muted"><code>${escapeHtml(r.id)}</code></td></tr>`).join('')}</tbody></table></div></div>
+    <div data-fhir-panel="json" hidden><pre class="fhir-preview">${escapeHtml(json)}</pre></div>
+    <div class="copilot-footer">
+      <span class="tech-note">Generated ${escapeHtml(new Date(bundle.timestamp||Date.now()).toLocaleString('en-PH'))}</span>
+      <div class="fhir-toolbar">
+        <button class="btn btn-sm" ${bindAction('click',()=>{navigator.clipboard?.writeText(json).then(()=>toast('FHIR JSON copied.','success')).catch(()=>toast('Could not access the clipboard.','warning'));})}><i class="bi bi-clipboard" aria-hidden="true"></i> Copy JSON</button>
+        <button class="btn btn-primary btn-sm" ${bindAction('click',()=>downloadPatientFHIR(patientId))}><i class="bi bi-download" aria-hidden="true"></i> Download JSON</button>
+      </div>
+    </div>`;
+}
+
 export async function viewPatientFHIR(patientId){
   const pt=getPatientById(patientId);if(!pt)return;
-
+  const note='Validate this bundle against the receiving system\'s FHIR implementation guide before sharing it.';
   if(!appState.auth.currentUser?._realSupabase){
     const bundle=campusCareFHIRBundle(patientId);if(!bundle)return;
-    openModal(`<div class="modal modal-xl">
-      <div class="modal-header"><div><h3>FHIR-ready Record Preview</h3><div class="tech-note">Sample FHIR R4 export. Check compatibility before sharing with another system.</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-      <div class="modal-body"><pre class="fhir-preview">${escapeHtml(JSON.stringify(bundle,null,2))}</pre></div>
-      <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadPatientFHIR((patientId))})}>Download JSON</button></div>
-    </div>`);
+    openOverChart(fhirShell(pt,''));
+    renderFhirPreview(patientId,bundle,note);
     return;
   }
-
   if(!pt.dbPatientId){
     toast('The real patient database record could not be identified.','error');
     return;
   }
-
-  openModal(`<div class="modal modal-xl">
-    <div class="modal-header"><div><h3>FHIR-ready Record Preview</h3><div class="tech-note">Preparing the record export…</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-    <div class="modal-body" id="fhir-preview-body">${databaseSkeletonHtml('table')}</div>
-  </div>`);
-
+  openOverChart(fhirShell(pt,`<p class="tech-note">Preparing the record export…</p>${databaseSkeletonHtml('table')}`));
   try{
-    const result=await clinicalIntelligenceAction({
-      action:'fhir',
-      patient_id:Number(pt.dbPatientId),
-      mode:'preview'
-    });
-    const el=document.getElementById('fhir-preview-body');
-    if(!el||!result.bundle)return;
-
-    el.innerHTML=`
-      <div class="alert alert-info show" style="font-size:.76rem">${escapeHtml(result.validation_note||'Validate this bundle against the receiving FHIR implementation guide before exchange.')}</div>
-      <pre class="fhir-preview">${escapeHtml(JSON.stringify(result.bundle,null,2))}</pre>`;
-
-    const modal=el.closest('.modal');
-    if(modal&&!modal.querySelector('.modal-footer')){
-      modal.insertAdjacentHTML('beforeend',`
-        <div class="modal-footer">
-          <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
-          <button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadPatientFHIR((patientId))})}>Download JSON</button>
-        </div>`);
-    }
+    const result=await clinicalIntelligenceAction({action:'fhir',patient_id:Number(pt.dbPatientId),mode:'preview'});
+    if(!result.bundle)throw new Error('No FHIR bundle was returned for this patient. Try again later.');
+    renderFhirPreview(patientId,result.bundle,result.validation_note||note);
   }catch(e){
     const el=document.getElementById('fhir-preview-body');
     if(el)el.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to generate the FHIR preview.')}</div>`;

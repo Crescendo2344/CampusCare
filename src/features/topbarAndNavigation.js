@@ -3,11 +3,11 @@ import {state as appState} from '../app/state.js';
 import {escapeHtml,issueReportRecords} from './issueReports.js';
 import {navTo} from './navigationRaceProtection.js';
 import {notificationCenterAction,notificationPageFor,notificationRecords} from './notifications.js';
-import {messageRecords} from './messaging.js';
 import {certificateRecords} from './certificateService.js';
 import {fitnessRecords} from './fitnessAssessments.js';
 import {inventoryRecords} from './inventoryService.js';
 import {workflowRequestRecords} from './workflowRequests.js';
+import {appointmentRecords} from './appointmentService.js';
 import {renderNotifList} from './assistant.js';
 import {shouldShowNavItem} from './dentalSurvey.js';
 import {bindAction,createOperationalService,notificationData} from '../dependencies.js';
@@ -108,10 +108,6 @@ export function loadTaskBadgeSeen(){
   }
 }
 
-export function saveTaskBadgeSeen(){
-  try{localStorage.setItem(taskBadgeSeenKey(),JSON.stringify(appState.topbarAndNavigation.navTaskSeen||{}));}
-  catch(_){}
-}
 
 export function navNotificationCounts(){
   return notificationData.notificationPageCounts(notificationRecords(),appState.auth.currentUser);
@@ -126,23 +122,10 @@ export function demoTaskBadgeSnapshot(){
     counts[page]=items[page].length;
   };
 
-  set('messages',
-    messageRecords().filter(m=>m.toUserId===appState.auth.currentUser.id&&!m.isRead&&!m.deleted),
-    m=>`message:${m.id}`
-  );
-
   if(role==='Administrator'||role==='Staff'){
     set('approvals',
       (appState.data.DB.users||[]).filter(u=>u.role==='Patient'&&u.status==='Pending'),
       u=>`approval:${u.id}:${u.createdAt||''}`
-    );
-    set('cert-requests',
-      certificateRecords().filter(r=>r.status==='Pending'),
-      r=>`certificate:${r.id}:${r.updatedAt||r.requestedAt||''}`
-    );
-    set('fitness',
-      fitnessRecords().filter(r=>r.status==='Requested'),
-      r=>`fitness:${r.id}:${r.updatedAt||r.requestedAt||''}`
     );
     set('inventory',
       inventoryRecords().filter(i=>!i.archived&&Number(i.quantity??i.qty)<=Number(i.threshold)),
@@ -164,6 +147,15 @@ export function demoTaskBadgeSnapshot(){
     );
   }
 
+  // Appointments still marked Scheduled after their date need an outcome; a doctor also documents today's visits.
+  const today=appState.clinicInformation.TODAY;
+  if(role==='Administrator'||role==='Staff'){
+    set('appointments',appointmentRecords().filter(a=>a.status==='Scheduled'&&a.date<today),a=>`appointment:${a.id}:${a.date}`);
+  }
+  if(role==='Doctor'){
+    set('appointments',appointmentRecords().filter(a=>a.status==='Scheduled'&&a.doctorId===appState.auth.currentUser.id&&a.date<=today),a=>`appointment:${a.id}:${a.date}`);
+  }
+
   if(role==='Administrator'){
     set('feedback-issues',
       issueReportRecords().filter(r=>['Open','In Review'].includes(r.status)),
@@ -180,21 +172,40 @@ export function demoTaskBadgeSnapshot(){
 
 export async function taskBadgeAction(){return createOperationalService({getClient:()=>appState.supabaseClient.supabaseClient,request:(...args)=>fetch(...args),baseUrl:appState.supabaseClient.SUPABASE_URL,publishableKey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY}).taskBadgeAction();}
 
-export function unseenTaskCount(id){
-  const current=new Set(appState.topbarAndNavigation.navTaskItems[id]||[]);
-  const seen=new Set(appState.topbarAndNavigation.navTaskSeen[id]||[]);
-  let total=0;
-  current.forEach(token=>{if(!seen.has(token))total+=1;});
-  return total;
-}
 
-export function navBadgeCountFor(id,notificationCounts=null){
-  const updates=Number((notificationCounts||navNotificationCounts())[id]||0);
-  // Task badges count unresolved work, independent of whether the page/notification was read.
-  const taskPages=['approvals','cert-requests','fitness','inventory','feedback-issues','users'];
+// Two kinds of sidebar badge:
+//  - work: items someone has to act on (approvals, low stock…). It clears only when the work is done.
+//  - updates: unread notifications for that page. It clears when the page is opened.
+// When a page has outstanding work, that count is shown; otherwise unread updates are.
+const TASK_PAGES=['approvals','cert-requests','fitness','inventory','feedback-issues','users','appointments'];
+const plural=(n,one,many=one+'s')=>`${n} ${n===1?one:many}`;
+function taskBadgeLabel(id,n,role){
+  switch(id){
+    case 'approvals':return plural(n,'registration')+' awaiting approval';
+    case 'cert-requests':return plural(n,'certificate draft')+' to finish';
+    case 'fitness':return plural(n,'fitness assessment')+' to claim or finish';
+    case 'inventory':return plural(n,'item')+' at or below reorder level';
+    case 'feedback-issues':return plural(n,'open issue report');
+    case 'users':return plural(n,'account request')+' pending review';
+    case 'appointments':return role==='Doctor'?plural(n,'appointment')+' to document':plural(n,'past appointment')+' awaiting an outcome';
+    default:return plural(n,'item')+' needing attention';
+  }
+}
+export function navBadgeState(id,notificationCounts=null){
+  const updates=Math.max(0,Number((notificationCounts||navNotificationCounts())[id]||0));
   const counts=appState.topbarAndNavigation.navTaskCounts||{};
-  if(taskPages.includes(id)&&Object.hasOwn(counts,id))return Math.max(0,Number(counts[id])||0);
-  return Math.max((appState.topbarAndNavigation.navTaskItems[id]||[]).length,updates);
+  const tasks=TASK_PAGES.includes(id)&&Object.hasOwn(counts,id)
+    ? Math.max(0,Number(counts[id])||0)
+    : (appState.topbarAndNavigation.navTaskItems?.[id]||[]).length;
+  const role=appState.auth.currentUser?.role;
+  // A patient's proposed new times stay counted on My Appointments until they accept or pick another.
+  if(role==='Patient'&&id==='my-appointments'){
+    const waiting=(appState.data.DB.appointments||[]).filter(a=>a.patientResponse==='Awaiting'&&a.status==='Scheduled'&&a.patientId===appState.auth.currentPatient?.id).length;
+    if(waiting)return {count:waiting+updates,kind:'task',label:plural(waiting,'new time to answer')+(updates?` and ${plural(updates,'new update')}`:''),updates};
+  }
+  if(tasks>0)return {count:tasks,kind:id==='inventory'?'urgent':'task',label:taskBadgeLabel(id,tasks,role)+(updates?` and ${plural(updates,'new update')}`:''),updates};
+  if(updates>0)return {count:updates,kind:'update',label:plural(updates,'new update'),updates};
+  return {count:0,kind:'',label:'',updates:0};
 }
 
 export function applyNavBadges(){
@@ -206,20 +217,32 @@ export function applyNavBadges(){
     const btn=document.getElementById(`nav-${item.id}`);
     if(!btn)continue;
 
-    const count=navBadgeCountFor(item.id,updates);
+    const state=navBadgeState(item.id,updates);
     let badge=btn.querySelector('.nav-badge');
+    let hidden=btn.querySelector('.nav-badge-label');
 
-    if(count>0){
+    if(state.count>0){
       if(!badge){
         badge=document.createElement('span');
-        badge.className='nav-badge nav-badge-new';
+        badge.className='nav-badge';
+        badge.setAttribute('aria-hidden','true');
         btn.appendChild(badge);
+        hidden=document.createElement('span');
+        hidden.className='nav-badge-label sr-only';
+        btn.appendChild(hidden);
       }
-      badge.textContent=count>99?'99+':String(count);
-      badge.title=`${count} pending item${count===1?'':'s'} requiring attention`;
-      badge.setAttribute('aria-label',badge.title);
-    }else if(badge){
-      badge.remove();
+      const previous=Number(badge.dataset.count||0);
+      badge.textContent=state.count>99?'99+':String(state.count);
+      badge.dataset.count=String(state.count);
+      badge.dataset.kind=state.kind;
+      badge.classList.toggle('has-updates',state.kind!=='update'&&state.updates>0);
+      // Animate only when the number goes up, so a periodic refresh does not keep flashing.
+      if(state.count>previous){badge.classList.remove('nav-badge-new');void badge.offsetWidth;badge.classList.add('nav-badge-new');}
+      hidden.textContent=`, ${state.label}`;
+      btn.title=`${item.label.replace(/&amp;/g,'&')}: ${state.label}`;
+    }else{
+      badge?.remove();hidden?.remove();
+      btn.removeAttribute('title');
     }
   }
 }
@@ -349,10 +372,8 @@ export function initializeFeature(){
   'my-patients':['patient','records','FHIR','clinical copilot'],
   approvals:['approval','registration','pending account'],
   'cert-requests':['certificate','medical certificate','signature'],
-  'my-certificates':['certificate','medical certificate'],
   treatments:['treatment','diagnosis','medical notes'],
   inventory:['stock','medicine','supplies','predictive inventory','stock forecast','reorder prediction'],
-  messages:['message','chat','conversation'],
   reports:['report','analytics','statistics','campus health intelligence','predictive health','health trends'],
   users:['user','account','management'],
   settings:['settings','configuration'],
@@ -363,7 +384,9 @@ export function initializeFeature(){
   'report-issue':['issue','feedback','support'],
   'feedback-issues':['feedback','issues','support'],
   fitness:['fitness','fit to compete','sports clearance','athletics assessment'],
-  'activity-log':['activity','audit','audit trail','logs']
+  'activity-log':['activity','audit','audit trail','logs'],
+  'medicine-requests':['medicine request','request medicine','dispense'],
+  'purchase-orders':['purchase order','po','order stock','approve order']
 };
   appState.topbarAndNavigation.topSearchIndex=-1;
   document.addEventListener('click',e=>{
@@ -377,12 +400,13 @@ export function initializeFeature(){
   'my-records':'bi-file-earmark-medical',
   certificates:'bi-file-earmark-check',
   'cert-requests':'bi-file-earmark-check',
-  messages:'bi-chat-dots',
   'my-account':'bi-person',
   patients:'bi-people',
   appointments:'bi-calendar3',
   treatments:'bi-activity',
   inventory:'bi-box-seam',
+  'medicine-requests':'bi-capsule',
+  'purchase-orders':'bi-cart-check',
   reports:'bi-bar-chart-line',
   health_education:'bi-book',
   users:'bi-people',
@@ -403,11 +427,8 @@ export function initializeFeature(){
     {id:'dashboard',label:'Dashboard'},
     {id:'my-appointments',label:'My Appointments'},
     {id:'my-records',label:'My Health Records'},
-    {id:'my-certificates',label:'Medical Certificates'},
-    {id:'fitness',label:'Fitness to Compete'},
     {id: 'health_education', label: 'Health Education' },
     {id:'dental-survey',label:'Dental Clinic Survey'},
-    { id: 'messages', label: 'Messages' },
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
     {id:'report-issue',label:'Report an Issue'},
@@ -420,26 +441,25 @@ export function initializeFeature(){
     {id:'appointments',label:'Appointments'},
     {id:'treatments',label:'Treatments'},
     {id:'fitness',label:'Fitness Assessments'},
-    {id:'cert-requests',label:'Certificate Signatures'},
-    { id: 'messages', label: 'Patient Messages' },
+    {id:'cert-requests',label:'Medical Certificates'},
+    {id:'medicine-requests',label:'Medicine Requests'},
     {section:'Reports'},
-    {id:'reports',label:'Reports'},
+    {id:'reports',label:'My Reports'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
     {id:'report-issue',label:'Report an Issue'},
   ],
   Staff:[
-    {section:'Staff Panel'},
+    {section:'Front Desk'},
     {id:'dashboard',label:'Dashboard'},
-    {id:'patients',label:'Patient Records'},
     {id:'appointments',label:'Appointments'},
-    {id:'approvals',label:'Approval Queue'},
-    {id:'cert-requests',label:'Certificate Requests'},
-    {id:'fitness',label:'Fitness Assessments'},
+    {id:'patients',label:'Patient Records'},
     {id:'inventory',label:'Inventory'},
+    {section:'Release'},
+    {id:'cert-requests',label:'Medical Certificates'},
+    {id:'fitness',label:'Fitness Assessments'},
+    {section:'Content &amp; Insights'},
     {id:'health_education',label:'Health Education'},
-    {section:'Communication'},
-    {id:'messages',label:'Messages'},
     {id:'survey-results',label:'Survey Results'},
     {id:'reports',label:'Reports'},
     {section:'Account'},
@@ -447,24 +467,17 @@ export function initializeFeature(){
     {id:'report-issue',label:'Report an Issue'},
   ],
   Administrator:[
-    {section:'Administration'},
+    {section:'Accounts'},
     {id:'dashboard',label:'Dashboard'},
-    {id:'patients',label:'Patient Records'},
-    {id:'appointments',label:'Appointments'},
-    {id:'approvals',label:'Approval Queue'},
-    {id:'cert-requests',label:'Certificate Requests'},
-    {id:'treatments',label:'Treatments'},
-    {id:'fitness',label:'Fitness Assessments'},
-    {id:'inventory',label:'Inventory'},
-    {section:'Communication'},
-    {id:'messages',label:'Messages'},
-    {section:'Management'},
+    {id:'approvals',label:'Account Verification'},
     {id:'users',label:'User Management'},
+    {section:'Oversight'},
+    {id:'purchase-orders',label:'Purchase Orders'},
+    {id:'reports',label:'Reports &amp; Analytics'},
     {id:'survey-results',label:'Survey Results'},
-    {id:'reports',label:'Reports & Analytics'},
     {id:'feedback-issues',label:'Feedback &amp; Issues'},
-    {id:'settings',label:'System Settings'},
     {id:'activity-log',label:'Activity Log'},
+    {id:'settings',label:'System Settings'},
     {section:'Account'},
     {id:'my-account',label:'Account Settings'},
   ],

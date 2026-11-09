@@ -18,3 +18,8 @@ test('selfie needs a detailed document boundary beside the face',()=>{
  const box=findSelfieDocument(scene(true,true),width,height,face);assert(box);assert(box.x>face.x+face.width);
  assert.equal(findSelfieDocument(scene(true,true),width,height,null),null);
 });
+
+test('with an ID guide, only a card inside the guide counts',()=>{
+ assert(findSelfieDocument(scene(true,true),width,height,face,{x:210,y:70,width:95,height:135}));
+ assert.equal(findSelfieDocument(scene(true,true),width,height,face,{x:5,y:70,width:95,height:135}),null);
+});

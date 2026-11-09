@@ -8,7 +8,8 @@ import {bindAction} from '../dependencies.js';
 export function initModernCalendar(id,selectedDate=appState.clinicInformation.TODAY,minDate='',callbackName='',options={}){
   const base=(selectedDate||appState.clinicInformation.TODAY);
   const selected=options.allowEmptySelection?(selectedDate||''):base;
-  appState.calendar.modernCalendarState[id]={selected,minDate:minDate||'',callbackName,viewMonth:base.slice(0,7),...options};
+  // The "dates with appointments" dots appear only on appointment calendars, which opt in.
+  appState.calendar.modernCalendarState[id]={selected,minDate:minDate||'',callbackName,viewMonth:base.slice(0,7),...options,showAppointmentHints:options.showAppointmentHints===true};
   renderModernCalendar(id);
 }
 // Appointment calendars skip empty months without changing calendars used for birthdays or report ranges.
@@ -86,6 +87,8 @@ export function renderModernCalendar(id){
       if(st.rangeEnd&&date===st.rangeEnd)classes.push('range-end');
       if(st.rangeStart&&st.rangeEnd&&date>st.rangeStart&&date<st.rangeEnd)classes.push('in-range');
     }else if(date===st.selected)classes.push('selected');
+    // Calendars that collect several dates (batch edits) mark each picked date.
+    if(Array.isArray(st.markedDates)&&st.markedDates.includes(date))classes.push('marked');
     if(apptDates.has(date))classes.push('has-appt');
     days+=`<button type="button" class="${classes.join(' ')}" ${disabled?'disabled':''} ${bindAction('click',(event,element)=>{modernCalendarSelect((String(id)),(String(date)))})} aria-label="${fmtDate(date)}">${d.getDate()}</button>`;
   }

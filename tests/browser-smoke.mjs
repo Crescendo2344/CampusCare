@@ -15,7 +15,10 @@ if(!baseUrl){
     let file=path.resolve(root,'.'+pathname);
     if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||fs.statSync(file).isDirectory())file=root+'/index.html';
     const type={'.html':'text/html','.js':'application/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml','.wasm':'application/wasm'}[path.extname(file)]||'application/octet-stream';
-    response.writeHead(200,{'Content-Type':type});fs.createReadStream(file).pipe(response);
+    // Serve the production security headers so a blocked resource fails the run like it would on Vercel.
+    // upgrade-insecure-requests is dropped here because this local server is plain HTTP.
+    const securityHeaders=Object.fromEntries(JSON.parse(fs.readFileSync('vercel.json','utf8')).headers[0].headers.map(h=>[h.key,h.value.replace('; upgrade-insecure-requests','')]));
+    response.writeHead(200,{'Content-Type':type,...securityHeaders});fs.createReadStream(file).pipe(response);
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   baseUrl=`http://127.0.0.1:${server.address().port}`;
@@ -31,6 +34,7 @@ const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disab
 const authId='00000000-0000-4000-8000-000000000001';
 const now=Math.floor(Date.now()/1000),token=['eyJhbGciOiJIUzI1NiJ9',Buffer.from(JSON.stringify({sub:authId,role:'authenticated',exp:now+3600,iat:now})).toString('base64url'),'fixture-signature'].join('.');
 let cases=0;
+const a11yFindings=[],axeSource=fs.readFileSync('node_modules/axe-core/axe.min.js','utf8');
 try{
  for(const mobile of [false,true])for(const role of ['Patient','Doctor','Staff','Administrator']){
   const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1440,height:1000},isMobile:mobile,hasTouch:mobile,permissions:['camera','microphone']});
@@ -41,8 +45,12 @@ try{
     const modelInfo=/^INFO: Created TensorFlow Lite XNNPACK delegate for CPU\.$/.test(message.text());
     const expectedRejection=/\/(resend-verification|request-password-reset)$/.test(message.location().url||'')&&message.text().includes('status of 404');
     const expectedThrottle=/\/register-patient$/.test(message.location().url||'')&&message.text().includes('status of 429');
-    if(message.type()==='error'&&!message.text().includes('net::ERR')&&!expectedRejection&&!expectedThrottle&&!modelInfo)errors.push(message.text());
+    // The content policy deliberately blocks the face-detection library's usage logging to Google.
+    const blockedTelemetry=message.text().includes('odml.pa.googleapis.com');
+    if(message.type()==='error'&&!message.text().includes('net::ERR')&&!expectedRejection&&!expectedThrottle&&!modelInfo&&!blockedTelemetry)errors.push(message.text());
   });
+  // The storage notice is exercised once (desktop Patient); every other run starts with it acknowledged.
+  if(mobile||role!=='Patient')await page.addInitScript(()=>{try{localStorage.setItem('campuscare-storage-notice','1.0');}catch{}});
   // Capture the public lifecycle event only inside this test realm, with no production globals added.
   await page.addInitScript(()=>document.addEventListener('campuscare:ready',event=>{window.__fixtureApp=event.detail;},{once:true}));
   // Keep the real detector/worker on desktop; only its synthetic frame results are varied for UI assertions.
@@ -99,7 +107,7 @@ try{
     const body=request.postDataJSON();let date=addBookingDays(body.from,45);
     while([0,6].includes(new Date(date+'T12:00:00Z').getUTCDay()))date=addBookingDays(date,1);
     page.__bookingDate=date;
-    const days=buildDoctorAvailability({doctor:{workDays:['Mon','Tue','Wed','Thu','Fri'],startTime:'08:00',endTime:'17:00',slotDuration:60,maxPatients:20},from:date,to:date,today:body.from,appointments:[{date,time:'09:00',status:'Scheduled'}],overrides:[{date,time:'10:00',available:false}]});
+    const days=buildDoctorAvailability({doctor:{workDays:['Mon','Tue','Wed','Thu','Fri'],startTime:'08:00',endTime:'17:00',slotDuration:60,maxPatients:20},from:date,to:page.__wideAvailability?addBookingDays(date,14):date,today:body.from,appointments:[{date,time:'09:00',status:'Scheduled'}],overrides:[{date,time:'10:00',available:false}]});
     response={ok:true,days};
    }else if(path.endsWith('/appointment-actions')){
     const body=request.postDataJSON();
@@ -107,11 +115,57 @@ try{
     response={ok:true};
    }
    else if(path.endsWith('/student-reports'))response={ok:true,report:buildStudentReport({users:[{user_id:10,first_name:'Morning',last_name:'Student',id_number:'ST10',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'},{user_id:11,first_name:'Evening',last_name:'Student',id_number:'ST11',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'}],patients:[{patient_id:10,user_id:10,class_session:'Morning'},{patient_id:11,user_id:11,class_session:'Evening'}],appointments:[{appointment_id:10,patient_id:10,clinic:'Dental Clinic',appointment_date:request.postDataJSON().from,status:'Completed'}]},request.postDataJSON())};
+   else if(path.endsWith('/clinical-intelligence')){
+    const body=request.postDataJSON();
+    response=body.action==='copilot'
+      ?{ok:true,copilot:{summary:'Two clinic visits in the last 90 days.',alerts:[{type:'warning',title:'Repeat complaint',detail:'Headache recorded at two consecutive visits.'}],recent_history:['2026-03-02 — Tension headache; treatment: Paracetamol 500 mg'],record_counts:{treatments:2,appointments:3},draft_note:'S: Headache for two days.\nO: BP 110/70, T 36.8 C.\nA: Tension headache.\nP: Rest, fluids, paracetamol as needed.',method:'Explainable clinical-record summarization'}}
+      :{ok:true,bundle:{resourceType:'Bundle',type:'collection',entry:[{resource:{resourceType:'Patient',id:'patient-10',name:[{family:'Fixture',given:['Morning']}],gender:'female'}},{resource:{resourceType:'Encounter',id:'encounter-1',status:'finished',period:{start:'2026-03-02T09:00:00+08:00'}}},{resource:{resourceType:'Condition',id:'condition-1',code:{text:'Tension headache'},recordedDate:'2026-03-02'}}]}};
+   }
+   else if(path.endsWith('/workflow-actions')){
+    // One pending day off with a supporting photo, as the function returns it to admins and the requester.
+    const pixel='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const owner=role==='Doctor'?1:2;
+    response={ok:true,doctor_leaves:[],requests:[{request_id:9,request_type:'Day Off',requester_id:owner,target_user_id:owner,payload:{leaveDate:'2026-12-01',attachment:{path:'requests/2/fixture.png',name:'medical-certificate.png',mime:'image/png',size:2048}},reason:'Scheduled minor procedure',effective_date:'2026-12-01',status:'Pending',created_at:'2026-10-20T01:00:00Z',attachment_url:pixel}]};
+   }
+   else if(path.endsWith('/forecast-insights')){
+    const body=request.postDataJSON();
+    assert(body.context&&!JSON.stringify(body.context).match(/patient_id|id_number/),'Only aggregated forecast data is sent to the AI');
+    response={ok:true,model:'gemini-3.8-flash',generated_at:'2026-10-28T02:00:00Z',insights:{headline:body.question?'':'Visits stay low and steady over the next 3 months.',summary:'About 3 visits are expected.',highlights:[{title:'Low demand',detail:'Roughly 0.2 visits a week.'}],risks:[{level:'medium',title:'Old history',detail:'The latest event is from March.'}],actions:[{priority:'soon',action:'Review recent records',reason:'The history may be incomplete.'}],caveats:['Based on 3 events only.'],answer:body.question?'Early November needs the most attention.':''}};
+   }
    else if(path.includes('/functions/v1/'))response={ok:true,notifications:[],requests:[],doctor_leaves:[],messages:[],contacts:[doctor],resources:[],surveys:[],users:[],doctors:[doctor],counts:{},items:{}};
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(response)});
   });
   await page.goto(baseUrl);await page.waitForFunction(()=>Boolean(window.__fixtureApp));
   if(!mobile&&role==='Patient'){
+    // First visit: the storage notice explains essential storage and links the policy; Got it remembers the choice.
+    await page.locator('#storage-notice').waitFor();
+    await page.locator('#storage-notice-policy').click();
+    assert.match(await page.locator('.legal-doc').innerText(),/No advertising or tracking cookies|does not use advertising or tracking cookies/);
+    assert(await page.locator('.legal-table code',{hasText:'campuscare-theme'}).count());
+    await page.locator('#active-modal .close-btn').click();
+    await page.locator('#storage-notice-ok').click();
+    // The notice slides away, then leaves the page.
+    await page.locator('#storage-notice').waitFor({state:'detached'});
+    assert.equal(await page.evaluate(()=>localStorage.getItem('campuscare-storage-notice')),'1.0');
+    // Terms of Service and the policy are reachable from the public footer by keyboard.
+    await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingRoute('contact',false));
+    await page.locator('.legal-links a',{hasText:'Terms of Service'}).focus();
+    await page.keyboard.press('Enter');
+    assert.match(await page.locator('.legal-doc h3').innerText(),/Terms of Service/);
+    assert.match(await page.locator('.legal-doc').innerText(),/Not for emergencies/);
+    await page.locator('#active-modal .close-btn').click();
+    await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingRoute('home',false));
+    // Public pages (landing routes, login and registration) meet the same WCAG 2.1 AA checks in both themes.
+    await page.evaluate(axeSource);
+    for(const view of ['home','services','about','contact','login','reg'])for(const theme of ['light','dark']){
+      await page.evaluate(({view,theme})=>{if(!document.getElementById('a11y-still')){const st=document.createElement('style');st.id='a11y-still';st.textContent='*,*::before,*::after{transition:none!important;animation:none!important}';document.head.append(st);}
+        document.documentElement.dataset.theme=theme;const auth=window.__fixtureApp.features.authentication;
+        if(view==='login'||view==='reg')auth.showAuthPage(view);else auth.showLandingRoute(view,false);},{view,theme});
+      await page.waitForTimeout(60);
+      const found=await page.evaluate(async()=>(await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']},resultTypes:['violations']})).violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.slice(0,4).map(n=>({target:n.target.join(' '),summary:n.failureSummary}))})));
+      a11yFindings.push(...found.map(v=>({role:'Public',page:view,theme,...v})));
+    }
+    await page.evaluate(()=>{document.getElementById('a11y-still')?.remove();document.documentElement.dataset.theme='light';window.__fixtureApp.features.authentication.showLandingRoute('home',false);});
     await page.evaluate(()=>window.__fixtureApp.features.authentication.showLandingRoute('contact',false));
     for(const theme of ['light','dark']){
       await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
@@ -146,6 +200,7 @@ try{
         // Desktop carousel and navbar CTA share a right edge.
         const edges=await page.evaluate(()=>({carousel:document.querySelector('.hero-info-carousel').getBoundingClientRect().right,cta:document.querySelector('.landing-get-started').getBoundingClientRect().right}));
         assert(Math.abs(edges.carousel-edges.cta)<2,'Carousel must align with Register');
+        assert(await page.evaluate(()=>[...document.querySelectorAll('.hero-carousel-slide')].every(slide=>slide.scrollHeight<=slide.clientHeight+1)),`${width}: carousel slides must fit without scrolling`);
       }
       if(process.env.CAMPUSCARE_VISUAL_DIR){
         // Optional screenshots aid local visual review and are never production assets.
@@ -214,6 +269,9 @@ try{
     await page.locator('.landing-get-started').click();
     await page.locator('#reg-section').waitFor({state:'visible'});
     assert.equal(await page.locator('.landing-get-started').innerText(),'Register');
+    // Visiting and leaving an empty field is not an error; skipped fields are reported on submit.
+    await page.locator('#r-fname').focus();await page.locator('#r-lname').focus();await page.locator('#r-lname').blur();
+    assert(await page.locator('#r-fname-error').isHidden()&&await page.locator('#r-lname-error').isHidden(),'Empty fields must not error on blur');
     // Typo feedback appears beside the email field; legitimate school and company domains stay valid.
     await page.locator('#r-email').fill('student@gmal.com');await page.locator('#r-email').blur();
     await page.locator('#r-email-error').getByText('Check the email domain. Did you mean @gmail.com?',{exact:true}).waitFor();
@@ -232,12 +290,16 @@ try{
     await page.locator('.landing-book-appointment').click();
     const loginBox=await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).boundingBox();
     const forgotBox=await page.getByRole('link',{name:'Forgot password?',exact:true}).boundingBox();
-    assert(forgotBox.y>loginBox.y+loginBox.height,'Forgot password must be below Login');
+    assert(forgotBox.y+forgotBox.height<loginBox.y,'Forgot password sits with Remember me above Login');
+    assert.equal(await page.locator('#auth-mode-title').innerText(),'Welcome');
+    const rememberBox=await page.getByLabel('Remember me').boundingBox();
+    assert(Math.abs(rememberBox.y+rememberBox.height/2-(forgotBox.y+forgotBox.height/2))<8,'Remember me shares a row with Forgot password');
     assert.equal(await page.getByText('Resend verification email',{exact:false}).count(),0);
     await page.evaluate(()=>window.__fixtureApp.features.loginLockout.openPrivacyNotice());
     await page.locator('.privacy-notice').waitFor();
-    assert.equal(await page.locator('.privacy-notice .alert-success').evaluate(el=>getComputedStyle(el).display),'block');
-    assert(await page.locator('.privacy-notice .alert-success strong').evaluate(el=>el.getBoundingClientRect().width>150),'Privacy heading must not collapse to a narrow column');
+    assert.equal(await page.locator('.privacy-notice .pn-statement').evaluate(el=>getComputedStyle(el).display),'block');
+    assert(await page.locator('.privacy-notice .pn-section h4').first().evaluate(el=>el.getBoundingClientRect().width>150),'Privacy headings must not collapse to a narrow column');
+    assert(await page.locator('.privacy-notice').evaluate(el=>el.scrollWidth<=el.clientWidth),'Privacy notice must not scroll sideways');
     await page.locator('.privacy-notice .modal-header .close-btn').click();
     // CAPTCHA appears before consent in both visual and keyboard reading order.
     assert(await page.evaluate(()=>document.getElementById('registration-captcha-section').compareDocumentPosition(document.querySelector('.privacy-agree'))&Node.DOCUMENT_POSITION_FOLLOWING));
@@ -251,14 +313,16 @@ try{
     await page.locator('#fp-err').getByText('No CampusCare account matches that username or email.',{exact:true}).waitFor();
     assert(await page.locator('#forgot-step1').isVisible());assert(!await page.locator('#forgot-step2').isVisible());
     await page.evaluate(()=>window.__fixtureApp.features.passwordRecovery.closeForgotPassword());
-    await page.getByRole('button',{name:'Register',exact:true}).click();
+    await page.locator('#login-section').getByRole('link',{name:'Create an account',exact:true}).click();
+    assert.equal(await page.locator('#auth-mode-title').innerText(),'Create an account');
+    assert.equal(await page.locator('.auth-tab').count(),0,'Forms use headings, not tabs');
     await scrollDown();
     await page.locator('#r-ptype').selectOption('Teaching Personnel');
     await page.waitForFunction(()=>document.getElementById('r-verification-label').textContent.includes('Employee ID — Front and Back'));
     await page.locator('#r-ptype').selectOption('Student');
     await page.waitForFunction(()=>document.getElementById('r-verification-label').textContent.includes('Student ID — Front and Back'));
     // Populate a valid registration and an OCR name mismatch at the requested 25% boundary.
-    const fields={'r-fname':'Fixture','r-lname':'Student','r-user':'fixture.student','r-email':'fixture@example.test','r-pass':'Fixture-only-password1!','r-idno':'1234567'};
+    const fields={'r-fname':'Fixture','r-lname':'Student','r-user':'fixture.student','r-email':'fixture@example.test','r-pass':'Clinic-only-Pass1!','r-pass2':'Clinic-only-Pass1!','r-idno':'1234567'};
     for(const [id,value]of Object.entries(fields))await page.locator('#'+id).fill(value);
     await page.locator('#r-college').selectOption({index:0});await page.locator('#r-sex').selectOption('Male');
     await page.evaluate(()=>{
@@ -271,7 +335,8 @@ try{
     assert.equal(await page.locator('#r-selfie-file').count(),0,'Selfie file upload must be unavailable');
     await page.locator('#r-privacy-consent').check();
     await page.locator('#registration-submit-button').click();
-    await page.getByText('Use the camera to take a verification selfie while holding the document you will upload.',{exact:true}).waitFor();
+    await page.locator('#r-selfie-error').getByText('Use the camera to take a verification selfie while holding the ID you will upload.',{exact:true}).waitFor();
+    assert(await page.locator('#r-fname-error').isHidden(),'Valid fields must not show errors');
     assert(!requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'),'Missing camera selfie must block submission');
     await page.locator('#selfie-camera-button').click();
     await page.getByRole('button',{name:'Start Camera',exact:true}).click();
@@ -298,17 +363,22 @@ try{
       await page.getByText('Position your face inside the face guide',{exact:true}).waitFor();
       // Actual fake-device color bars have no face; assert guidance before injecting known geometry.
       assert(await page.locator('#camera-capture-button').isDisabled());
-      const geometry={x:234,y:70,width:172,height:196,keypoints:[{x:.45,y:.3},{x:.55,y:.3},{x:.5,y:.35}]};
+      // Place the synthetic face inside the oval as drawn (the preview is mirrored, the camera frame is not).
+      const oval=await page.locator('.selfie-guide-square').evaluate(el=>{const s=el.parentElement.getBoundingClientRect(),r=el.getBoundingClientRect();return {cx:1-((r.left+r.width/2)-s.left)/s.width,cy:(r.top-s.top+r.height*.55)/s.height};});
+      const geometry={x:Math.round(oval.cx*640-86),y:Math.round(oval.cy*480-98),width:172,height:196,keypoints:[{x:.45,y:.3},{x:.55,y:.3},{x:.5,y:.35}]};
+      await page.evaluate(data=>window.__fixtureGuidance=data,{faces:[{...geometry,x:20,y:250}],width:640,height:480,brightness:120,sharpness:80,documentVisible:true});
+      await page.getByText('Move your face into the oval',{exact:true}).waitFor();
+      assert(await page.locator('#camera-capture-button').isDisabled(),'A face outside the oval must block capture');
       const feed=async(changes,expected)=>{
         await page.evaluate(data=>window.__fixtureGuidance=data,{faces:[geometry],width:640,height:480,brightness:120,sharpness:80,documentVisible:true,...changes});
         await page.getByText(expected,{exact:true}).waitFor();
       };
-      await feed({faces:[{...geometry,width:70,height:80}]},'Move closer to the camera');
-      await feed({faces:[{...geometry,width:470,height:400}]},'Move back a little');
+      await feed({faces:[{...geometry,width:70,height:80}]},'Move closer so your face fills the oval');
+      await feed({faces:[{...geometry,width:470,height:400}]},'Move back a little so your face fits the oval');
       await feed({brightness:25},'Move to brighter, even lighting');
-      await feed({documentVisible:false},'Hold the front of your ID beside your face, with all corners visible');
+      await feed({documentVisible:false},'Hold the front of your ID inside the ID box, with all corners visible');
       assert(await page.locator('#camera-capture-button').isDisabled(),'Face without a held document must block capture');
-      await feed({},'Good position — keep your document visible');
+      await feed({},'Good position — keep your ID visible');
       assert(await page.locator('#camera-capture-button').isEnabled());
       if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/guided-selfie.png`,fullPage:true});
       await page.locator('#camera-capture-button').click();
@@ -333,7 +403,7 @@ try{
 
     // Both ID sides are mandatory even after a successful selfie.
     await page.locator('#registration-submit-button').click();
-    await page.getByText('Provide the front and back of your Student or Employee ID.',{exact:true}).waitFor();
+    await page.locator('#r-id-error').getByText('Provide the front and back of your Student or Employee ID.',{exact:true}).waitFor();
     assert(!requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'));
     const front=await page.evaluate(()=>{
       const c=document.createElement('canvas');c.width=640;c.height=480;const g=c.getContext('2d');g.fillStyle='#141414';g.fillRect(0,0,640,480);g.fillStyle='#ddd';g.fillRect(120,112,400,256);g.fillStyle='#222';g.font='24px sans-serif';g.fillText('STUDENT ID FRONT',145,190);return c.toDataURL('image/png').split(',')[1];
@@ -439,6 +509,12 @@ try{
       await page.locator('#fixture-captcha-solve').click();
     }else assert(await page.locator('#registration-captcha-section').isHidden(),'Unconfigured CAPTCHA must not pretend to be active');
     await page.locator('#registration-submit-button').click();await page.locator('#pending-section').waitFor({state:'visible'});
+    // Pending verification follows the recovery layout: illustration, steps, one centered Close and no top exit.
+    assert.equal(await page.locator('#pending-section .auth-illustration svg').count(),1);
+    assert.equal(await page.locator('#pending-section .pending-steps li').count(),4);
+    assert.equal(await page.locator('#pending-section .close-btn').count(),0);
+    assert.equal(await page.locator('#pending-section').getByRole('button',{name:'Close',exact:true}).evaluate(el=>getComputedStyle(el).justifyContent),'center');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#pending-section').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/pending-${mobile?'mobile':'desktop'}.png`});
     assert(requests.some(request=>request.path.endsWith('/register-patient')&&request.method==='POST'),'OCR 25% must reach staff review submission');
     // Confirmation links always end at login, even for an already active account.
     await page.goto(baseUrl+'/?auth=confirmed#access_token='+token+'&refresh_token=fixture-refresh&expires_in=3600&token_type=bearer&type=signup');
@@ -455,24 +531,93 @@ try{
   assert.equal(await page.locator('#landing-navbar').evaluate(nav=>getComputedStyle(nav).backgroundColor),'rgb(10, 20, 32)');
   assert.equal(await page.locator('#auth-theme-toggle-btn').count(),0);
   await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).click();
-  await page.getByText('Enter your username/email and password.',{exact:true}).waitFor();
+  await page.locator('#toast-wrap .toast.error').getByText('Enter your username/email and password.',{exact:true}).waitFor();
   await page.locator('#li-user').fill(profile.email);await page.locator('#li-pass').fill('Fixture-only-password1!');
-  await page.locator('#login-section').getByRole('button',{name:'Login',exact:true}).click();
+  await page.getByLabel('Remember me').check();
+  // The browser's password manager is asked to save the sign-in; CampusCare itself never stores the password.
+  await page.evaluate(()=>{window.__savedCredentials=[];window.PasswordCredential=class{constructor(data){Object.assign(this,data);}};navigator.credentials.store=async credential=>{window.__savedCredentials.push({id:credential.id,password:credential.password});return credential;};});
+  // Enter in the password field submits the sign-in form.
+  await page.locator('#li-pass').press('Enter');
   await page.locator('#app.visible').waitFor();
+  assert.deepEqual(await page.evaluate(()=>window.__savedCredentials),[{id:profile.email,password:'Fixture-only-password1!'}].map(c=>({...c,id:c.id})));
+  assert.equal(await page.evaluate(()=>Object.keys(localStorage).concat(Object.keys(sessionStorage)).some(key=>String(localStorage.getItem(key)??sessionStorage.getItem(key)).includes('Fixture-only-password1!'))),false,'The password is never written to browser storage');
   await page.waitForFunction(role=>window.__fixtureApp.state.auth.currentUser?.role===role,role);
   // Date endpoints share one compact control; all app headers remain opaque in both themes.
   const rangeButton=page.getByRole('button',{name:/Select dashboard date range:/});
-  await rangeButton.waitFor();assert.equal(await rangeButton.locator('.dashboard-range-endpoint').count(),2);
+  // The warm-start cache holds only clinic settings and published articles, never personal records.
+  const cached=await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('campuscare-cache:')).map(k=>k.slice(17)));
+  assert(cached.every(k=>['settings','articles'].includes(k)),'Only non-personal data is cached: '+cached);
+  // Patients get a personal dashboard without a date range or chart.
+  if(role==='Patient'){
+    await page.locator('.pd-card').first().waitFor();assert.equal(await page.locator('.dashboard-range-endpoint, .dashboard-trend-card').count(),0);
+    // While the first sign-in load is still running, the dashboard shows its skeleton instead of empty numbers.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.dashboard.patientDataReady=false;features.loadingSkeletons.renderPage('dashboard');});
+    assert.equal(await page.locator('#app-content .db-skeleton-wrap').count(),1);assert.equal(await page.locator('.pd-card').count(),0);
+    // A refresh of a page already on screen keeps it visible (dimmed, aria-busy) instead of flashing a full skeleton.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.dashboard.patientDataReady=true;features.dashboard.renderDashboard();});
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.dashboard.patientDataReady=false;features.dashboard.renderDashboard();});
+    assert.equal(await page.locator('#app-content .db-skeleton-wrap').count(),0);assert(await page.locator('.pd-card').count()>0);
+    assert.equal(await page.locator('#app-content').getAttribute('aria-busy'),'true');
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.dashboard.patientDataReady=true;features.dashboard.renderDashboard();});
+    await page.locator('.pd-card').first().waitFor();
+    // Medications, health tips and the records page read the patient's own data.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp,pt=state.auth.currentPatient,today=state.clinicInformation.TODAY;
+      state.data.DB.medReminders.push({id:900,patientId:pt.id,medicationName:'Amoxicillin 500mg',dosage:'3 times a day',startDate:today,endDate:'2099-01-01',status:'active'});
+      state.data.DB.healthResources=[{id:1,title:'Sleep before exams',category:'Sleep',content:'Rest.',published:true,publishedAt:'2026-10-20',_realSupabase:true}];
+      features.dashboard.renderDashboard();});
+    assert.match(await page.locator('.dashboard-a-stat',{hasText:'Current medications'}).innerText(),/1/);
+    assert.match(await page.locator('.pd-card',{hasText:'Health tips'}).innerText(),/Sleep before exams/);
+    assert.equal(await page.locator('#nav-my-certificates').count(),0,'Patients collect certificates at the clinic');
+  }
+  else{const rangeButton=page.getByRole('button',{name:/Select dashboard date range:/});
+  await rangeButton.waitFor();assert.equal(await rangeButton.locator('.dashboard-range-endpoint').count(),2);}
   for(const theme of ['light','dark']){
     await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
     assert(await page.locator('.top-bar').evaluate(el=>!getComputedStyle(el).backgroundColor.startsWith('rgba')),'Top bar must be opaque');
   }
+  // Stat cards are read-only summaries with a written trend instead of an unlabeled sparkline.
+  assert.equal(await page.locator('.dashboard-a-stat').count(),4);
+  assert.equal(await page.locator('.dashboard-a-stat[role="button"], .dashboard-a-stat .das-spark').count(),0,'Stat cards are not clickable and have no sparkline');
+  assert.equal(await page.locator('.dashboard-a-stat .das-trend').count(),4);
+  // Notification centre: solid panel, day sections, grouped repeats, Unread filter, click-through and Escape.
+  for(const theme of ['light','dark']){
+    await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+    await page.locator('#notif-btn').click();await page.locator('#notif-panel.show').waitFor();
+    if(theme==='light')assert(await page.evaluate(()=>document.getElementById('notif-btn').classList.contains('ringing')||getComputedStyle(document.querySelector('#notif-btn .bi-bell')).animationName==='cc-ring'),'The bell rings when opened');
+    await page.waitForTimeout(150);
+    await page.evaluate(()=>{
+      const app=window.__fixtureApp,me=app.state.auth.currentUser,now=Date.now(),hour=36e5;
+      const make=(id,title,body,ago,read,ref=null)=>({id,dbNotificationId:id,userId:me.id,title,body,type:'info',read,createdAt:new Date(now-ago*hour).toISOString(),referenceType:ref?'issue_reports':'',referenceId:ref,actionPage:'',_realSupabase:Boolean(me._realSupabase)});
+      app.state.data.DB.notifications=[
+        make(1,'New Reply on a CampusCare Report','A reporter replied to an existing issue thread.',1/60,false,7),
+        make(2,'New Reply on a CampusCare Report','A reporter replied to an existing issue thread.',2/60,false,7),
+        make(3,'Appointment Confirmed','Your appointment was confirmed.',3/60,true),
+        make(4,'Low Stock Alert','Paracetamol is below its threshold.',30,false),
+        make(5,'Certificate Issued','Your medical certificate is ready.',100,true)
+      ];
+      app.features.assistant.renderNotifList();
+    });
+    const panel=page.locator('#notif-panel');
+    assert(!(await panel.evaluate(el=>getComputedStyle(el).backgroundColor)).startsWith('rgba'),'Notification panel must be opaque');
+    assert((await panel.locator('.notif-section').allInnerTexts()).map(t=>t.toUpperCase()).join(',').startsWith('TODAY'));
+    await panel.getByText('+1 more',{exact:false}).waitFor();
+    assert.equal(await panel.locator('.notif-item').count(),4,'Two replies on one report collapse into one entry');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await panel.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/notifications-${theme}-${mobile?'mobile':'desktop'}.png`});
+    await panel.getByRole('tab',{name:/Unread/}).click();
+    assert(await panel.isVisible(),'Filtering keeps the panel open');
+    assert.equal(await panel.locator('.notif-item').count(),2);
+    await page.keyboard.press('Escape');
+    assert(await panel.isHidden(),'Escape closes the panel');
+    await page.evaluate(()=>window.__fixtureApp.features.assistant.setNotificationFilter('all'));
+  }
   await page.evaluate(()=>document.documentElement.dataset.theme='light');
   if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({fullPage:true,path:`${process.env.CAMPUSCARE_VISUAL_DIR}/workspace-range-${mobile?'mobile':'desktop'}.png`});
-  await rangeButton.click();assert.equal(await page.locator('#active-modal').getByRole('button',{name:'Cancel',exact:true}).count(),0);
-  await page.evaluate(()=>{const f=window.__fixtureApp.features.dashboardChartHelpers;f.chooseDashboardRangeDate('2026-10-14');f.chooseDashboardRangeDate('2026-10-20');});
-  await page.getByRole('button',{name:'Apply Date Range',exact:true}).click();
-  assert.match(await rangeButton.innerText(),/Oct 14, 2026/);
+  if(role!=='Patient'){
+    await rangeButton.click();assert.equal(await page.locator('#active-modal').getByRole('button',{name:'Cancel',exact:true}).count(),0);
+    await page.evaluate(()=>{const f=window.__fixtureApp.features.dashboardChartHelpers;f.chooseDashboardRangeDate('2026-10-14');f.chooseDashboardRangeDate('2026-10-20');});
+    await page.getByRole('button',{name:'Apply Date Range',exact:true}).click();
+    assert.match(await rangeButton.innerText(),/Oct 14, 2026/);
+  }
   if(['Patient','Staff','Administrator'].includes(role)){
     // Exercise real doctor/date/time clicks and draft restoration, with server requests intercepted.
     await page.evaluate(async()=>{await window.__fixtureApp.features.appointmentService.syncAppointmentContext();window.__fixtureApp.features.bookingForm.openBookApptModal();});
@@ -491,6 +636,12 @@ try{
     assert.equal(await page.locator('#b-time').inputValue(),'08:00');
     assert.equal(await page.locator('#slot-grid button.selected').getAttribute('aria-pressed'),'true');
     for(const time of ['09:00','10:00','12:00'])assert(await page.locator('#slot-grid button[data-time="'+time+'"]').isDisabled());
+    assert.equal(await page.locator('#b-manage-slots').count(),0,'Slot management lives outside the booking form');
+    if(role!=='Patient'){
+      // Priority is not shown; it is saved from the chosen patient's record.
+      await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const p=state.data.DB.patients.find(x=>x.id===200004)||state.data.DB.patients[0];features.datePicker.selectBookPatient(p.id);});
+      assert.equal(await page.locator('#b-priority').count(),0,'No priority field on the booking form');
+    }
     if(role!=='Patient')await page.locator('#b-pt').evaluate(el=>el.value='200004');
     await page.locator('#b-reason').fill('Synthetic booking flow verification');
     await page.getByRole('button',{name:'Save Draft',exact:true}).click();
@@ -500,13 +651,239 @@ try{
     await page.waitForFunction(()=>document.getElementById('b-time')?.value==='08:00');
     await page.getByRole('button',{name:'Confirm Booking',exact:true}).click();
     await page.waitForFunction(()=>!document.getElementById('b-time'));
+    if(role==='Patient'){
+      // Patients get a confirmation that asks for a signed COR; staff get a toast reminder instead.
+      await page.locator('.booking-done').waitFor();
+      assert.match(await page.locator('.booking-done .cor-reminder').innerText(),/signed/i);
+      assert.equal(await page.locator('.booking-done .cor-checklist li').count(),3);
+      if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.booking-done').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/booking-done-${mobile?'mobile':'desktop'}.png`});
+      await page.getByRole('button',{name:'Got it',exact:true}).click();
+    }else{
+      const reminder=page.locator('#toast-wrap .toast',{hasText:/signed COR/});
+      await reminder.waitFor();
+      assert.equal(await reminder.locator('.toast-close').count(),1,'Toasts can be dismissed');
+      if(process.env.CAMPUSCARE_VISUAL_DIR&&role==='Staff')await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/toast-${mobile?'mobile':'desktop'}.png`});
+      await reminder.locator('.toast-close').click();
+      await page.waitForFunction(()=>![...document.querySelectorAll('#toast-wrap .toast')].some(t=>/signed COR/.test(t.textContent)&&!t.classList.contains('leaving')));
+    }
+    if(role==='Staff'){
+      // Time slots are managed from the Appointments page: pick a doctor and a day, toggle times, save.
+      await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('appointments'));
+      page.__wideAvailability=true;
+      await page.locator('#appt-manage-slots').click();
+      await page.locator('.slot-manager-modal').waitFor();
+      assert(await page.locator('#slot-manager-save').isDisabled());
+      const doctorId=await page.evaluate(()=>String(window.__fixtureApp.state.data.DB.users.find(u=>u.role==='Doctor'&&u._realSupabase).id));
+      await page.locator('#sm-doc').selectOption(doctorId);
+      await page.locator('#sm-calendar .modern-calendar-day.available').first().click();
+      await page.locator('#slot-manager-grid .slot-toggle').first().waitFor();
+      assert(await page.locator('.slot-toggle.locked').first().isDisabled(),'Booked times cannot be changed');
+      await page.locator('.slot-toggle',{hasText:'11:00'}).click();
+      assert.match(await page.locator('#slot-manager-summary').innerText(),/1 unsaved change/);
+      // A custom time outside the regular grid, then the same pattern on the next same weekdays.
+      await page.locator('#sm-custom-time').fill('07:30');
+      await page.locator('.sm-custom').getByRole('button',{name:'Add'}).click();
+      assert.match(await page.locator('#slot-manager-grid .slot-toggle').first().innerText(),/7:30 AM[\s\S]*Custom time/);
+      await page.locator('#sm-batch-toggle').click();
+      await page.locator('.sm-batch').getByRole('button',{name:/Next 4/}).click();
+      const extra=await page.locator('.sm-chip').count();
+      assert(extra>=1,'Same weekdays are added to the batch');
+      assert.equal(await page.locator('#slot-manager-save').innerText(),`Save to ${extra+1} dates`);
+      if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.slot-manager-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/slot-manager-${mobile?'mobile':'desktop'}.png`});
+      const before=requests.length;
+      await page.locator('#slot-manager-save').click();
+      await page.locator('#slot-manager-summary').filter({hasNotText:'unsaved'}).waitFor();
+      const saves=requests.slice(before).filter(r=>r.path.endsWith('/appointment-actions')&&r.body?.action==='manage_slots');
+      assert.equal(saves.length,extra+1,'One save per selected date');
+      for(const save of saves){
+        assert(save.body.slots.some(x=>x.time==='11:00'&&x.is_available===false),'Closing a time sends it as unavailable');
+        assert(save.body.slots.some(x=>x.time==='07:30'&&x.is_available===true),'Custom times are saved as open');
+      }
+      assert(await page.locator('.slot-manager-modal').isVisible(),'The manager stays open for the next day');
+      page.__wideAvailability=false;
+      await page.locator('.slot-manager-modal .close-btn').click();
+    }
     assert(requests.some(request=>request.path.endsWith('/appointment-actions')&&request.body?.action==='create'),'A real slot click must reach the booking API');
   }
   await page.evaluate(()=>window.__fixtureApp.features.accountSettings.openProfileDetails());
   assert.equal(await page.locator('#active-modal .modal-header .close-btn').count(),1);
+  assert.equal(await page.locator('#active-modal').getByRole('button',{name:/Change password/}).count(),1);
+  if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/profile-${role}.png`});
   assert.equal(await page.locator('#active-modal .modal-footer').getByRole('button',{name:'Close',exact:true}).count(),0);
   await page.locator('#active-modal .close-btn').click();
+  if(role==='Doctor'){
+    // Visit record: the clinic is fixed by the doctor's own clinic, vitals are flagged, BMI is computed, no imaging field.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const pt=state.data.DB.patients.find(p=>p._realSupabase&&!p.archived)||state.data.DB.patients[0];features.treatmentForm.openAddTreatmentModalPt(pt.id);});
+    await page.locator('.tv-modal').waitFor();
+    assert.equal(await page.locator('#tm-record-type').inputValue(),'Medical Clinic');
+    assert.equal(await page.locator('.tv-modal select#tm-record-type').count(),0,'The clinic is not a choice');
+    assert.equal(await page.locator('#tm-xray').count(),0);
+    assert.match(await page.locator('.tv-meta').innerText(),/Medical Clinic/);
+    await page.locator('#tm-temp').fill('38.4');await page.locator('#tm-weight').fill('70');await page.locator('#tm-height').fill('175');
+    assert.equal(await page.locator('.tv-vital[data-vital="temp"] .tv-flag').innerText(),'FEVER');
+    assert.match(await page.locator('#tm-bmi').innerText(),/22\.9[\s\S]*Normal/);
+    await page.getByRole('button',{name:'2 weeks',exact:true}).click();
+    assert.notEqual(await page.locator('#tm-followup').inputValue(),'');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/visit-record-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#active-modal .close-btn').click();
+    // A dental doctor gets the dental record: quadrant tooth chart, tap-to-mark codes, procedure rows, work status.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.auth.currentUser.specialty='Dental';const pt=state.data.DB.patients.find(p=>p._realSupabase&&!p.archived)||state.data.DB.patients[0];features.treatmentForm.openAddTreatmentModalPt(pt.id);});
+    await page.locator('#tm-dental-section').waitFor();
+    assert.equal(await page.locator('#tm-record-type').inputValue(),'Dental Clinic');
+    assert.equal(await page.locator('.dr-arch:not(.primary) .tm-dental-tooth').count(),32);
+    await page.locator('.dr-code',{hasText:'Decayed'}).click();
+    await page.locator('.tm-dental-tooth[data-tooth="36"]').click();
+    assert.equal(await page.locator('.tm-dental-tooth[data-tooth="36"]').inputValue(),'D');
+    await page.locator('.dr-chip',{hasText:'Fair'}).click();await page.locator('.dr-chip',{hasText:'Poor'}).click();
+    await page.getByRole('button',{name:'Add procedure'}).click();
+    await page.locator('.dr-op').nth(0).locator('.tm-dental-op-tooth').fill('36');await page.locator('.dr-op').nth(0).locator('.tm-dental-op-nature').fill('Tooth filling (restoration)');
+    await page.locator('.dr-status label',{hasText:'Completed'}).click();
+    const dentalData=await page.evaluate(()=>window.__fixtureApp.features.patientForm.collectDentalRecordForm());
+    assert.equal(dentalData.odontogram['36'],'D');assert.equal(dentalData.oral_health.poor,true);assert.equal(dentalData.oral_health.fair,false,'Condition is one choice');
+    assert.deepEqual(dentalData.accomplishment,[{tooth_no:'36',nature:'Tooth filling (restoration)'}]);assert.equal(dentalData.work_status,'Completed');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#tm-dental-section').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/dental-record-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#active-modal .close-btn').click();
+    await page.evaluate(()=>{window.__fixtureApp.state.auth.currentUser.specialty='General Medicine';});
+    // Certificates: doctors write, sign and issue them; only the three purposes are offered.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('cert-requests'));
+    await page.getByRole('button',{name:'+ New Certificate'}).click();
+    assert.deepEqual(await page.locator('#nc-purpose option').evaluateAll(o=>o.map(x=>x.value)),['OJT / Internship Requirement','Excused Absence','Sports / Athletics Participation']);
+    await page.getByRole('button',{name:'Continue to document'}).click();
+    assert(await page.locator('#nc-pt-error').isVisible());
+    await page.locator('#nc-purpose').selectOption('Excused Absence');
+    assert.equal(await page.locator('#nc-absentFrom').count(),1);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/certificate-new-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#active-modal .close-btn').click();
+    // Fitness assessment: screening questions gate the decision.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('fitness'));
+    await page.getByRole('button',{name:'+ New Assessment'}).click();
+    assert.equal(await page.locator('#fit-screening .fit-screen-row').count(),9);
+    await page.locator('input[name="fit-q-syncope"][value="yes"]').check();
+    assert(await page.locator('#fit-screen-warning').isVisible());
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/fitness-form-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#active-modal .close-btn').click();
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('treatments'));
+    await page.locator('#tr-summary').waitFor();
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/treatments-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+  }
   if(role==='Administrator'){
+    // Request rows open a review with the requester, the change, the reason and the supporting file.
+    await page.evaluate(()=>{window.__fixtureApp.state.userManagement.tab='requests';window.__fixtureApp.features.navigationRaceProtection.navTo('users');});
+    await page.locator('tr.req-row').first().waitFor();
+    // Switching tabs redraws only the tab: no page skeleton and no directory re-fetch.
+    const directoryReads=[];const onRequest=request=>{if(/\/rest\/v1\/users/.test(request.url()))directoryReads.push(request.url());};
+    page.on('request',onRequest);
+    for(const name of [/^Users/,/^Doctor schedules/,/^Requests/]){
+      await page.getByRole('tab',{name}).click();
+      assert.equal(await page.locator('#app-content .db-skeleton-wrap').count(),0,'Tab switch must not show the page skeleton');
+      assert.equal(await page.getByRole('tab',{name}).getAttribute('aria-selected'),'true');
+    }
+    page.off('request',onRequest);assert.deepEqual(directoryReads,[],'Tab switch must not reload the user directory');
+    await page.locator('tr.req-row').first().waitFor();
+    assert.equal(await page.locator('tr.req-row .req-attach-badge').count(),1);
+    await page.locator('tr.req-row').first().click();
+    await page.locator('.req-review').waitFor();
+    assert.match(await page.locator('.req-review').innerText(),/Scheduled minor procedure/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.req-review').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/request-review-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('.req-review .req-attach-view').click();
+    await page.locator('#preview-img').waitFor();
+    await page.locator('#active-modal .close-btn').click();
+    await page.locator('.req-review').waitFor();
+    await page.locator('#req-review-note').fill('Approved, get well soon');
+    await page.locator('.req-review').getByRole('button',{name:'Approve',exact:true}).click();
+    await page.locator('#cc-confirm-ok-btn').click();
+    await page.waitForFunction(()=>!document.getElementById('cc-confirm-ok-btn'));
+    await page.waitForTimeout(300);
+    const decision=requests.filter(r=>r.path.endsWith('/workflow-actions')&&r.body?.action==='decision').at(-1);
+    assert.equal(decision?.body.admin_note,'Approved, get well soon');
+    assert.equal(decision.body.request_id,9);
+    // Action buttons inside a row act directly without opening the review.
+    await page.locator('tr.req-row').first().getByRole('button',{name:'Reject',exact:true}).click();
+    assert.equal(await page.locator('.req-review').count(),0);
+    await page.evaluate(()=>{window.__fixtureApp.features.modals.closeAllModals();window.__fixtureApp.state.userManagement.tab='users';});
+    // Doctor schedules: a weekly coverage board, and an editor that checks bookings before applying.
+    await page.evaluate(()=>{window.__fixtureApp.state.userManagement.tab='schedules';window.__fixtureApp.features.navigationRaceProtection.navTo('users');});
+    await page.locator('tr.dsb-row').first().waitFor();
+    await page.waitForFunction(()=>document.querySelector('tr.dsb-row')?.querySelectorAll('.dsb-cell.work').length===5);
+    assert.match(await page.locator('tr.dsb-row').first().innerText(),/8 AM\s*to\s*5 PM/);
+    if(!mobile)assert(await page.locator('.dsb-table').evaluate(t=>t.parentElement.scrollWidth<=t.parentElement.clientWidth+1),'Coverage grid fits without sideways scrolling');
+    assert.equal(await page.locator('.dsb-stat').count(),4);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/doctor-schedules-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+    await page.locator('tr.dsb-row').first().click();
+    await page.locator('.dse-modal').waitFor();
+    assert.equal(await page.locator('#dse-max').inputValue(),'9','A daily limit above the available slots is lowered to fit');
+    assert(await page.locator('#dse-save').isDisabled(),'Nothing to save until something changes');
+    await page.locator('.dse-day[data-day="Sat"] .dse-switch').click();
+    await page.locator('.dse-day[data-day="Sat"] .dse-end').fill('12:00');
+    assert.match(await page.locator('.dse-day[data-day="Sat"] .dse-slots').innerText(),/4 slots · 4 patients max/);
+    assert.match(await page.locator('#dse-summary').innerText(),/reason/i);
+    // The date picker opens over the editor and returns to it with the edits intact.
+    await page.locator('#dse-reason').fill('Saturday clinic for exams');
+    await page.locator('.dse-modal .modern-date-btn').first().click();
+    await page.locator('#campus-single-date-calendar').waitFor();
+    await page.locator('#active-modal .close-btn').click();
+    await page.locator('.dse-modal').waitFor();
+    assert.equal(await page.locator('#dse-reason').inputValue(),'Saturday clinic for exams');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.dse-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/schedule-editor-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#dse-save').click();
+    await page.locator('#dse-apply').click();
+    await page.waitForFunction(()=>!document.querySelector('.dse-modal'));
+    const preview=requests.filter(r=>r.path.endsWith('/workflow-actions')&&r.body?.action==='preview_schedule').at(-1);
+    const update=requests.filter(r=>r.path.endsWith('/workflow-actions')&&r.body?.action==='admin_schedule_update').at(-1);
+    assert(preview,'Bookings are checked before saving');
+    assert.equal(update.body.max_patients,9);
+    assert.deepEqual(update.body.weekly_schedule.find(d=>d.day==='Sat'),{day:'Sat',is_working:true,start_time:'08:00',end_time:'12:00',slot_duration:60,max_patients:4});
+    assert.equal(update.body.weekly_schedule.find(d=>d.day==='Mon').max_patients,9);
+    await page.evaluate(()=>{window.__fixtureApp.state.userManagement.tab='users';});
+    // Add staff account: role cards, registration rules inline, a review step, then sign-in details.
+    await page.evaluate(()=>window.__fixtureApp.features.userForm.openAddUserModal());
+    await page.locator('.au-modal').waitFor();
+    // Only doctors and staff can be added; administrators are never created here.
+    assert.equal(await page.locator('.au-role').count(),2);
+    assert.equal(await page.locator('.au-role',{hasText:'Administrator'}).count(),0);
+    assert(await page.locator('#au-doctor').isVisible(),'Doctors choose a specialization');
+    assert.equal(await page.locator('#au-services-list input:checked').count(),4,'Every service of the clinic starts ticked');
+    await page.locator('#au-spec').selectOption('Dental');
+    assert.match(await page.locator('#au-services-list').innerText(),/Oral Prophylaxis/);
+    await page.locator('.au-role',{hasText:'Staff'}).click();
+    assert(await page.locator('#au-doctor').isHidden());
+    await page.getByRole('button',{name:'Review account'}).click();
+    assert(await page.locator('#au-fname-error').isVisible());assert(await page.locator('#au-email-error').isVisible());
+    assert(await page.locator('#au-empno-error').isVisible(),'The employee number is required');
+    await page.locator('#au-fname').fill('Ma. Clara');await page.locator('#au-lname').fill('Dela Cruz');
+    await page.locator('#au-empno').fill('1a4');
+    assert.equal(await page.locator('#au-empno').inputValue(),'14','Digits only');
+    await page.locator('#au-empno').fill('14982');
+    await page.locator('#au-user').fill('mclara');
+    await page.locator('#au-email').fill('mclara@gmial.com');await page.locator('#au-email').blur();
+    await page.locator('#au-email-error').getByRole('button',{name:'Use @gmail.com'}).click();
+    assert.equal(await page.locator('#au-email').inputValue(),'mclara@gmail.com');
+    await page.locator('#au-contact').fill('12345');await page.locator('#au-contact').blur();
+    assert(await page.locator('#au-contact-error').isVisible());
+    await page.locator('#au-contact').fill('+639171234567');
+    assert(await page.locator('#au-contact-error').isHidden());
+    // The password is generated and emailed by the server; it is never shown or typed here.
+    assert.equal(await page.locator('#au-generated, #au-pass').count(),0);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.au-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/add-user-${mobile?'mobile':'desktop'}.png`});
+    await page.getByRole('button',{name:'Review account'}).click();
+    await page.locator('#au-review').getByText('Check the new account').waitFor();
+    await page.getByRole('button',{name:'Create account'}).click();
+    await page.locator('.au-done').waitFor();
+    const created=requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='create').at(-1);
+    assert.equal(created.body.role,'Staff');assert.equal(created.body.contact_number,'09171234567');
+    assert.equal(created.body.id_number,'14982');assert.equal(created.body.specialty,null);
+    assert.equal(created.body.password,undefined,'No password leaves the browser');
+    assert.doesNotMatch(await page.locator('.au-done').innerText(),/password:/i);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.au-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/add-user-done-${mobile?'mobile':'desktop'}.png`});
+    await page.getByRole('button',{name:'Done'}).click();
+    await page.evaluate(()=>window.__fixtureApp.features.loginLockout.openPrivacyNotice());
+    await page.locator('.privacy-notice .pn-rights').waitFor();
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.privacy-notice').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/privacy-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('.privacy-notice').getByRole('button',{name:'I understand'}).click();
+    // Fitness assessments are doctor-only: no menu entry, and the page redirects to the dashboard.
+    assert.equal(await page.locator('#nav-fitness').count(),0);
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('fitness'));
+    await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
     // Use synthetic registration images to exercise the real review/preview controls without patient data.
     await page.evaluate(()=>{
       const {state,features}=window.__fixtureApp,canvas=document.createElement('canvas');canvas.width=40;canvas.height=60;
@@ -524,7 +901,227 @@ try{
       assert(await page.evaluate(()=>document.getElementById('active-modal')===window.__reviewNode),'Preview must return to the original review dialog');
       assert(await page.getByRole('button',{name:'Approve Registration',exact:true}).isVisible());
     }
+    // Approval needs every checklist point confirmed first.
+    const approveButton=page.getByRole('button',{name:'Approve Registration',exact:true});
+    assert(await approveButton.isDisabled());
+    for(const box of await page.locator('#ap-checklist input[type=checkbox]').all())await box.check();
+    assert(await approveButton.isEnabled());
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/approval-review-${mobile?'mobile':'desktop'}.png`});
+    // Rejecting needs a reason; the confirm button stays disabled until one is chosen.
+    await page.getByRole('button',{name:'Reject…',exact:true}).click();
+    const rejectConfirm=page.getByRole('button',{name:'Reject registration',exact:true});
+    assert(await rejectConfirm.isDisabled());
+    await page.getByLabel('Other reason').check();assert(await rejectConfirm.isDisabled());
+    await page.locator('#reject-reason-text').fill('Please retake the back photo.');assert(await rejectConfirm.isEnabled());
+    await page.getByRole('button',{name:'Back to review',exact:true}).click();
+    await page.locator('.approval-review-modal').waitFor();
     await page.locator('#active-modal .close-btn').click();
+    await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp,base=state.approvalQueue.realPendingApprovals[0];
+      const day=d=>new Date(Date.now()-d*864e5).toISOString();
+      state.approvalQueue.realPendingApprovals=[{...base,user_id:77,email:'review@gmail.com',id_number:'1350098',college:'CCICT',email_confirmed_at:day(1),created_at:day(3)},{...base,user_id:78,first_name:'Ana',last_name:'Reyes',email:'ana@gmail.com',person_type:'Non-Teaching Personnel',college:'Registrar',id_number:'123',verification_back_signed_url:null,created_at:day(0.2)}];
+      features.approvalQueue.renderApprovals(false);
+    });
+    await page.locator('.approval-table').waitFor();
+    assert.equal(await page.locator('.approval-table .approval-row').count(),2);
+    assert.match(await page.locator('.approval-table .approval-row').first().innerText(),/Fixture, Review/);
+    assert(await page.locator('.approval-flag',{hasText:'Email not confirmed'}).count());
+    await page.locator('#ap-ptype').selectOption('Non-Teaching Personnel');assert.equal(await page.locator('#ap-unit option').first().innerText(),'All Departments');
+    assert.equal(await page.locator('.approval-table .approval-row').count(),1);
+    await page.locator('#ap-ptype').selectOption('');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/approvals-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+    // A theme picked with the toggle survives a reload.
+    if(!mobile){
+      const before=await page.evaluate(()=>document.documentElement.dataset.theme||'light');
+      await page.locator('#theme-toggle-btn').click();
+      const chosen=before==='dark'?'light':'dark';
+      assert.equal(await page.evaluate(()=>localStorage.getItem('campuscare-theme')),chosen);
+      await page.reload();await page.waitForFunction(()=>Boolean(window.__fixtureApp));
+      assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme||'light'),chosen);
+      await page.evaluate(()=>localStorage.removeItem('campuscare-theme'));
+    }
+  }
+  if(role==='Staff'){
+    // The clinic does not cancel: a visit that cannot push through gets an apology and a proposed new time.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const pt=state.data.DB.patients.find(p=>p._realSupabase)||state.data.DB.patients[0];const doc=state.data.DB.users.find(u=>u.role==='Doctor'&&u._realSupabase);
+      state.data.DB.appointments.push({id:990077,dbAppointmentId:77,_realSupabase:true,patientId:pt.id,doctorId:doc?.id,clinic:'Medical Clinic',service:'General Checkup',date:'2026-12-01',time:'09:00',status:'Scheduled',reason:'Fever'});
+      window.__allowed=features.appointments.appointmentAllowedActions(state.data.DB.appointments.at(-1));
+      features.reappointment.openReappointModal(990077);});
+    assert.equal(await page.evaluate(()=>window.__allowed.cancel),false,'Staff cannot cancel an appointment');
+    await page.locator('.reappoint-modal').waitFor();
+    assert(await page.locator('#ra-send').isDisabled(),'A reason, date and time are required');
+    await page.locator('#ra-reason').selectOption('The doctor is unavailable at that time');
+    await page.waitForFunction(()=>document.querySelectorAll('#ra-date option').length>1);
+    await page.locator('#ra-date').selectOption({index:1});
+    await page.locator('#ra-slots .slot').first().click();
+    assert.match(await page.locator('#ra-preview').innerText(),/We apologize that your appointment will not push through/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.reappoint-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reappoint-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#ra-send').click();
+    await page.waitForFunction(()=>!document.querySelector('.reappoint-modal'));
+    const reappointed=requests.filter(r=>r.path.endsWith('/appointment-actions')&&r.body?.action==='reappoint').at(-1);
+    assert.equal(reappointed.body.appointment_id,77);assert.equal(reappointed.body.reappoint_reason,'The doctor is unavailable at that time');
+    assert.match(reappointed.body.appointment_date,/^\d{4}-\d{2}-\d{2}$/);assert.match(reappointed.body.appointment_time,/^\d{2}:\d{2}$/);
+    // Sending refreshes the page the staff member is on; let it settle before the next check replaces it.
+    await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId&&!document.querySelector('#app-content .db-skeleton-wrap'));
+    await page.waitForTimeout(600);
+    // Inventory forecast: 3 months by default, presets and custom days (7–365), a plan column and a CSV with options.
+    await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp,today=state.clinicInformation.TODAY,anchor=features.predictiveAnalytics.healthAnalyticsAnchorDate().date,back=n=>{const d=new Date(anchor+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-n);return d.toISOString().slice(0,10);};
+      state.data.DB.inventory=[{id:500001,dbItemId:1,_realSupabase:true,name:'Gauze pads',category:'Supplies',qty:100,threshold:20,unit:'pcs',unitCost:2}];
+      state.data.DB.inventoryTransactions=[{id:1,_realSupabase:true,itemId:500001,type:'Disbursement',qty:5,date:back(3)}];
+      state.data.DB.inventoryForecasts=[{itemId:500001,forecastMonth:today.slice(0,7)+'-01',predictedUsage:150}];
+      state.inventoryList.forecastDays=undefined;
+      document.getElementById('app-content').innerHTML='<div id="inv-forecast"></div>';
+      document.getElementById('inv-forecast').innerHTML=features.inventoryService.forecastSectionHtml();
+    });
+    assert.equal(await page.locator('.fc-preset.active').innerText(),'3 months');
+    assert.match(await page.locator('.forecast-table thead').innerText(),/Plan for 3 months/);
+    assert.match(await page.locator('.fc-plan').innerText(),/Order \d+ pcs/);
+    await page.locator('.fc-preset',{hasText:'30 days'}).click();
+    assert.equal(await page.locator('.forecast-table thead th').count(),7,'Item, five weeks and the plan');
+    await page.locator('#fc-days').fill('400');await page.locator('#fc-days').press('Enter');
+    assert.match(await page.locator('.forecast-table thead').innerText(),/Plan for 1 year/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#inv-forecast').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/inventory-forecast-${mobile?'mobile':'desktop'}.png`});
+    // Items without a photo show a placeholder that opens a larger view with a shortcut to add one.
+    await page.locator('.forecast-table .item-thumb.empty').first().click();
+    await page.locator('#active-modal .item-view-empty').waitFor();
+    assert.equal(await page.locator('#active-modal').getByRole('button',{name:'Add photo'}).count(),await page.evaluate(()=>['Staff','Administrator'].includes(window.__fixtureApp.state.auth.currentUser.role))?1:0);
+    await page.locator('#active-modal .close-btn').click();
+    await page.locator('.fc-preset',{hasText:'3 months'}).click();
+    await page.getByRole('button',{name:'Download CSV'}).click();
+    await page.locator('.fc-csv').waitFor();
+    await page.locator('input[name="fc-layout"][value="detailed"]').check();
+    await page.locator('input[name="fc-col"][value="category"]').uncheck();
+    const [forecastCsv]=await Promise.all([page.waitForEvent('download'),page.locator('.fc-csv').getByRole('button',{name:'Download',exact:true}).click()]);
+    assert.match(forecastCsv.suggestedFilename(),/^campuscare-inventory-forecast-90-days-from-\d{4}-\d{2}-\d{2}\.csv$/);
+    const forecastText=(await import('node:fs')).readFileSync(await forecastCsv.path(),'utf8');
+    assert(forecastText.startsWith('\ufeff'),'UTF-8 marker for Excel');
+    const forecastLines=forecastText.slice(1).trimEnd().split('\r\n');
+    assert.match(forecastLines[0],/^Item Name,Item: No\.,Item: Unit,Stock: On Hand,Stock: Reorder Level,Period: Start,Period: End,Period: Projected Use,Period: Stock Left$/);
+    assert(forecastLines.length>=4,'One row per item per month');
+  }
+  if(role==='Administrator'&&!mobile){
+    // Signed-in devices list each session; other devices can be signed out one by one.
+    await page.evaluate(()=>{
+      const client=window.__fixtureApp.state.supabaseClient.supabaseClient,now=Date.now();
+      window.__revoked=[];window.__realRpc=client.rpc;
+      client.rpc=async(name,args)=>{
+        if(name==='revoke_my_session'){window.__revoked.push(args.target);return {data:true,error:null};}
+        return {data:[
+          {id:'a',current:true,user_agent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36',ip:'203.0.113.4',created_at:new Date(now-864e5).toISOString(),last_active_at:new Date(now).toISOString()},
+          {id:'b',current:false,user_agent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1',ip:'198.51.100.7',created_at:new Date(now-5*864e5).toISOString(),last_active_at:new Date(now-2*864e5).toISOString()}
+        ].filter(r=>!window.__revoked.includes(r.id)),error:null};
+      };
+    });
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('my-account'));
+    const devices=page.locator('#acc-devices .device-row');await devices.first().waitFor();
+    await page.waitForTimeout(800);await devices.first().waitFor();
+    assert.equal(await devices.count(),2);
+    assert.match(await devices.first().innerText(),/Chrome on Windows[\s\S]*This device/);
+    assert.match(await devices.nth(1).innerText(),/Safari on iOS/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR){await page.evaluate(()=>document.getElementById('acc-devices').scrollIntoView({block:'center'}));const box=await page.locator('#acc-devices').boundingBox();await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/devices.png`,clip:{x:box.x-10,y:box.y-60,width:box.width+20,height:box.height+70}});}
+    await devices.nth(1).getByRole('button',{name:'Sign out'}).click();await page.locator('#cc-confirm-ok-btn').click();
+    await page.waitForFunction(()=>document.querySelectorAll('#acc-devices .device-row').length===1);
+    // Mismatched passwords are flagged beside the confirmation field.
+    await page.locator('#pw-new').fill('NewPass123');await page.locator('#pw-conf').fill('NewPass12x');
+    assert.equal(await page.locator('#pw-conf-error').innerText(),'Passwords do not match.');
+    await page.locator('#pw-conf').fill('NewPass123');assert(await page.locator('#pw-conf-error').isHidden());
+    assert.equal(await page.locator('#pw-cooldown-note.alert-info').count(),0);
+    await page.evaluate(()=>{const client=window.__fixtureApp.state.supabaseClient.supabaseClient;client.rpc=window.__realRpc;});
+  }
+  if(process.env.CAMPUSCARE_VISUAL_DIR&&role==='Administrator'&&!mobile){
+    for(const route of ['users','survey-results','feedback-issues','settings','activity-log','my-account']){
+      await page.evaluate(route=>window.__fixtureApp.features.navigationRaceProtection.navTo(route),route);
+      await page.waitForTimeout(400);
+      await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/admin-${route}.png`,fullPage:true});
+    }
+  }
+  if(role==='Administrator'&&!mobile){
+    // Feedback & Issues works like a helpdesk: queue stats, priority order, bulk selection and a thread with internal notes.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('feedback-issues'));
+    await page.locator('#fi-list').waitFor();
+    await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp,me=state.auth.currentUser,now=Date.now(),h=36e5;
+      const iso=ago=>new Date(now-ago*h).toISOString();
+      state.data.DB.issueReports=[
+        {id:1400001,dbIssueId:1,reporterId:me.id,reporterName:'Ana Reyes',reporterRole:'Patient',type:'Bug',page:'Appointments',description:'Booking page freezes after choosing a date\nIt spins forever.',status:'Open',priority:'Normal',deviceInfo:'Chrome 141 · Windows · 1920×1080',replies:[],createdAt:iso(30),_realSupabase:true},
+        {id:1400002,dbIssueId:2,reporterId:me.id,reporterName:'Ben Cruz',reporterRole:'Staff',type:'Suggestion',page:'Inventory',description:'Add barcode scanning',status:'In Review',priority:'Urgent',replies:[{authorRole:'Administrator',authorName:'Admin',body:'Checking with the team.',internal:true,createdAt:iso(5)}],createdAt:iso(10),_realSupabase:true},
+        {id:1400003,dbIssueId:3,reporterId:me.id,reporterName:'Cy Lim',reporterRole:'Patient',type:'Feedback',description:'Nice update',status:'Resolved',priority:'Low',resolvedAt:iso(2),replies:[{authorRole:'Administrator',authorName:'Admin',body:'Thanks!',createdAt:iso(3)}],createdAt:iso(8),_realSupabase:true}
+      ];
+      features.issueReports.renderFeedbackIssuesList();
+    });
+    const rows=page.locator('#fi-list div.fi-row');
+    assert.equal(await rows.count(),2,'Needs action lists open reports only');
+    assert.match(await rows.first().innerText(),/Add barcode scanning[\s\S]*Urgent/,'Urgent reports come first');
+    await rows.first().locator('.fi-select').check();
+    assert.match(await page.locator('#fi-bulk').innerText(),/1 selected/);
+    await rows.first().locator('.fi-open').click();
+    await page.locator('#issue-thread .fi-side').waitFor();
+    assert.match(await page.locator('#issue-thread .fi-msg.internal').innerText(),/Internal note/);
+    // Saved replies insert their text and the counter follows what is typed.
+    await page.locator('#fi-composer .fi-saved summary').click();
+    await page.locator('#fi-composer .fi-saved-menu button',{hasText:'Need more details'}).click();
+    assert.match(await page.locator('#issue-reply-text').inputValue(),/Could you tell us the steps/);
+    assert.match(await page.locator('#fi-composer-count').innerText(),/^\d+ \/ 3000$/);
+    assert.equal(await page.locator('#fi-composer .fi-saved[open]').count(),0,'The menu closes after choosing');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#fi-composer').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/feedback-composer-reply.png`});
+    await page.locator('#fi-composer .fi-composer-tabs button[data-mode="internal"]').click();
+    assert.equal(await page.locator('#fi-composer').getAttribute('data-mode'),'internal');
+    assert(await page.locator('#issue-reply-resolve-btn').isHidden(),'Internal notes cannot resolve the report');
+    assert(await page.locator('#fi-composer-note').isVisible());
+    assert.equal(await page.locator('#issue-reply-btn').innerText(),'Add note');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#fi-composer').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/feedback-composer-internal.png`});
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/feedback-thread.png`});
+    await page.locator('#issue-thread .close-btn').click();
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/feedback-queue.png`,fullPage:true});
+  }
+  if(role==='Staff'){
+    // Inventory is split into tabs like Reports & Analytics; a summary card jumps back to the item list.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('inventory'));
+    await page.locator('#inv-tab-items').waitFor();
+    await page.locator('#inv-tab-movements').click();
+    assert(await page.locator('#inv-panel-movements').isVisible());assert(await page.locator('#inv-panel-items').isHidden());
+    await page.locator('#inv-tab-forecast').click();
+    assert(await page.locator('#inv-panel-forecast').isVisible());
+    // The inventory forecast has its own AI briefing, available even before usage history exists.
+    await page.locator('#inv-forecast-ai .ai-generate').click();
+    await page.locator('#inv-forecast-ai .ai-headline').waitFor();
+    assert.match(await page.locator('#inv-forecast-ai').innerText(),/What should we order first\?/);
+    await page.locator('.inv-stat:not([disabled])').first().click();
+    assert(await page.locator('#inv-panel-items').isVisible(),'A summary card opens the filtered item list');
+    if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/inventory-tabs-${role}.png`});
+  }
+  if(role==='Administrator'){
+    // The activity log reads as a day-grouped timeline with category chips and an entry view showing before → after.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('activity-log'));
+    await page.locator('#audit-table').waitFor();
+    await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp,now=Date.now();
+      const iso=h=>new Date(now-h*36e5).toISOString();
+      state.data.DB.activityLogs=[
+        {id:9001,timestamp:iso(.2),userName:'Ana Reyes',role:'Administrator',action:'LOGIN',targetType:'session',targetId:3,details:'source: web',rawDetails:{source:'web'},ipAddress:'203.0.113.4',userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36'},
+        {id:9002,timestamp:iso(.5),userName:'Ana Reyes',role:'Administrator',action:'INVENTORY_QUANTITY_UPDATED',targetType:'inventory_items',targetId:12,details:'',rawDetails:{previous_quantity:40,new_quantity:25,reason:'Count correction'}},
+        {id:9003,timestamp:iso(30),userName:'Ben Cruz',role:'Staff',action:'APPOINTMENT_CANCELLED',targetType:'appointments',targetId:42,details:'',rawDetails:{reason:'Doctor unavailable'}}
+      ];
+      Object.assign(state.activityLog,{category:'',record:null,person:'',page:1});
+      features.emailDelivery.renderActivityLogTable();
+    });
+    // The last 24 hours by default, as a compact paged table.
+    assert.equal(await page.locator('#audit-period').inputValue(),'24h');
+    assert.equal(await page.locator('.audit-row').count(),2);
+    await page.locator('#audit-period').selectOption('');
+    assert.equal(await page.locator('.audit-row').count(),3);
+    assert.match(await page.locator('.audit-row').nth(2).innerText(),/Ben Cruz[\s\S]*cancelled appointment #42/);
+    assert.match(await page.locator('#audit-table .pt-pager').innerText(),/Showing 1–3 of 3/);
+    await page.locator('.audit-chip',{hasText:'Inventory'}).click();
+    assert.equal(await page.locator('.audit-row').count(),1);
+    await page.locator('.audit-row').first().click();
+    await page.locator('.audit-entry .audit-changes').waitFor();
+    assert.match(await page.locator('.audit-changes').innerText(),/Quantity\s+40\s+25/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/audit-entry.png`});
+    await page.locator('.audit-entry .close-btn').click();
+    await page.locator('.audit-chip',{hasText:'All'}).first().click();
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/audit-log-${mobile?'mobile':'desktop'}.png`,fullPage:true});
   }
   // Walk every visible role route through its actual generated click callback.
   const navIds=await page.locator('#sidebar nav [id^="nav-"]').evaluateAll(elements=>elements.map(element=>element.id));
@@ -533,127 +1130,41 @@ try{
     await page.evaluate(id=>document.getElementById(id).click(),id);
     await page.waitForTimeout(120);
     assert(await page.locator('#app-content').innerHTML(),`${role}: empty ${id}`);
-  }
-  // Exercise the actual message toolbar and action-sheet callbacks with synthetic conversations.
-  await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('messages'));
-  await page.locator('#msgr-shell').waitFor();
-  await page.evaluate(async()=>{
-    const {state,features}=window.__fixtureApp;
-    clearInterval(state.messaging.messagePollTimer);state.messaging.messagePollTimer=null;
-    const partner={id:100090,dbUserId:90,fname:'Clinic',lname:'Contact',role:'Doctor',status:'Active',_realSupabase:true};
-    state.data.DB.users.push(partner);
-    state.data.DB.messages=[{id:901,dbMessageId:901,fromUserId:partner.id,toUserId:state.auth.currentUser.id,message:'Your clinic update is ready.',createdAt:'2026-10-20T07:00:00Z',isRead:true,_realSupabase:true},{id:902,dbMessageId:902,fromUserId:state.auth.currentUser.id,toUserId:partner.id,message:'Thank you. I will visit the clinic.',createdAt:'2026-10-20T07:01:00Z',isRead:true,_realSupabase:true}];
-    await features.messaging.openConversation(partner.id);
-  });
-  await page.locator('#msgr-bubble-902').waitFor();
-  if(mobile){
-    // A short in-app browser viewport (and keyboard-sized viewport) must retain a usable composer.
-    for(const height of [620,420]){
-      await page.setViewportSize({width:390,height});
-      await page.waitForTimeout(200);
-      assert(await page.locator('#msgr-text-input').evaluate(input=>{const r=input.getBoundingClientRect();return r.top>=0&&r.bottom<=visualViewport.height+visualViewport.offsetTop;}),'Mobile composer must be inside the usable viewport');
-      await page.locator('#msgr-text-input').fill('Mobile typing works');
+    // Reminders are sent by Staff and Administrators; doctors never see the option.
+    if(role==='Doctor')assert.equal(await page.locator('#app-content').getByText('Send reminder').count(),0,`Doctor sees Send reminder on ${id}`);
+    if(process.env.CAMPUSCARE_ROUTE_SHOTS===role&&(mobile?process.env.CAMPUSCARE_ROUTE_SHOTS_MOBILE:!process.env.CAMPUSCARE_ROUTE_SHOTS_MOBILE)){await page.waitForTimeout(400);await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/route-${role}${mobile?'-mobile':''}-${id.replace('nav-','')}.png`,fullPage:true});}
+    // Automated WCAG 2.1 A/AA check (axe-core) of every page each role can open, in light and dark themes.
+    if(!mobile)for(const theme of ['light','dark']){
+      // Colours are measured after the theme switch settles, not mid-transition.
+      await page.evaluate(theme=>{if(!document.getElementById('a11y-still')){const st=document.createElement('style');st.id='a11y-still';st.textContent='*,*::before,*::after{transition:none!important;animation:none!important}';document.head.append(st);}document.documentElement.dataset.theme=theme;document.getElementById('toast-wrap')?.replaceChildren();},theme);
+      await page.waitForTimeout(60);
+      if(!await page.evaluate(()=>Boolean(window.axe)))await page.evaluate(axeSource);
+      const found=await page.evaluate(async()=>(await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']},resultTypes:['violations']})).violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.slice(0,4).map(n=>({target:n.target.join(' '),summary:n.failureSummary}))})));
+      a11yFindings.push(...found.map(v=>({role,page:id,theme,...v})));
+      // Keyboard: anything clickable must be focusable (a native control or tabindex) so it works without a mouse.
+      if(theme==='light'){
+        const unreachable=await page.evaluate(()=>[...document.querySelectorAll('#app [data-action-click]')].filter(el=>el.offsetParent&&!el.matches('a[href],button,input,select,textarea,summary,label,[tabindex]')&&!el.closest('a[href],button,label')&&!el.classList.contains('td-actions')).slice(0,6).map(el=>el.outerHTML.slice(0,140)));
+        if(unreachable.length)a11yFindings.push({role,page:id,theme,id:'keyboard-unreachable',nodes:unreachable.map(target=>({target}))});
+      }
     }
-    await page.locator('#msgr-text-input').fill('');
-    await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);
   }
-
-  assert.equal(await page.locator('.msgr-bubble .msgr-bubble-time').count(),0,'Timestamps must sit outside message bubbles');
-  // Long attachment names must remain visible rather than leaving only a trash button on phones.
-  for(const attachment of [{type:'file',name:'Resume_JophetSanchez_done.docx'},{type:'image',name:'School ID front.jpg'},{type:'file',name:'https://example.test/clinic-information'}]){
-    await page.evaluate(attachment=>{window.__fixtureApp.state.messaging.pendingAttachment=attachment;window.__fixtureApp.features.messaging.showPendingAttachPreview();},attachment);
-    assert(await page.locator('.pending-attachment-name').isVisible());
-    assert.equal(await page.locator('.pending-attachment-name').textContent(),attachment.name);
-    assert(await page.locator('.pending-attachment-name').evaluate(el=>{const r=el.getBoundingClientRect();return r.width>20&&r.right<=innerWidth;}));
-    await page.getByRole('button',{name:'Remove attachment',exact:true}).click();
+  if(role==='Staff'&&!mobile){
+    // A clickable table row is reachable with Tab and opens with Enter, like a button.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('patients'));
+    const row=page.locator('#app-content tr[data-action-click]').first();
+    await row.waitFor();
+    assert.equal(await row.getAttribute('tabindex'),'0');
+    await row.focus();await page.keyboard.press('Enter');
+    await page.locator('#active-modal .modal').waitFor();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(()=>!document.querySelector('#active-modal .modal'));
   }
-  for(const label of ['Send a photo','Send a file','Record a voice message','Conversation info','Send message'])assert.equal(await page.getByRole('button',{name:label,exact:true}).locator('svg').count(),1);
-  await page.locator('[data-msg-id="902"]').getByRole('button',{name:'More message options',exact:true}).click();
-  const sheet=page.getByRole('group',{name:'Message actions'});await sheet.waitFor();
-  assert.equal(await sheet.getByRole('button').count(),4);
-  assert(await sheet.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight;}),'Message action sheet must fit the screen');
-  if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#msgr-chat').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/workspace-messages-${mobile?'mobile':'desktop'}.png`});
-  await sheet.getByRole('button',{name:'Edit',exact:true}).click();await page.locator('#msgr-edit-input-902').waitFor();
-  await page.locator('#msgr-edit-input-902').fill('Draft edit survives refresh');
-  await page.evaluate(()=>window.__fixtureApp.features.messaging.refreshMessageViews());
-  assert.equal(await page.locator('#msgr-edit-input-902').inputValue(),'Draft edit survives refresh');
-  await page.locator('#msgr-bubble-902').getByRole('button',{name:'Cancel',exact:true}).click();
-  assert.match(await page.locator('#msgr-bubble-902').innerText(),/Thank you/);
-  // In-place refreshes must retain the selected partner, reading position, editor and composer draft.
-  await page.evaluate(()=>{
-    const {state,features}=window.__fixtureApp;
-    const base=state.data.DB.messages[0];
-    state.data.DB.messages.push(...Array.from({length:35},(_,i)=>({...base,id:1000+i,dbMessageId:1000+i,message:'History message '+i,createdAt:new Date(Date.UTC(2026,9,20,8,i)).toISOString()})));
-    features.messaging.renderChatMessages(100090);
-    document.getElementById('msgr-text-input').value='Unsent composer draft';
-    window.__fixtureMessageRow=document.querySelector('[data-msg-id="902"]');
-    const scroller=document.getElementById('msgr-messages');scroller.dispatchEvent(new WheelEvent('wheel',{deltaY:-300}));scroller.scrollTop=120;scroller.dispatchEvent(new Event('scroll'));
-    window.__fixtureReadTop=document.getElementById('msgr-messages').scrollTop;
-    state.data.DB.messages.push({...base,id:1099,dbMessageId:1099,message:'New message while reading history',createdAt:'2026-10-20T08:59:00Z'});
-    features.messaging.refreshMessageViews();features.authSession.refreshActivePageAfterSync();
-  });
-  assert(await page.evaluate(()=>document.querySelector('[data-msg-id="902"]')===window.__fixtureMessageRow));
-  assert.equal(await page.locator('#msgr-text-input').inputValue(),'Unsent composer draft');
-  assert(await page.evaluate(()=>Math.abs(document.getElementById('msgr-messages').scrollTop-window.__fixtureReadTop)<2));
-  assert.equal(await page.evaluate(()=>window.__fixtureApp.state.messaging.activeConversationId),100090);
-  await page.evaluate(()=>{
-    const {features}=window.__fixtureApp;features.messaging.renderChatMessages(100090,{scrollToEnd:true});
-    const late=document.createElement('div');late.id='fixture-late-media';late.style.height='20px';document.querySelector('[data-msg-id="1099"] .msgr-bubble').append(late);
-  });
-  await page.waitForTimeout(80);
-  await page.evaluate(()=>document.getElementById('fixture-late-media').style.height='300px');
-  await page.waitForFunction(()=>{const el=document.getElementById('msgr-messages');return el.scrollHeight-el.clientHeight-el.scrollTop<3;},{},{timeout:2500});
-  assert(await page.locator('#msgr-messages').evaluate(el=>el.scrollHeight-el.clientHeight-el.scrollTop<3),'Latest message must stay visible after late media/layout growth');
-  await page.evaluate(()=>window.__fixtureApp.features.messaging.refreshMessageViews());await page.waitForTimeout(80);
-  assert(await page.locator('#msgr-messages').evaluate(el=>el.scrollHeight-el.clientHeight-el.scrollTop<3),'Refresh must remain at the latest message');
-  // A real oscillator stream exercises MediaRecorder and the live meter without a person's microphone.
-  await page.evaluate(()=>{
-    window.__fixtureAudioContext=new AudioContext();const oscillator=window.__fixtureAudioContext.createOscillator(),gain=window.__fixtureAudioContext.createGain(),destination=window.__fixtureAudioContext.createMediaStreamDestination();
-    gain.gain.value=.2;oscillator.connect(gain);gain.connect(destination);oscillator.start();
-    window.__fixtureVoiceGain=gain;
-    window.__fixtureOriginalMedia=navigator.mediaDevices.getUserMedia;
-    navigator.mediaDevices.getUserMedia=async constraints=>constraints.audio?destination.stream.clone():window.__fixtureOriginalMedia.call(navigator.mediaDevices,constraints);
-  });
-  await page.getByRole('button',{name:'Record a voice message',exact:true}).click();
-  await page.locator('.voice-recording').waitFor();await page.locator('.voice-recording [role="timer"]').getByText('0:01',{exact:true}).waitFor();
-  assert(await page.locator('.voice-recording .voice-wave i').evaluateAll(bars=>bars.some(bar=>parseFloat(bar.style.height)>2)),'The meter must reflect real microphone levels');
-  const loud=await page.locator('.voice-recording .voice-wave i').last().evaluate(bar=>parseFloat(bar.style.height));
-  await page.evaluate(()=>window.__fixtureVoiceGain.gain.value=0);await page.waitForTimeout(300);
-  assert(await page.locator('.voice-recording .voice-wave i').last().evaluate(bar=>parseFloat(bar.style.height))<loud,'Live amplitude must fall when the microphone goes silent');
-  await page.evaluate(()=>{window.__fixtureVoiceGain.gain.value=.2;window.__fixtureApp.features.messaging.refreshMessageViews();});
-  assert(await page.locator('.voice-recording').isVisible(),'Background refresh must not replace a recording');
-  if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#msgr-chat').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/voice-recording-${mobile?'mobile':'desktop'}.png`});
-  await page.getByRole('button',{name:'Stop voice recording',exact:true}).click();
-  await page.locator('#msgr-pending-attach .voice-player').waitFor();
-  assert(await page.locator('#msgr-pending-attach .msgr-pending-attach').evaluate(el=>{const items=[...el.children].filter(item=>getComputedStyle(item).display!=='none');const left=Math.min(...items.map(item=>item.getBoundingClientRect().left)),right=Math.max(...items.map(item=>item.getBoundingClientRect().right)),r=el.getBoundingClientRect();return Math.abs((left+right-r.left-r.right)/2)<3;}),'Pending voice attachment controls must be centered');
-  assert(await page.evaluate(()=>window.__fixtureApp.state.messaging.voiceRecorder.stream.getTracks().every(track=>track.readyState==='ended')));
-  await page.locator('#msgr-pending-attach').getByRole('button',{name:'Play voice message',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector('#msgr-pending-attach audio').currentTime>.1);
-  await page.evaluate(()=>{
-    const {state,features}=window.__fixtureApp;const attachment={...state.messaging.pendingAttachment};
-    state.data.DB.messages.push({id:1100,fromUserId:100090,toUserId:state.auth.currentUser.id,message:'',attachment,createdAt:'2026-10-20T09:00:00Z',isRead:true,_realSupabase:true});
-    features.messaging.clearPendingAttachment();features.messaging.renderChatMessages(100090,{scrollToEnd:true});
-    window.__fixtureVoiceAudio=document.querySelector('[data-msg-id="1100"] audio');
-  });
-  await page.locator('[data-msg-id="1100"]').getByRole('button',{name:'Play voice message',exact:true}).click();
-  await page.waitForFunction(()=>window.__fixtureVoiceAudio.currentTime>.1);
-  await page.evaluate(()=>window.__fixtureApp.features.messaging.refreshMessageViews());
-  assert(await page.evaluate(()=>document.querySelector('[data-msg-id="1100"] audio')===window.__fixtureVoiceAudio&&!window.__fixtureVoiceAudio.paused),'Incoming audio survives quiet updates');
-  if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#msgr-chat').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/voice-playback-${mobile?'mobile':'desktop'}.png`});
-  await page.evaluate(()=>{
-    const {state,features}=window.__fixtureApp;state.data.DB.messages.push({id:1101,fromUserId:state.auth.currentUser.id,toUserId:100090,message:'',attachment:{type:'file',name:'Clinic form.pdf',dataUrl:'data:application/pdf;base64,AA=='},createdAt:'2026-10-20T09:01:00Z',isRead:true,_realSupabase:true});features.messaging.refreshMessageViews();
-  });
-  assert.match(await page.locator('.msgr-contact-item.active .msgr-contact-preview').innerText(),/^You: sent a file$/);
-  await page.evaluate(()=>window.__fixtureVoiceAudio.pause());
-  await page.getByRole('button',{name:'Record a voice message',exact:true}).click();await page.locator('.voice-recording').waitFor();
-  await page.getByRole('button',{name:'Discard voice recording',exact:true}).click();
-  await page.waitForFunction(()=>window.__fixtureApp.state.messaging.voiceRecorder.stream.getTracks().every(track=>track.readyState==='ended'));
-  assert.equal(await page.locator('.voice-recording').count(),0);assert.equal(await page.evaluate(()=>window.__fixtureApp.state.messaging.pendingAttachment),null);
-  await page.getByRole('button',{name:'Record a voice message',exact:true}).click();await page.locator('.voice-recording').waitFor();
-  await page.evaluate(()=>{window.__fixtureLastVoiceTracks=window.__fixtureApp.state.messaging.voiceRecorder.stream.getTracks();window.__fixtureApp.features.navigationRaceProtection.navTo('dashboard');});
-  await page.waitForFunction(()=>window.__fixtureLastVoiceTracks.every(track=>track.readyState==='ended'));
-  await page.evaluate(async()=>{navigator.mediaDevices.getUserMedia=window.__fixtureOriginalMedia;await window.__fixtureAudioContext.close();});
-  if(['Staff','Administrator'].includes(role)){
+  // Messages is not part of CampusCare: no navigation entry, and old links land on the dashboard.
+  assert(!navIds.includes('nav-messages'),`${role}: Messages must not be in the sidebar`);
+  await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('messages'));
+  await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
+  assert.equal(await page.locator('#msgr-shell').count(),0);
+  if(role==='Staff'){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('patients'));
     await page.locator('#pt-session').waitFor();
     await page.evaluate(()=>{
@@ -666,27 +1177,111 @@ try{
       const body=document.querySelector('#pt-table tbody'),row=body.querySelector('tr');
       for(let i=0;i<24;i++)body.append(row.cloneNode(true));
     });
-    await page.waitForFunction(()=>{const wrap=document.querySelector('#pt-table .data-table-scroll');return wrap&&wrap.scrollHeight>wrap.clientHeight&&wrap.clientHeight<=innerHeight*.63;});
-    const patientScroll=page.locator('#pt-table .data-table-scroll');
-    assert.equal(await patientScroll.getAttribute('tabindex'),'0');
-    assert.equal(await patientScroll.locator('thead').evaluate(el=>getComputedStyle(el).position),'sticky');
-    await patientScroll.evaluate(el=>{el.scrollTop=el.scrollHeight;});
-    assert(await patientScroll.evaluate(el=>el.scrollTop>0));
+    if(mobile){
+      // Phones show each record as a card: name as the title, labelled fields and the actions underneath.
+      await page.waitForFunction(()=>document.querySelector('#pt-table table.cc-cards'));
+      // Only sortable headers stay, as sort chips; plain column headers are hidden.
+      assert(await page.locator('#pt-table th:not(:has(button))').first().isHidden());
+      assert(await page.locator('#pt-table th button').first().isVisible());
+      const card=page.locator('#pt-table tbody tr').first();
+      assert.equal(await card.locator('td.cc-cell-title').count(),1);
+      assert.equal(await card.locator('td.cc-cell-actions').count(),1);
+      assert.match(await card.locator('td[data-label]:not(.cc-cell-title)').first().evaluate(el=>getComputedStyle(el,'::before').content),/"\w/);
+      if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#pt-table').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/mobile-table-cards-${role}.png`});
+    }else{
+      await page.waitForFunction(()=>{const wrap=document.querySelector('#pt-table .data-table-scroll');return wrap&&wrap.scrollHeight>wrap.clientHeight&&wrap.clientHeight<=innerHeight*.63;});
+      const patientScroll=page.locator('#pt-table .data-table-scroll');
+      assert.equal(await patientScroll.getAttribute('tabindex'),'0');
+      assert.equal(await patientScroll.locator('thead').evaluate(el=>getComputedStyle(el).position),'sticky');
+      await patientScroll.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+      assert(await patientScroll.evaluate(el=>el.scrollTop>0));
+    }
     await page.locator('#pt-session').selectOption('Morning');assert.equal(await page.locator('#pt-ptype').inputValue(),'Student');
-    assert.equal(await page.locator('#pt-table tbody tr').count(),1);assert.match(await page.locator('#pt-table').innerText(),/Morning Fixture/);
+    assert.equal(await page.locator('#pt-table tbody tr').count(),1);assert.match(await page.locator('#pt-table').innerText(),/Fixture, Morning/);
     await page.locator('#pt-college').selectOption('COE');assert.equal(await page.locator('#pt-table tbody tr').count(),0);
     await page.locator('#pt-status').selectOption('archived');assert.equal(await page.locator('#pt-table tbody tr').count(),1);
     await page.locator('#pt-college').selectOption('');await page.locator('#pt-status').selectOption('active');
-    await page.locator('#pt-session').selectOption('Evening');assert.match(await page.locator('#pt-table').innerText(),/Evening Fixture/);
-    await page.locator('#pt-session').selectOption('unrecorded');assert.match(await page.locator('#pt-table').innerText(),/Unknown Fixture/);
-    await page.locator('#pt-session').selectOption('Mixed');assert.match(await page.locator('#pt-table').innerText(),/Mixed Fixture/);
+    await page.locator('#pt-session').selectOption('Evening');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Evening/);
+    // Class sessions are Morning or Evening only.
+    assert.deepEqual(await page.locator('#pt-session option').evaluateAll(options=>options.map(o=>o.value)),['','Morning','Evening']);
+    // The college filter becomes a department filter for non-teaching personnel, as on the registration form.
+    await page.locator('#pt-ptype').selectOption('Non-Teaching Personnel');
+    assert.equal(await page.locator('#pt-college option').first().innerText(),'All Departments');
+    assert(await page.locator('#pt-college option',{hasText:'Registrar'}).count());
+    await page.locator('#pt-ptype').selectOption('');assert.equal(await page.locator('#pt-college optgroup').count(),2);
+    // Every dropdown, short or long, opens the same themed list; on phones a tap opens it too.
+    if(mobile)await page.locator('#pt-status').tap();else await page.locator('#pt-status').click();
+    await page.locator('.select-popover').waitFor();
+    await page.locator('.select-popover').getByRole('option',{name:'All Records',exact:true}).click();
+    assert.equal(await page.locator('#pt-status').inputValue(),'all');
+    await page.locator('#pt-status').selectOption('active');
+    if(!mobile){
+      // Long dropdowns open as a short scrollable list; choosing an option updates the real select.
+      await page.locator('#pt-college').click();
+      const popover=page.locator('.select-popover');await popover.waitFor();
+      assert(await popover.evaluate(el=>el.getBoundingClientRect().height<=301&&el.scrollHeight>el.clientHeight));
+      if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/select-popover.png`,clip:await popover.evaluate(el=>{const r=el.getBoundingClientRect();return {x:Math.max(0,r.left-200),y:Math.max(0,r.top-60),width:r.width+400,height:r.height+80};})});
+      await popover.getByRole('option',{name:'Registrar',exact:true}).click();
+      assert.equal(await page.locator('#pt-college').inputValue(),'Registrar');
+      assert.equal(await page.locator('.select-popover').count(),0);
+      await page.locator('#pt-college').selectOption('');
+    }
     await page.locator('#pt-ptype').selectOption('Teaching Personnel');assert(await page.locator('#pt-session').isDisabled());
-    assert.equal(await page.locator('#pt-session').inputValue(),'');assert.match(await page.locator('#pt-table').innerText(),/Personnel Fixture/);
+    assert.equal(await page.locator('#pt-college option').first().innerText(),'All Colleges');
+    assert.equal(await page.locator('#pt-session').inputValue(),'');assert.match(await page.locator('#pt-table').innerText(),/Fixture, Personnel/);
     await page.locator('#pt-ptype').selectOption('Student');await page.locator('#pt-session').selectOption('Morning');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/workspace-patients-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+    // Sortable columns announce their order; the export covers the filtered list.
+    await page.locator('#pt-table th').getByRole('button',{name:/Patient/}).click();
+    assert.equal(await page.locator('#pt-table th[aria-sort="descending"]').count(),1);
+    assert.equal(await page.getByRole('button',{name:/Export CSV/}).count(),1);
     await page.locator('#pt-table').getByRole('button',{name:'View',exact:true}).click();
     for(const label of ['Allergies','Medical History'])assert.equal(await page.locator('.info-row').filter({has:page.locator('.info-label',{hasText:label})}).locator('.info-val').innerText(),'—');
+    // Chart layout: identity banner, no allergy alert without allergies, and five keyboard-navigable tabs.
+    assert.equal(await page.locator('#pt-chart .pt-allergy-alert').count(),0);
+    // Treatments, certificates and fitness are doctor-only clinical records: staff and administrators see Overview and Appointments.
+    assert.equal(await page.locator('#pt-chart [role="tab"]').count(),2);
+    assert.equal(await page.locator('#pt-chart [data-pt-tab="treatments"]').count(),0);
+    assert.equal(await page.locator('#pt-chart').getByRole('button',{name:/Clinical Copilot|FHIR/}).count(),0);
+    await page.locator('#pt-chart [role="tab"]').first().focus();await page.keyboard.press('ArrowRight');
+    assert.match(await page.locator('#pt-chart [role="tab"][aria-selected="true"]').innerText(),/^Appointments/);
+    assert(await page.locator('#pt-chart [data-pt-panel="appointments"]').isVisible());
+    if(process.env.CAMPUSCARE_VISUAL_DIR){await page.locator('#pt-chart [role="tab"]').first().click();await page.locator('#pt-chart').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/patient-chart-${mobile?'mobile':'desktop'}.png`});}
+    if(process.env.CAMPUSCARE_VISUAL_DIR){
+      const dir=process.env.CAMPUSCARE_VISUAL_DIR,tag=mobile?'mobile':'desktop',shot=async name=>{await page.waitForTimeout(250);await page.locator('#active-modal .modal').first().screenshot({path:`${dir}/${name}-${tag}.png`});};
+      const fhir=page.locator('#pt-chart').getByRole('button',{name:/FHIR Preview/});
+      if(await fhir.count()){await fhir.first().click();await shot('fhir');await page.locator('#active-modal .close-btn').first().click();}
+      const copilot=page.getByRole('button',{name:/Clinical Copilot/});
+      if(await copilot.count()){await copilot.first().click();await shot('copilot');await page.locator('#active-modal .close-btn').first().click();}
+      const edit=page.getByRole('button',{name:'Edit Record',exact:true});
+      if(await edit.count()){await edit.click();await shot('patient-edit');}
+      await page.evaluate(()=>window.__fixtureApp.features.modals.closeAllModals());
+      const add=page.getByRole('button',{name:'+ Add Patient'});
+      if(await add.count()){await add.click();await shot('patient-create');await page.evaluate(()=>window.__fixtureApp.features.modals.closeAllModals());}
+      await page.evaluate(()=>{const c=document.createElement('canvas');c.width=900;c.height=600;const g=c.getContext('2d');const gr=g.createLinearGradient(0,0,900,600);gr.addColorStop(0,'#2b6cb0');gr.addColorStop(1,'#68d391');g.fillStyle=gr;g.fillRect(0,0,900,600);g.fillStyle='#fff';g.font='48px sans-serif';g.fillText('Zoom test',300,320);window.__fixtureApp.features.modals.showFilePreview('id-front.png',c.toDataURL());});
+      const vp=page.locator('#preview-img-viewport');const box=await vp.boundingBox();
+      await page.mouse.move(box.x+box.width*.7,box.y+box.height*.4);await page.mouse.wheel(0,-400);
+      await shot('zoom');
+      await page.evaluate(()=>window.__fixtureApp.features.modals.closeAllModals());
+      await page.locator('#pt-table').getByRole('button',{name:'View',exact:true}).click();
+    }
     await page.locator('#active-modal .close-btn').click();
+    // Appointments: list tabs with counts, agenda day headings and a row action menu.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('appointments'));
+    await page.locator('#appt-views [role="tab"]').first().waitFor();
+    assert.deepEqual(await page.locator('#appt-views [role="tab"]').evaluateAll(tabs=>tabs.map(t=>t.firstChild.textContent)),['Upcoming','Needs outcome','History','All']);
+    await page.getByRole('tab',{name:/^All/}).click();
+    assert.match(await page.locator('#appt-summary').innerText(),/appointments? · All/);
+    if(await page.locator('.appt-table .row-menu summary').count()){await page.locator('.appt-table .row-menu summary').first().click();assert(await page.locator('.row-menu[open] .row-menu-list').isVisible());await page.keyboard.press('Escape');}
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.evaluate(()=>{
+      const {state,features}=window.__fixtureApp,pt=state.data.DB.patients.find(p=>p._realSupabase)||state.data.DB.patients[0],doc=state.data.DB.users.find(u=>u.role==='Doctor'&&u._realSupabase)||state.data.DB.users.find(u=>u.role==='Doctor');
+      const today=state.clinicInformation.TODAY,shift=d=>{const x=new Date(today+'T12:00:00Z');x.setUTCDate(x.getUTCDate()+d);return x.toISOString().slice(0,10);};
+      state.data.DB.appointments=[[0,'16:00','Scheduled'],[1,'09:00','Scheduled'],[1,'10:00','Scheduled'],[-2,'09:00','Scheduled'],[-5,'13:00','Completed'],[-6,'08:00','Cancelled']].map(([d,time,status],i)=>({id:300500+i,dbAppointmentId:500+i,patientId:pt.id,doctorId:doc?.id,clinic:i%2?'Dental Clinic':'Medical Clinic',service:i%2?'Dental check-up':'General consultation',date:shift(d),time,status,priority:'Student',college:pt.college,reason:'Follow-up',_realSupabase:true}));
+      state.topbarAndNavigation.navTaskCounts={approvals:3,inventory:2,appointments:1};features.topbarAndNavigation.applyNavBadges();
+      state.appointments.view='upcoming';features.appointments.renderApptTable();
+    });
+    if(process.env.CAMPUSCARE_VISUAL_DIR){await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/appointments-${mobile?'mobile':'desktop'}.png`,fullPage:true});await page.locator('#sidebar').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/sidebar-${mobile?'mobile':'desktop'}.png`}).catch(()=>{});}
+    if(await page.locator('.appt-table .appt-row').count()){await page.locator('.appt-table .appt-row').first().click();await page.locator('#active-modal .appt-detail').waitFor();if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/appointment-detail-${mobile?'mobile':'desktop'}.png`});await page.locator('#active-modal .close-btn').click();}
     // Combine class/session and no-use filters, then check that the registration denominator survives.
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('reports'));
     await page.locator('#rpt-type').waitFor();
@@ -702,19 +1297,50 @@ try{
     assert.match(await page.locator('.report-result').innerText(),/Record count by College and Clinic/);
     assert.equal(await page.locator('.report-answer>strong').innerText(),'2');
     assert.equal(await page.locator('.report-result table').first().locator('tbody tr').count(),2);
-    assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['Record count']),1);
+    assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['Result: Record count']),1);
     await page.locator('#rpt-split').selectOption('status');
     assert(await page.locator('#rpt-stale').isVisible());
     await page.getByRole('button',{name:'Last 90 days',exact:true}).click();
     await page.getByRole('tab',{name:'Forecast',exact:true}).click();
     await page.locator('#forecast-from').fill('2026-01-01');await page.locator('#forecast-to').fill('2026-03-31');
-    await page.locator('#forecast-weeks').selectOption('8');
     await page.getByRole('button',{name:'Update forecast',exact:true}).click();
     assert.match(await page.locator('#forecast-result').innerText(),/History: 2026-01-01 to 2026-03-31/);
-    assert.match(await page.locator('#forecast-result').innerText(),/Expected next 8 weeks/i);
-    assert.equal(await page.locator('#forecast-result tbody tr').count(),8);
-    const forecastDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Export forecast CSV',exact:true}).click();
-    assert.equal((await forecastDownload).suggestedFilename(),'Forecast_2026-01-01_2026-03-31.csv');
+    // 3 months by default, week by week; longer periods switch to months; any 7–365 days can be typed.
+    assert.match(await page.locator('#forecast-result').innerText(),/Expected in the next 3 months/i);
+    // A year starting on the 1st is 12 whole months; any other start adds a partial month.
+    assert([12,13].includes(await page.locator('#forecast-result tbody tr').count()));
+    // AI insights run only on request and summarise the forecast; follow-up questions get their own answer.
+    await page.locator('#forecast-ai .ai-generate').click();
+    await page.locator('#forecast-ai .ai-headline').waitFor();
+    assert.match(await page.locator('#forecast-ai').innerText(),/Visits stay low[\s\S]*Risks to watch[\s\S]*Recommended actions/);
+    await page.locator('#forecast-ai .ai-suggestion').first().click();
+    await page.locator('#forecast-ai .ai-a p').waitFor();
+    assert.match(await page.locator('#forecast-ai .ai-a').innerText(),/Early November/);
+    // Typed questions join the same scrolling conversation and carry the earlier exchange.
+    assert(await page.locator('#forecast-ai .ai-send').isDisabled());
+    await page.locator('#forecast-ai .ai-ask textarea').fill('Why does November matter?');
+    await page.locator('#forecast-ai .ai-ask textarea').press('Enter');
+    await page.locator('#forecast-ai .ai-turn').nth(1).locator('.ai-a p').waitFor();
+    const lastAsk=requests.filter(r=>r.path.endsWith('/forecast-insights')).at(-1);
+    assert.equal(lastAsk.body.question,'Why does November matter?');assert.equal(lastAsk.body.history.length,1);
+    assert.equal(await page.locator('#forecast-ai .ai-scroll').evaluate(el=>getComputedStyle(el).overflowY),'auto');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#forecast-ai').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/forecast-ai-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#forecast-horizon').getByRole('button',{name:'1 year',exact:true}).click();
+    assert([12,13].includes(await page.locator('#forecast-result tbody tr').count()));
+    assert.match(await page.locator('#forecast-result tbody tr').nth(1).textContent(),/\w{3} \d{4}/);
+    await page.locator('#forecast-days').fill('30');await page.locator('#forecast-days').press('Enter');
+    assert.equal(await page.locator('#forecast-result tbody tr').count(),5);
+    // The same estimate can be drawn as columns, a line, an area, bars, a pie or a doughnut.
+    assert.equal(await page.locator('#forecast-result .chart-mark').count()>0,true,'Columns by default');
+    await page.locator('#forecast-result .chart-type-switch').getByRole('radio',{name:'Line'}).click();
+    assert(await page.locator('#forecast-result polyline.chart-line.projected').count());
+    await page.locator('#forecast-result .chart-type-switch').getByRole('radio',{name:'Doughnut'}).click();
+    assert.equal(await page.locator('#forecast-result .report-pie li').count(),5);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#forecast-result').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reports-forecast-doughnut-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#forecast-result .chart-type-switch').getByRole('radio',{name:'Column'}).click();
+    await page.locator('#forecast-horizon').getByRole('button',{name:'3 months',exact:true}).click();
+    const forecastDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV',exact:true}).click();
+    assert.equal((await forecastDownload).suggestedFilename(),'campuscare-forecast-2026-01-01-to-2026-03-31.csv');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reports-forecast-${mobile?'mobile':'desktop'}.png`,fullPage:true});
     await page.locator('#forecast-from').fill('2026-04-01');
     await page.getByRole('button',{name:'Update forecast',exact:true}).click();
@@ -726,13 +1352,16 @@ try{
     await page.locator('#rpt-result').getByText('Evening Student',{exact:true}).waitFor();
     assert.equal(await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).count(),0);
     assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows.length),1);
-    assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['Class Session']),'Evening');
+    assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['School: Class Session']),'Evening');
     await page.locator('#rpt-session').selectOption('');await page.locator('#rpt-dental').selectOption('used');
     await page.getByRole('button',{name:'Generate Report',exact:true}).click();
     await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).waitFor();
     const downloaded=page.waitForEvent('download');
     await page.getByRole('button',{name:'Export college summary CSV',exact:true}).click();
-    assert.equal((await downloaded).suggestedFilename(),'Student_College_Summary.csv');
+    const summaryFile=await downloaded;
+    assert.match(summaryFile.suggestedFilename(),/^campuscare-student-college-summary-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.csv$/);
+    const summaryText=(await import('node:fs')).readFileSync(await summaryFile.path(),'utf8');
+    assert.match(summaryText,/^\ufeffCollege\/Department,Students: Registered,Dental Care: Used,/,'Readable headers in the shared CSV format');
   }
   if(role==='Administrator'){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('settings'));
@@ -748,39 +1377,48 @@ try{
     await page.locator('#critical-settings-save').click();
     await page.waitForFunction(()=>!document.getElementById('critical-settings-phrase'));
     assert.equal(requests.filter(r=>r.path.endsWith('/settings-actions')&&r.body?.action==='update').at(-1).body.critical_confirmation,true);
+    await page.getByRole('tab',{name:'Backups'}).click();
     await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.data.DB.realBackupLogs=Array.from({length:6},(_,i)=>({id:i+1,type:'Daily',status:'Completed',startedAt:`2026-10-${String(21-i).padStart(2,'0')}T00:00:00Z`,fileSize:100}));features.serverBackups.renderBackupPanel();});
     await page.waitForTimeout(100);
     assert.equal(await page.locator('#backup-list .backup-day').count(),6);
     assert(await page.locator('#backup-list').evaluate(el=>el.scrollHeight>el.clientHeight&&getComputedStyle(el).overflowY==='auto'));
     managedUsers.push({...profile,user_id:93,auth_user_id:'pending-auth',first_name:'Pending',last_name:'Applicant',username:'pending.applicant',email:'pending@example.test',role:'Patient',status:'Pending',verified:false});
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('users'));
-    const pending=page.locator('#user-table tbody tr').filter({hasText:'Pending Applicant'}),active=()=>page.locator('#user-table tbody tr').filter({hasText:'Fixture Doctor'});
-    await pending.waitFor();assert.equal(await pending.getByRole('button',{name:'Edit',exact:true}).count(),0);assert.equal(await pending.getByRole('button',{name:'Approve',exact:true}).count(),1);
+    const pending=page.locator('#user-table tbody tr').filter({hasText:'Applicant, Pending'}),active=()=>page.locator('#user-table tbody tr').filter({hasText:'Doctor, Fixture'});
+    await pending.waitFor();assert.equal(await pending.getByRole('button',{name:'Edit',exact:true}).count(),0);assert.equal(await pending.getByRole('button',{name:'Review in Approval Queue',exact:true}).count(),1);
     await page.evaluate(()=>window.__fixtureApp.features.userForm.openEditUserModal(100093));assert.equal(await page.locator('#eu-fname').count(),0);
-    await pending.locator('td').first().click();await page.getByRole('heading',{name:'User Information',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Edit User',exact:true}).count(),0);await page.locator('#active-modal .close-btn').click();
+    await pending.locator('td').first().click();await page.getByRole('heading',{name:/^(User Information|Pending Applicant)$/}).first().waitFor();await page.getByRole('heading',{name:'Pending Applicant',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Edit User',exact:true}).count(),0);await page.locator('#active-modal .close-btn').click();
     const updatesBefore=requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').length;
     await active().getByRole('button',{name:'Edit',exact:true}).click();assert.equal(await page.locator('#eu-status').count(),0);
     await page.locator('#eu-fname').fill('Updated');await page.locator('#eu-contact').fill('+639987654321');
-    await page.getByRole('button',{name:'Review Changes',exact:true}).click();await page.getByRole('heading',{name:'Confirm user changes',exact:true}).waitFor();
+    // Step 1 marks what changed; step 2 reviews it, asks for a reason and the username before saving.
+    assert.equal(await page.locator('.eu-field.changed').count(),2);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/user-edit-${mobile?'mobile':'desktop'}.png`});
+    await page.getByRole('button',{name:'Review changes',exact:true}).click();await page.getByRole('heading',{name:'Confirm user changes',exact:true}).waitFor();
     assert.equal(requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').length,updatesBefore,'Review must not save before confirmation');
-    await page.getByRole('button',{name:'Back to Editing',exact:true}).click();assert.equal(await page.locator('#eu-fname').inputValue(),'Updated');
-    await page.getByRole('button',{name:'Review Changes',exact:true}).click();
+    await page.getByRole('button',{name:'Back to editing',exact:true}).click();assert.equal(await page.locator('#eu-fname').inputValue(),'Updated');
+    await page.getByRole('button',{name:'Review changes',exact:true}).click();
+    const save=page.getByRole('button',{name:'Save changes',exact:true});
+    assert(await save.isDisabled(),'Saving needs a reason and the typed username');
+    await page.locator('#eu-reason').fill('Corrected per registrar records');assert(await save.isDisabled());
+    await page.locator('#eu-confirm-word').fill('fixture');assert(await save.isEnabled());
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/user-edit-review-${mobile?'mobile':'desktop'}.png`});
-    await page.getByRole('button',{name:'Confirm Changes',exact:true}).click();
-    const updated=()=>page.locator('#user-table tbody tr').filter({hasText:'Updated Doctor'});await updated().waitFor();
+    await save.click();
+    assert.equal(requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').at(-1).body.reason,'Corrected per registrar records');
+    const updated=()=>page.locator('#user-table tbody tr').filter({hasText:'Doctor, Updated'});await updated().waitFor();
     assert.equal(managedUsers[1].first_name,'Updated');assert.equal(managedUsers[1].contact_number,'09987654321');assert.equal(managedUsers[1].status,'Active');
     await updated().getByRole('button',{name:'Suspend',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Reactivate',exact:true}).waitFor();
     await updated().getByRole('button',{name:'Reactivate',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Suspend',exact:true}).waitFor();
     managedUsers.push(...Array.from({length:12},(_,i)=>({...profile,user_id:200+i,auth_user_id:'scroll-'+i,first_name:'Scroll',last_name:String(i),username:'scroll'+i,status:i===0?'Archived':i===1?'Suspended':'Active'})));
     await page.evaluate(()=>window.__fixtureApp.features.userManagement.renderUsers());
-    assert.equal(await page.locator('#user-table tbody tr').count(),15,'All Status includes archived and suspended accounts');
-    const scroller=page.locator('.user-table-scroll');
-    assert(await scroller.evaluate(el=>el.scrollHeight>el.clientHeight),'More than ten users must scroll inside the table');
-    // Ten rows are the ceiling; small viewports may show fewer complete rows.
-    assert(await scroller.evaluate(el=>{const rows=[...el.querySelectorAll('tbody tr')],ten=el.querySelector('thead').getBoundingClientRect().height+rows.slice(0,10).reduce((sum,row)=>sum+row.getBoundingClientRect().height,0);return el.clientHeight<=Math.min(innerHeight*.63,ten+3)&&el.clientHeight>100;}),'User table fits the viewport and never exceeds ten rows');
+    // Ten accounts per page with a pager; All Status includes archived and suspended accounts.
+    assert.equal(await page.locator('#user-table tbody tr').count(),10);
+    assert.match(await page.locator('#user-table .pt-pager').innerText(),/Showing 1–10 of 15/);
+    await page.locator('#user-table').getByRole('button',{name:/Next/}).click();
+    assert.equal(await page.locator('#user-table tbody tr').count(),5);
     await page.locator('#usr-status').selectOption('Archived');assert.equal(await page.locator('#user-table tbody tr').count(),1);
     await page.locator('#usr-status').selectOption('Suspended');assert.equal(await page.locator('#user-table tbody tr').count(),1);
-    await page.locator('#usr-status').selectOption('');await scroller.evaluate(el=>el.scrollTop=el.scrollHeight);assert(await scroller.evaluate(el=>el.scrollTop>0));
+    await page.locator('#usr-status').selectOption('');assert.equal(await page.locator('#user-table tbody tr').count(),10,'Changing a filter returns to page 1');
 
   }
   // Brand navigation works from every role; Patient history returns to the actual previous page.
@@ -799,7 +1437,99 @@ try{
     await page.goBack();
     await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='health_education');
   }
+  if(role==='Patient'){
+    // December visits ask for the 1st Semester COR; the 2nd Semester starts in January.
+    const corTerm=await page.evaluate(()=>{const f=window.__fixtureApp.features.bookingForm;return [f.corChecklistHtml('2026-12-10'),f.corChecklistHtml('2027-01-15')].map(h=>h.match(/(1st|2nd) Semester, SY \d{4}–\d{4}/)[0]);});
+    assert.deepEqual(corTerm,['1st Semester, SY 2026–2027','2nd Semester, SY 2026–2027']);
+    // Once the semester's Dental Clinic visit is used, everything after the clinic choice locks immediately.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp,pt=state.auth.currentPatient;
+      state.data.DB.appointments.push({id:990001,patientId:pt.id,doctorId:100002,clinic:'Dental Clinic',service:'Dental Checkup',date:state.clinicInformation.TODAY,time:'08:00',status:'Completed',_realSupabase:Boolean(pt._realSupabase)});
+      features.bookingForm.openBookApptModal();});
+    await page.locator('#b-clinic').selectOption('Dental Clinic');
+    await page.locator('#dental-warn.show').waitFor();
+    for(const id of ['#b-doc','#b-service','#b-confirm'])assert(await page.locator(id).isDisabled(),`${id} locks when the dental limit is reached`);
+    assert.equal(await page.locator('#slot-grid button').count(),0);
+    await page.locator('#b-clinic').selectOption('Medical Clinic');
+    await page.waitForFunction(()=>!document.getElementById('b-doc').disabled&&!document.getElementById('b-confirm').disabled);
+    assert.equal(await page.locator('#dental-warn.show').count(),0);
+    // Form errors inside the app use the shared toast, not an inline red box.
+    await page.locator('#b-confirm').click();
+    await page.locator('#toast-wrap .toast.error').first().waitFor();
+    assert.equal(await page.locator('#book-msg.show').count(),0);
+    await page.locator('#active-modal .close-btn').click();
+    await page.evaluate(()=>{const {state}=window.__fixtureApp;state.data.DB.appointments=state.data.DB.appointments.filter(a=>a.id!==990001);});
+  }
+  if(role==='Patient'||role==='Staff'){
+    // Health Education: topic chips with counts, a featured newest article, reading time, formatted article,
+    // related articles; patients get a booking prompt, editors see drafts and a live card preview.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('health_education'));
+    await page.locator('#articles-list').waitFor();
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;
+      const photo=(w,h,c)=>{const cv=document.createElement('canvas');cv.width=w;cv.height=h;const g=cv.getContext('2d');g.fillStyle=c;g.fillRect(0,0,w,h);g.fillStyle='#fff';g.beginPath();g.arc(w/2,h/2,Math.min(w,h)/4,0,7);g.fill();return cv.toDataURL('image/jpeg');};
+      const photos={1:photo(1200,800,'#3a7ab0'),2:photo(500,900,'#0f6e56')};
+      const art=(id,title,category,days,published=true)=>({id,dbResourceId:id,title,category,teaser:`${title} in brief.`,content:'Sleep matters during exams.\n\nTips:\n\n- Keep a schedule\n- Avoid caffeine late',sourceName:'WHO',sourceUrl:'https://www.who.int',icon:'bi-moon',photo:photos[id]||'',published,publishedAt:`2026-10-${String(days).padStart(2,'0')}T08:00:00Z`,createdAt:`2026-10-${String(days).padStart(2,'0')}T08:00:00Z`,_realSupabase:true});
+      state.data.DB.healthResources=[art(1,'Sleep before exams','Sleep',20),art(2,'Hand washing','Hygiene',10),art(3,'Napping well','Sleep',5),art(4,'Healthy snacks','Nutrition',2),art(5,'Draft on stress','Mental Health',25,false)];
+      features.navigationRaceProtection.renderArticlesList();});
+    assert.match(await page.locator('.he-card.featured h4').innerText(),/Sleep before exams/,'The featured article is the newest published one, never a draft');
+    assert.match(await page.locator('.he-topic',{hasText:'Sleep'}).innerText(),/Sleep\s*2/);
+    await page.locator('.he-topic',{hasText:'Sleep'}).click();
+    assert.equal(await page.locator('#articles-list .he-card').count(),2);
+    await page.locator('.he-card',{hasText:'Sleep before exams'}).click();
+    await page.locator('.he-reader').waitFor();
+    assert.equal(await page.locator('.he-body ul li').count(),2);assert.equal(await page.locator('.he-body h3').innerText(),'Tips');
+    assert.match(await page.locator('.he-article-meta').innerText(),/1 min read/);
+    assert.match(await page.locator('.he-related').innerText(),/Napping well/);
+    assert.equal(await page.locator('.he-cta').count(),role==='Patient'?1:0);
+    assert.equal(await page.locator('.he-media-reader .he-img').evaluate(img=>getComputedStyle(img).objectFit),'contain','The reader shows the whole photo');
+    if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/health-article-${role}.png`});
+    await page.locator('#active-modal .close-btn').click();
+    await page.locator('.he-topic').first().click();
+    if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/health-library-${role}.png`,fullPage:true});
+    if(role==='Staff'){
+      assert.match(await page.locator('#he-status').innerText(),/Drafts\s*1/);
+      await page.getByRole('button',{name:'New article'}).click();
+      await page.locator('#art-title').fill('Staying active');await page.locator('#art-content').fill('Walk every day. '.repeat(50));
+      await page.locator('#art-title').dispatchEvent('input');
+      assert.match(await page.locator('#art-preview').innerText(),/Staying active[\s\S]*1 min read/);
+      await page.locator('#active-modal .close-btn').click();
+      // A photo that fails to load falls back to the category banner.
+      await page.evaluate(()=>{const {state,features}=window.__fixtureApp;state.data.DB.healthResources[3].photo='https://invalid.example/missing.jpg';features.navigationRaceProtection.renderArticlesList();});
+      await page.waitForFunction(()=>!document.querySelector('.he-card img[src*="invalid.example"]'));
+      // Drafts can be deleted for good; published articles cannot.
+      await page.locator('#he-status button',{hasText:'Drafts'}).click();
+      await page.locator('.he-card',{hasText:'Draft on stress'}).click();
+      assert.equal(await page.getByRole('button',{name:'Delete draft'}).count(),1);
+      await page.getByRole('button',{name:'Delete draft'}).click();
+      const deleteRequest=page.waitForRequest(request=>request.url().includes('/functions/v1/health-resource-actions')&&request.postData()?.includes('"delete"'));
+      await page.locator('#cc-confirm-ok-btn').click();
+      assert.equal(JSON.parse((await deleteRequest).postData()).resource_id,5);
+      await page.locator('.toast',{hasText:'Draft deleted.'}).first().waitFor();
+      await page.locator('#he-status button',{hasText:'All'}).click();
+    }
+  }
   if(role==='Doctor'){
+    // Day-off requests carry an optional supporting file to the workflow API.
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('schedule'));
+    await page.locator('#leave-attach-file').waitFor({state:'attached'});
+    await page.locator('.req-row').first().click();
+    await page.locator('.req-review').waitFor();
+    assert.match(await page.locator('.req-review').innerText(),/medical-certificate\.png/);
+    assert.equal(await page.locator('.req-review').getByRole('button',{name:'Approve',exact:true}).count(),0,'Requesters only view their request');
+    await page.locator('#active-modal .close-btn').click();
+    await page.locator('#leave-attach-file').setInputFiles({name:'clinic-note.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\n%fixture\n')});
+    await page.locator('#leave-attach-chosen').getByText('clinic-note.pdf').waitFor();
+    await page.locator('#leave-attach-file').setInputFiles({name:'notes.txt',mimeType:'text/plain',buffer:Buffer.from('x')});
+    await page.locator('.toast',{hasText:/JPG, PNG, WebP/}).first().waitFor();
+    assert(await page.locator('#leave-attach-chosen').getByText('clinic-note.pdf').isVisible(),'A rejected file keeps the earlier choice');
+    const leaveDay=await page.evaluate(()=>{const {state}=window.__fixtureApp,d=new Date(state.clinicInformation.TODAY+'T12:00:00Z');do d.setUTCDate(d.getUTCDate()+1);while(!(state.auth.currentUser.workDays||[]).includes(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]));return d.toISOString().slice(0,10);});
+    await page.locator('#leave-date').evaluate((el,v)=>{el.value=v;},leaveDay);
+    await page.locator('#leave-reason').fill('Conference');
+    await page.getByRole('button',{name:'Request Day Off',exact:true}).click();
+    await page.waitForTimeout(400);
+    const dayOff=requests.filter(r=>r.path.endsWith('/workflow-actions')&&r.body?.action==='create').at(-1);
+    assert(dayOff,'Day off request must reach the workflow API');
+    assert.equal(dayOff.body.attachment_name,'clinic-note.pdf');
+    assert.match(dayOff.body.attachment_data_url,/^data:application\/pdf;base64,/);
     await page.evaluate(()=>window.__fixtureApp.features.workflowRequests.openScheduleChangeRequest());
     await page.getByRole('button',{name:'Clear',exact:true}).click();assert.equal(await page.locator('.scr-day:checked').count(),0);
     // Empty days must be explained in the preview, and tiles must work through real clicks.
@@ -831,6 +1561,10 @@ try{
   await page.locator('#cc-confirm-ok-btn').click();
   await page.waitForFunction(()=>window.__fixtureApp.state.auth.currentUser===null);
   await page.getByText('Logged out successfully.',{exact:true}).waitFor();
+  // Remember me keeps the username or email (never the password) ready for the next sign-in.
+  assert.equal(await page.locator('#li-user').inputValue(),profile.email);
+  assert.equal(await page.locator('#li-pass').inputValue(),'');
+  assert(await page.getByLabel('Remember me').isChecked());
   assert.equal(await page.evaluate(()=>window.__fixtureApp.state.data.DB.patients.some(row=>row._realSupabase)),false);
   assert.equal(await page.locator('#landing-navbar [data-landing-link="home"]').evaluate(el=>getComputedStyle(el).color),'rgb(230, 239, 247)');
   assert(requests.some(request=>request.path.endsWith('/token')),`${role}: actual login request missing`);
@@ -840,4 +1574,7 @@ try{
   await context.close();
  }
  console.log(`PASS: ${cases} Chromium role/device scenarios, with all Supabase requests intercepted`);
+  if(process.env.CAMPUSCARE_A11Y_REPORT)fs.writeFileSync(process.env.CAMPUSCARE_A11Y_REPORT,JSON.stringify(a11yFindings,null,1));
+  // Every page each role can open passes WCAG 2.1 AA automated checks in both themes, and is keyboard-reachable.
+  assert.deepEqual(a11yFindings,[],'Accessibility findings: '+JSON.stringify(a11yFindings.slice(0,5),null,1));
 }finally{await browser.close();if(server)await new Promise(resolve=>server.close(resolve));}

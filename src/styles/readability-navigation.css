@@ -70,4 +70,4 @@ button.sb-brand:focus-visible{outline:2px solid var(--primary);outline-offset:-3
 #auth-page .auth-header{flex-shrink:0}
 #auth-page .auth-body{overflow:visible;flex:none}
 /* Keep recovery links in a predictable vertical reading order. */
-.auth-recovery-links{display:flex;flex-direction:column;align-items:flex-end;gap:.45rem;margin:-.2rem 0 .2rem}
+

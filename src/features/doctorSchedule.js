@@ -1,6 +1,6 @@
 // doctorSchedule: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
-import {captureCampusPageToken,isCampusPageCurrent,navTo} from './navigationRaceProtection.js';
+import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {appointmentRecords,syncAppointmentContext,syncRealAppointments} from './appointmentService.js';
 import {escapeHtml} from './issueReports.js';
@@ -9,17 +9,39 @@ import {getPatientById,getUserById} from './documentScanner.js';
 import {viewAppt} from './appointmentDetails.js';
 import {openAddTreatmentModal} from './treatmentForm.js';
 import {campusDateFieldHtml} from './datePicker.js';
-import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
+import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {clinicToday} from './scheduleAndDrafts.js';
-import {syncRealWorkflowRequests,workflowAction} from './workflowRequests.js';
+import {offerDecisionUndo,openScheduleChangeRequest,syncRealWorkflowRequests,workflowAction} from './workflowRequests.js';
 import {addNotif} from './notifications.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {persistDB} from './persistence.js';
-import {renderUsers} from './userManagement.js';
+import {openWorkflowRequestReview,renderUsers} from './userManagement.js';
 import {bindAction} from '../dependencies.js';
+import {paginate,pagerHtml} from '../ui/pager.js';
+import {patientAvatarHtml} from './patientManagement.js';
+import {requestAttachmentBadge,requestAttachmentFieldHtml,requestAttachmentLocal,requestAttachmentPayload} from './requestAttachments.js';
 // ================================================================
 // DOCTOR – SCHEDULE
 // ================================================================
+// Upcoming appointments are paged like the clinic appointment list.
+function renderUpcomingAppointments(){
+  const el=document.getElementById('ds-upcoming');if(!el)return;
+  const upcoming=appState.doctorSchedule.upcoming||[];
+  if(!upcoming.length){el.innerHTML='<div class="empty-state"><p>No upcoming appointments.</p></div>';return;}
+  const page=paginate('doctor-upcoming',upcoming);
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Patient</th><th>College</th><th>Type</th><th>Service</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${
+    page.rows.map(a=>{const pt=getPatientById(a.patientId);return`<tr style="cursor:pointer" ${bindAction('click',()=>viewAppt(a.id))} title="Open appointment">
+      <td>${fmtDate(a.date)}</td><td>${fmtTime(a.time)}</td>
+      <td>${pt?`<div class="pt-identity">${patientAvatarHtml(pt,28)}<strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong></div>`:'Unknown'}</td>
+      <td>${collegeBadge(a.college)}</td><td>${priorityBadge(a.priority)}</td>
+      <td>${escapeHtml(a.service||'')}</td><td>${statusBadge(a.status)}</td>
+      <td><div class="td-actions" ${bindAction('click',event=>event.stopPropagation())}>
+        ${a.status==='Scheduled'&&a.date<=appState.clinicInformation.TODAY?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>openAddTreatmentModal(a.id))}><i class="bi bi-pencil-square" aria-hidden="true"></i> Add Notes &amp; Complete</button>`:''}
+      </div></td>
+    </tr>`;}).join('')
+  }</tbody></table></div>${pagerHtml(page,renderUpcomingAppointments)}`;
+}
+
 export async function renderDoctorSchedule(){
   const c=document.getElementById('app-content');
   const pageToken=captureCampusPageToken();
@@ -38,6 +60,7 @@ export async function renderDoctorSchedule(){
   const myAppts=appointmentRecords().filter(a=>a.doctorId===appState.auth.currentUser.id&&a.status!=='Cancelled');
   const upcoming=myAppts.filter(a=>a.date>=appState.clinicInformation.TODAY).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
   const today=myAppts.filter(a=>a.date===appState.clinicInformation.TODAY);
+  appState.doctorSchedule.upcoming=upcoming;
   c.innerHTML=`
     <div class="grid-2">
       <div class="card">
@@ -47,26 +70,17 @@ export async function renderDoctorSchedule(){
       </div>
       <div class="card">
         <div class="card-header"><h3>My Work Schedule</h3></div>
-        <div class="info-row"><span class="info-label">Days</span><span class="info-val">${(appState.auth.currentUser.workDays||[]).join(', ')}</span></div>
+        <div class="info-row"><span class="info-label">Clinic</span><span class="info-val">${appState.auth.currentUser.specialty==='Dental'?'Dental Clinic':'Medical Clinic'} · ${escapeHtml(appState.auth.currentUser.specialty||'General Medicine')}</span></div>
+        <div class="info-row"><span class="info-label">Work days</span><span class="info-val">${escapeHtml((appState.auth.currentUser.workDays||[]).join(', ')||'—')}</span></div>
         <div class="info-row"><span class="info-label">Hours</span><span class="info-val">${fmtTime(appState.auth.currentUser.startTime||'08:00')} – ${fmtTime(appState.auth.currentUser.endTime||'17:00')}</span></div>
-        <div class="info-row"><span class="info-label">Slot Duration</span><span class="info-val">${appState.auth.currentUser.slotDuration||60} minutes</span></div>
-        <div class="info-row"><span class="info-label">Specialty</span><span class="info-val">${appState.auth.currentUser.specialty||'General'}</span></div>
-        <div style="margin-top:.75rem"><button class="btn btn-sm btn-info" ${bindAction('click',(event,element)=>{navTo('my-account')})}>Edit Schedule</button></div>
+        <div class="info-row"><span class="info-label">Appointment length</span><span class="info-val">${appState.auth.currentUser.slotDuration||60} minutes</span></div>
+        <div class="info-row"><span class="info-label">Patients per day</span><span class="info-val">Up to ${appState.auth.currentUser.maxPatients||20}</span></div>
+        <div style="margin-top:.75rem"><button class="btn btn-sm btn-info" ${bindAction('click',()=>openScheduleChangeRequest())}>Request schedule change</button></div>
       </div>
     </div>
     <div class="card">
       <div class="card-header"><h3>Upcoming Appointments</h3></div>
-      ${upcoming.length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Patient</th><th>College</th><th>Type</th><th>Service</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
-        upcoming.map(a=>{const pt=getPatientById(a.patientId);return`<tr style="cursor:pointer" ${bindAction('click',(event,element)=>{viewAppt((a.id))})} title="Click to open appointment">
-          <td>${fmtDate(a.date)}</td><td>${fmtTime(a.time)}</td>
-          <td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td>
-          <td>${collegeBadge(a.college)}</td><td>${priorityBadge(a.priority)}</td>
-          <td>${a.service}</td><td>${statusBadge(a.status)}</td>
-          <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
-            ${a.status==='Scheduled'&&a.date<=appState.clinicInformation.TODAY?`<button class="btn btn-xs btn-primary" ${bindAction('click',(event,element)=>{openAddTreatmentModal((a.id))})}>📝 Add Notes &amp; Complete</button>`:''}
-          </div></td>
-        </tr>`;}).join('')
-      }</tbody></table></div>`:'<div class="empty-state"><p>No upcoming appointments.</p></div>'}
+      <div id="ds-upcoming"></div>
     </div>
     <div class="card">
       <div class="card-header"><h3>Time Off / Days on Leave</h3></div>
@@ -76,16 +90,18 @@ export async function renderDoctorSchedule(){
         <div class="form-group"><label>Date</label>${campusDateFieldHtml('leave-date','','Select Day Off',appState.clinicInformation.TODAY)}</div>
         <div class="form-group"><label>Reason (optional)</label><input type="text" id="leave-reason" placeholder="e.g. Conference, sick leave"></div>
       </div>
+      ${requestAttachmentFieldHtml('leave-attach','e.g. medical certificate or conference invite')}
       <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{requestDoctorLeave()})}>Request Day Off</button>
       <div class="divider"></div>
       ${getDoctorLeaveRequests(appState.auth.currentUser.id).length?`<div class="section-label">Pending Requests</div><div class="table-wrap" style="margin-bottom:.8rem"><table><thead><tr><th>Date</th><th>Reason</th><th>Status</th></tr></thead><tbody>${
-        getDoctorLeaveRequests(appState.auth.currentUser.id).map(l=>`<tr><td>${fmtDate(l.date)}</td><td>${l.reason?escapeHtml(l.reason):'<span class="text-muted">—</span>'}</td><td><span class="badge badge-warning">Pending</span></td></tr>`).join('')
+        getDoctorLeaveRequests(appState.auth.currentUser.id).map(l=>`<tr class="req-row" tabindex="0" title="View request" ${bindAction('click',()=>openWorkflowRequestReview('Day Off',l.id))} ${bindAction('keydown',event=>{if(event.key==='Enter'){event.preventDefault();openWorkflowRequestReview('Day Off',l.id);}})}><td>${fmtDate(l.date)} ${requestAttachmentBadge(l)}</td><td>${l.reason?escapeHtml(l.reason):'<span class="text-muted">—</span>'}</td><td><span class="badge badge-warning">Pending</span></td></tr>`).join('')
       }</tbody></table></div>`:''}
       <div class="section-label">Approved Days Off</div>
       ${getDoctorLeaves(appState.auth.currentUser.id).length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reason</th></tr></thead><tbody>${
         getDoctorLeaves(appState.auth.currentUser.id).map(l=>`<tr><td>${fmtDate(l.date)}</td><td>${l.reason?escapeHtml(l.reason):'<span class="text-muted">—</span>'}</td></tr>`).join('')
       }</tbody></table></div>`:'<p class="text-muted">No upcoming days off on file. Patients can book any of your regular work days.</p>'}
     </div>`;
+  renderUpcomingAppointments();
 }
 
 export function getDoctorLeaves(docId){
@@ -121,7 +137,8 @@ export async function requestDoctorLeave(){
         action:'create',
         request_type:'Day Off',
         leave_date:date,
-        reason
+        reason,
+        ...requestAttachmentPayload('leave-attach')
       });
       await syncRealWorkflowRequests();
     }else{
@@ -129,7 +146,8 @@ export async function requestDoctorLeave(){
       appState.data.DB.nextLeaveReqId=appState.data.DB.nextLeaveReqId||1;
       appState.data.DB.leaveRequests.push({
         id:appState.data.DB.nextLeaveReqId++,doctorId:appState.auth.currentUser.id,
-        date,reason,status:'Pending',createdAt:appState.clinicInformation.TODAY
+        date,reason,status:'Pending',createdAt:appState.clinicInformation.TODAY,
+        ...requestAttachmentLocal('leave-attach')
       });
       appState.data.DB.users.filter(a=>a.role==='Administrator').forEach(a=>
         addNotif(a.id,'Day Off Request',`${docName(appState.auth.currentUser)} requested ${fmtDate(date)} off.`,'info')
@@ -146,7 +164,7 @@ export async function requestDoctorLeave(){
   }
 }
 
-export function approveLeaveRequest(reqId){
+export function approveLeaveRequest(reqId,note=''){
   const req=(appState.data.DB.leaveRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
   const doc=getUserById(req.doctorId);
@@ -160,7 +178,7 @@ export function approveLeaveRequest(reqId){
     onConfirm:async()=>{
       try{
         if(req._realSupabase){
-          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve'});
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve',admin_note:note});
           await Promise.all([syncRealWorkflowRequests(),syncRealAppointments()]);
         }else{
           appState.data.DB.doctorLeaves=appState.data.DB.doctorLeaves||[];
@@ -171,8 +189,10 @@ export function approveLeaveRequest(reqId){
           persistDB();
         }
 
-        toast('Day off approved.','success');
-        if(document.getElementById('user-table'))await renderUsers();
+        offerDecisionUndo(req,'Day off approved.',()=>{
+          appState.data.DB.doctorLeaves=appState.data.DB.doctorLeaves.filter(l=>!(l.doctorId===req.doctorId&&l.date===req.date));
+        });
+        if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to approve the day off.','error',6500);
       }
@@ -180,7 +200,7 @@ export function approveLeaveRequest(reqId){
   });
 }
 
-export function rejectLeaveRequest(reqId){
+export function rejectLeaveRequest(reqId,note=''){
   const req=(appState.data.DB.leaveRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
   const doc=getUserById(req.doctorId);
@@ -194,16 +214,16 @@ export function rejectLeaveRequest(reqId){
     onConfirm:async()=>{
       try{
         if(req._realSupabase){
-          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject'});
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject',admin_note:note});
           await syncRealWorkflowRequests();
         }else{
-          req.status='Rejected';
+          req.status='Rejected';req.adminNote=note;
           if(doc)addNotif(doc.id,'Day Off Request Declined',`Your day off request for ${fmtDate(req.date)} was declined.`,'warning');
           persistDB();
         }
 
-        toast('Request rejected.','success');
-        if(document.getElementById('user-table'))await renderUsers();
+        offerDecisionUndo(req,'Request rejected.',()=>{});
+        if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to reject the request.','error');
       }
@@ -232,8 +252,17 @@ export function removeDoctorLeave(id){
           persistDB();
         }
 
-        toast('Day off cancelled.','warning');
-        if(document.getElementById('user-table'))await renderUsers();
+        if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
+        toastWithUndo('Day off cancelled.',async()=>{
+          if(l._realSupabase){
+            await workflowAction({action:'restore_leave',leave_id:l.dbLeaveId});
+            await syncRealWorkflowRequests();
+          }else{
+            appState.data.DB.doctorLeaves.push(l);
+            persistDB();
+          }
+          if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
+        },{undoneMessage:'Day off restored.'});
       }catch(e){
         toast(e?.message||'Unable to cancel the approved day off.','error');
       }

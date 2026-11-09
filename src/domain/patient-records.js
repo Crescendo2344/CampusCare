@@ -1,3 +1,4 @@
+import {csvColumn,csvDate,templateCsv} from '../shared/csv.js';
 // Profile and patient mapping use explicit records; no application globals are read.
 export function normalizeSupabaseUser(profile){
   if(!profile)return profile;
@@ -25,6 +26,7 @@ export function normalizeSupabaseUser(profile){
     profileImage: profile.profile_signed_url??profile.profileImage??'',
     profilePhoto: profile.profile_signed_url??profile.profilePhoto??'',
     specialty: profile.specialty??'',
+    servicesRendered: Array.isArray(profile.services_rendered)?profile.services_rendered:[],
     workDays: profile.work_days??profile.workDays??[],
     startTime: profile.start_time??profile.startTime??'',
     endTime: profile.end_time??profile.endTime??'',
@@ -64,6 +66,8 @@ export function directoryRowToPatient(u,now=new Date()){
     gender:p.sex||'',
     blood:p.blood_type||'Unknown',
     classSession:p.class_session||'',
+    course:p.course||'',
+    major:p.major||'',
     address:p.address||'',
     college:uiUser.college||'',
     personType:uiUser.personType||'',
@@ -105,6 +109,8 @@ export function currentPatientToUi(row,user,now=new Date()){
     gender:row.sex||'',
     blood:row.blood_type||'Unknown',
     classSession:row.class_session||'',
+    course:row.course||'',
+    major:row.major||'',
     address:row.address||'',
     college:user.college||'',
     personType:user.personType||'',
@@ -125,4 +131,67 @@ export function currentPatientToUi(row,user,now=new Date()){
 export function mergeClinicalDirectory(db,rows,now=new Date()){
   return {users:[...(db.users||[]).filter(u=>!u._realSupabase),...rows.map(normalizeSupabaseUser)],
     patients:[...(db.patients||[]).filter(p=>!p._realSupabase),...rows.map(r=>directoryRowToPatient(r,now)).filter(Boolean)]};
+}
+
+// An allergy entry needs a warning unless it explicitly records that there are none.
+export function hasAllergyAlert(allergies){
+  const text=String(allergies||'').trim().toLowerCase().replace(/[.\s]+$/,'');
+  return Boolean(text)&&!['none','n/a','na','no','nka','nkda','no known allergies','no known drug allergies','-','—'].includes(text);
+}
+
+// BMI from stored height ("170cm") and weight ("65kg"), with the WHO adult category.
+export function bodyMassIndex(height,weight){
+  const cm=parseFloat(String(height||'').replace(/[^\d.]/g,'')),kg=parseFloat(String(weight||'').replace(/[^\d.]/g,''));
+  if(!(cm>=40&&cm<=260)||!(kg>=1&&kg<=500))return null;
+  const value=Math.round(kg/((cm/100)**2)*10)/10;
+  const category=value<18.5?'Underweight':value<25?'Normal':value<30?'Overweight':'Obese';
+  return {value,category};
+}
+
+// Most recent completed visit (appointment or treatment) and the next scheduled appointment.
+export function patientVisitSummary(patientId,{appointments=[],treatments=[],today}){
+  const visits=[
+    ...appointments.filter(a=>a.patientId===patientId&&a.status==='Completed').map(a=>a.date),
+    ...treatments.filter(t=>t.patientId===patientId&&!t.archived).map(t=>t.date)
+  ].filter(date=>date&&date<=today).sort();
+  const upcoming=appointments.filter(a=>a.patientId===patientId&&a.status==='Scheduled'&&a.date>=today)
+    .sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  return {lastVisit:visits.at(-1)||'',nextAppointment:upcoming[0]||null};
+}
+
+// Column sorting for the records table; blanks always sort last.
+export function sortPatients(rows,key,direction='asc',lastVisit=()=>''){
+  const value={
+    name:p=>`${p.lname||''} ${p.fname||''}`.trim().toLowerCase(),
+    id:p=>String(p.idNo||'').toLowerCase(),
+    age:p=>Number.isFinite(Number(p.age))&&p.age!==''?Number(p.age):null,
+    college:p=>String(p.college||'').toLowerCase(),
+    lastVisit:p=>lastVisit(p)||''
+  }[key]||(p=>`${p.lname||''} ${p.fname||''}`.toLowerCase());
+  const sign=direction==='desc'?-1:1;
+  return [...rows].sort((a,b)=>{
+    const x=value(a),y=value(b),blankX=x===null||x==='',blankY=y===null||y==='';
+    if(blankX||blankY)return blankX===blankY?0:blankX?1:-1;
+    return (x<y?-1:x>y?1:0)*sign;
+  });
+}
+
+// Spreadsheet-safe CSV of the filtered list; formula-like cells are neutralised.
+export function patientsCsv(rows,lastVisit=()=>''){
+  return templateCsv([
+    csvColumn('','Patient No.',p=>`P-${patientDisplayId(p)}`),
+    csvColumn('','ID Number',p=>p.idNo),
+    csvColumn('Name','Last',p=>p.lname),
+    csvColumn('Name','First',p=>p.fname),
+    csvColumn('Profile','Age (years)',p=>p.age),
+    csvColumn('Profile','Sex',p=>p.gender),
+    csvColumn('Profile','Blood Type',p=>p.blood),
+    csvColumn('Profile','Allergies',p=>p.allergies),
+    csvColumn('School','College/Department',p=>p.college),
+    csvColumn('School','Patient Type',p=>p.personType),
+    csvColumn('School','Class Session',p=>p.personType==='Student'?p.classSession:''),
+    csvColumn('Contact','Phone',p=>p.contact),
+    csvColumn('Visits','Last Visit',p=>csvDate(lastVisit(p))),
+    csvColumn('Record','Status',p=>p.archived?'Archived':'Active')
+  ],rows);
 }

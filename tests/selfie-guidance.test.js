@@ -45,3 +45,13 @@ test('a softly focused document is accepted but a featureless blur is not',()=>{
  assert.equal(check({documentSharpness:1}).code,'document-blur');
  assert.equal(check({faces:[{...face,x:235,y:230,width:400,height:460}]}).ready,true);
 });
+
+// The on-screen oval (unmirrored frame coordinates) is the target, not the middle of the frame.
+test('with a drawn oval, a face in the corner or a tiny face cannot pass',()=>{
+ const guide={face:{x:.22,y:.1,w:.34,h:.6},document:{x:.7,y:.3,w:.24,h:.38}};
+ const inOval={x:260,y:220,width:210,height:240};
+ assert.equal(check({guide,faces:[inOval]}).ready,true);
+ assert.equal(check({guide,faces:[{x:620,y:540,width:200,height:230}]}).code,'center');
+ assert.equal(check({guide,faces:[{x:330,y:300,width:90,height:100}]}).code,'far');
+ assert.match(check({guide,faces:[inOval],documentVisible:false}).message,/ID box/);
+});

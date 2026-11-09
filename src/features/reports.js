@@ -14,6 +14,7 @@ import {refreshHealthIntelligence,renderHealthIntelligenceCard} from './predicti
 import {generateReport,updateReportMetricOptions} from './reportCharts.js';
 import {openReportDateRange} from './datePicker.js';
 import {bindAction} from '../dependencies.js';
+import {unitFilterOptionsHtml} from './patientManagement.js';
 // ================================================================
 // REPORTS
 // ================================================================
@@ -55,13 +56,13 @@ export async function renderReports(){
   const reportTypeOptions=[
     '<option value="appointments">Appointments</option>',
     '<option value="treatments">Treatments</option>',
-    ...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?['<option value="inventory">Inventory</option>']:[]),
+    ...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?['<option value="inventory">Inventory</option>','<option value="medicine_use">Medicine consumption</option>']:[]),
     '<option value="patients">Patients</option>',
     ...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?['<option value="students">Student Coverage &amp; Registration</option>']:[])
   ].join('');
 
   c.innerHTML=`<div class="reports-workspace">
-    <div class="report-page-heading"><div><h2>Reports &amp; Analytics</h2><p>Understand clinic activity, explore records and plan ahead.</p></div><span class="intel-badge">${appState.auth.currentUser.role==='Doctor'?'Your clinical records':'Clinic records'}</span></div>
+    <div class="report-page-heading"><div><h2>${appState.auth.currentUser.role==='Doctor'?'My Reports':'Reports &amp; Analytics'}</h2><p>Understand clinic activity, explore records and plan ahead.</p></div><span class="intel-badge">${appState.auth.currentUser.role==='Doctor'?'Your clinical records':'Clinic records'}</span></div>
     <div class="card report-filter-card">
       <div class="report-control-grid">
         <div class="form-group"><label for="rpt-type">Report data source</label><select id="rpt-type" ${bindAction('change',updateReportMetricOptions)}>${reportTypeOptions}</select></div>
@@ -69,20 +70,17 @@ export async function renderReports(){
           <input type="hidden" id="rpt-from" value="${defaultFrom}"><input type="hidden" id="rpt-to" value="${defaultTo}">
           <button type="button" class="modern-date-btn" ${bindAction('click',openReportDateRange)}><i class="bi bi-calendar3"></i><span id="rpt-range-label">${fmtDate(defaultFrom)} – ${fmtDate(defaultTo)}</span></button>
         </div>
-        <div class="form-group"><label for="rpt-college">College</label><select id="rpt-college" ${bindAction('change',()=>{markReportStale();markForecastStale();refreshHealthIntelligence();})}><option value="">All Colleges</option>
-          ${[...new Set(['CCICT','COE','COED','CME','CAS','COT','Unknown',...appState.data.DB.users.map(u=>u.college).filter(Boolean)])].sort().map(college=>`<option value="${escapeHtml(college)}">${escapeHtml(college)}</option>`).join('')}
-        </select></div>
+        <div class="form-group"><label for="rpt-college">College / Department</label><select id="rpt-college" ${bindAction('change',()=>{markReportStale();markForecastStale();refreshHealthIntelligence();})}>${unitFilterOptionsHtml('')}<option value="Unknown">Not recorded</option></select></div>
       </div>
       <div class="report-presets"><span>Quick dates</span>${[['Month to date','month'],['Last 30 days','30'],['Last 90 days','90'],['Year to date','year']].map(([label,key])=>`<button type="button" class="btn btn-sm" ${bindAction('click',()=>setReportPreset(key))}>${label}</button>`).join('')}</div>
-      <p class="form-note">Activity dates and college apply to the overview and dated reports. Forecasts have their own history dates.</p>
     </div>
     <div class="report-tabs" role="tablist" aria-label="Analytics views">${[['overview','Overview','bi-grid'],['builder','Custom Reports','bi-sliders'],['forecast','Forecast','bi-graph-up-arrow']].map(([id,label,icon])=>`<button type="button" role="tab" id="report-tab-${id}" data-report-view="${id}" aria-controls="report-panel-${id}" aria-selected="${id==='overview'}" ${bindAction('click',()=>switchReportView(id))}><i class="bi ${icon}" aria-hidden="true"></i>${label}</button>`).join('')}</div>
     <section id="report-panel-overview" role="tabpanel" aria-labelledby="report-tab-overview">
-      <div class="report-template-grid">${[['appointments','Appointments by clinic'],['treatments','Treatments by diagnosis'],...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?[['students','Student service coverage'],['inventory','Stock by category']]:[])].map(([type,label])=>`<button type="button" class="report-template" ${bindAction('click',()=>{document.getElementById('rpt-type').value=type;updateReportMetricOptions();const group=document.getElementById('rpt-group');if(group)group.value=type==='appointments'?'clinic':type==='treatments'?'diagnosis':'category';})}><span>${label}</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>`).join('')}</div>
+      <div class="report-template-grid">${[['appointments','Appointments by clinic'],['treatments','Treatments by diagnosis'],...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?[['students','Student service coverage'],['inventory','Stock by category'],['medicine_use','Medicine used by month']]:[]),['appointments','Visits by service / procedure']].map(([type,label])=>`<button type="button" class="report-template" ${bindAction('click',()=>{document.getElementById('rpt-type').value=type;updateReportMetricOptions();const group=document.getElementById('rpt-group');if(group)group.value=label.includes('service / procedure')?'service':type==='appointments'?'clinic':type==='treatments'?'diagnosis':type==='medicine_use'?'month':'category';})}><span>${label}</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>`).join('')}</div>
       <div id="health-intelligence-wrap">${appState.auth.currentUser?._realSupabase?renderLiveAnalyticsCard(appState.reports.currentAnalyticsSummary):renderHealthIntelligenceCard(defaultFrom,defaultTo)}</div>
     </section>
     <section id="report-panel-builder" role="tabpanel" aria-labelledby="report-tab-builder" hidden>
-      <div class="card"><div class="card-header"><div><h3>Build a report</h3><p class="form-note">Choose a measure, combine filters and compare one or two breakdowns.</p></div></div>
+      <div class="card"><div class="card-header"><div><h3>Build a report</h3></div></div>
         <div id="rpt-custom-controls"></div>${studentFilterMarkup()}
         <button class="btn btn-primary" ${bindAction('click',generateReport)}><i class="bi bi-bar-chart" aria-hidden="true"></i> Generate Report</button>
       </div><div id="rpt-result" aria-live="polite"></div>

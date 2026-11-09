@@ -3,6 +3,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2.117.3";
 
 import {emailValidationError,normalizePhilippineMobile} from '../_shared/contact-validation.js';
 import {createMailDomainValidator} from '../_shared/mail-domain.js';
+import {authRedirect} from '../_shared/app-url.js';
+import {registrationDetailErrors} from '../_shared/registration-validation.js';
 const checkMailDomain=createMailDomainValidator();
 
 const corsHeaders = {
@@ -15,7 +17,7 @@ const json=(body:unknown,status=200,extra:Record<string,string>={})=>new Respons
 // Signup confirmations return to the deployed login flow.
 // Every public registration must prove ownership of its email before signing in.
 const REQUIRE_EMAIL_CONFIRMATION=true;
-const APP_CONFIRM_URL="https://campuscare-brown-two.vercel.app/?auth=confirmed";
+const APP_CONFIRM_URL=authRedirect("confirmed",(name:string)=>Deno.env.get(name)||"");
 
 // Only the public site key is returned to browsers. A half-configured widget fails closed.
 function captchaConfiguration(){
@@ -80,10 +82,35 @@ async function validateCaptcha(config:ReturnType<typeof captchaConfiguration>,to
   }catch{return json({error:"The security check could not be verified. Please try again shortly."},503);}
 }
 
+// Answers "is this taken?" for one username, email or ID while the form is filled in.
+// Only well-formed values are looked up, and each network has a small lookup allowance.
+async function availability(query:URLSearchParams,req:Request){
+  const field=query.get("field")||"",value=String(query.get("value")||"").trim();
+  const columns:Record<string,string>={username:"username",email:"email",id_number:"id_number"};
+  if(!columns[field]||!value||value.length>150)return json({error:"Invalid availability check."},400);
+  if(field==="username"&&!/^[A-Za-z0-9_.-]{4,20}$/.test(value))return json({available:null});
+  if(field==="email"&&emailValidationError(value.toLowerCase()))return json({available:null});
+  if(field==="id_number"&&!/^\d{5}(?:\d{2})?$/.test(value))return json({available:null});
+  try{
+    const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const admin=createClient(Deno.env.get("SUPABASE_URL")!,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+    const limited=await registrationLimit(admin,"lookup",registrationIp(req),serviceKey);if(limited)return limited;
+    const literal=value.replace(/[\\%_]/g,"\\$&");
+    const lookup=admin.from("users").select("user_id");
+    const {data,error}=await (field==="id_number"?lookup.eq("id_number",value):lookup.ilike(columns[field],field==="email"?literal.toLowerCase():literal)).limit(1);
+    if(error)throw error;
+    return json({available:!data?.length});
+  }catch{return json({available:null});}
+}
+
 Deno.serve(async(req:Request)=>{
   if(req.method==="OPTIONS") return new Response("ok",{headers:corsHeaders});
   const captcha=captchaConfiguration();
-  if(req.method==="GET")return captcha.configured?json({captcha_required:captcha.enabled,site_key:captcha.enabled?captcha.siteKey:null}):json({error:"Registration security is temporarily unavailable. Please try again shortly."},503);
+  if(req.method==="GET"){
+    const query=new URL(req.url).searchParams;
+    if(query.get("check")==="availability")return availability(query,req);
+    return captcha.configured?json({captcha_required:captcha.enabled,site_key:captcha.enabled?captcha.siteKey:null}):json({error:"Registration security is temporarily unavailable. Please try again shortly."},503);
+  }
   if(req.method!=="POST") return json({error:"Method not allowed"},405);
 
   let cleanupId:string|null=null;
@@ -109,7 +136,7 @@ Deno.serve(async(req:Request)=>{
 
     if(!email||!password||!(selfie instanceof File)||!(verification instanceof File)||!(verificationBack instanceof File))
       return json({error:"Email, password, selfie, and front and back ID photos are required."},400);
-    if(form.get("selfie_capture_source")!=="camera")return json({error:"Take a live camera verification selfie while holding your document."},400);
+    if(form.get("selfie_capture_source")!=="camera")return json({error:"Take a live camera verification selfie while holding your ID."},400);
     if(!selfie.size||!verification.size||!verificationBack.size)return json({error:"Selfie and verification document must not be empty."},400);
     if(password.length<8) return json({error:"Password must contain at least 8 characters."},400);
     if(selfie.size>5*1024*1024) return json({error:"Verification selfie must be 5 MB or smaller."},400);
@@ -140,9 +167,14 @@ Deno.serve(async(req:Request)=>{
     // Apply independent email and ID limits even when callers rotate networks.
     const schoolId=String(metadata.id_number||"").trim();
     if(!/^\d{5}(?:\d{2})?$/.test(schoolId))return json({error:"Enter a valid email and Student or Employee ID number."},400);
-    const emailError=emailValidationError(email);if(emailError)return json({error:emailError},400);
+    const emailError=emailValidationError(email);if(emailError)return json({error:emailError,field_errors:{email:emailError}},400);
     const contactRaw=String(metadata.contact_number||'').trim();
-    if(contactRaw&&!normalizePhilippineMobile(contactRaw))return json({error:'Use a Philippine mobile number starting with 09 or +639.'},400);
+    if(contactRaw&&!normalizePhilippineMobile(contactRaw))return json({error:'Use a Philippine mobile number starting with 09 or +639.',field_errors:{contact_number:'Use a Philippine mobile number starting with 09 or +639.'}},400);
+    // The same field rules as the browser form; never trust client-side checks alone.
+    for(const key of ["first_name","last_name","username","college","sex"])metadata[key]=String(metadata[key]??"").trim();
+    const manilaToday=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
+    const fieldErrors=registrationDetailErrors({...metadata,email,password,contact_number:contactRaw,id_number:schoolId,birth_date:String(metadata.birth_date||"")},manilaToday);
+    if(Object.keys(fieldErrors).length)return json({error:Object.values(fieldErrors)[0],field_errors:fieldErrors},400);
     if(contactRaw){metadata.contact_number=normalizePhilippineMobile(contactRaw);metadata.contact_no=metadata.contact_number;}
     const captchaError=await validateCaptcha(captcha,form.get("captcha_token"));if(captchaError)return captchaError;
     for(const [scope,value] of [["email",email],["id",schoolId]]){const denied=await registrationLimit(adminClient,scope,value,serviceKey);if(denied)return denied;}
@@ -152,10 +184,12 @@ Deno.serve(async(req:Request)=>{
 
     const username=String(metadata.username||"").trim();
     const {data:existingEmail}=await adminClient.from("users").select("user_id").ilike("email",email).limit(1);
-    if(existingEmail?.length) return json({error:"This email address is already registered."},409);
+    if(existingEmail?.length) return json({error:"This email address is already registered.",field_errors:{email:"This email address is already registered. Log in or use Forgot password."}},409);
+    const {data:existingId}=await adminClient.from("users").select("user_id").eq("id_number",schoolId).limit(1);
+    if(existingId?.length) return json({error:"This ID number is already registered.",field_errors:{id_number:"This ID number is already registered. Contact the clinic if this is a mistake."}},409);
     if(username){
       const {data:existingUsername}=await adminClient.from("users").select("user_id").ilike("username",username).limit(1);
-      if(existingUsername?.length) return json({error:"This username is already taken."},409);
+      if(existingUsername?.length) return json({error:"This username is already taken.",field_errors:{username:"This username is already taken. Try another one."}},409);
     }
 
     // Direct Auth signups stay disabled: only this CAPTCHA-checked endpoint can register.

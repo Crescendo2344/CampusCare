@@ -22,7 +22,7 @@ CampusCare now uses ordinary ES-module imports. There is no ordered source conca
 | `public/bootstrap/theme.js` | Small appearance script that prevents a theme flash before modules load |
 | `tests/` | Module, architecture, production-bundle and Chromium fixture checks |
 
-`src/features/` contains 67 modules, including separate authentication/session logic, dashboards, appointments, treatments, patients, certificate/fitness workflows, messaging, inventory, approvals, reports, settings and reusable form/calendar controls. See [feature-manifest.json](feature-manifest.json) for each module's exports, imports and state ownership. Run `npm run modules:map` after moving feature APIs.
+`src/features/` contains 71 modules, including separate authentication/session logic, dashboards, appointments, treatments, patients, certificate/fitness workflows, inventory, approvals, reports, settings and reusable form/calendar controls. See [feature-manifest.json](feature-manifest.json) for each module's exports, imports and state ownership. Run `npm run modules:map` after moving feature APIs.
 
 Page renderers are JavaScript components. They keep the existing design and behavior; this migration does not require React.
 

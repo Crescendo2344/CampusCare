@@ -3,13 +3,13 @@ import {createFeatureSyncService} from '../services/feature-sync.js';
 import {maskEmail,maskPhone} from '../shared/privacy-formatting.js';
 // workflowRequests: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
-import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
+import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {closeAllModals,openModal} from './modals.js';
 import {canonicalSchedule,clinicToday,discardCampusDraft,scheduleConflicts,setScheduleDays,validateSchedule} from './scheduleAndDrafts.js';
 import {campusDateFieldHtml} from './datePicker.js';
 import {syncRealAppointments} from './appointmentService.js';
 import {addNotif} from './notifications.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {fmtDate,sanitizeInput} from './inputValidation.js';
 import {persistDB} from './persistence.js';
 import {refreshTaskBadges} from './topbarAndNavigation.js';
@@ -20,6 +20,7 @@ import {renderMyAccount} from './accountSettings.js';
 import {initializeSupabaseClient} from './supabaseClient.js';
 import {escapeHtml} from './issueReports.js';
 import {bindAction,createOperationalService,workflowData} from '../dependencies.js';
+import {requestAttachmentFieldHtml,requestAttachmentLocal,requestAttachmentPayload} from './requestAttachments.js';
 // ================================================================
 // REAL ACCOUNT / DOCTOR WORKFLOW REQUESTS
 // ================================================================
@@ -46,19 +47,17 @@ export function openScheduleChangeRequest(){
   const u=appState.auth.currentUser;
   // Numbered sections explain the recurring pattern before asking for its details.
   openModal(`<div class="modal schedule-request" role="dialog" aria-modal="true" aria-labelledby="schedule-request-title">
-    <div class="modal-header"><div><h3 id="schedule-request-title">Request Schedule Change</h3><p class="form-note">Update your regular weekly clinic hours</p></div><button class="close-btn" aria-label="Close schedule request" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-header"><div><h3 id="schedule-request-title">Request Schedule Change</h3></div><button class="close-btn" aria-label="Close schedule request" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
       <div id="scr-msg" role="alert"></div>
       <div class="schedule-notice"><strong>This is a weekly schedule change.</strong><p>Selected days repeat every week. For just one day away, use <strong>Request Day Off</strong> in My Schedule.</p></div>
       <fieldset class="schedule-section"><legend><span>1</span> Choose your work days</legend>
-        <p class="form-note" id="schedule-days-help">Select the days you will work. Unselected days are days off.</p>
         <div class="schedule-presets"><button type="button" class="btn btn-sm" ${bindAction('click',()=>setScheduleDays('weekdays'))}>Mon–Fri</button><button type="button" class="btn btn-sm" ${bindAction('click',()=>setScheduleDays('current'))}>Current pattern</button><button type="button" class="btn btn-sm" ${bindAction('click',()=>setScheduleDays('clear'))}>Clear</button></div>
-        <div class="schedule-days" aria-describedby="schedule-days-help">
+        <div class="schedule-days">
           ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d,i)=>`<label class="schedule-day"><input type="checkbox" class="scr-day" value="${d}" aria-label="${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][i]}" ${(u.workDays||[]).includes(d)?'checked':''}><span>${d}<small class="schedule-day-on">Work</small><small class="schedule-day-off">Off</small></span></label>`).join('')}
         </div>
       </fieldset>
       <fieldset class="schedule-section"><legend><span>2</span> Set hours and appointments</legend>
-        <p class="form-note">These hours apply to every selected day. Times are in Philippine time (UTC+8).</p>
         <div class="schedule-fields">
           <div class="form-group"><label for="scr-start">Starts at</label><input type="time" id="scr-start" value="${escapeHtml(u.startTime||'08:00')}"></div>
           <div class="form-group"><label for="scr-end">Ends at</label><input type="time" id="scr-end" value="${escapeHtml(u.endTime||'17:00')}"></div>
@@ -67,15 +66,15 @@ export function openScheduleChangeRequest(){
         </div>
       </fieldset>
       <fieldset class="schedule-section"><legend><span>3</span> Choose when and explain why</legend>
-        <div class="form-group"><label for="scr-effective">Requested start date <span class="required">*</span></label>${campusDateFieldHtml('scr-effective',clinicToday(),'Choose start date',clinicToday())}<p class="form-note">Repeats weekly from this date onward, once approved. Your current schedule stays active while this request is pending.</p></div>
+        <div class="form-group"><label for="scr-effective">Requested start date <span class="required">*</span></label>${campusDateFieldHtml('scr-effective',clinicToday(),'Choose start date',clinicToday())}</div>
         <div class="form-group"><label for="scr-reason">Reason for change <span class="required">*</span></label><textarea id="scr-reason" rows="3" placeholder="Explain why you need these new days or hours." required></textarea></div>
+        ${requestAttachmentFieldHtml('scr-attach','e.g. memo, class load, or training schedule')}
       </fieldset>
       <section class="schedule-review" aria-labelledby="schedule-review-title"><h4 id="schedule-review-title">Review your change</h4>
         <div class="schedule-comparison"><div><strong>Current schedule</strong><p id="schedule-current-summary"></p></div><div><strong>Requested schedule</strong><p id="schedule-proposed-summary"></p></div></div>
         <p id="schedule-effective-summary" class="form-note"></p>
         <div id="schedule-preview" class="schedule-status" aria-live="polite"></div>
       </section>
-      <p class="form-note schedule-approval-note">Submitting sends a request to the administrator. It does not immediately change your schedule or cancel any appointments.</p>
     </div>
     <div class="modal-footer"><button type="button" class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button type="button" class="btn btn-primary" ${bindAction('click',()=>submitScheduleChangeRequest())}>Send for Approval</button></div>
   </div>`);
@@ -117,7 +116,8 @@ export async function submitScheduleChangeRequest(){
         max_patients:maxPatients,
         work_days:workDays,
         effective_date:effectiveDate,
-        reason
+        reason,
+        ...requestAttachmentPayload('scr-attach')
       });
       await syncRealWorkflowRequests();
     }else{
@@ -127,7 +127,8 @@ export async function submitScheduleChangeRequest(){
         id:appState.data.DB.nextScheduleReqId++,doctorId:u.id,
         currentSchedule:{startTime:u.startTime,endTime:u.endTime,slotDuration:u.slotDuration,maxPatients:u.maxPatients,workDays:u.workDays},
         requested:{startTime,endTime,slotDuration,maxPatients,workDays},
-        effectiveDate,reason,status:'Pending',createdAt:appState.clinicInformation.TODAY
+        effectiveDate,reason,status:'Pending',createdAt:appState.clinicInformation.TODAY,
+        ...requestAttachmentLocal('scr-attach')
       });
       appState.data.DB.users.filter(a=>a.role==='Administrator').forEach(a=>addNotif(a.id,'Schedule Change Request',`${docName(u)} has requested a work schedule change effective ${fmtDate(effectiveDate)}.`,'info'));
       persistDB();
@@ -142,7 +143,7 @@ export async function submitScheduleChangeRequest(){
   }finally{appState.workflowRequests.campusScheduleSubmitting=false;}
 }
 
-export function approveScheduleChange(reqId){
+export function approveScheduleChange(reqId,note=''){
   const req=(appState.data.DB.scheduleChangeRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
   const doc=getUserById(req.doctorId);
@@ -161,10 +162,11 @@ export function approveScheduleChange(reqId){
         if(req._realSupabase){
           await syncRealAppointments();
           if(scheduleConflicts(doc,req.requested,effDate).length)throw new Error('Bookings changed. Resolve schedule conflicts before approval.');
-          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve'});
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Approve',admin_note:note});
           await Promise.all([syncAdminDirectoryFromSupabase(),syncRealWorkflowRequests()]);
-          toast(effDate<=appState.clinicInformation.TODAY?'Schedule change approved and applied.':`Approved — will take effect automatically on ${fmtDate(effDate)}.`,'success');
+          offerDecisionUndo(req,effDate<=appState.clinicInformation.TODAY?'Schedule change approved and applied.':`Approved — takes effect on ${fmtDate(effDate)}.`);
         }else{
+          const before={...doc};
           if(effDate<=appState.clinicInformation.TODAY){
             Object.assign(doc,canonicalSchedule(req.requested));
             req.status='Approved';
@@ -174,9 +176,9 @@ export function approveScheduleChange(reqId){
             addNotif(doc.id,'Schedule Change Approved',`Your requested work schedule change has been approved and will take effect on ${fmtDate(effDate)}.`,'success');
           }
           persistDB();
-          toast('Schedule change approved.','success');
+          offerDecisionUndo(req,'Schedule change approved.',()=>Object.assign(doc,before));
         }
-        if(document.getElementById('user-table'))await renderUsers();
+        if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to approve the schedule change.','error');
       }
@@ -204,7 +206,7 @@ export function applyDueScheduleChanges(){
   });
 }
 
-export function rejectScheduleChange(reqId){
+export function rejectScheduleChange(reqId,note=''){
   const req=(appState.data.DB.scheduleChangeRequests||[]).find(r=>r.id===Number(reqId));
   if(!req)return;
   const doc=getUserById(req.doctorId);
@@ -218,20 +220,37 @@ export function rejectScheduleChange(reqId){
     onConfirm:async()=>{
       try{
         if(req._realSupabase){
-          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject'});
+          await workflowAction({action:'decision',request_id:req.dbRequestId,decision:'Reject',admin_note:note});
           await syncRealWorkflowRequests();
         }else{
-          req.status='Rejected';
+          req.status='Rejected';req.adminNote=note;
           if(doc)addNotif(doc.id,'Schedule Change Declined','Your requested work schedule change was declined by an administrator. Please reach out for more details.','warning');
           persistDB();
         }
-        toast('Request rejected.','success');
-        if(document.getElementById('user-table'))await renderUsers();
+        offerDecisionUndo(req,'Request rejected.',()=>{});
+        if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
       }catch(e){
         toast(e?.message||'Unable to reject the request.','error');
       }
     }
   });
+}
+
+// After approving or rejecting a request, offer Undo: the request goes back to Pending and whatever the
+// approval applied (new name, schedule, day off) is reversed. revertLocal handles the offline demo.
+export function offerDecisionUndo(req,message,revertLocal){
+  toastWithUndo(message,async()=>{
+    if(req._realSupabase){
+      await workflowAction({action:'undo_decision',request_id:req.dbRequestId});
+      await Promise.all([syncAdminDirectoryFromSupabase(),syncRealWorkflowRequests(),syncRealAppointments()]);
+    }else{
+      revertLocal();
+      req.status='Pending';req.adminNote='';
+      persistDB();
+    }
+    refreshTaskBadges(true);
+    if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
+  },{undoneMessage:'Decision undone. The request is pending again.'});
 }
 
 export function normalizePhilippinePhoneForAuth(localPhone){
@@ -381,7 +400,7 @@ export async function openAccountUpdateVerification(){
       <div class="modal-body">
         <div id="acc-verify-msg"></div>
         <div class="alert alert-info show" style="font-size:.78rem">
-          🔐 We sent a 6-digit verification code to your current verified ${channel}: <strong>${escapeHtml(destination)}</strong>.
+          <i class="bi bi-shield-lock" aria-hidden="true"></i> We sent a 6-digit verification code to your current verified ${channel}: <strong>${escapeHtml(destination)}</strong>.
         </div>
         <p class="form-note" style="margin:.65rem 0">
           Enter that code before CampusCare starts changing your account information.
@@ -486,7 +505,7 @@ export function openPhoneChangeVerification(){
     <div class="modal-body">
       <div id="phone-change-msg"></div>
       <div class="alert alert-info show" style="font-size:.78rem">
-        📱 Supabase sent a 6-digit SMS code to <strong>${escapeHtml(maskPhone(phone))}</strong>.
+        <i class="bi bi-phone" aria-hidden="true"></i> Supabase sent a 6-digit SMS code to <strong>${escapeHtml(maskPhone(phone))}</strong>.
       </div>
       ${appState.workflowRequests.pendingAccountUpdate?.emailChanged
         ? `<p class="form-note">Your email change was also started. Check the verification message sent to <strong>${escapeHtml(appState.workflowRequests.pendingAccountUpdate.email)}</strong> to complete that change.</p>`

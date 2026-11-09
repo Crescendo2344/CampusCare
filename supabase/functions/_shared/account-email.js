@@ -1,10 +1,12 @@
+import {authRedirect} from './app-url.js';
 // Both public email flows verify the application profile and Auth record on the server.
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'POST, OPTIONS'};
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
-const appUrl='https://campuscare-brown-two.vercel.app/';
 const week=7*24*60*60*1000;
 
 export function createAccountEmailHandler({createClient,env,action}){
+  // Optional configuration must never turn a missing variable into a failed email request.
+  const safeEnv=name=>{try{return env(name);}catch{return '';}};
   return async req=>{
     if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
     if(req.method!=='POST')return json({error:'Method not allowed.'},405);
@@ -36,8 +38,8 @@ export function createAccountEmailHandler({createClient,env,action}){
       // Keep credentials server-side and preserve Supabase's email rate limits.
       const client=createClient(env('SUPABASE_URL'),env('SUPABASE_ANON_KEY'),options);
       const {error}=action==='resend'
-        ? await client.auth.resend({type:'signup',email:account.email,options:{emailRedirectTo:appUrl+'?auth=confirmed'}})
-        : await client.auth.resetPasswordForEmail(account.email,{redirectTo:appUrl+'?auth=recovery'});
+        ? await client.auth.resend({type:'signup',email:account.email,options:{emailRedirectTo:authRedirect('confirmed',safeEnv)}})
+        : await client.auth.resetPasswordForEmail(account.email,{redirectTo:authRedirect('recovery',safeEnv)});
       if(error){
         const limited=error.status===429||/rate|too many|seconds/i.test(error.message||'');
         return json({error:limited?'Please wait before requesting another email.':'The email could not be sent. Please try again later.'},limited?429:502);

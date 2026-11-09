@@ -22,7 +22,7 @@ async function fixture({status='Active',actorRole='Administrator',actorStatus='A
   globalThis.Deno={env:{get:name=>name==='SUPABASE_URL'?'https://fixture.test':'fixture-server-key'},serve:fn=>handler=fn};
   const source=readFileSync('supabase/functions/admin-users/index.ts','utf8').replace(/^import[^\n]+\n/gm,'');
   await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const createClient=globalThis.__adminEditClient,buildUserEditPatch=globalThis.__adminEditPolicy;\n'+source)+'\n// fixture '+Math.random()).toString('base64'));
-  const call=(body={})=>handler(new Request('https://fixture.test',{method:'POST',headers:{Authorization:'Bearer fixture'},body:JSON.stringify({action:'update',user_id:2,confirmed:true,...body})}));
+  const call=(body={})=>handler(new Request('https://fixture.test',{method:'POST',headers:{Authorization:'Bearer fixture'},body:JSON.stringify({action:'update',user_id:2,confirmed:true,reason:'Corrected per registrar records',...body})}));
   return {call,target,writes,authUpdates,audits};
 }
 test('editing is available only for approved Active or Suspended profiles',()=>{
@@ -43,6 +43,13 @@ test('confirmed edits save validated fields, read them back and audit without ch
   const f=await fixture({status:'Suspended'});const response=await f.call({first_name:' Updated ',email:'changed@example.test',contact_number:'+639987654321'});
   assert.equal(response.status,200);const result=await response.json();assert.equal(result.user.first_name,'Updated');assert.equal(result.user.status,'Suspended');
   assert.equal(result.user.contact_number,'09987654321');assert.equal(f.target.email,'changed@example.test');assert.equal(f.authUpdates.length,1);assert.equal(f.audits[0].action,'USER_UPDATED');assert(!('status' in f.writes[0]));
+  // The audit keeps before/after values and the reason; the user is told what changed.
+  assert.equal(f.audits[0].details.previous_first_name,'Original');assert.equal(f.audits[0].details.new_first_name,'Updated');
+  assert.equal(f.audits[0].details.reason,'Corrected per registrar records');
+  assert.equal(f.audits[1].title,'Account details updated');assert.match(f.audits[1].message,/first name, email, mobile number/);
+});
+test('a reason is required for every account edit',async()=>{
+  const f=await fixture();assert.equal((await f.call({first_name:'Changed',reason:'no'})).status,400);assert.equal(f.writes.length,0);
 });
 test('zero-row status races and failed writes do not report success and restore changed Auth email',async()=>{
   for(const options of [{race:true},{writeError:true}]){

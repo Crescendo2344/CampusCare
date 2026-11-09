@@ -4,15 +4,12 @@ import {state as appState} from '../app/state.js';
 import {authTab,setPublicNavbarMode,showAuthPage} from './authentication.js';
 import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
 import {escapeHtml} from './issueReports.js';
-import {checkPasswordStrength} from './loginLockout.js';
-import {initializeSupabaseClient} from './supabaseClient.js';
+import {afterPointerRelease,checkPasswordStrength,renderPasswordStrength} from './loginLockout.js';
+import {initializeSupabaseClient,rememberedLogin} from './supabaseClient.js';
 import {auditAction} from './emailDelivery.js';
 import {auditLog} from './auditAndBackups.js';
 import {persistDB} from './persistence.js';
 import {clearCampusSessionGuard} from './sessionSecurity.js';
-import {getPatientByUserId} from './documentScanner.js';
-import {checkReminders} from './assistant.js';
-import {initApp} from './appInitialization.js';
 // ================================================================
 // FORGOT PASSWORD — real Supabase email recovery
 // ================================================================
@@ -40,16 +37,6 @@ export function openForgotPassword(recoveryMode=false){
   const resetDest=document.getElementById('fp-reset-destination');
   if(resetDest)resetDest.textContent='A secure password-reset link has been sent to your registered email.';
   showForgotStep(recoveryMode?3:1);
-
-  const title=document.getElementById('forgot-title');
-  const subtitle=document.getElementById('forgot-subtitle');
-  if(recoveryMode){
-    if(title)title.textContent='Create a New Password';
-    if(subtitle)subtitle.textContent='Your secure recovery link has been verified.';
-  }else{
-    if(title)title.textContent='Reset Your Password';
-    if(subtitle)subtitle.textContent='CampusCare will send a secure reset link to your registered email.';
-  }
 }
 
 export function resetAuthUiToLogin(){
@@ -190,7 +177,7 @@ export function showRecoveryPasswordChecklist(){
   updateRecoveryPasswordStrength();
 }
 export function hideRecoveryPasswordChecklist(){
-  document.getElementById('fp-strength')?.classList.remove('show');
+  afterPointerRelease(()=>{if(document.activeElement?.id!=='fp-newpass')document.getElementById('fp-strength')?.classList.remove('show');});
 }
 export function updateRecoveryPasswordStrength(){
   const input=document.getElementById('fp-newpass');
@@ -198,18 +185,12 @@ export function updateRecoveryPasswordStrength(){
   const label=document.getElementById('fp-strength-label');
   if(!input||!el)return;
 
-  const {checks,score,valid}=checkPasswordStrength(input.value);
+  const {checks}=checkPasswordStrength(input.value);
   el.querySelectorAll('.password-check').forEach(item=>{
     item.classList.toggle('met',Boolean(checks[item.dataset.check]));
   });
 
-  if(label){
-    let strength='Weak password',cls='weak';
-    if(valid&&score>=5){strength='Strong password';cls='strong';}
-    else if(valid||score>=3){strength='Medium password';cls='medium';}
-    label.textContent=strength;
-    label.className='password-strength-label '+cls;
-  }
+  renderPasswordStrength(el,label,input.value);
 }
 
 export async function getRecoverySession(){
@@ -352,7 +333,9 @@ export async function submitNewPassword(){
 export async function handleCampusCareAuthCallback(){
   const params=new URLSearchParams(window.location.search);
   const hashParams=new URLSearchParams((window.location.hash||'').replace(/^#/,''));
-  const mode=params.get('auth');
+  // If Supabase falls back to the Site URL, the ?auth= marker is lost but the link type remains.
+  const linkType=hashParams.get('type')||params.get('type');
+  const mode=params.get('auth')||(['signup','email','invite'].includes(linkType)?'confirmed':linkType==='recovery'?'recovery':null);
 
   // Supabase can return callback errors in the query string or URL fragment.
   const callbackError=
@@ -453,7 +436,8 @@ export function logout(){
 
         const userInput=document.getElementById('li-user');
         const passInput=document.getElementById('li-pass');
-        if(userInput)userInput.value='';
+        // Keep the remembered username or email ready for the next sign-in; never the password.
+        if(userInput)userInput.value=rememberedLogin();
         if(passInput)passInput.value='';
 
         document.getElementById('back-to-top')?.classList.remove('show');
@@ -467,19 +451,6 @@ export function logout(){
   });
 }
 
-// Restore an active session (e.g. after a page refresh) so the person
-// isn't logged out just for reloading the tab.
-export function tryRestoreSession(){
-  const savedId=sessionStorage.getItem(appState.persistence.SESSION_KEY);
-  if(!savedId)return false;
-  const user=appState.data.DB.users.find(u=>u.id===parseInt(savedId));
-  if(!user||user.status!=='Active'){sessionStorage.removeItem(appState.persistence.SESSION_KEY);return false;}
-  appState.auth.currentUser=user;
-  if(user.role==='Patient')appState.auth.currentPatient=getPatientByUserId(user.id);
-  checkReminders();
-  initApp();
-  return true;
-}
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){

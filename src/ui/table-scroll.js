@@ -1,4 +1,5 @@
 // Apply one responsive scroll policy to every data table, including dynamically rendered modals.
+import {cardifyTable} from './table-cards.js';
 const managed=new WeakMap();
 export function limitTableRows(wrap,limit=10){
   if(!wrap)return;
@@ -34,6 +35,7 @@ export function installTableScrolling(root=document){
       // Reuse established scroll containers; add one only for previously unwrapped data tables.
       let wrap=table.closest('.table-wrap,.cert-table-wrap,.data-table-scroll');
       if(!wrap){wrap=root.createElement('div');wrap.className='table-wrap';table.before(wrap);wrap.append(table);}
+      cardifyTable(table);
       limitTableRows(wrap);active.add(wrap);managed.get(wrap)?.measure();
     }
   };

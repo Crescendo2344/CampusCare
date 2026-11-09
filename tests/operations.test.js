@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createOperationalService} from '../src/services/operations.js';
 import * as records from '../src/domain/workflow-records.js';
-const endpoints={backupAction:'backup-actions',settingsAction:'settings-actions',emailDeliveryAction:'email-dispatch',auditAction:'audit-actions',privacyAction:'privacy-actions',healthResourceAction:'health-resource-actions',workflowAction:'workflow-actions',fitnessAction:'fitness-actions',surveyAction:'survey-actions',messageAction:'message-actions',adminUserAction:'admin-users',taskBadgeAction:'task-badges'};
+const endpoints={backupAction:'backup-actions',settingsAction:'settings-actions',emailDeliveryAction:'email-dispatch',auditAction:'audit-actions',privacyAction:'privacy-actions',healthResourceAction:'health-resource-actions',workflowAction:'workflow-actions',fitnessAction:'fitness-actions',surveyAction:'survey-actions',adminUserAction:'admin-users',taskBadgeAction:'task-badges'};
 function service(request,session={access_token:'fixture-token'}){return createOperationalService({getClient:()=>({auth:{getSession:async()=>({data:{session}})}}),request,baseUrl:'https://operations.test',publishableKey:'fixture-public-key'});}
 for(const [name,endpoint] of Object.entries(endpoints))test(`${name} preserves its endpoint, session credentials and backend failures`,async()=>{
  let sent;const api=service(async(url,options)=>{sent={url,options};return {ok:true,json:async()=>({ok:true,counts:{messages:2}})};});
@@ -20,9 +20,7 @@ test('workflow types retain requested weekly patterns, effective dates and appro
  assert.equal(records.realWorkflowToUi({request_type:'Name Change',status:'Applied'}).status,'Approved');
  assert.equal(records.realWorkflowToUi({request_type:'Day Off',status:'Applied',payload:{leaveDate:'2026-10-12'}}).date,'2026-10-12');
 });
-test('fitness and messaging records retain clinical links and attachment privacy',()=>{
+test('fitness records retain clinical links',()=>{
  const fit=records.realFitnessToUi({assessment_id:8,patient_id:4,doctor_id:2,decision:'Fit with Restrictions',restrictions:'Fixture restriction'});
  assert.equal(fit.id,800008);assert.equal(fit.doctorId,100002);assert.equal(fit.restrictions,'Fixture restriction');assert.equal(fit.status,'Requested');
- const message=records.realMessageToUi({message_id:3,from_user_id:2,to_user_id:4,attachment_url:'fixture',deleted_for_everyone:true});
- assert.equal(message.attachment,null);assert.equal(message.deleted,true);assert.equal(message.fromUserId,100002);
 });

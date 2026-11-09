@@ -33,7 +33,7 @@ Use dedicated Patient, Doctor, Staff and Administrator test accounts and synthet
 1. Verify confirmation, login/logout, expiry and password recovery on the production domain.
 2. Exercise booking/cancellation, weekly work patterns, lunch boundaries, future schedules, conflicts and request approval.
 3. Exercise patient/treatment/dental/reminder records, fitness and account-scoped drafts.
-4. Exercise certificate request/preparation/doctor signing/rejection/download and messaging/read counts.
+4. Exercise doctor certificate drafting, signing and voiding.
 5. Exercise approvals, inventory, exports, settings, backups, privacy/issue requests and denied-role access.
 6. Confirm private signed downloads, responsive forms, camera denial, network failure and production logs.
 7. Review the existing archive-state inconsistency against the intended account/patient status.

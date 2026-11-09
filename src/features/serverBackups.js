@@ -1,6 +1,6 @@
 // serverBackups: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
-import {showConfirmDialog,toast} from './theme.js';
+import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {escapeHtml} from './issueReports.js';
 import {downloadBackup,getDailyBackups,restoreBackup} from './auditAndBackups.js';
 import {bindAction,createOperationalService,workflowData} from '../dependencies.js';
@@ -74,13 +74,19 @@ export function changeBackupRetention(){
     title:'Change Backup Retention',
     message:`Keep CampusCare database snapshots for <strong>${days} days</strong>? Older snapshots will be removed automatically.`,
     confirmLabel:'Update Retention',
+    onCancel:()=>{select.value=String(appState.data.DB.realBackupRetentionDays||30);},
     onConfirm:async()=>{
-      try{
-        await backupAction({action:'set_retention',days});
-        appState.data.DB.realBackupRetentionDays=days;
-        toast(`Backup retention updated to ${days} days.`,'success');
+      const previous=Number(appState.data.DB.realBackupRetentionDays||30);
+      const apply=async value=>{
+        await backupAction({action:'set_retention',days:value});
+        appState.data.DB.realBackupRetentionDays=value;
         await syncRealBackupStatus();
         renderBackupPanel();
+        const field=document.getElementById('backup-retention');if(field)field.value=String(value);
+      };
+      try{
+        await apply(days);
+        toastWithUndo(`Backup retention updated to ${days} days.`,()=>apply(previous),{undoneMessage:`Backup retention is back to ${previous} days.`});
       }catch(e){
         toast(e?.message||'Unable to update backup retention.','error');
       }

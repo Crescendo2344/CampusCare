@@ -2,7 +2,6 @@
 import * as feature0 from '../features/authSession.js';
 import * as feature1 from '../features/supabaseClient.js';
 import * as feature2 from '../features/demoData.js';
-import * as feature3 from '../features/dataServices.js';
 import * as feature4 from '../features/utilities.js';
 import * as feature5 from '../features/clinicInformation.js';
 import * as feature6 from '../features/persistence.js';
@@ -46,7 +45,7 @@ import * as feature43 from '../features/appointments.js';
 import * as feature44 from '../features/approvalQueue.js';
 import * as feature45 from '../features/dentalSurvey.js';
 import * as feature46 from '../features/treatmentList.js';
-import * as feature47 from '../features/messaging.js';
+import * as feature47 from '../features/displayNames.js';
 import * as feature48 from '../features/inventory.js';
 import {reports as feature49} from './optional-features.js';
 import {reportCharts as feature50} from './optional-features.js';
@@ -65,12 +64,18 @@ import * as feature62 from '../features/userForm.js';
 import * as feature63 from '../features/startup.js';
 import * as feature64 from '../features/scheduleAndDrafts.js';
 import * as feature65 from '../features/shellActions.js';
+import * as feature66 from '../features/doctorSchedules.js';
+import * as feature67 from '../features/requestAttachments.js';
+import * as feature68 from '../features/slotManager.js';
+import * as feature69 from '../features/legalPages.js';
+import * as feature70 from '../features/reappointment.js';
+import * as feature71 from '../features/profileDetails.js';
+import * as feature72 from '../features/stockOrders.js';
 export const features={
 analyticsDisplay,
   authSession:feature0,
   supabaseClient:feature1,
   demoData:feature2,
-  dataServices:feature3,
   utilities:feature4,
   clinicInformation:feature5,
   persistence:feature6,
@@ -114,7 +119,7 @@ analyticsDisplay,
   approvalQueue:feature44,
   dentalSurvey:feature45,
   treatmentList:feature46,
-  messaging:feature47,
+  displayNames:feature47,
   inventory:feature48,
   reports:feature49,
   reportCharts:feature50,
@@ -133,6 +138,13 @@ analyticsDisplay,
   startup:feature63,
   scheduleAndDrafts:feature64,
   shellActions:feature65,
+  doctorSchedules:feature66,
+  requestAttachments:feature67,
+  slotManager:feature68,
+  legalPages:feature69,
+  reappointment:feature70,
+  profileDetails:feature71,
+  stockOrders:feature72,
 };
 import {initializeOptionalState} from './optional-state.js';
 import * as analyticsDisplay from '../features/analyticsDisplay.js';
@@ -141,7 +153,6 @@ initializeOptionalState();
   feature0.initializeFeature();
   feature1.initializeFeature();
   feature2.initializeFeature();
-  feature3.initializeFeature();
   feature4.initializeFeature();
   feature5.initializeFeature();
   feature6.initializeFeature();
@@ -204,4 +215,8 @@ initializeOptionalState();
   feature63.initializeFeature();
   feature64.initializeFeature();
   feature65.initializeFeature();
+  feature66.initializeFeature();
+  feature67.initializeFeature();
+  feature68.initializeFeature();
+  feature69.initializeFeature();
 }

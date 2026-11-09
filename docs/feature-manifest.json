@@ -5,7 +5,12 @@
     "functions": [
       "formatLastLogin",
       "openProfileDetails",
-      "renderMyAccount"
+      "copyProfileValue",
+      "renderMyAccount",
+      "describeUserAgent",
+      "renderSignedInDevices",
+      "revokeDevice",
+      "signOutOtherSessions"
     ],
     "state": [],
     "imports": [
@@ -19,8 +24,11 @@
       "./workflowRequests.js",
       "./loginLockout.js",
       "./privacy.js",
-      "./documentScanner.js",
-      "../dependencies.js"
+      "./legalPages.js",
+      "./theme.js",
+      "../dependencies.js",
+      "./passwordRecovery.js",
+      "./patientService.js"
     ]
   },
   {
@@ -29,8 +37,6 @@
     "functions": [
       "fetchAnalyticsSummary",
       "analyticsMiniBars",
-      "analyticsVisitForecastHtml",
-      "analyticsMedicineForecastHtml",
       "renderLiveAnalyticsCard"
     ],
     "state": [],
@@ -38,14 +44,7 @@
       "../services/feature-sync.js",
       "../app/state.js",
       "./issueReports.js",
-      "./inputValidation.js",
-      "./patientService.js",
-      "./appointmentService.js",
-      "./treatmentService.js",
-      "./inventoryService.js",
-      "./navigationRaceProtection.js",
-      "./loadingSkeletons.js",
-      "../dependencies.js"
+      "./inputValidation.js"
     ]
   },
   {
@@ -81,6 +80,11 @@
       "./patientForm.js",
       "./issueReports.js",
       "./inputValidation.js",
+      "./appointments.js",
+      "./patientManagement.js",
+      "./patientService.js",
+      "./scheduleAndDrafts.js",
+      "../domain/appointment-list.js",
       "./treatmentForm.js",
       "./bookingForm.js",
       "../dependencies.js"
@@ -91,7 +95,6 @@
     "path": "src/features/appointmentService.js",
     "functions": [
       "appointmentDisplayId",
-      "openAppointmentFromRow",
       "appointmentRecords",
       "realAppointmentToUi",
       "appointmentService",
@@ -103,7 +106,6 @@
     "state": [],
     "imports": [
       "../app/state.js",
-      "./appointmentDetails.js",
       "./patientService.js",
       "../dependencies.js"
     ]
@@ -113,8 +115,10 @@
     "path": "src/features/appointments.js",
     "functions": [
       "renderAppointments",
+      "exportAppointmentsCsv",
+      "apptMenuHtml",
+      "appointmentAllowedActions",
       "renderApptTable",
-      "completeAppt",
       "noShowAppt",
       "cancelAppt",
       "confirmCancelAppt",
@@ -122,7 +126,6 @@
     ],
     "state": [],
     "imports": [
-      "../shared/privacy-formatting.js",
       "../app/state.js",
       "./navigationRaceProtection.js",
       "./loadingSkeletons.js",
@@ -133,6 +136,9 @@
       "./documentScanner.js",
       "./appointmentDetails.js",
       "./patientManagement.js",
+      "./patientService.js",
+      "./scheduleAndDrafts.js",
+      "../domain/appointment-list.js",
       "./patientForm.js",
       "./inputValidation.js",
       "./treatmentForm.js",
@@ -141,7 +147,10 @@
       "./patientAppointments.js",
       "./modals.js",
       "./notifications.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "./topbarAndNavigation.js",
+      "./slotManager.js",
+      "../shared/csv.js"
     ]
   },
   {
@@ -153,13 +162,15 @@
       "syncRealPendingIntoDemoDB",
       "refreshRealApprovalQueue",
       "renderApprovals",
+      "renderApprovalTable",
       "approvalDisplayValue",
       "approvalDataField",
-      "approvalDocumentPreview",
       "reviewApproval",
+      "syncApprovalChecklist",
       "submitRealApprovalDecision",
       "approveUser",
       "rejectUser",
+      "syncRejectForm",
       "confirmRejectUser"
     ],
     "state": [
@@ -177,7 +188,10 @@
       "./topbarAndNavigation.js",
       "./inputValidation.js",
       "./modals.js",
+      "./patientManagement.js",
+      "../domain/approval-queue.js",
       "./theme.js",
+      "../ui/pager.js",
       "../dependencies.js"
     ]
   },
@@ -185,19 +199,11 @@
     "name": "assistant",
     "path": "src/features/assistant.js",
     "functions": [
-      "resetAssistantChat",
-      "getAssistantChips",
-      "renderAssistantChips",
-      "toggleAssistant",
-      "addAssistantMessage",
-      "askAssistant",
-      "sendAssistantMessage",
-      "getAssistantReply",
+      "setNotificationFilter",
       "renderNotifList",
       "readNotif",
       "markAllRead",
-      "toggleNotifPanel",
-      "checkReminders"
+      "toggleNotifPanel"
     ],
     "state": [
       {
@@ -209,13 +215,6 @@
       "../app/state.js",
       "./issueReports.js",
       "./navigationRaceProtection.js",
-      "./inventoryService.js",
-      "./predictiveAnalytics.js",
-      "./documentScanner.js",
-      "./appointmentService.js",
-      "./inputValidation.js",
-      "./messaging.js",
-      "./doctorSchedule.js",
       "./notifications.js",
       "./theme.js",
       "../dependencies.js"
@@ -228,7 +227,6 @@
       "auditLog",
       "getDailyBackups",
       "createDailyBackup",
-      "runAutomatedDailyBackup",
       "downloadBackup",
       "restoreBackup"
     ],
@@ -251,10 +249,8 @@
     "functions": [
       "hydrateCurrentUserProfilePhoto",
       "syncCampusCareSessionUI",
-      "fetchWithTimeout",
       "getActiveNavPageId",
-      "refreshActivePageAfterSync",
-      "routeRegistrationFeedbackToToast"
+      "refreshActivePageAfterSync"
     ],
     "state": [],
     "imports": [
@@ -264,7 +260,6 @@
       "./appInitialization.js",
       "./systemSettings.js",
       "./treatmentService.js",
-      "./messaging.js",
       "./navigationRaceProtection.js",
       "./issueReports.js",
       "./workflowRequests.js",
@@ -288,12 +283,12 @@
       "pauseLandingCarouselProgress",
       "landingCarouselSlideWidth",
       "landingCarouselRealIndex",
+      "positionLandingCarousel",
       "normalizeLandingCarouselScroll",
       "buildLandingCarouselLoop",
       "moveLandingCarousel",
       "startLandingCarouselTimer",
       "pauseLandingCarouselTimer",
-      "snapLandingCarouselToNearest",
       "initializeLandingCarouselInteractions",
       "setPublicNavbarMode",
       "showLandingRoute",
@@ -335,15 +330,17 @@
     ],
     "imports": [
       "../app/state.js",
-      "./documentScanner.js"
+      "../verification/registration-captcha.js",
+      "./documentScanner.js",
+      "./supabaseClient.js"
     ]
   },
   {
     "name": "bookingForm",
     "path": "src/features/bookingForm.js",
     "functions": [
-      "doctorOpenSlotCount",
-      "refreshAvailableDoctorsForDate",
+      "fetchDoctorAvailability",
+      "onBookingDoctorChange",
       "openBookApptModal",
       "chooseBookingDate",
       "onClinicChange",
@@ -353,11 +350,12 @@
       "getSlotOverride",
       "isDefaultLunchSlot",
       "slotAvailabilityState",
-      "openManageDateSlots",
-      "saveManagedDateSlots",
       "loadTimeSlots",
       "selectSlot",
       "saveAppt",
+      "patientPriority",
+      "corChecklistHtml",
+      "showBookingConfirmation",
       "openRescheduleModal"
     ],
     "state": [
@@ -377,7 +375,7 @@
       "./appointmentService.js",
       "./documentScanner.js",
       "./issueReports.js",
-      "./messaging.js",
+      "./displayNames.js",
       "./modals.js",
       "./datePicker.js",
       "./calendar.js",
@@ -386,6 +384,7 @@
       "./topbarAndNavigation.js",
       "./patientAppointments.js",
       "./appointments.js",
+      "../domain/booking-availability.js",
       "../dependencies.js"
     ]
   },
@@ -437,6 +436,7 @@
       }
     ],
     "imports": [
+      "../verification/camera-startup.js",
       "../app/state.js",
       "./theme.js",
       "./modals.js",
@@ -446,7 +446,12 @@
       "./patientService.js",
       "./patientForm.js",
       "./documentScanner.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "../verification/camera-focus.js",
+      "../verification/id-controller.js",
+      "./idVerification.js",
+      "../verification/selfie-controller.js",
+      "../verification/capture-lighting.js"
     ]
   },
   {
@@ -462,28 +467,24 @@
       "syncRealCertificates",
       "syncCertificateContext",
       "certStatusBadge",
-      "renderMyCertificates",
-      "openCertRequestModal",
-      "updateCertificatePurposeGuidance",
-      "submitCertRequest",
-      "cancelCertRequest",
-      "viewCertDecline",
-      "getLatestTreatmentForCertificate",
-      "certificateAutofillFromTreatment",
       "ensureCertificateLogo",
       "normalizeCertificateDocumentMetadata",
       "buildCertificateDocument",
       "certEditorToolbarHtml",
       "renderCertRequests",
-      "openEditCertModal",
+      "openNewCertificateModal",
+      "filterCertificatePatients",
+      "selectCertificatePatient",
+      "syncCertificatePurposeFields",
+      "continueNewCertificate",
+      "openCertificateEditor",
+      "saveCertificateDraft",
+      "discardCertificateDraft",
+      "openVoidCertificateModal",
+      "voidCertificate",
       "cleanCertificateFieldText",
       "readCertificateDocumentField",
-      "saveCertDraft",
-      "openSignCertModal",
       "formatCertDocument",
-      "updateCertPurposeText",
-      "refreshCertAutofill",
-      "onCertPrepareDoctorChange",
       "initCertSignaturePad",
       "setCertSignaturePreview",
       "clearCertSignature",
@@ -492,8 +493,6 @@
       "useSavedDoctorSignature",
       "sanitizeCertHtml",
       "signCert",
-      "openDeclineCertModal",
-      "declineCert",
       "loadHtml2Canvas",
       "downloadCertPdf"
     ],
@@ -528,9 +527,10 @@
       "./persistence.js",
       "./documentScanner.js",
       "./patientForm.js",
-      "./messaging.js",
       "./settingsAndCertificates.js",
-      "../dependencies.js"
+      "../ui/pager.js",
+      "../dependencies.js",
+      "../domain/certificate-purpose.js"
     ]
   },
   {
@@ -568,20 +568,24 @@
     "name": "dashboard",
     "path": "src/features/dashboard.js",
     "functions": [
-      "renderDashboard",
-      "markReminderTaken"
+      "renderDashboard"
     ],
     "state": [],
     "imports": [
+      "../domain/dashboard-metrics.js",
       "../app/state.js",
       "./dashboardChartHelpers.js",
       "./appointmentService.js",
       "./documentScanner.js",
-      "./messaging.js",
+      "./displayNames.js",
       "./inputValidation.js",
       "./issueReports.js",
       "./navigationRaceProtection.js",
-      "./theme.js",
+      "./patientService.js",
+      "./loadingSkeletons.js",
+      "./treatmentService.js",
+      "./treatmentForm.js",
+      "./appointmentDetails.js",
       "../dependencies.js"
     ]
   },
@@ -589,7 +593,6 @@
     "name": "dashboardChartHelpers",
     "path": "src/features/dashboardChartHelpers.js",
     "functions": [
-      "dashboardSparkline",
       "isoDateOffset",
       "setDashboardChartType",
       "dashboardControlsHtml",
@@ -605,7 +608,8 @@
       "dashboardTarget",
       "dashboardStatCard",
       "dashboardAttentionItem",
-      "dashboardMobileQuickLinks"
+      "dashboardMobileQuickLinks",
+      "followTodayIfDefaultRange"
     ],
     "state": [
       {
@@ -634,6 +638,7 @@
       }
     ],
     "imports": [
+      "../ui/app-icons.js",
       "../app/state.js",
       "./dashboard.js",
       "./inputValidation.js",
@@ -644,21 +649,6 @@
       "./issueReports.js",
       "./navigationRaceProtection.js",
       "../dependencies.js"
-    ]
-  },
-  {
-    "name": "dataServices",
-    "path": "src/features/dataServices.js",
-    "functions": [],
-    "state": [
-      {
-        "name": "Services",
-        "namespace": "dataServices"
-      }
-    ],
-    "imports": [
-      "../app/state.js",
-      "./appointmentService.js"
     ]
   },
   {
@@ -676,11 +666,7 @@
       "applyApptRange",
       "clearApptRange",
       "filterBookPatients",
-      "selectBookPatient",
-      "assistedFile",
-      "captureAssistedPatientDraft",
-      "restoreAssistedPatientDraft",
-      "openAssistedPatientCamera"
+      "selectBookPatient"
     ],
     "state": [
       {
@@ -736,7 +722,6 @@
       "./appointments.js",
       "./documentScanner.js",
       "./bookingForm.js",
-      "../app/optional-features.js",
       "../dependencies.js"
     ]
   },
@@ -770,7 +755,6 @@
       "selectedRadio",
       "renderDentalSurvey",
       "submitDentalSurvey",
-      "averageNumeric",
       "renderSurveyResults"
     ],
     "state": [],
@@ -785,8 +769,19 @@
       "./inputValidation.js",
       "./theme.js",
       "./persistence.js",
-      "../dependencies.js"
+      "../domain/survey-analysis.js",
+      "../dependencies.js",
+      "../shared/csv.js"
     ]
+  },
+  {
+    "name": "displayNames",
+    "path": "src/features/displayNames.js",
+    "functions": [
+      "docName"
+    ],
+    "state": [],
+    "imports": []
   },
   {
     "name": "doctorPatients",
@@ -806,6 +801,8 @@
       "./patientForm.js",
       "./patientManagement.js",
       "./inputValidation.js",
+      "./patientService.js",
+      "../ui/pager.js",
       "./treatmentForm.js",
       "../dependencies.js"
     ]
@@ -838,10 +835,44 @@
       "./scheduleAndDrafts.js",
       "./workflowRequests.js",
       "./notifications.js",
-      "./messaging.js",
+      "./displayNames.js",
       "./persistence.js",
       "./userManagement.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "../ui/pager.js",
+      "./patientManagement.js",
+      "./requestAttachments.js"
+    ]
+  },
+  {
+    "name": "doctorSchedules",
+    "path": "src/features/doctorSchedules.js",
+    "functions": [
+      "doctorSchedulesHtml",
+      "renderDoctorScheduleRows",
+      "needsDoctorScheduleHydration",
+      "hydrateDoctorSchedules",
+      "openDoctorScheduleEditor"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./issueReports.js",
+      "./modals.js",
+      "./documentScanner.js",
+      "./displayNames.js",
+      "./inputValidation.js",
+      "./scheduleAndDrafts.js",
+      "./datePicker.js",
+      "./workflowRequests.js",
+      "./patientService.js",
+      "./doctorSchedule.js",
+      "./userManagement.js",
+      "./persistence.js",
+      "./theme.js",
+      "../dependencies.js",
+      "./slotManager.js",
+      "../domain/doctor-coverage.js"
     ]
   },
   {
@@ -849,12 +880,8 @@
     "path": "src/features/documentScanner.js",
     "functions": [
       "scannerStatus",
-      "handleIdFileChange",
       "loadTesseract",
-      "loadPdfJs",
-      "fileToOcrDataUrl",
-      "enhanceOcrImage",
-      "scanRegistrationDocumentFile",
+      "clearRegistrationScan",
       "analyzeIdImage",
       "normalizeOcrText",
       "detectRegistrationDocumentType",
@@ -867,7 +894,6 @@
       "updateRegistrationIdentityFields",
       "checkDentalQuota",
       "getLowStock",
-      "getPatientByUserId",
       "getUserById",
       "getPatientById",
       "getDoctors",
@@ -906,6 +932,7 @@
     ],
     "imports": [
       "../app/state.js",
+      "./idVerification.js",
       "./inputValidation.js",
       "./issueReports.js",
       "./topbarAndNavigation.js",
@@ -930,8 +957,8 @@
       "syncRealActivityLogs",
       "renderActivityLog",
       "renderActivityLogTable",
-      "exportActivityLog",
-      "resetDemoData"
+      "openAuditEntry",
+      "exportActivityLog"
     ],
     "state": [],
     "imports": [
@@ -940,10 +967,14 @@
       "./theme.js",
       "./patientService.js",
       "./navigationRaceProtection.js",
+      "./modals.js",
+      "../domain/audit-events.js",
+      "../domain/issue-queue.js",
       "./loadingSkeletons.js",
       "./auditAndBackups.js",
       "./persistence.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "../shared/csv.js"
     ]
   },
   {
@@ -963,6 +994,7 @@
       "saveFitnessRequest",
       "cancelFitnessRequest",
       "openFitnessAssessmentModal",
+      "syncFitnessScreening",
       "filterFitnessPatients",
       "selectFitnessPatient",
       "saveFitnessAssessment",
@@ -978,12 +1010,42 @@
       "./loadingSkeletons.js",
       "./documentScanner.js",
       "./inputValidation.js",
-      "./messaging.js",
+      "./displayNames.js",
       "./modals.js",
       "./datePicker.js",
       "./theme.js",
       "./auditAndBackups.js",
       "./persistence.js",
+      "../ui/pager.js",
+      "../dependencies.js",
+      "../domain/fitness-screening.js",
+      "./certificateService.js"
+    ]
+  },
+  {
+    "name": "idVerification",
+    "path": "src/features/idVerification.js",
+    "functions": [
+      "activeVerificationScope",
+      "setVerificationScope",
+      "verificationState",
+      "resetVerificationState",
+      "registrationIdSides",
+      "renderRegistrationIds",
+      "selectRegistrationIdSide",
+      "resetRegistrationIds",
+      "saveRegistrationId",
+      "handleRegistrationIdUpload",
+      "verificationStepsHtml"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./inputValidation.js",
+      "../verification/id-controller.js",
+      "./modals.js",
+      "./theme.js",
+      "./documentScanner.js",
       "../dependencies.js"
     ]
   },
@@ -992,6 +1054,11 @@
     "path": "src/features/inputValidation.js",
     "functions": [
       "sanitizeInput",
+      "validateRegistrationContact",
+      "setRegistrationFieldError",
+      "validateRegistrationField",
+      "validateRegistrationForm",
+      "resetRegistrationFieldErrors",
       "getSemester",
       "currentSemester",
       "fmtDate",
@@ -1003,14 +1070,15 @@
       "priorityBadge",
       "genId",
       "svgIcon",
-      "previewFile",
-      "previewSelfie",
+      "setVerificationChip",
       "resetSelfiePreview",
       "readFileAsDataURL",
       "resizeImageDataUrl"
     ],
     "state": [],
     "imports": [
+      "../../supabase/functions/_shared/contact-validation.js",
+      "../../supabase/functions/_shared/registration-validation.js",
       "../app/state.js",
       "../dependencies.js"
     ]
@@ -1020,7 +1088,8 @@
     "path": "src/features/inventory.js",
     "functions": [
       "renderInventory",
-      "itemAvatarHtml",
+      "switchInventoryView",
+      "exportInventoryCsv",
       "renderInvTable",
       "renderDisbTable"
     ],
@@ -1032,10 +1101,11 @@
       "./inventoryService.js",
       "./issueReports.js",
       "./documentScanner.js",
+      "../domain/inventory-status.js",
       "./inventoryForms.js",
-      "./modals.js",
       "./inputValidation.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "../shared/csv.js"
     ]
   },
   {
@@ -1049,7 +1119,6 @@
       "updateQty",
       "archiveInv",
       "restoreInv",
-      "deleteInv",
       "openDisbursementModal",
       "saveDisbursement"
     ],
@@ -1078,6 +1147,8 @@
     "name": "inventoryService",
     "path": "src/features/inventoryService.js",
     "functions": [
+      "itemAvatarHtml",
+      "openItemImage",
       "inventoryRecords",
       "inventoryTransactionRecords",
       "inventoryForecastRecords",
@@ -1092,8 +1163,12 @@
       "inventoryUsageRecords",
       "getInventoryForecast",
       "inventoryForecastBadge",
-      "getThreeMonthForecast",
-      "threeMonthForecastTableHtml",
+      "inventoryForecastProjections",
+      "forecastSectionHtml",
+      "mountInventoryForecastAi",
+      "setForecastDays",
+      "openForecastCsvDialog",
+      "downloadForecastCsv",
       "predictiveInventorySummaryHtml",
       "clinicalIntelligenceAction",
       "buildClinicalCopilot",
@@ -1116,9 +1191,14 @@
       "./treatmentService.js",
       "./appointmentService.js",
       "./modals.js",
+      "../domain/clinical-display.js",
+      "./patientService.js",
       "./theme.js",
       "./loadingSkeletons.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "../reports/ai-insights.js",
+      "../domain/inventory-projection.js",
+      "../shared/csv.js"
     ]
   },
   {
@@ -1131,6 +1211,7 @@
       "issueStatusBadge",
       "realIssueToUi",
       "syncRealIssueReports",
+      "issuePriorityBadge",
       "renderReportIssue",
       "handleReportPhotoChange",
       "submitIssueReport",
@@ -1138,15 +1219,12 @@
       "renderFeedbackIssuesList",
       "viewIssueThread",
       "sendIssueReply",
-      "resolveIssueReport",
-      "dismissIssueReport",
       "openIssueDecisionModal",
       "confirmIssueDecision",
       "openArticleModal",
       "handleArticlePhotoChange",
       "clearArticlePhoto",
       "saveArticle",
-      "jsAttrSafe",
       "escapeHtml",
       "getUserName"
     ],
@@ -1181,8 +1259,26 @@
       "./patientService.js",
       "./documentScanner.js",
       "./userManagement.js",
-      "./messaging.js",
+      "./displayNames.js",
       "../app/optional-features.js",
+      "../dependencies.js",
+      "../ui/app-icons.js",
+      "../domain/health-articles.js",
+      "../domain/issue-queue.js"
+    ]
+  },
+  {
+    "name": "legalPages",
+    "path": "src/features/legalPages.js",
+    "functions": [
+      "openTermsOfService",
+      "openCookiePolicy",
+      "initStorageNotice"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./modals.js",
       "../dependencies.js"
     ]
   },
@@ -1197,7 +1293,6 @@
     ],
     "state": [],
     "imports": [
-      "../app/state.js",
       "./navigationRaceProtection.js",
       "./dashboard.js",
       "./patientAppointments.js",
@@ -1209,7 +1304,6 @@
       "./approvalQueue.js",
       "./treatmentList.js",
       "./inventory.js",
-      "./messaging.js",
       "../app/optional-features.js",
       "./userManagement.js",
       "./settingsAndCertificates.js",
@@ -1226,16 +1320,15 @@
     "name": "loginLockout",
     "path": "src/features/loginLockout.js",
     "functions": [
-      "getLoginAttempts",
-      "setLoginAttempts",
       "doLogin",
       "checkPasswordStrength",
       "showPasswordChecklist",
       "hidePasswordChecklist",
+      "afterPointerRelease",
       "updatePasswordStrength",
+      "renderPasswordStrength",
       "syncRegistrationPrivacyVersion",
       "privacyAction",
-      "syncPrivacyStatus",
       "syncPrivacyAdminSummary",
       "openPrivacyNotice",
       "dataUrlToRegistrationFile",
@@ -1243,7 +1336,6 @@
       "showPendingPanel",
       "closePendingPanel",
       "maskVerificationEmail",
-      "resolveCampusCareEmail",
       "openResendVerification",
       "sendVerificationEmailAgain"
     ],
@@ -1266,6 +1358,7 @@
       }
     ],
     "imports": [
+      "../../supabase/functions/_shared/contact-validation.js",
       "../app/state.js",
       "./supabaseClient.js",
       "./theme.js",
@@ -1279,110 +1372,8 @@
       "./inputValidation.js",
       "./documentScanner.js",
       "./authentication.js",
-      "../dependencies.js"
-    ]
-  },
-  {
-    "name": "messaging",
-    "path": "src/features/messaging.js",
-    "functions": [
-      "docName",
-      "messageRecords",
-      "realMessageToUi",
-      "messageAction",
-      "mergeRealMessageContacts",
-      "syncRealMessages",
-      "syncMessagingContext",
-      "isCompactMessenger",
-      "startMessagePolling",
-      "getPresence",
-      "presenceColor",
-      "presenceLabel",
-      "startPresenceSimulation",
-      "msgrAvatarHtml",
-      "fmtShortTime",
-      "attachmentPreviewLabel",
-      "getMessageContacts",
-      "getAllMessagePeople",
-      "contactItemHtml",
-      "renderPeopleCarousel",
-      "renderContactList",
-      "renderMessages",
-      "openConversation",
-      "backToMessageLobby",
-      "syncMessengerMobileLayout",
-      "renderChatMessages",
-      "openContactInfo",
-      "switchContactInfoTab",
-      "handleMsgrKeydown",
-      "closeMsgMenus",
-      "toggleMsgMenu",
-      "startEditMessage",
-      "cancelEditMessage",
-      "saveEditedMessage",
-      "deleteMessage",
-      "confirmDeleteMessage",
-      "forwardMessage",
-      "confirmForwardMessage",
-      "shareMessage",
-      "sendChatMessage",
-      "showTypingIndicator",
-      "hideTypingIndicator",
-      "simulateReplyTyping",
-      "playMsgSendSound",
-      "attachPhoto",
-      "attachFileGeneric",
-      "showPendingAttachPreview",
-      "clearPendingAttachment",
-      "toggleVoiceRecording",
-      "openNewMessageModal",
-      "startNewConversation",
-      "getMsgPrefs",
-      "saveMsgPrefs",
-      "openMessageSettings",
-      "saveMessageSettings"
-    ],
-    "state": [
-      {
-        "name": "activeConversationId",
-        "namespace": "messaging"
-      },
-      {
-        "name": "pendingAttachment",
-        "namespace": "messaging"
-      },
-      {
-        "name": "voiceRecorder",
-        "namespace": "messaging"
-      },
-      {
-        "name": "voiceChunks",
-        "namespace": "messaging"
-      },
-      {
-        "name": "messagePollTimer",
-        "namespace": "messaging"
-      },
-      {
-        "name": "_typingTimer",
-        "namespace": "messaging"
-      }
-    ],
-    "imports": [
-      "../services/feature-sync.js",
-      "../app/state.js",
-      "./patientService.js",
-      "./appointmentService.js",
-      "./treatmentService.js",
-      "./documentScanner.js",
-      "./issueReports.js",
-      "./navigationRaceProtection.js",
-      "./loadingSkeletons.js",
-      "./notifications.js",
-      "./modals.js",
-      "./theme.js",
-      "./persistence.js",
-      "./inputValidation.js",
+      "./idVerification.js",
+      "../verification/registration-captcha.js",
       "../dependencies.js"
     ]
   },
@@ -1391,16 +1382,18 @@
     "path": "src/features/modals.js",
     "functions": [
       "openModal",
+      "closeTopModal",
+      "openLayeredModal",
+      "closeLayeredModal",
       "closeAllModals",
-      "showFilePreview",
-      "toggleImageZoom",
-      "zoomImageStep"
+      "showFilePreview"
     ],
     "state": [],
     "imports": [
       "../app/state.js",
       "./issueReports.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "../ui/image-zoom.js"
     ]
   },
   {
@@ -1416,6 +1409,8 @@
       "changeProfilePhoto",
       "accountPasswordCooldownState",
       "renderPasswordCooldownNotice",
+      "setPasswordFieldError",
+      "checkPasswordConfirmation",
       "showAccountPasswordChecklist",
       "hideAccountPasswordChecklist",
       "updateAccountPasswordStrength",
@@ -1437,7 +1432,8 @@
       "./accountSettings.js",
       "./loginLockout.js",
       "./authentication.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "./requestAttachments.js"
     ]
   },
   {
@@ -1461,7 +1457,8 @@
       "viewArticle",
       "deleteArticle",
       "publishArticle",
-      "archiveArticle"
+      "archiveArticle",
+      "deleteDraftArticle"
     ],
     "state": [
       {
@@ -1483,7 +1480,9 @@
       "./modals.js",
       "./theme.js",
       "./persistence.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "../ui/app-icons.js",
+      "../domain/health-articles.js"
     ]
   },
   {
@@ -1498,7 +1497,8 @@
       "notificationCenterAction",
       "syncRealNotifications",
       "addNotif",
-      "updateNotifUI"
+      "updateNotifUI",
+      "startNotificationRefresh"
     ],
     "state": [],
     "imports": [
@@ -1528,8 +1528,7 @@
       "applyRecoveryCooldownUi",
       "submitNewPassword",
       "handleCampusCareAuthCallback",
-      "logout",
-      "tryRestoreSession"
+      "logout"
     ],
     "state": [],
     "imports": [
@@ -1543,10 +1542,7 @@
       "./emailDelivery.js",
       "./auditAndBackups.js",
       "./persistence.js",
-      "./sessionSecurity.js",
-      "./documentScanner.js",
-      "./assistant.js",
-      "./appInitialization.js"
+      "./sessionSecurity.js"
     ]
   },
   {
@@ -1570,23 +1566,27 @@
       "./bookingForm.js",
       "./appointmentDetails.js",
       "./appointments.js",
+      "../domain/appointment-list.js",
+      "./scheduleAndDrafts.js",
       "./treatmentForm.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "../ui/pager.js"
     ]
   },
   {
     "name": "patientForm",
     "path": "src/features/patientForm.js",
     "functions": [
+      "syncPatientFormType",
       "openPatientModal",
       "savePatient",
       "viewPatient",
+      "printPatientSummary",
       "archivePatient",
       "restorePatient",
       "dentalToothInputsHtml",
       "dentalRecordFormHtml",
-      "collectDentalRecordForm",
-      "toggleDentalRecordSection"
+      "collectDentalRecordForm"
     ],
     "state": [
       {
@@ -1620,9 +1620,15 @@
       "./treatmentService.js",
       "./appointmentService.js",
       "./inputValidation.js",
-      "./messaging.js",
+      "./displayNames.js",
       "./inventoryService.js",
-      "../dependencies.js"
+      "./certificateService.js",
+      "../dependencies.js",
+      "../../supabase/functions/_shared/contact-validation.js",
+      "./inputValidation.js",
+      "./idVerification.js",
+      "../app/optional-features.js",
+      "./fitnessAssessments.js"
     ]
   },
   {
@@ -1630,7 +1636,11 @@
     "path": "src/features/patientManagement.js",
     "functions": [
       "renderPatients",
+      "unitFilterOptionsHtml",
+      "syncUnitFilter",
       "patientAvatarHtml",
+      "exportPatientCsv",
+      "sortPatientTable",
       "renderPatientTable"
     ],
     "state": [],
@@ -1645,7 +1655,10 @@
       "./documentScanner.js",
       "./modals.js",
       "./inputValidation.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "./appointmentService.js",
+      "./treatmentService.js",
+      "../shared/csv.js"
     ]
   },
   {
@@ -1664,7 +1677,8 @@
       "./inputValidation.js",
       "./documentScanner.js",
       "./treatmentForm.js",
-      "./messaging.js",
+      "./displayNames.js",
+      "../ui/pager.js",
       "../dependencies.js"
     ]
   },
@@ -1681,7 +1695,8 @@
       "patientAction",
       "fetchAdminDirectory",
       "syncAdminDirectoryFromSupabase",
-      "syncCurrentPatientFromSupabase"
+      "syncCurrentPatientFromSupabase",
+      "ensureCurrentPatient"
     ],
     "state": [],
     "imports": [
@@ -1723,9 +1738,10 @@
     ],
     "state": [],
     "imports": [
+      "../reports/custom-report.js",
       "../app/state.js",
-      "./appointmentService.js",
       "./dashboardChartHelpers.js",
+      "./appointmentService.js",
       "./treatmentService.js",
       "./documentScanner.js",
       "./datePicker.js",
@@ -1745,7 +1761,6 @@
     ],
     "state": [],
     "imports": [
-      "../app/state.js",
       "./modals.js",
       "./theme.js",
       "./loginLockout.js",
@@ -1798,20 +1813,14 @@
       }
     ],
     "imports": [
+      "../reports/custom-report.js",
       "./navigationRaceProtection.js",
       "../reports/student-report.js",
       "../app/state.js",
       "./issueReports.js",
       "./theme.js",
-      "./appointmentService.js",
-      "./documentScanner.js",
-      "./inputValidation.js",
-      "./patientManagement.js",
-      "./messaging.js",
-      "./treatmentService.js",
-      "./inventoryService.js",
-      "./inventory.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "../shared/csv.js"
     ]
   },
   {
@@ -1819,7 +1828,9 @@
     "path": "src/features/reports.js",
     "functions": [
       "syncReportsContext",
-      "renderReports"
+      "renderReports",
+      "switchReportView",
+      "setReportPreset"
     ],
     "state": [
       {
@@ -1828,20 +1839,46 @@
       }
     ],
     "imports": [
+      "../services/report-snapshot.js",
+      "../reports/custom-report.js",
+      "../reports/forecast.js",
+      "../domain/report-analysis.js",
       "../reports/student-report.js",
       "./analyticsDisplay.js",
       "../app/state.js",
       "./issueReports.js",
       "./inputValidation.js",
-      "./patientService.js",
-      "./appointmentService.js",
-      "./treatmentService.js",
-      "./inventoryService.js",
       "./navigationRaceProtection.js",
       "./loadingSkeletons.js",
       "./predictiveAnalytics.js",
       "./reportCharts.js",
       "./datePicker.js",
+      "../dependencies.js",
+      "./patientManagement.js"
+    ]
+  },
+  {
+    "name": "requestAttachments",
+    "path": "src/features/requestAttachments.js",
+    "functions": [
+      "formatFileSize",
+      "requestAttachmentFieldHtml",
+      "pickRequestAttachment",
+      "clearRequestAttachment",
+      "requestAttachmentPayload",
+      "requestAttachmentLocal",
+      "hasRequestAttachment",
+      "requestAttachmentBadge",
+      "requestAttachmentViewHtml"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./issueReports.js",
+      "./modals.js",
+      "./inputValidation.js",
+      "./theme.js",
+      "../ui/app-icons.js",
       "../dependencies.js"
     ]
   },
@@ -1856,7 +1893,6 @@
       "validateCampusBooking",
       "setScheduleDays",
       "updateSchedulePreview",
-      "campusSessionKey",
       "readCampusSession",
       "writeCampusSession",
       "captureCampusDraft",
@@ -1893,6 +1929,7 @@
       "downloadServerBackup",
       "changeBackupRetention",
       "renderBackupListHtml",
+      "sizeBackupHistory",
       "renderBackupPanel"
     ],
     "state": [],
@@ -1957,7 +1994,9 @@
     "name": "settingsAndCertificates",
     "path": "src/features/settingsAndCertificates.js",
     "functions": [
+      "showSettingsSection",
       "renderSettings",
+      "confirmCriticalSettings",
       "saveSettings",
       "savePrivacySettings",
       "saveSemSettings",
@@ -1965,6 +2004,8 @@
     ],
     "state": [],
     "imports": [
+      "../domain/academic-year.js",
+      "./modals.js",
       "../app/state.js",
       "./navigationRaceProtection.js",
       "./loadingSkeletons.js",
@@ -1990,6 +2031,7 @@
       "./authentication.js",
       "./theme.js",
       "./inputValidation.js",
+      "./legalPages.js",
       "./loginLockout.js",
       "./passwordRecovery.js",
       "./documentScanner.js",
@@ -1999,6 +2041,38 @@
       "./accountSettings.js",
       "./assistant.js",
       "./navigationRaceProtection.js",
+      "./idVerification.js",
+      "../dependencies.js",
+      "../verification/registration-captcha.js"
+    ]
+  },
+  {
+    "name": "slotManager",
+    "path": "src/features/slotManager.js",
+    "functions": [
+      "canManageSlots",
+      "openSlotManager",
+      "chooseSlotManagerDoctor",
+      "chooseSlotManagerDate",
+      "addCustomTime",
+      "toggleSlot",
+      "saveSlotManager"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./issueReports.js",
+      "./modals.js",
+      "./documentScanner.js",
+      "./displayNames.js",
+      "./inputValidation.js",
+      "./scheduleAndDrafts.js",
+      "./calendar.js",
+      "./appointmentService.js",
+      "./bookingForm.js",
+      "./persistence.js",
+      "./theme.js",
+      "../domain/booking-availability.js",
       "../dependencies.js"
     ]
   },
@@ -2025,6 +2099,11 @@
     "name": "supabaseClient",
     "path": "src/features/supabaseClient.js",
     "functions": [
+      "rememberSessionPreference",
+      "rememberSessionChosen",
+      "setRememberSessionPreference",
+      "rememberedLogin",
+      "setRememberedLogin",
       "initializeSupabaseClient"
     ],
     "state": [
@@ -2074,10 +2153,15 @@
       "automaticThemeForLocalTime",
       "currentThemeOverride",
       "applyThemeIcons",
+      "savedTheme",
       "setTheme",
+      "themePreference",
+      "setThemePreference",
       "applyAutomaticTheme",
       "toggleTheme",
       "startAutomaticThemeClock",
+      "showToast",
+      "clearToasts",
       "toast",
       "showConfirmDialog",
       "toastWithUndo",
@@ -2099,7 +2183,6 @@
       "../app/state.js",
       "./persistence.js",
       "./modals.js",
-      "./issueReports.js",
       "../dependencies.js"
     ]
   },
@@ -2114,12 +2197,10 @@
       "handleTopSearchKey",
       "taskBadgeSeenKey",
       "loadTaskBadgeSeen",
-      "saveTaskBadgeSeen",
       "navNotificationCounts",
       "demoTaskBadgeSnapshot",
       "taskBadgeAction",
-      "unseenTaskCount",
-      "navBadgeCountFor",
+      "navBadgeState",
       "applyNavBadges",
       "acknowledgeNavAttention",
       "refreshTaskBadges",
@@ -2170,11 +2251,11 @@
       "./issueReports.js",
       "./navigationRaceProtection.js",
       "./notifications.js",
-      "./messaging.js",
       "./certificateService.js",
       "./fitnessAssessments.js",
       "./inventoryService.js",
       "./workflowRequests.js",
+      "./appointmentService.js",
       "./assistant.js",
       "./dentalSurvey.js",
       "../dependencies.js"
@@ -2185,6 +2266,7 @@
     "path": "src/features/treatmentForm.js",
     "functions": [
       "openAddTreatmentModal",
+      "treatmentClinicFor",
       "openAddTreatmentModalPt",
       "saveTreatment",
       "treatmentDocumentHtml",
@@ -2212,9 +2294,10 @@
       "./treatmentService.js",
       "./documentScanner.js",
       "./issueReports.js",
-      "./messaging.js",
+      "./displayNames.js",
       "./modals.js",
       "./patientForm.js",
+      "./patientManagement.js",
       "./datePicker.js",
       "./auditAndBackups.js",
       "./persistence.js",
@@ -2224,6 +2307,7 @@
       "./doctorSchedule.js",
       "./settingsAndCertificates.js",
       "./certificateService.js",
+      "../domain/clinical-validation.js",
       "../dependencies.js"
     ]
   },
@@ -2232,6 +2316,7 @@
     "path": "src/features/treatmentList.js",
     "functions": [
       "renderTreatments",
+      "exportTreatmentsCsv",
       "renderTreatTable"
     ],
     "state": [],
@@ -2243,10 +2328,14 @@
       "./issueReports.js",
       "./treatmentForm.js",
       "./documentScanner.js",
+      "./patientManagement.js",
+      "./patientService.js",
+      "../domain/clinical-validation.js",
       "./patientForm.js",
       "./inputValidation.js",
-      "./messaging.js",
-      "../dependencies.js"
+      "./displayNames.js",
+      "../dependencies.js",
+      "../shared/csv.js"
     ]
   },
   {
@@ -2276,24 +2365,29 @@
     "name": "userForm",
     "path": "src/features/userForm.js",
     "functions": [
+      "generateTemporaryPassword",
       "openAddUserModal",
-      "toggleUserFields",
+      "reviewNewUser",
       "saveNewUser",
       "openEditUserModal",
-      "saveEditUser",
-      "openDoctorScheduleEdit",
-      "saveDoctorSched"
+      "markEditChanges",
+      "saveEditUser"
     ],
     "state": [],
     "imports": [
+      "../../supabase/functions/_shared/admin-user-edit.js",
+      "./issueReports.js",
       "../app/state.js",
       "./modals.js",
       "./theme.js",
+      "./inputValidation.js",
+      "./loginLockout.js",
+      "./patientService.js",
+      "../../supabase/functions/_shared/registration-validation.js",
+      "../../supabase/functions/_shared/contact-validation.js",
       "./userManagement.js",
-      "./scheduleAndDrafts.js",
-      "./messaging.js",
-      "./persistence.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "./doctorSchedules.js"
     ]
   },
   {
@@ -2306,6 +2400,7 @@
       "userVerificationPreview",
       "openUserDetails",
       "renderUsers",
+      "openWorkflowRequestReview",
       "renderNameChangeTable",
       "renderUserTable",
       "suspendUser",
@@ -2315,6 +2410,7 @@
     ],
     "state": [],
     "imports": [
+      "../../supabase/functions/_shared/admin-user-edit.js",
       "../app/state.js",
       "./issueReports.js",
       "./modals.js",
@@ -2324,14 +2420,17 @@
       "./loadingSkeletons.js",
       "./patientService.js",
       "./documentScanner.js",
-      "./messaging.js",
+      "./displayNames.js",
       "./inputValidation.js",
       "./workflowRequests.js",
       "./doctorSchedule.js",
       "./nameChangeRequests.js",
-      "./approvalQueue.js",
+      "./navigationRaceProtection.js",
       "./theme.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "./requestAttachments.js",
+      "./appointmentService.js",
+      "./doctorSchedules.js"
     ]
   },
   {
@@ -2362,6 +2461,7 @@
       "approveScheduleChange",
       "applyDueScheduleChanges",
       "rejectScheduleChange",
+      "offerDecisionUndo",
       "normalizePhilippinePhoneForAuth",
       "refreshCurrentProfileContact",
       "saveAccount",
@@ -2380,6 +2480,7 @@
       }
     ],
     "imports": [
+      "../../supabase/functions/_shared/contact-validation.js",
       "../services/feature-sync.js",
       "../shared/privacy-formatting.js",
       "../app/state.js",
@@ -2389,7 +2490,7 @@
       "./datePicker.js",
       "./appointmentService.js",
       "./notifications.js",
-      "./messaging.js",
+      "./displayNames.js",
       "./inputValidation.js",
       "./persistence.js",
       "./topbarAndNavigation.js",
@@ -2399,7 +2500,8 @@
       "./accountSettings.js",
       "./supabaseClient.js",
       "./issueReports.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "./requestAttachments.js"
     ]
   }
 ]

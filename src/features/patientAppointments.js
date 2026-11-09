@@ -1,4 +1,5 @@
 // patientAppointments: imported feature APIs; state belongs to explicit application namespaces.
+import {queueNumber,reappointmentNoticeHtml} from './reappointment.js';
 import {state as appState} from '../app/state.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
@@ -6,12 +7,15 @@ import {appointmentDisplayId,appointmentRecords,syncAppointmentContext} from './
 import {syncRealWorkflowRequests} from './workflowRequests.js';
 import {escapeHtml} from './issueReports.js';
 import {currentSemester,fmtDate,fmtTime,statusBadge} from './inputValidation.js';
-import {checkDentalQuota,getUserById} from './documentScanner.js';
+import {dentalQuotaState,getUserById} from './documentScanner.js';
 import {openBookApptModal,openRescheduleModal} from './bookingForm.js';
 import {viewAppt} from './appointmentDetails.js';
 import {cancelAppt} from './appointments.js';
+import {appointmentHasStarted} from '../domain/appointment-list.js';
+import {clinicToday} from './scheduleAndDrafts.js';
 import {viewTreatmentForAppt} from './treatmentForm.js';
 import {bindAction} from '../dependencies.js';
+import {paginate,pagerHtml} from '../ui/pager.js';
 // ================================================================
 // PATIENT – MY APPOINTMENTS
 // ================================================================
@@ -36,14 +40,17 @@ export async function renderMyAppointments(){
   if(!pt){c.innerHTML='<div class="alert alert-warning show">No patient record linked. Contact admin.</div>';return;}
   const appts=appointmentRecords().filter(a=>a.patientId===pt.id);
   const sem=currentSemester();
-  const dentalUsed=checkDentalQuota(pt.id);
+  const quota=dentalQuotaState(pt.id);
+  const dentalUsed=quota.limitReached;
+  const proposals=appts.filter(a=>a.patientResponse==='Awaiting'&&a.status==='Scheduled');
 
   c.innerHTML=`
+    ${proposals.map(a=>reappointmentNoticeHtml(a,{onPickAnother:openRescheduleModal})).join('')}
     <div class="card" style="${dentalUsed?'border-left:3px solid var(--warning)':''}">
       <div class="card-header"><h3>Dental Clinic Quota</h3></div>
       <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-        <div><span class="badge ${dentalUsed?'badge-danger':'badge-success'}">${dentalUsed?'Limit Reached':'Available'}</span></div>
-        <div class="text-muted">You may avail the Dental Clinic <strong>${appState.data.DB.settings.dentalLimitPerSemester}x</strong> per semester. Medical services are unlimited.</div>
+        <div><span class="badge ${dentalUsed?'badge-danger':quota.open?'badge-info':'badge-success'}">${dentalUsed?'Limit Reached':quota.open?'Visit booked':'Available'}</span></div>
+        <div class="text-muted">You may avail the Dental Clinic <strong>${appState.data.DB.settings.dentalLimitPerSemester}x</strong> per semester (${quota.completed} completed so far). Only completed visits count. Medical services are unlimited.</div>
       </div>
     </div>
     <div class="card">
@@ -77,16 +84,17 @@ export function renderMyApptsList(appts,filter){
   if(filter!=='all')list=appts.filter(a=>a.status===filter);
   list=list.slice().sort((a,b)=>b.date.localeCompare(a.date));
   if(!list.length){el.innerHTML='<div class="empty-state"><p>No appointments found.</p></div>';return;}
+  const page=paginate('my-appointments',list,{signature:filter});
   el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Clinic</th><th>Service</th><th>Date</th><th>Time</th><th>Doctor</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
-    list.map(a=>{
+    page.rows.map(a=>{
       const doc=getUserById(a.doctorId);
-      const canCancel=a.status==='Scheduled'&&a.date>=appState.clinicInformation.TODAY;
+      const canCancel=a.status==='Scheduled'&&!appointmentHasStarted(a,{today:clinicToday(),now:new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date())});
       const canReschedule=a.status==='Scheduled'&&a.date>appState.clinicInformation.TODAY;
       return`<tr style="cursor:pointer" ${bindAction('click',(event,element)=>{viewAppt((a.id))})} title="Click to open appointment">
-        <td>#${appointmentDisplayId(a)}</td><td>${a.clinic}</td><td>${a.service}</td>
-        <td>${fmtDate(a.date)}</td><td>${fmtTime(a.time)}</td>
-        <td>Dr. ${doc?doc.lname:'Unknown'}</td>
-        <td>${statusBadge(a.status)}</td>
+        <td>#${appointmentDisplayId(a)}</td><td>${escapeHtml(a.clinic||'')}</td><td>${escapeHtml(a.service||'')}</td>
+        <td>${fmtDate(a.date)}</td><td>${fmtTime(a.time)}${a.status==='Scheduled'?`<div class="text-muted queue-no">Queue No. ${queueNumber(a)}</div>`:''}</td>
+        <td>${doc?'Dr. '+escapeHtml(doc.lname):'—'}</td>
+        <td>${a.patientResponse==='Awaiting'&&a.status==='Scheduled'?'<span class="badge badge-warning">New time proposed</span>':statusBadge(a.status)}</td>
         <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
           ${canReschedule?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openRescheduleModal((a.id))})}>Reschedule</button>`:''}
           ${canCancel?`<button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{cancelAppt((a.id),true)})}>Cancel</button>`:''}
@@ -94,7 +102,7 @@ export function renderMyApptsList(appts,filter){
         </div></td>
       </tr>`;
     }).join('')
-  }</tbody></table></div>`;
+  }</tbody></table></div>${pagerHtml(page,()=>renderMyApptsList(appts,filter))}`;
 }
 
 // Run side effects only after every feature's function exports are available.

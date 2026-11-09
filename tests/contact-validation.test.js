@@ -37,3 +37,8 @@ test('mail routing falls back to a second resolver without mistaking an outage f
   });
   assert.equal(result,null);assert.deepEqual(hosts,['dns.google','cloudflare-dns.com']);
 });
+test('incomplete or misspelled provider and CTU domains get a suggestion; real domains do not',()=>{
+  const cases={'jo@gmel':'gmail.com','jo@gmail':'gmail.com','jo@gmailcom':'gmail.com','jo@gmel.com':'gmail.com','jo@yaho':'yahoo.com','jo@outlok':'outlook.com','jo@ctu':'ctu.edu.ph','jo@ctu.edu':'ctu.edu.ph','jo@ctuedu.ph':'ctu.edu.ph'};
+  for(const [email,domain] of Object.entries(cases))assert.equal(emailValidationError(email),`Check the email domain. Did you mean @${domain}?`,email);
+  for(const email of ['jo@ctu.edu.ph','jo@ctu.edu.vn','jo@yahoo.de','jo@gmx.com','jo@mail.com','jo@company.io'])assert.equal(emailValidationError(email),'',email);
+});

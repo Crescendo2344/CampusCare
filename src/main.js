@@ -6,6 +6,8 @@ import modalHost from './components/modal-host.html?raw';
 import sessionSkeleton from './components/session-skeleton.html?raw';
 import {installTableScrolling} from './ui/table-scroll.js';
 import {installActionEvents} from './ui/events.js';
+import {installSelectPopover} from './ui/select-popover.js';
+import {installPasswordReveal} from './ui/password-reveal.js';
 import {mountApplication,application} from './app/application.js';
 const templates={landingAndAuth:landing,appShell,notificationPanel,modalHost,sessionSkeleton};
 for(const [name,html] of Object.entries(templates)){
@@ -13,8 +15,12 @@ for(const [name,html] of Object.entries(templates)){
   if(host)host.outerHTML=html;
 }
 installActionEvents();
+// Every dropdown opens as the same short, scrollable, themed list.
+installSelectPopover();
 // Keep every module and modal table bounded as route markup changes.
 installTableScrolling();
+// Every password field can be shown or hidden.
+installPasswordReveal();
 mountApplication();
 // Consumers can observe readiness through one explicit lifecycle event.
 document.dispatchEvent(new CustomEvent('campuscare:ready',{detail:application}));

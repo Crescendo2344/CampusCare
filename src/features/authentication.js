@@ -2,6 +2,7 @@
 import {state as appState} from '../app/state.js';
 import {prepareRegistrationCaptcha} from '../verification/registration-captcha.js';
 import {updateRegistrationIdentityFields} from './documentScanner.js';
+import {rememberSessionChosen,rememberedLogin} from './supabaseClient.js';
 // ================================================================
 // AUTH
 // ================================================================
@@ -98,9 +99,6 @@ export function pauseLandingCarouselTimer(){
   pauseLandingCarouselProgress();
 }
 
-export function snapLandingCarouselToNearest(){
-  positionLandingCarousel(landingCarouselRealIndex(),'smooth');
-}
 
 export function initializeLandingCarouselInteractions(){
   const {carousel,viewport}=getLandingCarouselParts();
@@ -215,15 +213,31 @@ export function initializeLandingRouting(){
   });
 }
 
+// Login and registration share one card; each form has its own heading.
+const AUTH_MODE_COPY={
+  login:['Welcome','Login with CampusCare'],
+  reg:['Create an account','Join CampusCare to book clinic visits and keep your health records in one place.']
+};
 export function authTab(t){
-  document.querySelectorAll('.auth-tab').forEach((b,i)=>b.classList.toggle('active',i===(t==='login'?0:1)));
+  const [title,subtitle]=AUTH_MODE_COPY[t==='reg'?'reg':'login'];
+  const titleEl=document.getElementById('auth-mode-title'),subtitleEl=document.getElementById('auth-mode-subtitle');
+  if(titleEl)titleEl.textContent=title;
+  if(subtitleEl)subtitleEl.textContent=subtitle;
+  const remember=document.getElementById('li-remember');
+  if(remember&&t!=='reg'){
+    remember.checked=rememberSessionChosen();
+    // A remembered username or email is filled in when the login form opens empty.
+    const user=document.getElementById('li-user');
+    if(user&&!user.value)user.value=rememberedLogin();
+  }
   document.getElementById('login-section').style.display=t==='login'?'':'none';
   document.getElementById('reg-section').style.display=t==='reg'?'':'none';
   const pending=document.getElementById('pending-section');
   if(pending)pending.style.display='none';
   const forgot=document.getElementById('forgot-section');
   if(forgot)forgot.style.display='none';
-  document.getElementById('auth-tabs').style.display='flex';
+  document.getElementById('auth-tabs').style.display='';
+  document.querySelector('#auth-page .auth-box')?.scrollIntoView?.({block:'start'});
   if(t==='reg'){
     updateRegistrationIdentityFields();
     // Load the human check while the user completes registration details.

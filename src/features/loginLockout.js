@@ -1,8 +1,8 @@
 // loginLockout: imported feature APIs; state belongs to explicit application namespaces.
-import {emailValidationError,normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
+import {normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {state as appState} from '../app/state.js';
-import {initializeSupabaseClient} from './supabaseClient.js';
-import {registrationToast,showAlert,toast} from './theme.js';
+import {initializeSupabaseClient,setRememberSessionPreference,setRememberedLogin} from './supabaseClient.js';
+import {clearToasts,registrationToast,showAlert,toast} from './theme.js';
 import {normalizeSupabaseUser} from './patientService.js';
 import {auditAction} from './emailDelivery.js';
 import {syncCampusCareSessionUI} from './authSession.js';
@@ -10,21 +10,25 @@ import {refreshRealApprovalQueue} from './approvalQueue.js';
 import {syncPublicSystemSettings} from './systemSettings.js';
 import {closeAllModals,openModal} from './modals.js';
 import {escapeHtml} from './issueReports.js';
-import {fmtDate,validateRegistrationContact} from './inputValidation.js';
+import {fmtDate,resetRegistrationFieldErrors,resetSelfiePreview,setRegistrationFieldError,validateRegistrationForm} from './inputValidation.js';
 import {updateRegistrationIdentityFields} from './documentScanner.js';
 import {authTab} from './authentication.js';
 import {registrationIdSides,resetRegistrationIds} from './idVerification.js';
 import {registrationCaptchaToken,resetRegistrationCaptcha} from '../verification/registration-captcha.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
+import {shake} from '../ui/motion.js';
 // ================================================================
-// LOGIN ATTEMPT LOCKOUT — basic brute-force protection
+// SIGN-IN (repeated failures are rate-limited by Supabase Auth)
 // ================================================================
 
-export function getLoginAttempts(){
-  try{ return JSON.parse(localStorage.getItem(appState.loginLockout.LOGIN_ATTEMPTS_KEY)||'{}'); }catch(e){ return {}; }
-}
-export function setLoginAttempts(data){
-  try{ localStorage.setItem(appState.loginLockout.LOGIN_ATTEMPTS_KEY,JSON.stringify(data)); }catch(e){}
+
+// Browsers with the Credential Management API (Chrome, Edge, Opera) show their own "Save password?"
+// prompt here; others offer it from the submitted login form.
+function offerToSavePassword(id,password,name){
+  try{
+    if(!window.PasswordCredential||!navigator.credentials?.store)return;
+    void navigator.credentials.store(new window.PasswordCredential({id,password,name:name||id})).catch(()=>{});
+  }catch{ /* Saving is optional; sign-in has already succeeded. */ }
 }
 
 export async function doLogin(){
@@ -38,7 +42,8 @@ export async function doLogin(){
   // Function resolves the CampusCare username to its associated email first.
   const identifier=document.getElementById('li-user').value.trim();
   const password=document.getElementById('li-pass').value;
-  if(!identifier||!password){toast('Enter your username/email and password.','error');return;}
+  if(!identifier||!password){toast('Enter your username/email and password.','error');document.getElementById(identifier?'li-pass':'li-user')?.focus();return;}
+  setRememberSessionPreference(Boolean(document.getElementById('li-remember')?.checked));
   const loginBtn=document.querySelector('#login-section .btn-primary');
   const loginBtnText=loginBtn?.textContent;
   if(loginBtn){loginBtn.disabled=true;loginBtn.textContent='Signing in…';}
@@ -76,17 +81,27 @@ export async function doLogin(){
       throw new Error('This account is not currently active.');
     }
 
+    // Only a successful sign-in updates the remembered username or email.
+    const remember=Boolean(document.getElementById('li-remember')?.checked);
+    setRememberedLogin(remember?identifier:'');
+    // The password itself is kept by the browser's password manager, never by CampusCare.
+    if(remember)offerToSavePassword(identifier,password,`${profile.first_name||''} ${profile.last_name||''}`.trim());
     appState.auth.currentUser=normalizeSupabaseUser(profile);
     appState.auth.currentUser.lastLogin=data.user?.last_sign_in_at||new Date().toISOString();
     appState.auth.currentUser.emailConfirmedAt=data.user?.email_confirmed_at||null;
     appState.auth.currentUser.emailVerificationSkipped=data.user?.app_metadata?.email_verification_skipped===true;
     try{await auditAction({action:'record_session',event:'LOGIN'});}catch(e){console.error('Login audit:',e);}
+    clearToasts();
     await syncCampusCareSessionUI();
     if(profile.role==='Administrator' && typeof refreshRealApprovalQueue==='function'){
       setTimeout(refreshRealApprovalQueue,300);
     }
   }catch(e){
-    toast(e?.message||'Invalid username/email or password.','error');
+    // Auth's own wording ("Invalid login credentials") is replaced with the same message used everywhere else.
+    const message=String(e?.message||'');
+    const wrongCredentials=!message||/invalid login credentials|invalid username\/email or password/i.test(message);
+    toast(wrongCredentials?'Invalid username/email or password.':message,'error');
+    if(wrongCredentials){const field=document.getElementById('li-pass');shake(field);field?.select?.();}
   }finally{
     if(loginBtn){loginBtn.disabled=false;loginBtn.textContent=loginBtnText||'Login';}
   }
@@ -111,9 +126,24 @@ export function showPasswordChecklist(){
   updatePasswordStrength();
 }
 export function hidePasswordChecklist(){
-  // Hide the guidance after the user leaves the password field.
-  const el=document.getElementById('r-pass-strength');
-  if(el)el.classList.remove('show');
+  // Guidance shows only while the password field is focused.
+  afterPointerRelease(()=>{if(document.activeElement?.id!=='r-pass')document.getElementById('r-pass-strength')?.classList.remove('show');});
+}
+
+// Collapsing a checklist while a mouse or finger is still pressed moves the controls below it,
+// so the press ends on a different element and the click is lost. Wait for the release instead.
+let pointerPressed=false;
+if(typeof document!=='undefined'){
+  document.addEventListener('pointerdown',()=>{pointerPressed=true;},true);
+  document.addEventListener('pointerup',()=>{pointerPressed=false;},true);
+  document.addEventListener('pointercancel',()=>{pointerPressed=false;},true);
+}
+export function afterPointerRelease(callback){
+  if(!pointerPressed){callback();return;}
+  const run=()=>{document.removeEventListener('click',run,true);document.removeEventListener('pointerup',later,true);setTimeout(callback,0);};
+  const later=()=>setTimeout(run,0);
+  document.addEventListener('click',run,true);
+  document.addEventListener('pointerup',later,true);
 }
 export function updatePasswordStrength(){
   const input=document.getElementById('r-pass');
@@ -121,7 +151,7 @@ export function updatePasswordStrength(){
   const label=document.getElementById('r-pass-strength-label');
   if(!input||!el)return;
   const pw=input.value;
-  const {checks,score,valid}=checkPasswordStrength(pw);
+  const {checks}=checkPasswordStrength(pw);
 
   // Keep every checklist item live while the user types.
   el.querySelectorAll('.password-check').forEach(item=>{
@@ -129,13 +159,18 @@ export function updatePasswordStrength(){
     item.classList.toggle('met',Boolean(checks[key]));
   });
 
-  // Show an overall strength rating above the checklist as well.
+  renderPasswordStrength(el,label,pw);
+}
+
+// Four bars plus a word rating, shared by registration and password reset.
+const STRENGTH_WORDS=['','Weak','Fair','Good','Excellent'];
+export function renderPasswordStrength(container,label,pw){
+  const {score,valid}=checkPasswordStrength(pw);
+  const level=!pw?0:valid&&score>=5?4:valid?3:score>=3?2:1;
+  container.dataset.level=String(level);
   if(label){
-    let strength='Weak password',cls='weak';
-    if(valid&&score>=5){strength='Strong password';cls='strong';}
-    else if(valid||score>=3){strength='Medium password';cls='medium';}
-    label.textContent=strength;
-    label.className='password-strength-label '+cls;
+    label.textContent=level?'Password strength: '+STRENGTH_WORDS[level]:'Password strength';
+    label.className='password-strength-label '+(level>=4?'strong':level>=3?'medium':'weak');
   }
 }
 
@@ -158,14 +193,6 @@ export async function syncRegistrationPrivacyVersion(){
 
 export async function privacyAction(payload){return createOperationalService({getClient:()=>appState.supabaseClient.supabaseClient,request:(...args)=>fetch(...args),baseUrl:appState.supabaseClient.SUPABASE_URL,publishableKey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY}).privacyAction(payload);}
 
-export async function syncPrivacyStatus(){
-  if(!appState.auth.currentUser?._realSupabase)return null;
-  const result=await privacyAction({action:'status'});
-  appState.data.DB.privacyStatus=result;
-  appState.data.DB.settings.privacyPolicyVersion=result.current_version||appState.data.DB.settings.privacyPolicyVersion||'1.0';
-  appState.data.DB.settings.privacyPolicyUpdated=result.policy_updated||appState.data.DB.settings.privacyPolicyUpdated||appState.clinicInformation.TODAY;
-  return result;
-}
 
 export async function syncPrivacyAdminSummary(){
   if(!appState.auth.currentUser?._realSupabase||appState.auth.currentUser.role!=='Administrator')return null;
@@ -182,35 +209,47 @@ export async function openPrivacyNotice(){
   }
 
   const v=appState.data.DB.settings?.privacyPolicyVersion||'1.0';
-  openModal(`<div class="modal modal-lg privacy-notice">
-    <div class="modal-header"><h3>CampusCare Privacy Notice &amp; Consent</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-    <div class="modal-body" style="font-size:.8rem;line-height:1.65">
-      <div class="alert alert-info show">CampusCare is designed to support responsible processing of personal and health information under the Data Privacy Act of 2012 (RA 10173). Actual institutional compliance also depends on CTU policies, personnel, security controls, and lawful records-management procedures.</div>
-      <div class="alert alert-success show" style="margin-top:.55rem">
-        <strong>Clinic-posted privacy statement:</strong> Personal and sensitive information provided during consultation is collected,
-        stored, and processed by the CTU Medical/Dental Clinic for the purpose of providing medical or dental care. The posted notice
-        states that information is kept confidential and is not shared with third parties except when required by law or to fulfill medical
-        and legal obligations, and that patients may request access, correction, or deletion in accordance with the Data Privacy Act.
+  const updated=fmtDate(appState.data.DB.settings?.privacyPolicyUpdated||appState.clinicInformation.TODAY);
+  const sections=[
+    ['collect','bi-clipboard2-data','Information we collect',`<ul class="pn-list">
+      <li><strong>Identity &amp; contact</strong> — name, username, email, mobile number, birth date and sex.</li>
+      <li><strong>School or work details</strong> — college or department, ID number, class session.</li>
+      <li><strong>Verification images</strong> — profile photo, selfie and Student/Employee ID photos.</li>
+      <li><strong>Health records</strong> — appointments, consultation findings, diagnoses, prescriptions, procedures, dental records and certificates.</li>
+      <li><strong>Communication &amp; security</strong> — secure clinic messages, consent records, sign-in and audit events.</li></ul>`],
+    ['purpose','bi-bullseye','Why we use it',`<p>To identify and verify patients, register clinic accounts, schedule appointments, provide medical and dental care, document treatment, process certificates, send authorized clinic notices, and keep patients safe. It is also used for audit and accountability, operational reports, inventory planning, system security and service improvement.</p>`],
+    ['protect','bi-lock','Who can see it and how it is protected',`<p>Access is role-based and limited to what each person needs for their work. CampusCare uses:</p>
+      <div class="pn-chips"><span><i class="bi bi-person-check"></i> Authenticated accounts</span><span><i class="bi bi-diagram-3"></i> Row-level access rules</span><span><i class="bi bi-folder-lock"></i> Private file storage</span><span><i class="bi bi-journal-check"></i> Server-side audit logs</span><span><i class="bi bi-hdd-stack"></i> Protected backups</span></div>
+      <p class="pn-muted">Please avoid sending confidential details through channels outside CampusCare.</p>`],
+    ['retention','bi-archive','How long records are kept',`<p>Records are kept as required by CTU clinic, medical-record, safety and legal rules. Withdrawing consent does not automatically erase clinical records when another lawful basis or retention requirement applies.</p>`],
+    ['rights','bi-person-badge','Your rights under the Data Privacy Act',`<div class="pn-rights">
+      <div><i class="bi bi-info-circle"></i><strong>Be informed</strong><span>Know how your data is used.</span></div>
+      <div><i class="bi bi-eye"></i><strong>Access</strong><span>Request a copy of your records.</span></div>
+      <div><i class="bi bi-pencil-square"></i><strong>Correct</strong><span>Fix inaccurate details.</span></div>
+      <div><i class="bi bi-hand-thumbs-down"></i><strong>Object</strong><span>Object to processing based on consent.</span></div>
+      <div><i class="bi bi-eraser"></i><strong>Erase or block</strong><span>Where no lawful basis remains.</span></div>
+      <div><i class="bi bi-box-arrow-up-right"></i><strong>Data portability</strong><span>Get your data in a usable format.</span></div>
+      <div><i class="bi bi-cash-coin"></i><strong>Damages</strong><span>Claim for misuse of your data.</span></div>
+      <div><i class="bi bi-megaphone"></i><strong>File a complaint</strong><span>With the National Privacy Commission.</span></div></div>
+      <p class="pn-muted">Requests are reviewed by authorized CTU personnel. Contact the CTU Medical/Dental Clinic to make one.</p>`],
+    ['consent','bi-check2-circle','Consent and acknowledgement',`<p>Acknowledging this notice confirms it was shown to you and that you agree to processing that relies on consent. It does not waive any right you have under privacy law.</p>`]
+  ];
+  openModal(`<div class="modal modal-lg privacy-notice" aria-labelledby="pn-title">
+    <div class="modal-header pn-header"><div class="pn-title"><span class="pn-badge" aria-hidden="true"><i class="bi bi-shield-lock"></i></span><div><h3 id="pn-title">Privacy Notice &amp; Consent</h3><p>Version ${escapeHtml(v)} · Updated ${escapeHtml(updated)} · Republic Act 10173</p></div></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body pn-body">
+      <div class="pn-glance" role="list" aria-label="At a glance">
+        <div role="listitem"><i class="bi bi-clipboard2-data"></i><strong>What</strong><span>Identity, school and health records</span></div>
+        <div role="listitem"><i class="bi bi-bullseye"></i><strong>Why</strong><span>To provide and document your clinic care</span></div>
+        <div role="listitem"><i class="bi bi-lock"></i><strong>Who</strong><span>Only authorized clinic personnel</span></div>
+        <div role="listitem"><i class="bi bi-person-badge"></i><strong>Your rights</strong><span>Access, correct, object and more</span></div>
       </div>
-
-      <h4 style="margin:.7rem 0 .25rem">Information collected</h4>
-      <p>Identity and contact information, school or employee information, profile and verification images, appointment information, medical and dental records, consultation findings, diagnoses, prescriptions, procedures, certificates, secure clinic messages, consent records, and security or audit events relevant to clinic operations.</p>
-
-      <h4 style="margin:.7rem 0 .25rem">Purpose of processing</h4>
-      <p>Patient identification and verification, clinic registration, appointment scheduling, medical and dental care, treatment documentation, certificate processing, authorized clinic communication, operational reporting, patient safety, audit and accountability, inventory planning, system security, and service improvement.</p>
-
-      <h4 style="margin:.7rem 0 .25rem">Access and protection</h4>
-      <p>Access is role-based and should follow the minimum-necessary principle. CampusCare uses authenticated accounts, row-level access controls, private file storage for sensitive uploads, server-side audit logs, and protected database backups. Users should not send unnecessary confidential information through channels outside CampusCare.</p>
-
-      <h4 style="margin:.7rem 0 .25rem">Retention and data-subject requests</h4>
-      <p>Records may need to be retained according to applicable CTU clinic, medical-record, contractual, safety, or legal requirements. A request to withdraw consent does not automatically erase clinical records when another lawful basis or retention requirement applies. Appropriate access, correction, objection, or privacy requests should be reviewed by authorized CTU personnel.</p>
-
-      <h4 style="margin:.7rem 0 .25rem">Consent and acknowledgement</h4>
-      <p>By acknowledging the current notice, the user confirms that this information has been presented and agrees to processing that relies on consent. This acknowledgement does not waive rights provided by applicable privacy law.</p>
-
-      <div class="tech-note" style="margin-top:.7rem">Privacy Notice version ${escapeHtml(v)} · Updated ${fmtDate(appState.data.DB.settings?.privacyPolicyUpdated||appState.clinicInformation.TODAY)}</div>
+      <blockquote class="pn-statement"><span class="pn-statement-label"><i class="bi bi-hospital"></i> Posted at the CTU Medical/Dental Clinic</span>
+        Personal and sensitive information provided during consultation is collected, stored, and processed by the CTU Medical/Dental Clinic to provide medical or dental care. It is kept confidential and is not shared with third parties except when required by law or to fulfill medical and legal obligations. Patients may request access, correction, or deletion in accordance with the Data Privacy Act.</blockquote>
+      <nav class="pn-toc" aria-label="Sections">${sections.map(([id,,title],i)=>`<button type="button" ${bindAction('click',()=>document.getElementById('pn-'+id)?.scrollIntoView({behavior:'smooth',block:'start'}))}>${i+1}. ${title}</button>`).join('')}</nav>
+      ${sections.map(([id,icon,title,body],i)=>`<section class="pn-section" id="pn-${id}"><h4><span class="pn-num">${i+1}</span><i class="bi ${icon}" aria-hidden="true"></i>${title}</h4>${body}</section>`).join('')}
+      <p class="pn-disclaimer"><i class="bi bi-info-circle"></i> CampusCare supports responsible processing of personal and health information under the Data Privacy Act of 2012. Actual institutional compliance also depends on CTU policies, personnel, security controls and lawful records-management procedures.</p>
     </div>
-    <div class="modal-footer"><button class="btn btn-primary" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button></div>
+    <div class="modal-footer pn-footer"><button type="button" class="btn btn-primary" ${bindAction('click',()=>closeAllModals())}>I understand</button></div>
   </div>`);
 }
 
@@ -223,6 +262,8 @@ export function dataUrlToRegistrationFile(dataUrl, filename='capture.jpg'){
   for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
   return new File([bytes],filename,{type:mime});
 }
+
+const REGISTRATION_SERVER_FIELDS={first_name:'r-fname',last_name:'r-lname',username:'r-user',email:'r-email',password:'r-pass',contact_number:'r-contact',college:'r-college',id_number:'r-idno',birth_date:'r-dob',sex:'r-sex'};
 
 export async function doRegister() {
   if(!initializeSupabaseClient()){
@@ -246,79 +287,17 @@ export async function doRegister() {
   const dob=document.getElementById('r-dob').value;
   const sex=document.getElementById('r-sex').value;
   const idSides=registrationIdSides();
-  const privacyConsent=document.getElementById('r-privacy-consent');
 
-  if(!privacyConsent?.checked){
-    registrationToast('Please read and agree to the CampusCare Privacy Notice and Consent before registering.','error');
+  // Show every problem beside its field, like a standard sign-up form, then move to the first one.
+  const invalid=validateRegistrationForm();
+  if(invalid.length){
+    const first=invalid[0];
+    const target=first==='r-dob'?document.getElementById('r-dob-button'):first==='r-selfie'?document.getElementById('selfie-camera-button'):first==='r-id'?document.getElementById('r-id-camera-button'):document.getElementById(first);
+    target?.scrollIntoView?.({block:'center',behavior:'smooth'});
+    target?.focus?.({preventScroll:true});
+    registrationToast(invalid.length===1?'Please fix the highlighted field.':`Please fix the ${invalid.length} highlighted fields.`,'error');
     return;
   }
-  if(!fname||!lname||!uname||!email||!pass){
-    registrationToast('Name, username, email and password are required.','error');
-    return;
-  }
-  if(fname.length>50||lname.length>50){
-    registrationToast('First and last name must not exceed 50 characters.','error');
-    return;
-  }
-  if(!/^[A-Za-z0-9_.-]{4,20}$/.test(uname)){
-    registrationToast('Username must be 4–20 characters using letters, numbers, periods, underscores, or hyphens.','error');
-    return;
-  }
-  if(emailValidationError(email)){
-    validateRegistrationContact(document.getElementById('r-email'));
-    registrationToast(emailValidationError(email),'error');
-    return;
-  }
-  if(pass.length>64){
-    registrationToast('Password must not exceed 64 characters.','error');
-    return;
-  }
-  if(contactRaw&&!contact){
-    validateRegistrationContact(document.getElementById('r-contact'));
-    registrationToast('Use a Philippine mobile number starting with 09 or +639.','error');
-    return;
-  }
-  const expectedIdLength=ptype==='Student'?7:5;
-  if(!new RegExp(`^\\d{${expectedIdLength}}$`).test(idNo)){
-    registrationToast(
-      ptype==='Student'
-        ? 'Student ID must contain exactly 7 digits, for example 1350098.'
-        : 'Employee ID must contain exactly 5 digits, for example 14982.',
-      'error'
-    );
-    return;
-  }
-  if(!college){
-    registrationToast(ptype==='Non-Teaching Personnel'?'Please select your department.':'Please select your college.','error');
-    return;
-  }
-  if(!dob){
-    registrationToast('Please enter your date of birth.','error');
-    return;
-  }
-  if(dob>appState.clinicInformation.TODAY){
-    registrationToast('Date of birth cannot be in the future.','error');
-    return;
-  }
-  const ageYears=Math.floor((new Date(appState.clinicInformation.TODAY)-new Date(dob))/(365.25*24*60*60*1000));
-  if(ageYears<10||ageYears>100){
-    registrationToast('Please double-check your date of birth.','error');
-    return;
-  }
-  if(!sex){
-    registrationToast('Please select your sex.','error');
-    return;
-  }
-  if(!checkPasswordStrength(pass).valid){
-    registrationToast('Password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.','error');
-    return;
-  }
-  if(!appState.camera.capturedSelfieDataUrl){
-    registrationToast('Use the camera to take a verification selfie while holding the document you will upload.','error');
-    return;
-  }
-  if(!idSides.front||!idSides.back){registrationToast('Provide the front and back of your Student or Employee ID.','error');return;}
-  if(appState.documentScanner.lastOcrDocumentType==='COR'){registrationToast('COR is not accepted. Use the front and back of your Student or Employee ID.','error');return;}
   let captchaToken;
   try{captchaToken=await registrationCaptchaToken(appState.supabaseClient.SUPABASE_URL,appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY);}
   catch(error){registrationToast(error.message,'error');return;}
@@ -373,36 +352,31 @@ export async function doRegister() {
     });
     const result=await response.json().catch(()=>({}));
     if(!response.ok||!result.ok){
-      throw new Error(result.error||'Registration failed. Please try again.');
+      throw Object.assign(new Error(result.error||'Registration failed. Please try again.'),{fieldErrors:result.field_errors});
     }
 
-    registrationToast(
-      result.email_confirmation_required
-        ? 'Registration submitted. Check your email, then wait for administrator approval.'
-        : 'Registration submitted. Please wait for administrator approval.',
-      'success',
-      6500
-    );
-
-    // Show the existing pending-registration screen without storing the account locally.
+    // The pending screen itself confirms the submission and lists the next steps.
     showPendingPanel({
       fname,lname,username:uname,email,personType:ptype,college,idNo,
       dob,sex,status:'Pending'
     });
 
-    ['r-fname','r-lname','r-user','r-email','r-pass','r-contact','r-idno','r-dob','r-sex']
+    ['r-fname','r-lname','r-user','r-email','r-pass','r-pass2','r-contact','r-idno','r-dob','r-sex']
       .forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    const dobLabel=document.getElementById('r-dob-label');if(dobLabel)dobLabel.textContent='Select date';
     resetRegistrationIds();
-    const selfiePreview=document.getElementById('r-selfie-preview-wrap');
-    if(selfiePreview)selfiePreview.replaceChildren();
-    const selfieButton=document.getElementById('selfie-camera-button');
-    if(selfieButton)selfieButton.textContent='Take Verification Selfie';
+    resetSelfiePreview();
+    resetRegistrationFieldErrors();
     const preview=document.getElementById('r-file-preview');if(preview)preview.textContent='';
     const consent=document.getElementById('r-privacy-consent');if(consent)consent.checked=false;
     appState.camera.capturedSelfieDataUrl=null;appState.camera.capturedIdDataUrl=null;
     updateRegistrationIdentityFields();
   }catch(e){
-    registrationToast(e?.message||'Registration failed. Please try again.','error',6000);
+    // Server field problems (for example a taken username) appear beside the field, like client checks.
+    const fields=Object.entries(e?.fieldErrors||{}).filter(([key])=>REGISTRATION_SERVER_FIELDS[key]);
+    fields.forEach(([key,message])=>setRegistrationFieldError(REGISTRATION_SERVER_FIELDS[key],String(message)));
+    if(fields.length)document.getElementById(REGISTRATION_SERVER_FIELDS[fields[0][0]])?.focus();
+    registrationToast(fields.length?'Please fix the highlighted fields.':e?.message||'Registration failed. Please try again.','error',6000);
   }finally{
     // Tokens are one-time use, including failed submissions that reached verification.
     resetRegistrationCaptcha();
@@ -411,17 +385,20 @@ export async function doRegister() {
 }
 
 export function showPendingPanel(user){
+  clearToasts();
   appState.loginLockout.pendingRegistrationEmail=String(user?.email||'').trim();
   document.getElementById('login-section').style.display='none';
   document.getElementById('reg-section').style.display='none';
   document.getElementById('auth-tabs').style.display='none';
   document.getElementById('pending-name').textContent = user?`${user.fname} ${user.lname}`:'there';
+  const pendingEmail=document.getElementById('pending-email');
+  if(pendingEmail)pendingEmail.textContent=user?.email?maskVerificationEmail(user.email):'your email';
   document.getElementById('pending-section').style.display='block';
 }
 
 export function closePendingPanel(){
   document.getElementById('pending-section').style.display='none';
-  document.getElementById('auth-tabs').style.display='flex';
+  document.getElementById('auth-tabs').style.display='';
   document.getElementById('li-user').value='';
   document.getElementById('li-pass').value='';
   authTab('login');
@@ -439,13 +416,10 @@ export function maskVerificationEmail(email){
 export function openResendVerification(prefill=''){
   const initial=String(prefill||document.getElementById('li-user')?.value||'').trim();
   openModal(`<div class="modal modal-sm">
-    <div class="modal-header"><div><h3>Resend Verification Email</h3><div class="text-muted">For newly registered accounts whose confirmation link expired.</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
+    <div class="modal-header"><div><h3>Resend Verification Email</h3></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
     <div class="modal-body">
       <div id="resend-verify-msg"></div>
       <div class="form-group"><label>Username or Email</label><input id="resend-verify-id" maxlength="150" autocomplete="username" value="${escapeHtml(initial)}" placeholder="Enter your username or registered email"></div>
-      <div class="alert alert-info show" style="font-size:.7rem">
-        This requests a new signup-verification message. It does not create another registration and does not reset your password.
-      </div>
     </div>
     <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button><button class="btn btn-primary" id="resend-verify-btn" ${bindAction('click',(event,element)=>{sendVerificationEmailAgain()})}>Send New Verification Email</button></div>
   </div>`);
@@ -490,8 +464,5 @@ export async function sendVerificationEmailAgain(){
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
-  appState.loginLockout.LOGIN_ATTEMPTS_KEY='campuscare_login_attempts';
-  appState.loginLockout.MAX_LOGIN_ATTEMPTS=5;
-  appState.loginLockout.LOCKOUT_MS=30000;
   appState.loginLockout.pendingRegistrationEmail='';
 }

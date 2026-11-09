@@ -1,8 +1,8 @@
 import {markReportStale} from '../reports/custom-report.js';
 // predictiveAnalytics: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
-import {appointmentRecords} from './appointmentService.js';
 import {isoDateOffset} from './dashboardChartHelpers.js';
+import {appointmentRecords} from './appointmentService.js';
 import {treatmentRecords} from './treatmentService.js';
 import {getPatientById} from './documentScanner.js';
 import {openReportDateRange} from './datePicker.js';
@@ -126,7 +126,7 @@ export function renderHealthIntelligenceCard(dateFrom,dateTo){
   const topSignal=a.signalRows[0],growthTone=a.visitGrowth>30?'text-danger':a.visitGrowth>0?'text-warning':'text-success';
   return `<div class="card">
     <div class="card-header">
-      <div><h3>Campus Health Intelligence</h3><div class="tech-note">Predictive trend detection from clinical records — not an outbreak diagnosis.</div></div>
+      <div><h3>Campus Health Intelligence</h3><div class="tech-note">Predictive trend detection from clinical records</div></div>
       <button class="btn btn-sm" type="button" ${bindAction('click',(event,element)=>{openReportDateRange()})}><i class="bi bi-calendar3"></i> ${fmtDate(a.currentFrom)} – ${fmtDate(a.anchor)}</button>
     </div>
     <div class="intel-grid">
@@ -136,8 +136,7 @@ export function renderHealthIntelligenceCard(dateFrom,dateTo){
       <div class="intel-card"><div class="intel-kicker">Most active college</div><div class="intel-value">${a.topCollege?escapeHtml(a.topCollege[0]):'—'}</div><div class="intel-meta">${a.topCollege?`${a.topCollege[1]} clinical record${a.topCollege[1]===1?'':'s'}`:'No records in range'}</div></div>
     </div>
     <div class="section-label">Health trend alerts</div>
-    <div class="intel-alert-list">${a.alerts.length?a.alerts.map(x=>`<div class="intel-alert-item"><div class="intel-alert-icon">${x.severity==='high'?'⚠️':'📈'}</div><div class="intel-alert-copy"><strong>${escapeHtml(x.title)}</strong><span>${escapeHtml(x.detail)}</span></div></div>`).join(''):`<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No unusual cluster detected</strong><span>The detector did not find a signal meeting the review threshold for the selected date range.</span></div></div>`}</div>
-    <div class="tech-note" style="margin-top:.65rem">The comparison automatically uses the immediately preceding range with the same number of days.</div>
+    <div class="intel-alert-list">${a.alerts.length?a.alerts.map(x=>`<div class="intel-alert-item"><div class="intel-alert-icon ${x.severity==='high'?'danger':'info'}">${x.severity==='high'?'<i class="bi bi-exclamation-triangle" aria-hidden="true"></i>':'<i class="bi bi-graph-up-arrow" aria-hidden="true"></i>'}</div><div class="intel-alert-copy"><strong>${escapeHtml(x.title)}</strong><span>${escapeHtml(x.detail)}</span></div></div>`).join(''):`<div class="intel-alert-item"><div class="intel-alert-icon">✓</div><div class="intel-alert-copy"><strong>No unusual cluster detected</strong><span>The detector did not find a signal meeting the review threshold for the selected date range.</span></div></div>`}</div>
   </div>`;
 }
 export async function refreshHealthIntelligence(){

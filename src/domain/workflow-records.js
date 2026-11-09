@@ -30,6 +30,13 @@ export function realIssueToUi(row,userMap,replyRows,screenshotUrl){
     status:row.status||'Open',
     adminNote:row.admin_note||'',
     resolvedBy:row.resolved_by?100000+Number(row.resolved_by):null,
+    resolvedByName:(u=>u?`${u.first_name||''} ${u.last_name||''}`.trim():'')(userMap.get(Number(row.resolved_by))),
+    priority:row.priority||'Normal',
+    assignedTo:row.assigned_to?100000+Number(row.assigned_to):null,
+    dbAssignedTo:row.assigned_to?Number(row.assigned_to):null,
+    assigneeName:(u=>u?`${u.first_name||''} ${u.last_name||''}`.trim():'')(userMap.get(Number(row.assigned_to))),
+    deviceInfo:row.device_info||'',
+    reporterRating:row.reporter_rating==null?null:Number(row.reporter_rating),
     resolvedAt:row.resolved_at||'',
     createdAt:row.created_at||'',
     updatedAt:row.updated_at||'',
@@ -45,6 +52,7 @@ export function realIssueToUi(row,userMap,replyRows,screenshotUrl){
           authorName:author?`${author.first_name||''} ${author.last_name||''}`.trim():'CampusCare user',
           authorRole:author?.role||'User',
           body:r.body||'',
+          internal:!!r.is_internal,
           createdAt:r.created_at||''
         };
       }),
@@ -69,6 +77,10 @@ export function realWorkflowToUi(r){
     appliedAt:r.applied_at||'',
     createdAt:r.created_at||'',
     payload:r.payload||{},
+    attachmentUrl:r.attachment_url||'',
+    attachmentName:r.payload?.attachment?.name||'',
+    attachmentMime:r.payload?.attachment?.mime||'',
+    attachmentSize:Number(r.payload?.attachment?.size)||0,
     _realSupabase:true
   };
 
@@ -167,7 +179,7 @@ export function realApprovalUiUser(u){
     medicalHistory:u.medical_history||'',
     allergies:u.allergies||'',
     verificationDocumentType:u.verification_document_type||(
-      u.person_type==='Student'?'School ID or COR':'Employee ID'
+      u.person_type==='Student'?'Student ID':'Employee ID'
     ),
     registrationContext:u.registration_context||'public',
     emailConfirmedAt:u.email_confirmed_at||'',
@@ -186,34 +198,3 @@ export function realApprovalUiUser(u){
   };
 }
 
-export function realMessageToUi(m){
-  return {
-    id:1200000+Number(m.message_id),
-    dbMessageId:Number(m.message_id),
-    fromUserId:100000+Number(m.from_user_id),
-    dbFromUserId:Number(m.from_user_id),
-    toUserId:100000+Number(m.to_user_id),
-    dbToUserId:Number(m.to_user_id),
-    subject:m.subject||'',
-    message:m.body||'',
-    replyToId:m.reply_to_id?1200000+Number(m.reply_to_id):null,
-    dbReplyToId:m.reply_to_id?Number(m.reply_to_id):null,
-    isRead:Boolean(m.is_read),
-    createdAt:m.created_at||'',
-    edited:Boolean(m.edited_at),
-    editedAt:m.edited_at||'',
-    deleted:Boolean(m.deleted_for_everyone),
-    deletedAt:m.deleted_at||'',
-    forwarded:Boolean(m.forwarded_from_id),
-    dbForwardedFromId:m.forwarded_from_id?Number(m.forwarded_from_id):null,
-    attachment:m.attachment_url&&!m.deleted_for_everyone?{
-      type:m.attachment_type||'file',
-      name:m.attachment_name||'Attachment',
-      dataUrl:m.attachment_url,
-      mime:m.attachment_mime||'',
-      size:Number(m.attachment_size||0),
-      path:m.attachment_path||''
-    }:null,
-    _realSupabase:true
-  };
-}

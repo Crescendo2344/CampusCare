@@ -1,4 +1,4 @@
-// Small first-party outline icons keep messaging controls consistent without an icon CDN.
+// Small first-party outline icons keep controls consistent without an icon CDN.
 const paths={
   calendar:'M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2ZM7 2v5m10-5v5M3 10h18m-14 4h2m2 0h2m2 0h2m-10 3h2m2 0h2',
   arrow:'M5 12h14m-5-5 5 5-5 5',
@@ -25,3 +25,22 @@ const paths={
 export function appIcon(name,size=20){
   return `<svg class="app-icon" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="${paths[name]||paths.message}"/></svg>`;
 }
+
+// Bootstrap Icons glyph, decorative by default.
+export function biIcon(name,extraClass=''){
+  return `<i class="bi ${name}${extraClass?' '+extraClass:''}" aria-hidden="true"></i>`;
+}
+
+// Health articles choose from these icons. Older articles stored an emoji; each maps to its icon.
+export const ARTICLE_ICONS=[
+  ['bi-newspaper','News'],['bi-person-arms-up','Wellness'],['bi-egg-fried','Nutrition'],['bi-droplet','Hydration'],
+  ['bi-bandaid','First aid'],['bi-prescription2','Vaccines & medicine'],['bi-moon-stars','Sleep'],['bi-shield-check','Prevention'],
+  ['bi-person-walking','Exercise'],['bi-heart-pulse','Heart health'],['bi-lightbulb','Mental health'],['bi-emoji-smile','Dental']
+];
+const ARTICLE_EMOJI={'📰':'bi-newspaper','🧘':'bi-person-arms-up','🥗':'bi-egg-fried','💧':'bi-droplet','🩹':'bi-bandaid','💉':'bi-prescription2','😴':'bi-moon-stars','🛡️':'bi-shield-check','🛡':'bi-shield-check','🏃':'bi-person-walking','❤️':'bi-heart-pulse','❤':'bi-heart-pulse','🧠':'bi-lightbulb','🦷':'bi-emoji-smile'};
+export function articleIconName(value){
+  const v=String(value||'').trim();
+  if(/^bi-[a-z0-9-]+$/.test(v))return v;
+  return ARTICLE_EMOJI[v]||'bi-newspaper';
+}
+export function articleIconHtml(value){return biIcon(articleIconName(value));}

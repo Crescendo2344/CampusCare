@@ -62,6 +62,7 @@ Deno.serve(async(req)=>{
       const dentalLimit=Math.max(1,Math.min(5,Number(body.dental_visit_limit_per_semester??current.dental_visit_limit_per_semester??1)));
       const privacyVersion=clean(body.privacy_policy_version||current.privacy_policy_version||"1.0",40)||"1.0";
       const privacyUpdated=body.privacy_policy_updated||current.privacy_policy_updated||new Date().toISOString().slice(0,10);
+      const bookingLead=Math.max(0,Math.min(72,Number(body.booking_lead_hours??current.booking_lead_hours??24)));
       const scheduleNoticeDays=Math.max(0,Math.min(30,Number(body.schedule_change_notice_days??current.schedule_change_notice_days??3)));
 
       const patch={
@@ -78,15 +79,18 @@ Deno.serve(async(req)=>{
         privacy_policy_version:privacyVersion,
         privacy_policy_updated:privacyUpdated,
         schedule_change_notice_days:scheduleNoticeDays,
+        booking_lead_hours:bookingLead,
         updated_by:actor.user_id,
         updated_at:new Date().toISOString()
       };
 
       // Critical changes must pass both the client review and this server boundary.
-      const criticalKeys=["clinic_name","address","contact_email","contact_number","dental_visit_limit_per_semester","appointment_reminder_days","semester_start","semester_end","semester2_start","semester2_end"];
-      const changed=criticalKeys.filter(key=>String(patch[key]??"")!==String(current[key]??""));
+      const criticalKeys=["clinic_name","address","contact_email","contact_number","dental_visit_limit_per_semester","appointment_reminder_days","booking_lead_hours","semester_start","semester_end","semester2_start","semester2_end"];
+      // A setting the record does not hold yet counts as its default, not as a change.
+      const defaults:Record<string,unknown>={booking_lead_hours:24};
+      const changed=criticalKeys.filter(key=>String(patch[key]??"")!==String(current[key]??defaults[key]??""));
       if(changed.length&&body.critical_confirmation!==true)return json({error:"Review and confirm the critical settings changes before saving."},409);
-      if(!patch.clinic_name||!Number.isInteger(reminderDays)||!Number.isInteger(dentalLimit))return json({error:"Enter valid clinic settings and whole-number limits."},400);
+      if(!patch.clinic_name||!Number.isInteger(reminderDays)||!Number.isInteger(dentalLimit)||!Number.isInteger(bookingLead))return json({error:"Enter valid clinic settings and whole-number limits."},400);
       const dates={semesterStart:patch.semester_start,semesterEnd:patch.semester_end,semester2Start:patch.semester2_start,semester2End:patch.semester2_end};
       // Existing calendar-year settings remain readable; a changed semester must use an academic year.
       if(changed.some(key=>key.startsWith("semester"))){

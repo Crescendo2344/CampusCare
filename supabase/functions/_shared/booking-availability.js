@@ -27,6 +27,18 @@ export function buildDoctorAvailability({doctor,rules=[],appointments=[],leaves=
       else if(minute<lunchEnd&&minute+duration>lunchStart&&override?.available!==true){kind='lunch';label='Lunch break';}
       slots.push({time,kind,label,available:kind==='available'});
     }
+    // Staff can add one-off times outside the regular grid; they behave like any other slot.
+    const regular=new Set(slots.map(s=>s.time));
+    for(const [time,override] of dayOverrides||[]){
+      if(override?.available!==true||regular.has(time)||!/^\d{2}:\d{2}$/.test(time))continue;
+      const minute=minutes(time);
+      let kind='available',label='Custom time';
+      if(taken.includes(time)){kind='booked';label='Booked';}
+      else if(dailyFull){kind='full';label='Daily limit reached';}
+      else if(date===today&&minute<=nowMinutes){kind='past';label='Past time';}
+      slots.push({time,kind,label,available:kind==='available',custom:true});
+    }
+    slots.sort((a,b)=>a.time.localeCompare(b.time));
     days.push({date,openSlots:Math.min(Math.max(0,capacity-taken.length),slots.filter(s=>s.available).length),slots,schedule:{workDays:[['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][weekday]],startTime:String(rule?.start_time||doctor.startTime||'08:00').slice(0,5),endTime:String(rule?.end_time||doctor.endTime||'17:00').slice(0,5),slotDuration:duration,maxPatients:capacity}});
   }
   return days;

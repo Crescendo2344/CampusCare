@@ -1,6 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 import {buildUserEditPatch} from "../_shared/admin-user-edit.js";
+import {emailValidationError,normalizePhilippineMobile} from "../_shared/contact-validation.js";
+import {contactValidationError,nameValidationError,usernameValidationError} from "../_shared/registration-validation.js";
+import {emailCredentials,generatePassword} from "../_shared/account-credentials.js";
+import {SPECIALIZATIONS,cleanServicesRendered} from "../_shared/clinic-services.js";
 
 const cors={
   "Access-Control-Allow-Origin":"*",
@@ -126,38 +130,60 @@ Deno.serve(async(req)=>{
       const lastName=String(body.last_name||"").trim();
       const username=String(body.username||"").trim();
       const email=String(body.email||"").trim().toLowerCase();
-      const password=String(body.password||"");
+      // The password is generated here and only ever emailed to the new user; the administrator never sees it.
+      const password=generatePassword({username:String(body.username||""),email:String(body.email||"")});
       const role=String(body.role||"").trim();
-      if(!firstName||!lastName||!username||!email||!password||!["Doctor","Staff","Administrator"].includes(role))
-        return json({error:"First name, last name, username, email, password, and a valid staff role are required."},400);
-      if(password.length<8) return json({error:"Password must be at least 8 characters."},400);
+      const idNumber=String(body.id_number||"").trim();
+      const contactRaw=String(body.contact_number||"").trim();
+      const specialty=String(body.specialty||"General Medicine");
+      // Administrators add doctors and staff only; another administrator cannot be created here.
+      if(!["Doctor","Staff"].includes(role))return json({error:"Choose Doctor or Staff.",field_errors:{role:"Choose Doctor or Staff."}},400);
+      const servicesRendered=role==="Doctor"?cleanServicesRendered(specialty,body.services_rendered):[];
+      // The same field rules as public registration, so both sign-up paths accept the same accounts.
+      const fieldErrors=Object.fromEntries(Object.entries({
+        first_name:nameValidationError(firstName,"First name"),
+        last_name:nameValidationError(lastName,"Last name"),
+        username:usernameValidationError(username),
+        email:email?emailValidationError(email):"Enter an email address.",
+        id_number:/^\d{5}$/.test(idNumber)?"":"Enter the 5-digit employee number.",
+        contact_number:contactValidationError(contactRaw),
+        specialty:role==="Doctor"&&!Object.keys(SPECIALIZATIONS).includes(specialty)?"Choose a valid specialization.":"",
+        services_rendered:role==="Doctor"&&!servicesRendered.length?"Tick at least one service the doctor renders.":""
+      }).filter(([,message])=>message));
+      if(Object.keys(fieldErrors).length)return json({error:Object.values(fieldErrors)[0],field_errors:fieldErrors},400);
+      const contactNumber=contactRaw?normalizePhilippineMobile(contactRaw):"";
+      const literal=(v:string)=>v.replace(/[\\%_]/g,"\\$&");
 
-      const {data:emailHit}=await admin.from("users").select("user_id").ilike("email",email).limit(1);
-      if(emailHit?.length) return json({error:"This email address is already registered."},409);
-      const {data:userHit}=await admin.from("users").select("user_id").ilike("username",username).limit(1);
-      if(userHit?.length) return json({error:"This username is already taken."},409);
+      const {data:emailHit}=await admin.from("users").select("user_id").ilike("email",literal(email)).limit(1);
+      if(emailHit?.length) return json({error:"This email address is already registered.",field_errors:{email:"This email address is already registered."}},409);
+      const {data:userHit}=await admin.from("users").select("user_id").ilike("username",literal(username)).limit(1);
+      if(userHit?.length) return json({error:"This username is already taken.",field_errors:{username:"This username is already taken."}},409);
+      const {data:idHit}=await admin.from("users").select("user_id").eq("id_number",idNumber).limit(1);
+      if(idHit?.length) return json({error:"This employee number belongs to another account.",field_errors:{id_number:"This employee number belongs to another account."}},409);
 
       const metadata={
         first_name:firstName,last_name:lastName,username,
-        contact_number:String(body.contact_number||""),
+        contact_number:contactNumber,
         person_type:role==="Doctor"?"Clinic Personnel":"Staff"
       };
       const {data:created,error:createErr}=await admin.auth.admin.createUser({
-        email,password,email_confirm:true,user_metadata:metadata
+        email,password,email_confirm:true,user_metadata:metadata,
+        app_metadata:{must_change_password:true}
       });
       if(createErr||!created.user) return json({error:createErr?.message||"Unable to create account."},400);
 
       const uid=created.user.id;
       const patch:any={
         first_name:firstName,last_name:lastName,username,email,
-        contact_number:String(body.contact_number||""),
-        role,status:"Active",verified:true,
-        specialty:role==="Doctor"?String(body.specialty||"General Medicine"):null,
+        contact_number:contactNumber,
+        role,status:"Active",verified:true,id_number:idNumber,
+        specialty:role==="Doctor"?specialty:null,
+        services_rendered:servicesRendered,
         work_days:role==="Doctor"?(body.work_days||["Mon","Tue","Wed","Thu","Fri"]):[],
         start_time:role==="Doctor"?String(body.start_time||"08:00"):null,
         end_time:role==="Doctor"?String(body.end_time||"17:00"):null,
         slot_duration:role==="Doctor"?Number(body.slot_duration||60):null,
-        max_patients:role==="Doctor"?Number(body.max_patients||20):null
+        max_patients:role==="Doctor"?Number(body.max_patients||9):null
       };
       const {data:profile,error:profileErr}=await admin.from("users")
         .update(patch).eq("auth_user_id",uid).select("user_id").single();
@@ -179,13 +205,14 @@ Deno.serve(async(req)=>{
         user_id:actor.user_id,action:"USER_CREATED",entity_type:"users",entity_id:profile.user_id,
         details:{role,email,username}
       });
-      return json({ok:true,user_id:profile.user_id});
+      const emailStatus=await emailCredentials(admin,url,{userId:profile.user_id,email,firstName,username,password,role});
+      return json({ok:true,user_id:profile.user_id,email_status:emailStatus});
     }
 
     const targetId=Number(body.user_id);
     if(!targetId) return json({error:"User ID is required."},400);
     const {data:target}=await admin.from("users")
-      .select("user_id,auth_user_id,first_name,last_name,username,role,status,email,contact_number,verified,person_type,college,id_number,profile_image_url,id_file_url,specialty,work_days,start_time,end_time,slot_duration,max_patients,created_at,last_login_at,password_changed_at")
+      .select("user_id,auth_user_id,first_name,last_name,username,role,status,email,contact_number,verified,person_type,college,id_number,profile_image_url,id_file_url,specialty,services_rendered,work_days,start_time,end_time,slot_duration,max_patients,created_at,last_login_at,password_changed_at")
       .eq("user_id",targetId).maybeSingle();
     if(!target) return json({error:"User not found."},404);
 
@@ -242,6 +269,8 @@ Deno.serve(async(req)=>{
       if(body.confirmed!==true)return json({error:"Review and confirm the user changes before saving."},400);
       const patch:any=result.patch;
       if(!Object.keys(patch).length)return json({error:"No changes to save."},400);
+      const reason=String(body.reason||"").trim().slice(0,300);
+      if(reason.length<5)return json({error:"Give a short reason for this change."},400);
       let changedAuthEmail=false;
       if(patch.email){
         const {data:hit,error:lookupError}=await admin.from("users").select("user_id").eq("email",patch.email).neq("user_id",targetId).limit(1);
@@ -254,7 +283,7 @@ Deno.serve(async(req)=>{
       }
       // Read the updated row back and condition on its approved status: never report a zero-row write as success.
       const {data:saved,error}=await admin.from("users").update(patch).eq("user_id",targetId).eq("status",target.status)
-        .select("user_id,first_name,last_name,email,contact_number,specialty,status").maybeSingle();
+        .select("user_id,first_name,last_name,email,contact_number,specialty,services_rendered,status").maybeSingle();
       if(error||!saved){
         if(changedAuthEmail){
           const {error:rollbackError}=await admin.auth.admin.updateUserById(target.auth_user_id,{email:target.email});
@@ -262,7 +291,18 @@ Deno.serve(async(req)=>{
         }
         return json({error:error?.message||"The account status changed while editing. Reload the account and try again."},409);
       }
-      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"USER_UPDATED",entity_type:"users",entity_id:targetId,details:patch});
+      // Before/after pairs so the activity log can show exactly what changed, and why.
+      const changes:Record<string,unknown>={};
+      for(const key of Object.keys(patch)){changes["previous_"+key]=(target as any)[key]??null;changes["new_"+key]=patch[key];}
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"USER_UPDATED",entity_type:"users",entity_id:targetId,details:{...changes,reason}});
+      if(body.notify!==false){
+        const labels:Record<string,string>={first_name:"first name",last_name:"last name",email:"email",contact_number:"mobile number",specialty:"specialty"};
+        await admin.from("notifications").insert({
+          user_id:targetId,title:"Account details updated",
+          message:`An administrator updated your ${Object.keys(patch).map(k=>labels[k]||k).join(", ")}. Reason: ${reason}`,
+          type:"Account",channel:"In-app",delivery_status:"Created",action_page:"my-account"
+        });
+      }
       return json({ok:true,user:saved});
     }
 

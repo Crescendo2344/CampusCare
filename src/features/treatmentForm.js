@@ -1,14 +1,15 @@
 // treatmentForm: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {appointmentDisplayId,appointmentRecords,syncRealAppointments} from './appointmentService.js';
-import {hideAlert,showAlert,showConfirmDialog,toast} from './theme.js';
+import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {fmtDate,fmtTime} from './inputValidation.js';
 import {syncRealDentalRecords,syncRealMedicationReminders,syncRealTreatments,treatmentAction,treatmentDisplayId,treatmentRecords} from './treatmentService.js';
-import {getDoctors,getPatientById,getUserById} from './documentScanner.js';
+import {getPatientById,getUserById} from './documentScanner.js';
 import {escapeHtml} from './issueReports.js';
-import {docName} from './messaging.js';
+import {docName} from './displayNames.js';
 import {closeAllModals,openModal} from './modals.js';
-import {collectDentalRecordForm,dentalRecordFormHtml,toggleDentalRecordSection} from './patientForm.js';
+import {collectDentalRecordForm,dentalRecordFormHtml} from './patientForm.js';
+import {patientAvatarHtml} from './patientManagement.js';
 import {campusDateFieldHtml} from './datePicker.js';
 import {auditLog} from './auditAndBackups.js';
 import {persistDB} from './persistence.js';
@@ -17,8 +18,9 @@ import {renderTreatTable,renderTreatments} from './treatmentList.js';
 import {renderAppointments} from './appointments.js';
 import {renderDoctorSchedule} from './doctorSchedule.js';
 import {loadJsPDF} from './settingsAndCertificates.js';
-import {loadHtml2Canvas} from './certificateService.js';
-import {bindAction} from '../dependencies.js';
+import {loadHtml2Canvas,openNewCertificateModal} from './certificateService.js';
+import * as clinicalChecks from '../domain/clinical-validation.js';
+import {bindAction,patientData} from '../dependencies.js';
 // ── Treatment Modal ──
 export function openAddTreatmentModal(apptId){
   const a=appointmentRecords().find(x=>x.id===Number(apptId));
@@ -42,9 +44,30 @@ export function openAddTreatmentModal(apptId){
   openAddTreatmentModalPt(a.patientId,a.id);
 }
 
+// The clinic is never chosen here: it follows the linked appointment, otherwise the doctor's own clinic.
+export function treatmentClinicFor(doctor,appt){
+  if(appt?.clinic)return appt.clinic==='Dental Clinic'?'Dental Clinic':'Medical Clinic';
+  return doctor?.specialty==='Dental'?'Dental Clinic':'Medical Clinic';
+}
+const FOLLOWUP_PRESETS=[['1 week',7],['2 weeks',14],['1 month',30]];
+const VITAL_FIELDS=[['bp','Blood pressure','mmHg','120/80',''],['temp','Temperature','°C','36.8','decimal'],['pulse','Pulse','bpm','72','numeric'],['spo2','SpO₂','%','98','decimal'],['weight','Weight','kg','','decimal'],['height','Height','cm','','decimal']];
+
+function treatmentPatientCardHtml(pt){
+  const last=treatmentRecords().filter(t=>t.patientId===pt.id&&!t.archived).sort((x,y)=>String(y.date).localeCompare(String(x.date)))[0];
+  const facts=[pt.age!==''&&pt.age!=null?`${pt.age} yrs`:'',pt.gender||'',pt.blood&&pt.blood!=='Unknown'?`Blood ${pt.blood}`:'',pt.college||''].filter(Boolean);
+  return `<div class="tv-patient">
+    ${patientAvatarHtml(pt,44)}
+    <div class="tv-patient-main"><strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong><span>${facts.map(escapeHtml).join(' · ')}</span>
+      ${last?`<span class="tv-last">Last visit ${escapeHtml(fmtDate(last.date))} · ${escapeHtml(last.diagnosis||'')}</span>`:''}</div>
+    ${patientData.hasAllergyAlert(pt.allergies)
+      ?`<span class="tv-allergy" role="alert"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> Allergies: ${escapeHtml(pt.allergies)}</span>`
+      :'<span class="tv-no-allergy"><i class="bi bi-shield-check" aria-hidden="true"></i> No known allergies</span>'}
+  </div>`;
+}
+
 export function openAddTreatmentModalPt(ptId,apptId=null){
-  if(appState.auth.currentUser.role!=='Doctor'&&appState.auth.currentUser.role!=='Administrator'){
-    toast('Only a Doctor or Administrator can record treatment.','warning');
+  if(appState.auth.currentUser.role!=='Doctor'){
+    toast('Only the treating doctor can record clinical notes.','warning');
     return;
   }
 
@@ -52,7 +75,6 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
   const pt=ptId?getPatientById(ptId):null;
   const realMode=Boolean(appState.auth.currentUser?._realSupabase);
   const patientSource=realMode?appState.data.DB.patients.filter(p=>p._realSupabase&&!p.archived):appState.data.DB.patients.filter(p=>!p.archived);
-  const doctorSource=getDoctors();
 
   if(ptId&&!pt){
     toast('Patient record could not be loaded. Refresh the page and try again.','error');
@@ -63,141 +85,130 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
     return;
   }
 
-  const patientOpts=!ptId
-    ? patientSource.map(p=>`<option value="${p.id}">${escapeHtml(p.fname+' '+p.lname)} (${escapeHtml(p.college||'')})</option>`).join('')
-    : `<option value="${pt.id}">${escapeHtml(pt.fname+' '+pt.lname)}</option>`;
-
-  const doctorSelect=appState.auth.currentUser.role==='Administrator'
-    ? `<div class="form-group"><label>Attending Doctor <span class="required">*</span></label>
-        <select id="tm-doc">${doctorSource.map(d=>`<option value="${d.id}" ${appt&&appt.doctorId===d.id?'selected':''}>${escapeHtml(docName(d))} · ${escapeHtml(d.specialty||'General Medicine')}</option>`).join('')}</select>
-      </div>`
-    : '';
-
   const defaultDate=appt?.date&&appt.date<=appState.clinicInformation.TODAY?appt.date:appState.clinicInformation.TODAY;
-  const defaultRecordType=appt?.clinic==='Dental Clinic'?'Dental Clinic':'Medical Clinic';
+  const clinic=treatmentClinicFor(appState.auth.currentUser,appt);
+  const dental=clinic==='Dental Clinic';
+  const diagnoses=[...new Set(treatmentRecords().filter(t=>t.doctorId===appState.auth.currentUser.id).map(t=>String(t.diagnosis||'').trim()).filter(Boolean))].slice(0,40);
+  const vital=([key,label,unit,placeholder,mode])=>`<div class="form-group tv-vital" data-vital="${key}"><label for="tm-${key}">${label} <span class="tv-unit">${unit}</span><span class="tv-flag" hidden></span></label><input id="tm-${key}" ${mode?`inputmode="${mode}"`:''} placeholder="${placeholder}" autocomplete="off"><p class="registration-field-error" id="tm-${key}-error" aria-live="polite" hidden></p></div>`;
 
-  openModal(`<div class="modal modal-lg">
-    <div class="modal-header">
-      <h3>${appt?`Complete Appointment #${appointmentDisplayId(appt)}`:'Record Treatment / Clinical Notes'}</h3>
-      <button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button>
+  openModal(`<div class="modal modal-lg tv-modal">
+    <div class="modal-header"><div><h3>${appt?`Complete appointment #${appointmentDisplayId(appt)}`:'Record visit'}</h3>
+      <span class="tv-meta"><i class="bi ${dental?'bi-emoji-smile':'bi-activity'}" aria-hidden="true"></i> ${clinic}${appt?` · ${escapeHtml(appt.service||'')} · ${escapeHtml(fmtDate(appt.date))} ${escapeHtml(fmtTime(appt.time))}`:''} · ${escapeHtml(docName(appState.auth.currentUser))}</span></div>
+      <button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button>
     </div>
     <div class="modal-body">
       <div id="trm-msg"></div>
-      ${pt?`<div class="alert alert-info show" style="margin-bottom:.7rem;font-size:.8rem">
-        Patient: <strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong> · ${escapeHtml(pt.college||'')} ·
-        Allergies: <strong class="text-danger">${escapeHtml(pt.allergies?.trim()||'—')}</strong>
-        ${appt?`<br>Appointment: ${fmtDate(appt.date)} at ${fmtTime(appt.time)} · ${escapeHtml(appt.service)}`:''}
-      </div>`:''}
+      <input type="hidden" id="tm-record-type" value="${clinic}">
+      ${pt?treatmentPatientCardHtml(pt):`<div class="form-group"><label for="tm-pt">Patient <span class="required">*</span></label>
+        <select id="tm-pt" ${bindAction('change',(event,element)=>{const host=document.getElementById('tm-patient-card'),p=getPatientById(Number(element.value));if(host)host.innerHTML=p?treatmentPatientCardHtml(p):'';})}><option value="">Choose a patient</option>${patientSource.map(p=>`<option value="${p.id}">${escapeHtml(p.lname+', '+p.fname)}${p.idNo?' · '+escapeHtml(p.idNo):''}</option>`).join('')}</select>
+        <p class="registration-field-error" id="tm-pt-error" aria-live="polite" hidden></p></div><div id="tm-patient-card"></div>`}
 
-      <div class="form-row">
-        <div class="form-group"><label>Patient <span class="required">*</span></label>
-          <select id="tm-pt" ${ptId?'disabled':''}>${patientOpts}</select>
+      <section class="tv-section"><h4><span class="tv-step">V</span> Vital signs</h4>
+        <p class="form-note tv-note">Taken first, when the patient arrives.</p>
+        <div class="tv-vitals" ${bindAction('input',()=>updateVitalFlags())}>${VITAL_FIELDS.map(vital).join('')}<div class="tv-bmi" id="tm-bmi" aria-live="polite"><span>BMI</span><strong>—</strong></div></div>
+      </section>
+
+      <section class="tv-section"><h4><span class="tv-step">S</span> Chief complaint and history</h4>
+        <div class="form-group"><label for="tm-findings">Chief complaint <span class="required">*</span></label>
+          <textarea id="tm-findings" rows="2" maxlength="2500" placeholder="e.g. Headache and fever for 2 days">${escapeHtml(appt?.reason||'')}</textarea>${appt?.reason?'<p class="form-note">From the patient’s booking. Edit it to match what they tell you.</p>':''}<p class="registration-field-error" id="tm-findings-error" aria-live="polite" hidden></p></div>
+      </section>
+
+      <section class="tv-section"><h4><span class="tv-step">O</span> Examination</h4>
+        <div class="form-group"><label for="tm-exam">Examination findings</label>
+          <textarea id="tm-exam" rows="2" maxlength="2400" placeholder="${dental?'e.g. Caries on 36, gums slightly inflamed':'e.g. Throat inflamed, lungs clear'}"></textarea></div>
+        ${dental?dentalRecordFormHtml({},pt,defaultDate):''}
+      </section>
+
+      <section class="tv-section"><h4><span class="tv-step">A</span> Assessment</h4>
+        <div class="form-group"><label for="tm-diag">Diagnosis <span class="required">*</span></label>
+          <input id="tm-diag" maxlength="300" list="tm-diag-list" autocomplete="off"><datalist id="tm-diag-list">${diagnoses.map(d=>`<option value="${escapeHtml(d)}">`).join('')}</datalist><p class="registration-field-error" id="tm-diag-error" aria-live="polite" hidden></p></div>
+      </section>
+
+      <section class="tv-section"><h4><span class="tv-step">P</span> Plan</h4>
+        <div class="form-group"><label for="tm-presc">${dental?'Procedure done and medicines given':'Medicines given or prescribed'}</label>
+          <textarea id="tm-presc" rows="2" maxlength="600" placeholder="e.g. Paracetamol 500 mg, 1 tablet every 6 hours for 3 days"></textarea><p class="registration-field-error" id="tm-presc-error" aria-live="polite" hidden></p></div>
+        <div class="form-group"><label for="tm-notes">Advice and instructions</label>
+          <textarea id="tm-notes" rows="2" maxlength="2000" placeholder="e.g. Rest, increase fluids, return if fever persists"></textarea></div>
+        <div class="form-row">
+          <div class="form-group"><label>Visit date <span class="required">*</span></label>${campusDateFieldHtml('tm-date',defaultDate,'Visit date','',appState.clinicInformation.TODAY)}<p class="registration-field-error" id="tm-date-error" aria-live="polite" hidden></p></div>
+          <div class="form-group"><label>Follow-up</label>${campusDateFieldHtml('tm-followup','','Follow-up date',defaultDate)}
+            <div class="tv-chips">${FOLLOWUP_PRESETS.map(([label,days])=>`<button type="button" class="tv-chip" data-days="${days}" ${bindAction('click',()=>setFollowUp(days))}>${label}</button>`).join('')}<button type="button" class="tv-chip" data-days="0" ${bindAction('click',()=>setFollowUp(0))}>None</button></div>
+            <p class="registration-field-error" id="tm-followup-error" aria-live="polite" hidden></p></div>
         </div>
-        ${doctorSelect}
-      </div>
-
-      <div class="form-row">
-        <div class="form-group"><label>Clinical Record Type</label>
-          ${appt
-            ?`<input type="hidden" id="tm-record-type" value="${defaultRecordType}"><div class="booking-readonly-patient"><span class="booking-patient-icon"><i class="bi ${defaultRecordType==='Dental Clinic'?'bi-emoji-smile':'bi-activity'}"></i></span><div><strong>${defaultRecordType}</strong><small>${escapeHtml(appt.service||'Linked appointment')}</small></div></div>`
-            :`<select id="tm-record-type" ${bindAction('change',(event,element)=>{toggleDentalRecordSection()})}><option>Medical Clinic</option><option>Dental Clinic</option></select>`}
-        </div>
-      </div>
-
-      <div class="section-label">Vital Signs</div>
-      <div class="form-row">
-        <div class="form-group"><label>Blood Pressure</label><input id="tm-bp" placeholder="e.g. 120/80"></div>
-        <div class="form-group"><label>Temperature (°C)</label><input id="tm-temp" inputmode="decimal" placeholder="e.g. 36.8"></div>
-        <div class="form-group"><label>Pulse Rate</label><input id="tm-pulse" inputmode="numeric" placeholder="bpm"></div>
-        <div class="form-group"><label>SpO₂</label><input id="tm-spo2" placeholder="e.g. 98%"></div>
-        <div class="form-group"><label>Weight (kg)</label><input id="tm-weight" inputmode="decimal"></div>
-        <div class="form-group"><label>Height (cm)</label><input id="tm-height" inputmode="decimal"></div>
-      </div>
-
-      <div class="section-label">Findings & Diagnosis</div>
-      <div class="form-group"><label>Clinical Findings / Chief Complaint <span class="required">*</span></label>
-        <textarea id="tm-findings" rows="2" placeholder="Describe findings and observations..."></textarea>
-      </div>
-      <div class="form-group"><label>Diagnosis <span class="required">*</span></label>
-        <textarea id="tm-diag" rows="2" placeholder="Enter the clinician's diagnosis or clinical impression"></textarea>
-      </div>
-      <div class="form-group"><label>Prescription / Treatment Given</label>
-        <textarea id="tm-presc" rows="2" maxlength="600" placeholder="Medications, treatment given, dosage, instructions..."></textarea>
-      </div>
-      <div class="form-group"><label>Clinical Notes / Instructions</label>
-        <textarea id="tm-notes" rows="2" placeholder="Advice, special instructions, restrictions..."></textarea>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group"><label>Treatment Date <span class="required">*</span></label>${campusDateFieldHtml('tm-date',defaultDate,'Treatment Date','',appState.clinicInformation.TODAY)}</div>
-        <div class="form-group"><label>Follow-up Date</label>${campusDateFieldHtml('tm-followup','','Follow-up Date',defaultDate)}</div>
-        <div class="form-group full"><label>Imaging / X-ray</label>
-          <select id="tm-xray">
-            <option value="">None</option>
-            <option value="X-ray taken">X-ray taken</option>
-            <option value="Dental X-ray taken">Dental X-ray taken</option>
-            <option value="Referred for imaging">Referred for imaging</option>
-          </select>
-        </div>
-      </div>
-
-      ${dentalRecordFormHtml({},pt,defaultDate).replace('id="tm-dental-section"','id="tm-dental-section" '+(defaultRecordType==='Dental Clinic'?'':'hidden'))}
-
-      <div class="section-label">Optional Medication Reminder</div>
-      <p class="form-note" style="margin-bottom:.65rem">If completed, CampusCare creates a medication reminder for the patient.</p>
-      <div class="form-row">
-        <div class="form-group"><label>Medication Name</label><input id="tm-medname" placeholder="e.g. Amoxicillin"></div>
-        <div class="form-group"><label>Dosage</label><input id="tm-dosage" placeholder="e.g. 500 mg"></div>
-        <div class="form-group"><label>Frequency</label><input id="tm-frequency" placeholder="e.g. 3 times a day"></div>
-        <div class="form-group"><label>End Date</label>${campusDateFieldHtml('tm-enddate',new Date(Date.now()+7*86400000).toISOString().slice(0,10),'Medication End Date',defaultDate)}</div>
-      </div>
+        <details class="tv-reminder"><summary><i class="bi bi-alarm" aria-hidden="true"></i> Medication reminder for the patient</summary>
+          <div class="form-row">
+            <div class="form-group"><label for="tm-medname">Medicine</label><input id="tm-medname" maxlength="120" placeholder="e.g. Amoxicillin"></div>
+            <div class="form-group"><label for="tm-dosage">Dose</label><input id="tm-dosage" maxlength="60" placeholder="e.g. 500 mg"><p class="registration-field-error" id="tm-dosage-error" aria-live="polite" hidden></p></div>
+            <div class="form-group"><label for="tm-frequency">How often</label><input id="tm-frequency" maxlength="60" list="tm-frequency-list" placeholder="e.g. 3 times a day"><datalist id="tm-frequency-list">${['Once a day','2 times a day','3 times a day','Every 6 hours','As needed'].map(v=>`<option value="${v}">`).join('')}</datalist><p class="registration-field-error" id="tm-frequency-error" aria-live="polite" hidden></p></div>
+            <div class="form-group"><label>Until</label>${campusDateFieldHtml('tm-enddate',isoAfter(defaultDate,7),'Medication end date',defaultDate)}<p class="registration-field-error" id="tm-enddate-error" aria-live="polite" hidden></p></div>
+          </div>
+        </details>
+      </section>
     </div>
     <div class="modal-footer">
-      <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
-      <button class="btn btn-primary" id="tm-save-btn" ${bindAction('click',(event,element)=>{saveTreatment((ptId||'null'),(apptId||'null'))})}>
-        ${appt?'Save Notes & Complete Appointment':'Save Treatment Record'}
-      </button>
+      <button class="btn btn-primary" id="tm-save-btn" ${bindAction('click',()=>saveTreatment((ptId||null),(apptId||null)))}>${appt?'Save and complete appointment':'Save visit record'}</button>
     </div>
   </div>`);
-  const recordType=document.getElementById('tm-record-type');
-  if(recordType&&!appt)recordType.value=defaultRecordType;
-  toggleDentalRecordSection();
+}
+
+function isoAfter(date,days){return new Date(Date.parse(date+'T12:00:00Z')+days*86400000).toISOString().slice(0,10);}
+function setFollowUp(days){
+  const input=document.getElementById('tm-followup'),date=document.getElementById('tm-date')?.value||appState.clinicInformation.TODAY;
+  if(!input)return;
+  input.value=days?isoAfter(date,days):'';
+  const label=document.getElementById('tm-followup-label');
+  if(label)label.textContent=days?fmtDate(input.value):'Select date';
+  document.querySelectorAll('.tv-chip').forEach(chip=>chip.classList.toggle('active',chip.dataset.days===String(days)));
+}
+// Readings outside the usual range are flagged while typing; BMI follows weight and height.
+function updateVitalFlags(){
+  const read=key=>document.getElementById('tm-'+key)?.value||'';
+  const vitals=Object.fromEntries(VITAL_FIELDS.map(([key])=>[key,read(key)]));
+  const flags=clinicalChecks.vitalFlags(vitals);
+  for(const [key] of VITAL_FIELDS){
+    const wrap=document.querySelector(`.tv-vital[data-vital="${key}"]`),flag=wrap?.querySelector('.tv-flag');if(!flag)continue;
+    const f=flags[key];flag.hidden=!f;flag.textContent=f?.label||'';flag.className='tv-flag '+(f?.level||'');
+    wrap.classList.toggle('flagged',Boolean(f));
+  }
+  const bmi=clinicalChecks.bodyMassIndex(vitals.weight,vitals.height),box=document.getElementById('tm-bmi');
+  if(box)box.innerHTML=`<span>BMI</span><strong>${bmi?bmi.value:'—'}</strong>${bmi?`<small class="${bmi.category==='Normal'?'':'off'}">${bmi.category}</small>`:''}`;
 }
 
 export async function saveTreatment(ptId,apptId){
-  const ptIdVal=ptId||parseInt(document.getElementById('tm-pt').value);
-  const findings=document.getElementById('tm-findings').value.trim();
+  const ptIdVal=ptId||parseInt(document.getElementById('tm-pt')?.value||'0');
+  const complaint=document.getElementById('tm-findings').value.trim(),exam=document.getElementById('tm-exam')?.value.trim()||'';
+  // Stored as one findings text: the complaint, then the examination when recorded.
+  const findings=exam?`${complaint}\n\nExamination: ${exam}`:complaint;
   const diag=document.getElementById('tm-diag').value.trim();
   const presc=document.getElementById('tm-presc').value.trim();
   const notes=document.getElementById('tm-notes').value.trim();
   const date=document.getElementById('tm-date').value;
   const followup=document.getElementById('tm-followup').value;
-  const xray=document.getElementById('tm-xray').value;
   const msg=document.getElementById('trm-msg');
   const medName=document.getElementById('tm-medname')?.value.trim()||'';
   const dosage=document.getElementById('tm-dosage')?.value.trim()||'';
   const frequency=document.getElementById('tm-frequency')?.value.trim()||'';
   const endDate=document.getElementById('tm-enddate')?.value||'';
   const btn=document.getElementById('tm-save-btn');
-  const clinicType=document.getElementById('tm-record-type')?.value||appt?.clinic||'Medical Clinic';
+  const clinicType=treatmentClinicFor(appState.auth.currentUser,apptId?appointmentRecords().find(a=>a.id===Number(apptId)):null);
   const dentalRecord=clinicType==='Dental Clinic'?collectDentalRecordForm():null;
 
   hideAlert(msg);
 
-  if(!ptIdVal||!findings||!diag||!date){
-    showAlert(msg,'Patient, clinical findings, diagnosis, and treatment date are required.');
-    return;
-  }
-  if(date>appState.clinicInformation.TODAY){
-    showAlert(msg,'Treatment date cannot be in the future.');
-    return;
-  }
-  if(followup&&followup<date){
-    showAlert(msg,'Follow-up date cannot be earlier than the treatment date.');
-    return;
-  }
-  if(presc.length>600){
-    showAlert(msg,'Prescription exceeds 600 characters.');
+  const vitalsInput={
+    bp:document.getElementById('tm-bp').value.trim(),
+    temp:document.getElementById('tm-temp').value.trim(),
+    pulse:document.getElementById('tm-pulse').value.trim(),
+    spo2:document.getElementById('tm-spo2').value.trim(),
+    weight:document.getElementById('tm-weight').value.trim(),
+    height:document.getElementById('tm-height').value.trim()
+  };
+  const errors=clinicalChecks.treatmentFormErrors({patientId:ptIdVal,findings,diagnosis:diag,prescription:presc,date,followup,vitals:vitalsInput,medName,dosage,frequency,endDate},appState.clinicInformation.TODAY);
+  const fieldIds={bp:'tm-bp',temp:'tm-temp',pulse:'tm-pulse',spo2:'tm-spo2',weight:'tm-weight',height:'tm-height',patient:'tm-pt',findings:'tm-findings',diagnosis:'tm-diag',prescription:'tm-presc',date:'tm-date',followup:'tm-followup',dosage:'tm-dosage',frequency:'tm-frequency',endDate:'tm-enddate'};
+  for(const id of Object.values(fieldIds)){const el=document.getElementById(id+'-error');if(el){el.hidden=true;el.textContent='';}document.getElementById(id)?.removeAttribute('aria-invalid');}
+  if(Object.keys(errors).length){
+    for(const [key,message] of Object.entries(errors)){const id=fieldIds[key],el=document.getElementById(id+'-error');if(el){el.textContent=message;el.hidden=false;}document.getElementById(id)?.setAttribute('aria-invalid','true');}
+    document.querySelector('.modal .registration-field-error:not([hidden])')?.scrollIntoView({block:'center',behavior:'smooth'});
     return;
   }
 
@@ -207,19 +218,10 @@ export async function saveTreatment(ptId,apptId){
     return;
   }
 
-  const vitals={
-    bp:document.getElementById('tm-bp').value.trim(),
-    temp:document.getElementById('tm-temp').value.trim(),
-    pulse:document.getElementById('tm-pulse').value.trim(),
-    spo2:document.getElementById('tm-spo2').value.trim(),
-    weight:document.getElementById('tm-weight').value.trim(),
-    height:document.getElementById('tm-height').value.trim()
-  };
+  const vitals=vitalsInput;
 
   const appt=apptId?appointmentRecords().find(a=>a.id===Number(apptId)):null;
-  let doc=appState.auth.currentUser.role==='Doctor'
-    ? appState.auth.currentUser
-    : getUserById(parseInt(document.getElementById('tm-doc')?.value||'0'));
+  const doc=appState.auth.currentUser;
 
   if(!doc||doc.role!=='Doctor'){
     showAlert(msg,'Select an attending doctor.');
@@ -244,7 +246,6 @@ export async function saveTreatment(ptId,apptId){
         diagnosis:diag,
         prescription:presc,
         clinical_notes:notes,
-        imaging_notes:xray,
         vitals,
         treatment_date:date,
         follow_up_date:followup||null,
@@ -271,7 +272,7 @@ export async function saveTreatment(ptId,apptId){
       const treatmentId=appState.data.DB.nextTreatId++;
       appState.data.DB.treatments.push({
         id:treatmentId,patientId:ptIdVal,doctorId:doc.id,appointmentId:apptId,
-        diagnosis:diag,prescription:presc,findings,notes,xray,vitals,date,
+        diagnosis:diag,prescription:presc,findings,notes,vitals,date,
         followupDate:followup,clinicType,dentalRecord:dentalRecord?{
           ...dentalRecord,
           courseMajor:dentalRecord.course_major,
@@ -347,8 +348,8 @@ export function treatmentDocumentHtml(t){
     <div class="treatment-doc-section"><h4>Examination Findings</h4><p>${safe(t.findings)}</p></div>
     <div class="treatment-doc-section"><h4>Diagnosis / Clinical Impression</h4><p><strong>${safe(t.diagnosis)}</strong></p></div>
     <div class="treatment-doc-section"><h4>Prescription / Treatment Given</h4><p>${safe(t.prescription)}</p></div>
-    ${t.xray?`<div class="treatment-doc-section"><h4>Imaging / X-ray</h4><p>${safe(t.xray)}</p></div>`:''}
     <div class="treatment-doc-section"><h4>Clinical Notes / Instructions</h4><p>${safe(t.notes)}</p></div>
+    ${(t.amendments||[]).length?`<div class="treatment-doc-section treatment-doc-amend"><h4>Clarifications</h4>${t.amendments.map(m=>`<p><strong>${escapeHtml(new Date(m.at).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}))} · ${escapeHtml(m.by_name||'Attending doctor')}:</strong> ${escapeHtml(m.note)}</p>`).join('')}<p style="font-size:.7rem;color:#6b7680">Added after the visit. The original entries above are unchanged.</p></div>`:''}
     <div class="treatment-doc-sign"><div><div class="line">${safe(doc.fname?docName(doc):'Attending Doctor')}</div><span>Attending Clinician</span></div></div>
     <div style="margin-top:25px;padding-top:10px;border-top:1px solid #edf0f2;font-size:.6rem;color:#7a858d;text-align:center">Generated by CampusCare · CTU Main Campus · ${new Date().toLocaleString('en-PH')}</div>
   </div>`;
@@ -363,8 +364,8 @@ export function isDentalTreatment(t){
 
 export function openDentalRecordEditor(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
-  if(!['Doctor','Administrator'].includes(appState.auth.currentUser.role)){
-    toast('Only a Doctor or Administrator can edit a dental record.','warning');
+  if(appState.auth.currentUser.role!=='Doctor'){
+    toast('Only the treating doctor can edit a dental record.','warning');
     return;
   }
   const pt=getPatientById(t.patientId)||{};
@@ -533,9 +534,39 @@ export async function downloadDentalRecordPDF(id){
 export function viewTreatment(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
   const dental=isDentalTreatment(t);
-  const canEditDental=['Doctor','Administrator'].includes(appState.auth.currentUser.role);
-  openModal(`<div class="modal modal-xl"><div class="modal-header"><div><h3>Treatment Record #${treatmentDisplayId(t)}</h3><div class="text-muted">Clinical document preview</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div class="treatment-record-shell">${treatmentDocumentHtml(t)}</div></div><div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap"><span class="tech-note">${t.dentalRecord?'This treatment includes a CTU Dental Clinic record.':dental?'A Dental Clinic record can be completed for this treatment.':'PDF uses the same clinical-document layout shown in the preview.'}</span><div style="display:flex;gap:.45rem;flex-wrap:wrap"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>${t.dentalRecord?`<button class="btn btn-success" ${bindAction('click',(event,element)=>{viewDentalRecord((id))})}><i class="bi bi-emoji-smile"></i> Dental Record</button>`:(dental&&canEditDental?`<button class="btn btn-success" ${bindAction('click',(event,element)=>{openDentalRecordEditor((id))})}><i class="bi bi-plus-circle"></i> Add Dental Record</button>`:'')}${t.dentalRecord&&canEditDental?`<button class="btn btn-warning" ${bindAction('click',(event,element)=>{openDentalRecordEditor((id))})}><i class="bi bi-pencil"></i> Edit Dental Record</button>`:''}<button class="btn btn-info" ${bindAction('click',(event,element)=>{printTreatmentRecord((id))})}><i class="bi bi-printer"></i> Print</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadTreatmentPDF((id))})}><i class="bi bi-file-earmark-arrow-down"></i> Download PDF</button></div></div></div>`);
+  const canEditDental=appState.auth.currentUser.role==='Doctor'&&t.doctorId===appState.auth.currentUser.id;
+  openModal(`<div class="modal modal-xl"><div class="modal-header"><div><h3>Treatment Record #${treatmentDisplayId(t)}</h3><div class="text-muted">Clinical document preview</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div class="treatment-record-shell">${treatmentDocumentHtml(t)}</div></div><div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap"><span class="tech-note">${t.dentalRecord?'This treatment includes a CTU Dental Clinic record.':dental?'A Dental Clinic record can be completed for this treatment.':'PDF uses the same clinical-document layout shown in the preview.'}</span><div style="display:flex;gap:.45rem;flex-wrap:wrap"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>${canEditDental&&!t.archived&&t._realSupabase?`<button class="btn" ${bindAction('click',()=>openClarifyTreatment(id))}><i class="bi bi-pencil-square" aria-hidden="true"></i> Clarify record</button>`:''}${t.dentalRecord?`<button class="btn btn-success" ${bindAction('click',(event,element)=>{viewDentalRecord((id))})}><i class="bi bi-emoji-smile"></i> Dental Record</button>`:(dental&&canEditDental?`<button class="btn btn-success" ${bindAction('click',(event,element)=>{openDentalRecordEditor((id))})}><i class="bi bi-plus-circle"></i> Add Dental Record</button>`:'')}${t.dentalRecord&&canEditDental?`<button class="btn btn-warning" ${bindAction('click',(event,element)=>{openDentalRecordEditor((id))})}><i class="bi bi-pencil"></i> Edit Dental Record</button>`:''}${appState.auth.currentUser.role==='Doctor'&&t.doctorId===appState.auth.currentUser.id&&!t.archived?`<button class="btn" ${bindAction('click',()=>{closeAllModals();openNewCertificateModal(t.patientId,t.id)})}><i class="bi bi-file-earmark-medical" aria-hidden="true"></i> Issue Certificate</button>`:''}<button class="btn btn-info" ${bindAction('click',(event,element)=>{printTreatmentRecord((id))})}><i class="bi bi-printer"></i> Print</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadTreatmentPDF((id))})}><i class="bi bi-file-earmark-arrow-down"></i> Download PDF</button></div></div></div>`);
 }
+// Clarify a saved visit record: the doctor adds a dated note; the original entries stay as written.
+export function openClarifyTreatment(id){
+  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  openModal(`<div class="modal modal-sm" role="dialog" aria-labelledby="tc-title">
+    <div class="modal-header"><div><h3 id="tc-title">Clarify visit record</h3><div class="text-muted">#${treatmentDisplayId(t)} · ${escapeHtml(t.diagnosis||'')}</div></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>{closeAllModals();viewTreatment(id);})}>✕</button></div>
+    <div class="modal-body"><div id="tc-msg"></div>
+      <p class="form-note">The original record is kept as written. Your clarification is added with today's date and your name, and appears on the printed record.</p>
+      <div class="form-group"><label for="tc-note">Clarification <span class="required">*</span></label><textarea id="tc-note" rows="4" maxlength="1000" placeholder="e.g. Correction: the prescribed dose is 250 mg, not 500 mg."></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>{closeAllModals();viewTreatment(id);})}>Back</button><button class="btn btn-primary" id="tc-save" ${bindAction('click',()=>saveClarification(id))}>Add clarification</button></div>
+  </div>`);
+  document.getElementById('tc-note')?.focus();
+}
+async function saveClarification(id){
+  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  const note=document.getElementById('tc-note')?.value.trim()||'';
+  const msg=document.getElementById('tc-msg'),btn=document.getElementById('tc-save');
+  if(note.length<5){msg.innerHTML='<div class="alert alert-danger show">Write the clarification (at least 5 characters).</div>';return;}
+  btn.disabled=true;btn.textContent='Saving…';
+  try{
+    const result=await treatmentAction({action:'amend',treatment_id:t.dbTreatmentId,note});
+    t.amendments=result.amendments||[...(t.amendments||[]),{at:new Date().toISOString(),by_name:'You',note}];
+    toast('Clarification added to the record.','success');
+    closeAllModals();viewTreatment(id);
+  }catch(error){
+    msg.innerHTML=`<div class="alert alert-danger show">${escapeHtml(error?.message||'The clarification could not be saved.')}</div>`;
+    btn.disabled=false;btn.textContent='Add clarification';
+  }
+}
+
 export function printTreatmentRecord(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
   const w=window.open('','_blank','width=900,height=900');if(!w){toast('Please allow pop-ups to print the treatment record.','warning');return;}
@@ -578,6 +609,20 @@ export async function viewTreatmentForAppt(apptId){
   }
 }
 
+async function setTreatmentArchived(t,archived){
+  if(t._realSupabase){
+    await treatmentAction({action:archived?'archive':'restore',treatment_id:t.dbTreatmentId});
+    await syncRealTreatments();
+  }else{
+    t.archived=archived;
+    if(archived){t.archivedAt=new Date().toISOString();t.archivedBy=appState.auth.currentUser.id;}
+    else{t.restoredAt=new Date().toISOString();t.restoredBy=appState.auth.currentUser.id;}
+    auditLog(archived?'TREATMENT_ARCHIVED':'TREATMENT_RESTORED',`Treatment #${t.id} ${archived?'archived':'restored'}.`,'Treatment',t.id);
+    persistDB();
+  }
+  renderTreatTable();
+}
+
 export function archiveTreat(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
   showConfirmDialog({
@@ -586,18 +631,9 @@ export function archiveTreat(id){
     confirmLabel:'Archive',
     danger:true,
     onConfirm:async()=>{
-      try{
-        if(t._realSupabase){
-          await treatmentAction({action:'archive',treatment_id:t.dbTreatmentId});
-          await syncRealTreatments();
-        }else{
-          t.archived=true;t.archivedAt=new Date().toISOString();t.archivedBy=appState.auth.currentUser.id;
-          auditLog('TREATMENT_ARCHIVED',`Treatment #${id} archived.`,'Treatment',id);
-          persistDB();
-        }
-        toast('Treatment record archived.','success');
-        renderTreatTable();
-      }catch(e){toast(e?.message||'Unable to archive treatment record.','error');}
+      try{await setTreatmentArchived(t,true);}
+      catch(e){toast(e?.message||'Unable to archive treatment record.','error');return;}
+      toastWithUndo('Treatment record archived.',()=>setTreatmentArchived(t,false),{undoneMessage:'Treatment record restored.'});
     }
   });
 }
@@ -609,18 +645,9 @@ export function restoreTreat(id){
     message:`Restore treatment record <strong>#${treatmentDisplayId(t)}</strong> to the active treatment list?`,
     confirmLabel:'Restore',
     onConfirm:async()=>{
-      try{
-        if(t._realSupabase){
-          await treatmentAction({action:'restore',treatment_id:t.dbTreatmentId});
-          await syncRealTreatments();
-        }else{
-          t.archived=false;t.restoredAt=new Date().toISOString();t.restoredBy=appState.auth.currentUser.id;
-          auditLog('TREATMENT_RESTORED',`Treatment #${id} restored.`,'Treatment',id);
-          persistDB();
-        }
-        toast('Treatment record restored.','success');
-        renderTreatTable();
-      }catch(e){toast(e?.message||'Unable to restore treatment record.','error');}
+      try{await setTreatmentArchived(t,false);}
+      catch(e){toast(e?.message||'Unable to restore treatment record.','error');return;}
+      toastWithUndo('Treatment record restored.',()=>setTreatmentArchived(t,true),{undoneMessage:'Treatment record archived again.'});
     }
   });
 }

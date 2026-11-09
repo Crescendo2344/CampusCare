@@ -14,7 +14,7 @@ self.onmessage=async({data})=>{
   }
   if(data.type!=='frame')return;
   const bitmap=data.bitmap;
-  try{self.postMessage({type:'result',...analyze(bitmap,bitmap.width,bitmap.height,detector.detectForVideo(bitmap,data.timestamp).detections)});}
+  try{self.postMessage({type:'result',...analyze(bitmap,bitmap.width,bitmap.height,detector.detectForVideo(bitmap,data.timestamp).detections,data.guide||null)});}
   catch{self.postMessage({type:'unavailable'});}
   finally{bitmap.close();}
 };

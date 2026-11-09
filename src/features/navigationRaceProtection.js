@@ -6,9 +6,13 @@ import {renderPage,showDatabaseSkeleton} from './loadingSkeletons.js';
 import {escapeHtml,openArticleModal} from './issueReports.js';
 import {fmtDate} from './inputValidation.js';
 import {closeAllModals,openModal} from './modals.js';
-import {showConfirmDialog,toast} from './theme.js';
+import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {persistDB} from './persistence.js';
+import {collapseOut} from '../ui/motion.js';
+import {saveWarm} from '../services/warm-cache.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
+import {articleIconHtml} from '../ui/app-icons.js';
+import {articleBodyHtml,readingMinutes,relatedArticles} from '../domain/health-articles.js';
 // ================================================================
 // NAVIGATION RACE PROTECTION
 // ================================================================
@@ -51,22 +55,27 @@ export function recordPageHistory(id,historyMode){
     window.history.pushState({...window.history.state,campuscareNavigation:{account,page:id,index:previous.index+1}},'');
   }
 }
+// Old links to removed pages (messages; the patient certificate page) land on the dashboard.
+const RETIRED_PAGES=new Set(['messages','my-certificates','certificates']);
 export function navTo(id,{historyMode='push'}={}){
   if(!appState.auth.currentUser)return;
+  if(RETIRED_PAGES.has(id))id='dashboard';
+  // Each role opens only the pages in its own menu (admin: accounts; staff: front desk; doctor: clinical).
+  const allowed=(appState.topbarAndNavigation.NAV_CONFIG?.[appState.auth.currentUser.role]||[]).map(item=>item.id).filter(Boolean);
+  if(allowed.length&&!allowed.includes(id))id='dashboard';
   recordPageHistory(id,historyMode);
   if(window.innerWidth<=768) toggleSidebar(false);
   document.querySelectorAll('[id^="nav-"]').forEach(el=>el.classList.remove('active'));
   const btn=document.getElementById('nav-'+id);
   if(btn)btn.classList.add('active');
   document.getElementById('top-title').textContent={
-    dashboard:'Dashboard','my-appointments':'My Appointments','my-records':'My Health Records','my-certificates':'Medical Certificates',
+    dashboard:'Dashboard','my-appointments':'My Appointments','my-records':'My Health Records',
     'my-account':'Account Settings',patients:'Patient Records',appointments:'Appointments',
-    approvals:'Approval Queue',certificates:'Medical Certificates','cert-requests':'Certificate Requests',treatments:'Treatments',inventory:'Inventory Management',
-    reports:'Reports & Analytics',users:'User Management',settings:'System Settings',
+    approvals:'Approval Queue',certificates:'Medical Certificates','cert-requests':'Medical Certificates',treatments:'Treatments',inventory:'Inventory Management','medicine-requests':'Medicine Requests','purchase-orders':'Purchase Orders',
+    reports:appState.auth.currentUser.role==='Doctor'?'My Reports':'Reports & Analytics',users:'User Management',settings:'System Settings',
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',
-    'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness to Compete','activity-log':'Activity Log',
-    'dental-survey':'Dental Clinic Survey','survey-results':'Survey Results',
-    messages:'Messages'
+    'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness Assessments','activity-log':'Activity Log',
+    'dental-survey':'Dental Clinic Survey','survey-results':'Survey Results'
   }[id]||id;
   renderPage(id);
   void acknowledgeNavAttention(id);
@@ -75,7 +84,7 @@ export function navTo(id,{historyMode='push'}={}){
 
 export function healthResourceRecords(){
   if(appState.auth.currentUser?._realSupabase)return (appState.data.DB.healthResources||[]).filter(r=>r._realSupabase);
-  return appState.data.DB.healthResources||[];
+  return (appState.data.DB.healthResources||[]).filter(r=>!r.archived);
 }
 
 export async function healthResourceAction(payload){return createOperationalService({getClient:()=>appState.supabaseClient.supabaseClient,request:(...args)=>fetch(...args),baseUrl:appState.supabaseClient.SUPABASE_URL,publishableKey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY}).healthResourceAction(payload);}
@@ -90,7 +99,7 @@ export function realHealthResourceToUi(r){
     teaser:r.teaser||'',
     sourceName:r.source_name||'',
     sourceUrl:r.source_url||'',
-    icon:r.icon||'📰',
+    icon:r.icon||'bi-newspaper',
     photo:r.image_url||'',
     imagePath:r.image_path||'',
     authorId:r.author_id?100000+Number(r.author_id):null,
@@ -103,7 +112,10 @@ export function realHealthResourceToUi(r){
 }
 
 export async function syncRealHealthResources(){
-  return createFeatureSyncService({getState:()=>appState,callbacks:{healthResourceRecords,healthResourceAction,realHealthResourceToUi}}).syncRealHealthResources();
+  const rows=await createFeatureSyncService({getState:()=>appState,callbacks:{healthResourceRecords,healthResourceAction,realHealthResourceToUi}}).syncRealHealthResources();
+  // Only published articles are kept for a warm start; drafts stay on the server.
+  if(appState.auth.currentUser?._realSupabase)saveWarm('articles',(appState.data.DB.healthResources||[]).filter(r=>r._realSupabase&&r.published));
+  return rows;
 }
 
 export function articleCategoryColor(cat){
@@ -124,158 +136,163 @@ export function articleCategoryColor(cat){
   return palette[hash%palette.length];
 }
 
-export function articleBannerHtml(art,height=140){
-  if(art.photo){
-    return `<div style="height:${height}px;border-radius:14px 14px 0 0;overflow:hidden">
-      <img src="${art.photo}" style="width:100%;height:100%;object-fit:cover;display:block">
-    </div>`;
-  }
+// The category gradient sits underneath, so a photo that fails to load still leaves a banner.
+// In the reader the whole photo shows over a blurred copy of itself instead of being cropped.
+export function articleBannerHtml(art,variant='card'){
   const [c1,c2]=articleCategoryColor(art.category);
-  return `<div style="height:${height}px;border-radius:14px 14px 0 0;background:linear-gradient(135deg,${c1},${c2});display:flex;align-items:center;justify-content:center;font-size:${Math.round(height*0.4)}px;position:relative;overflow:hidden">
-    <div style="position:absolute;width:180%;height:180%;border-radius:50%;background:rgba(255,255,255,.08);top:-60%;left:-40%"></div>
-    <span style="filter:drop-shadow(0 2px 6px rgba(0,0,0,.15))">${art.icon||'📰'}</span>
+  const photo=art.photo?escapeHtml(art.photo):'';
+  return `<div class="he-media he-media-${variant}" style="--c1:${c1};--c2:${c2}${photo&&variant==='reader'?`;--img:url('${photo}')`:''}">
+    <span class="article-banner-icon">${articleIconHtml(art.icon)}</span>
+    ${photo?`<img class="he-img" src="${photo}" alt="" loading="lazy" decoding="async">`:''}
   </div>`;
 }
 
+const heUi=()=>appState.navigationRaceProtection.healthEducation??={category:'',sort:'newest',status:'',query:''};
+const isArticleEditor=()=>['Administrator','Staff'].includes(appState.auth.currentUser.role);
+const articleDate=art=>fmtDate(String(art.publishedAt||art.createdAt||'').slice(0,10));
+const articleMeta=art=>`${articleDate(art)} · ${readingMinutes(art.content)} min read`;
+
 export async function renderHealthEducation() {
   const c=document.getElementById('app-content');if(!c)return;
-  const role=appState.auth.currentUser.role;
-  const isEditor=role==='Administrator'||role==='Staff';
   const pageToken=captureCampusPageToken();
 
-  if(appState.auth.currentUser?._realSupabase){
+  // Articles already on hand (from this visit or the last one) show at once and refresh behind the scenes.
+  const haveArticles=(appState.data.DB.healthResources||[]).some(r=>r._realSupabase);
+  if(appState.auth.currentUser?._realSupabase&&haveArticles){
+    syncRealHealthResources().then(()=>{if(isCampusPageCurrent('health_education',pageToken))renderArticlesList();}).catch(()=>{});
+  }else if(appState.auth.currentUser?._realSupabase){
     showDatabaseSkeleton('cards');
     try{await syncRealHealthResources();}
     catch(e){
       if(!isCampusPageCurrent('health_education',pageToken))return;
       c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Unable to load Health Education resources.')}</div>
-        <button class="btn btn-sm" ${bindAction('click',(event,element)=>{renderHealthEducation()})}>Retry</button>`;
+        <button class="btn btn-sm" ${bindAction('click',()=>renderHealthEducation())}>Retry</button>`;
       return;
     }
     if(!isCampusPageCurrent('health_education',pageToken))return;
   }
 
-  const records=healthResourceRecords();
-  const categories=[...new Set(records.filter(r=>r.published).map(r=>r.category).filter(Boolean))].sort();
-
+  const ui=heUi(),editor=isArticleEditor();
   c.innerHTML=`
-    <div class="card" style="background:linear-gradient(135deg,rgba(10,126,168,.14),rgba(91,79,214,.1));border:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
-        <div>
-          <h2 style="font-size:1.15rem;margin-bottom:.25rem">📚 Health &amp; Wellness Library</h2>
-          <p class="text-muted" style="max-width:560px">Clinic-curated educational resources with source links. Articles are general information and do not replace individualized medical or dental advice.</p>
-        </div>
-        ${isEditor?`<button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{openArticleModal()})}>+ Add Article</button>`:''}
-      </div>
+    <div class="he-head">
+      <div><h2><i class="bi bi-book" aria-hidden="true"></i> Health Education</h2><p id="he-count"></p></div>
+      ${editor?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>openArticleModal())}><i class="bi bi-plus-lg" aria-hidden="true"></i> New article</button>`:''}
     </div>
-
-    <div class="toolbar">
-      <input type="text" id="article-search" placeholder="Search articles..." ${bindAction('input',(event,element)=>{renderArticlesList()})}>
-      <select id="article-category" ${bindAction('change',(event,element)=>{renderArticlesList()})}>
-        <option value="">All Categories</option>
-        ${categories.map(cat=>`<option>${escapeHtml(cat)}</option>`).join('')}
-      </select>
-      ${isEditor?`<select id="article-status" ${bindAction('change',(event,element)=>{renderArticlesList()})}>
-        <option value="">All Statuses</option>
-        <option value="published">Published</option>
-        <option value="draft">Draft / Unpublished</option>
-      </select>`:''}
+    <div class="he-toolbar">
+      <div class="he-search"><i class="bi bi-search" aria-hidden="true"></i><input type="search" id="article-search" placeholder="Search health topics" aria-label="Search articles" value="${escapeHtml(ui.query)}" ${bindAction('input',(event,element)=>{ui.query=element.value;renderArticlesList();})}></div>
+      ${editor?`<div class="he-status" id="he-status" role="tablist" aria-label="Article status"></div>`:''}
+      <select id="article-sort" aria-label="Sort articles" ${bindAction('change',(event,element)=>{ui.sort=element.value;renderArticlesList();})}><option value="newest" ${ui.sort==='newest'?'selected':''}>Newest first</option><option value="title" ${ui.sort==='title'?'selected':''}>A–Z</option></select>
     </div>
-    <div id="articles-list"></div>
-  `;
-
+    <div class="he-topics" id="he-topics" role="tablist" aria-label="Topics"></div>
+    <div id="articles-list"></div>`;
   renderArticlesList();
 }
 
+function articleCardHtml(art,editor,featured=false){
+  return `<article class="he-card ${featured?'featured':''}" data-article-id="${art.id}" tabindex="0" role="button" aria-label="Read ${escapeHtml(art.title)}" ${bindAction('click',()=>viewArticle(art.id))} ${bindAction('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();viewArticle(art.id);}})}>
+    <div class="he-card-media">${articleBannerHtml(art,featured?'featured':'card')}</div>
+    <div class="he-card-body">
+      <div class="he-card-tags"><span class="he-cat" style="--cat:${articleCategoryColor(art.category)[1]}">${escapeHtml(art.category)}</span>${editor&&!art.published?'<span class="badge badge-warning">Draft</span>':''}</div>
+      <h4>${escapeHtml(art.title)}</h4>
+      <p>${escapeHtml(art.teaser||String(art.content||'').slice(0,160))}</p>
+      <span class="he-card-meta">${articleMeta(art)}${art.sourceName?` · ${escapeHtml(art.sourceName)}`:''}</span>
+    </div>
+  </article>`;
+}
+
 export function renderArticlesList() {
-  const search=(document.getElementById('article-search')?.value||'').toLowerCase();
-  const category=document.getElementById('article-category')?.value||'';
-  const status=document.getElementById('article-status')?.value||'';
-  const isEditor=appState.auth.currentUser.role==='Administrator'||appState.auth.currentUser.role==='Staff';
+  const ui=heUi(),editor=isArticleEditor();
+  const all=healthResourceRecords().filter(r=>editor||r.published);
+  const q=String(ui.query||'').trim().toLowerCase();
+  const matchesStatus=r=>!ui.status||(ui.status==='published'?r.published:!r.published);
+  const visible=all.filter(matchesStatus);
+  const topics=[...new Set(visible.map(r=>r.category).filter(Boolean))].sort();
+  if(ui.category&&!topics.includes(ui.category))ui.category='';
 
-  let articles=healthResourceRecords().filter(r=>{
-    const haystack=`${r.title} ${r.teaser||''} ${r.content||''}`.toLowerCase();
-    return haystack.includes(search);
-  });
+  const count=document.getElementById('he-count');
+  if(count)count.textContent=`${visible.length} article${visible.length===1?'':'s'} · ${topics.length} topic${topics.length===1?'':'s'}`;
+  const status=document.getElementById('he-status');
+  if(status){
+    const n=f=>all.filter(f).length;
+    status.innerHTML=[['','All',n(()=>true)],['published','Published',n(r=>r.published)],['draft','Drafts',n(r=>!r.published)]].map(([key,label,num])=>`<button type="button" role="tab" aria-selected="${ui.status===key}" class="${ui.status===key?'active':''}" ${bindAction('click',()=>{ui.status=key;renderArticlesList();})}>${label} <span>${num}</span></button>`).join('');
+  }
+  const chips=document.getElementById('he-topics');
+  if(chips)chips.innerHTML=[['','All topics',visible.length],...topics.map(t=>[t,t,visible.filter(r=>r.category===t).length])].map(([key,label,num])=>`<button type="button" role="tab" aria-selected="${ui.category===key}" class="he-topic ${ui.category===key?'active':''}" ${key?`style="--cat:${articleCategoryColor(key)[1]}"`:''} ${bindAction('click',()=>{ui.category=key;renderArticlesList();})}>${key?'<i class="he-dot" aria-hidden="true"></i>':''}${escapeHtml(label)} <span>${num}</span></button>`).join('');
 
-  if(!isEditor)articles=articles.filter(r=>r.published);
-  if(category)articles=articles.filter(r=>r.category===category);
-  if(status==='published')articles=articles.filter(r=>r.published);
-  if(status==='draft')articles=articles.filter(r=>!r.published);
-
-  articles=articles.sort((a,b)=>String(b.publishedAt||b.createdAt).localeCompare(String(a.publishedAt||a.createdAt))||b.id-a.id);
+  let articles=visible.filter(r=>(!ui.category||r.category===ui.category)&&(!q||`${r.title} ${r.teaser||''} ${r.content||''} ${r.category}`.toLowerCase().includes(q)));
+  articles=articles.sort(ui.sort==='title'
+    ?(a,b)=>String(a.title).localeCompare(String(b.title))
+    :(a,b)=>String(b.publishedAt||b.createdAt).localeCompare(String(a.publishedAt||a.createdAt))||b.id-a.id);
 
   const container=document.getElementById('articles-list');
   if(!container)return;
-
   if(!articles.length){
-    container.innerHTML='<div class="empty-state"><p>No articles found.</p></div>';
+    container.innerHTML=`<div class="empty-state"><i class="bi bi-journal-text" aria-hidden="true" style="font-size:1.6rem"></i><p>${all.length?'No articles match your search.':editor?'No articles yet. Write the first one with New article.':'No health articles yet.'}</p></div>`;
     return;
   }
-
-  container.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:1rem">${articles.map(art=>`
-    <div class="card" style="margin-bottom:0;padding:0;overflow:hidden;cursor:pointer;display:flex;flex-direction:column" ${bindAction('click',(event,element)=>{viewArticle((art.id))})}>
-      ${articleBannerHtml(art)}
-      <div style="padding:1rem;display:flex;flex-direction:column;gap:.4rem;flex:1">
-        <div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap">
-          <span class="badge badge-info">${escapeHtml(art.category)}</span>
-          ${isEditor?`<span class="badge ${art.published?'badge-success':'badge-warning'}">${art.published?'Published':'Draft'}</span>`:''}
-        </div>
-        <h4 style="font-size:.92rem;line-height:1.3;margin:0">${escapeHtml(art.title)}</h4>
-        <p style="font-size:.79rem;color:var(--ink-muted);flex:1">${escapeHtml((art.teaser||art.content).substring(0,110))}${(art.teaser||art.content).length>110?'…':''}</p>
-        <div style="font-size:.7rem;color:var(--ink-muted);display:flex;justify-content:space-between;align-items:center;padding-top:.4rem;border-top:1px solid var(--line-soft)">
-          <span>${fmtDate(art.publishedAt||art.createdAt)}</span>
-          ${art.sourceName?`<span>📎 ${escapeHtml(art.sourceName)}</span>`:''}
-        </div>
-      </div>
-    </div>`).join('')}</div>`;
+  // The newest article leads the library when nobody is searching or filtering.
+  // Drafts never take the featured spot; it is always the newest published article.
+  const feature=!q&&!ui.category&&ui.sort==='newest'&&articles.length>2?articles.find(r=>r.published)||null:null;
+  const rest=feature?articles.filter(r=>r!==feature):articles;
+  container.innerHTML=`${feature?articleCardHtml(feature,editor,true):''}<div class="he-grid">${rest.map(art=>articleCardHtml(art,editor)).join('')}</div>`;
 }
 
 export function viewArticle(id) {
   const art=healthResourceRecords().find(r=>r.id===Number(id));
   if(!art)return;
-
-  const isEditor=appState.auth.currentUser.role==='Administrator'||appState.auth.currentUser.role==='Staff';
+  const editor=isArticleEditor(),patient=appState.auth.currentUser.role==='Patient';
+  const related=relatedArticles(art,healthResourceRecords());
   openModal(`
-    <div class="modal modal-lg">
+    <div class="modal modal-lg he-reader">
       <div class="modal-header no-print">
-        <h3>Health Education Article</h3>
-        <button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button>
+        <span class="he-cat" style="--cat:${articleCategoryColor(art.category)[1]}">${escapeHtml(art.category)}</span>
+        <button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button>
       </div>
       <div class="modal-body" style="padding:0">
-        ${articleBannerHtml(art,170)}
-        <div style="padding:1.25rem">
-          <span class="badge badge-info">${escapeHtml(art.category)}</span>
-          ${isEditor?` <span class="badge ${art.published?'badge-success':'badge-warning'}">${art.published?'Published':'Draft'}</span>`:''}
-          <span class="text-muted" style="font-size:.78rem"> · ${fmtDate(art.publishedAt||art.createdAt)}</span>
-
-          <h2 style="font-size:1.2rem;margin:.6rem 0">${escapeHtml(art.title)}</h2>
-          <div style="white-space:pre-wrap;line-height:1.65;font-size:.88rem;color:var(--ink)">${escapeHtml(art.content)}</div>
-
-          ${art.sourceName&&art.sourceUrl?`
-            <div class="card" style="background:var(--overlay);margin-top:1.1rem;padding:.9rem 1rem">
-              <div style="font-size:.78rem;color:var(--ink-muted);margin-bottom:.4rem">Source / further reading</div>
-              <a href="${escapeHtml(art.sourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">📎 Open ${escapeHtml(art.sourceName)} →</a>
-            </div>`:''}
-
-          <div class="alert alert-info show" style="font-size:.73rem;margin-top:1rem">
-            This article is for health education only and is not a diagnosis or individualized treatment recommendation.
-          </div>
-
-          ${isEditor?`<div class="divider"></div><div class="td-actions">
-            <button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openArticleModal((art.id))})}>Edit Article</button>
-            ${art.published
-              ? `<button class="btn btn-xs btn-warning" ${bindAction('click',(event,element)=>{deleteArticle((art.id))})}>Unpublish</button>`
-              : `<button class="btn btn-xs btn-success" ${bindAction('click',(event,element)=>{publishArticle((art.id))})}>Publish</button>`}
-            ${appState.auth.currentUser.role==='Administrator'?`<button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{archiveArticle((art.id))})}>Archive</button>`:''}
-          </div>`:''}
+        ${articleBannerHtml(art,'reader')}
+        <div class="he-article">
+          ${editor&&!art.published?'<span class="badge badge-warning">Draft</span>':''}
+          <h2>${escapeHtml(art.title)}</h2>
+          <div class="he-article-meta">${articleMeta(art)}</div>
+          ${art.teaser?`<p class="he-lead">${escapeHtml(art.teaser)}</p>`:''}
+          <div class="he-body">${articleBodyHtml(art.content,escapeHtml)}</div>
+          ${art.sourceName&&art.sourceUrl?`<a class="he-source" href="${escapeHtml(art.sourceUrl)}" target="_blank" rel="noopener noreferrer"><i class="bi bi-journal-bookmark" aria-hidden="true"></i><span><small>Source</small>${escapeHtml(art.sourceName)}</span><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>`:''}
+          ${patient?`<div class="he-cta no-print"><div><strong>Have a health concern?</strong><span>The clinic can see you in person.</span></div><button class="btn btn-primary btn-sm" ${bindAction('click',()=>{closeAllModals();navTo('my-appointments');import('./bookingForm.js').then(m=>m.openBookApptModal());})}>Book a visit</button></div>`:''}
+          <p class="he-disclaimer">General health information, not personal medical advice.</p>
+          ${related.length?`<div class="he-related no-print"><h4>Related articles</h4>${related.map(r=>`<button type="button" class="he-related-item" ${bindAction('click',()=>viewArticle(r.id))}><span class="he-dot" style="--cat:${articleCategoryColor(r.category)[1]}" aria-hidden="true"></span><span><strong>${escapeHtml(r.title)}</strong><small>${escapeHtml(r.category)} · ${readingMinutes(r.content)} min read</small></span></button>`).join('')}</div>`:''}
         </div>
       </div>
       <div class="modal-footer no-print">
-        <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
-        <button class="btn btn-info" ${bindAction('click',(event,element)=>{window.print()})}>🖨️ Print</button>
+        ${editor?`<button class="btn btn-sm" ${bindAction('click',()=>openArticleModal(art.id))}><i class="bi bi-pencil" aria-hidden="true"></i> Edit</button>
+          ${art.published
+            ?`<button class="btn btn-sm btn-warning" ${bindAction('click',()=>deleteArticle(art.id))}>Unpublish</button>`
+            :`<button class="btn btn-sm btn-success" ${bindAction('click',()=>publishArticle(art.id))}>Publish</button>
+              <button class="btn btn-sm btn-danger" ${bindAction('click',()=>deleteDraftArticle(art.id))}><i class="bi bi-trash" aria-hidden="true"></i> Delete draft</button>`}
+          ${appState.auth.currentUser.role==='Administrator'?`<button class="btn btn-sm btn-danger" ${bindAction('click',()=>archiveArticle(art.id))}>Archive</button>`:''}`:''}
       </div>
     </div>`);
+}
+
+// publish / unpublish / archive / restore, then refresh the library.
+async function applyArticleAction(art,action){
+  if(art._realSupabase){
+    await healthResourceAction({action,resource_id:art.dbResourceId});
+    await syncRealHealthResources();
+  }else{
+    if(action==='publish'||action==='unpublish')art.published=action==='publish';
+    else art.archived=action==='archive';
+    persistDB();
+  }
+  renderArticlesList();
+}
+const ARTICLE_UNDO={publish:'unpublish',unpublish:'publish',archive:'restore'};
+const ARTICLE_DONE={publish:'Article published.',unpublish:'Article unpublished.',archive:'Article archived.'};
+const ARTICLE_UNDONE={publish:'Article unpublished again.',unpublish:'Article published again.',archive:'Article restored.'};
+async function changeArticle(art,action){
+  try{await applyArticleAction(art,action);}
+  catch(e){toast(e?.message||`Unable to ${action} the article.`,'error');return;}
+  closeAllModals();
+  toastWithUndo(ARTICLE_DONE[action],()=>applyArticleAction(art,ARTICLE_UNDO[action]),{undoneMessage:ARTICLE_UNDONE[action]});
 }
 
 export function deleteArticle(id){
@@ -286,37 +303,13 @@ export function deleteArticle(id){
     message:`Unpublish <strong>${escapeHtml(art.title)}</strong>? It will be hidden from normal Health Education views but kept in the database.`,
     confirmLabel:'Unpublish',
     danger:true,
-    onConfirm:async()=>{
-      try{
-        if(art._realSupabase){
-          await healthResourceAction({action:'unpublish',resource_id:art.dbResourceId});
-          await syncRealHealthResources();
-        }else{
-          art.published=false;
-          persistDB();
-        }
-        closeAllModals();
-        toast('Article unpublished.','warning');
-        renderArticlesList();
-      }catch(e){toast(e?.message||'Unable to unpublish the article.','error');}
-    }
+    onConfirm:()=>changeArticle(art,'unpublish')
   });
 }
 
 export async function publishArticle(id){
   const art=healthResourceRecords().find(r=>r.id===Number(id));if(!art)return;
-  try{
-    if(art._realSupabase){
-      await healthResourceAction({action:'publish',resource_id:art.dbResourceId});
-      await syncRealHealthResources();
-    }else{
-      art.published=true;
-      persistDB();
-    }
-    closeAllModals();
-    toast('Article published.','success');
-    renderArticlesList();
-  }catch(e){toast(e?.message||'Unable to publish the article.','error');}
+  await changeArticle(art,'publish');
 }
 
 export function archiveArticle(id){
@@ -326,16 +319,33 @@ export function archiveArticle(id){
     message:`Archive <strong>${escapeHtml(art.title)}</strong>? It will be preserved in the database and removed from the active library.`,
     confirmLabel:'Archive',
     danger:true,
+    onConfirm:()=>changeArticle(art,'archive')
+  });
+}
+
+// Drafts were never shown to patients, so they can be removed for good after a confirmation.
+export function deleteDraftArticle(id){
+  const art=healthResourceRecords().find(r=>r.id===Number(id));if(!art||art.published)return;
+  showConfirmDialog({
+    title:'Delete draft',
+    message:`Delete the draft <strong>${escapeHtml(art.title)}</strong>? This removes it and its photo permanently.`,
+    confirmLabel:'Delete draft',
+    danger:true,
     onConfirm:async()=>{
       try{
         if(art._realSupabase){
-          await healthResourceAction({action:'archive',resource_id:art.dbResourceId});
+          await healthResourceAction({action:'delete',resource_id:art.dbResourceId});
           await syncRealHealthResources();
+        }else{
+          appState.data.DB.healthResources=(appState.data.DB.healthResources||[]).filter(r=>r.id!==art.id);
+          persistDB();
         }
-        closeAllModals();
-        toast('Article archived.','success');
-        renderArticlesList();
-      }catch(e){toast(e?.message||'Unable to archive the article.','error');}
+      }catch(e){toast(e?.message||'Unable to delete the draft.','error');return;}
+      closeAllModals();
+      // The card fades and the grid closes the gap before the list is redrawn.
+      const card=document.querySelector(`.he-card[data-article-id="${art.id}"]`);
+      if(card)collapseOut(card,()=>renderArticlesList());else renderArticlesList();
+      toast('Draft deleted.','success');
     }
   });
 }
@@ -345,6 +355,16 @@ export function initializeFeature(){
   appState.navigationRaceProtection.campusNavigationToken=0;
   appState.navigationRaceProtection.campusActivePageId='dashboard';
   appState.navigationRaceProtection.historySession=0;
+  // Article photos fade in from a blur over the topic-coloured banner once they have loaded.
+  document.addEventListener('load',event=>{
+    const img=event.target;
+    if(img?.tagName==='IMG'&&img.classList.contains('he-img'))img.classList.add('is-loaded');
+  },true);
+  // Image errors do not bubble, so a capture listener drops a broken article photo and the banner shows instead.
+  document.addEventListener('error',event=>{
+    const img=event.target;
+    if(img?.tagName==='IMG'&&img.classList.contains('he-img')){img.closest('.he-media')?.style.removeProperty('--img');img.remove();}
+  },true);
   // Back and Forward use the same renderer and race guard as sidebar navigation.
   window.addEventListener('popstate',event=>{
     if(!appState.auth.currentUser)return;

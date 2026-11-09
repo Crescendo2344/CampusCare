@@ -98,7 +98,7 @@ async function syncRealIssueReports(){
 
   const {data:reports,error:reportErr}=await appState.supabaseClient.supabaseClient
     .from('issue_reports')
-    .select('issue_id,reporter_id,issue_type,page_affected,description,screenshot_path,status,admin_note,resolved_by,resolved_at,created_at,updated_at')
+    .select('issue_id,reporter_id,issue_type,page_affected,description,screenshot_path,status,admin_note,resolved_by,resolved_at,created_at,updated_at,priority,assigned_to,device_info,reporter_rating')
     .order('created_at',{ascending:false});
   if(reportErr)throw reportErr;
 
@@ -107,7 +107,7 @@ async function syncRealIssueReports(){
   if(issueIds.length){
     const {data,error}=await appState.supabaseClient.supabaseClient
       .from('issue_replies')
-      .select('reply_id,issue_id,author_id,body,created_at')
+      .select('reply_id,issue_id,author_id,body,created_at,is_internal')
       .in('issue_id',issueIds)
       .order('created_at',{ascending:true});
     if(error)throw error;
@@ -116,7 +116,9 @@ async function syncRealIssueReports(){
 
   const userIds=[...new Set([
     ...(reports||[]).map(r=>Number(r.reporter_id)),
-    ...replies.map(r=>Number(r.author_id))
+    ...replies.map(r=>Number(r.author_id)),
+    ...(reports||[]).map(r=>Number(r.assigned_to)),
+    ...(reports||[]).map(r=>Number(r.resolved_by))
   ].filter(Boolean))];
 
   const userMap=new Map();
@@ -146,24 +148,6 @@ async function syncRealIssueReports(){
   return issueReportRecords();
 }
 
-async function syncRealMessages(){
-  const appState=getState();
-  const {messageRecords,messageAction,mergeRealMessageContacts,realMessageToUi}=callbacks;
-  const account=appState.auth.currentUser;
-  if(!appState.auth.currentUser?._realSupabase)return messageRecords();
-
-  const result=await messageAction({action:'list'});
-
-  // The backend returns both the user's messages and every contact the role
-  // is allowed to message. This prevents an incoming Admin/Staff message from
-  // disappearing simply because that sender was not loaded in another module.
-  if(appState.auth.currentUser!==account)return [];
-  mergeRealMessageContacts(result.contacts||[]);
-
-  appState.data.DB.messages=(appState.data.DB.messages||[]).filter(m=>!m._realSupabase);
-  appState.data.DB.messages.push(...(result.messages||[]).map(realMessageToUi));
-  return messageRecords();
-}
 
 async function syncRealHealthResources(){
   const appState=getState();
@@ -186,7 +170,7 @@ async function syncPublicSystemSettings(){
 
   const {data,error}=await appState.supabaseClient.supabaseClient
     .from('system_settings')
-    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days,privacy_policy_version,privacy_policy_updated,session_timeout_minutes')
+    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days,privacy_policy_version,privacy_policy_updated,session_timeout_minutes,booking_lead_hours')
     .order('settings_id',{ascending:true})
     .limit(1)
     .maybeSingle();
@@ -205,6 +189,7 @@ async function syncPublicSystemSettings(){
     semester2Start:data.semester2_start||appState.data.DB.settings.semester2Start||'',
     semester2End:data.semester2_end||appState.data.DB.settings.semester2End||'',
     dentalLimitPerSemester:Number(data.dental_visit_limit_per_semester||1),
+    bookingLeadHours:Number(data.booking_lead_hours??24),
     appointmentReminderDays:Number(data.appointment_reminder_days??1),
     privacyPolicyVersion:data.privacy_policy_version||appState.data.DB.settings.privacyPolicyVersion||'1.0',
     privacyPolicyUpdated:data.privacy_policy_updated||appState.data.DB.settings.privacyPolicyUpdated||appState.clinicInformation.TODAY,
@@ -235,6 +220,7 @@ async function syncRealSystemSettings(){
     semester2Start:s.semester2_start||appState.data.DB.settings.semester2Start||'',
     semester2End:s.semester2_end||appState.data.DB.settings.semester2End||'',
     dentalLimitPerSemester:Number(s.dental_visit_limit_per_semester||1),
+    bookingLeadHours:Number(s.booking_lead_hours??24),
     appointmentReminderDays:Number(s.appointment_reminder_days??1),
     privacyPolicyVersion:s.privacy_policy_version||appState.data.DB.settings.privacyPolicyVersion||'1.0',
     privacyPolicyUpdated:s.privacy_policy_updated||appState.data.DB.settings.privacyPolicyUpdated||appState.clinicInformation.TODAY
@@ -262,5 +248,5 @@ async function syncRealWorkflowRequests(){
 
   return appState.data.DB.workflowRequests;
 }
-return {syncPublicSystemSettings,syncRealSystemSettings,syncRealIssueReports,syncRealHealthResources,syncClinicSurveys,syncRealWorkflowRequests,syncRealMessages,syncRealFitnessAssessments,fetchRealPendingApprovals,fetchAnalyticsSummary};
+return {syncPublicSystemSettings,syncRealSystemSettings,syncRealIssueReports,syncRealHealthResources,syncClinicSurveys,syncRealWorkflowRequests,syncRealFitnessAssessments,fetchRealPendingApprovals,fetchAnalyticsSummary};
 }

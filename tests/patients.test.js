@@ -70,3 +70,19 @@ test('patient actions retain authentication, payload and backend error messages'
   await assert.rejects(fixture({request:async()=>({ok:false,json:async()=>({error:'Permission denied'})})}).service.action({}),/Permission denied/);
   await assert.rejects(fixture({request:async()=>({ok:true,json:async()=>{throw Error('Invalid JSON');}})}).service.action({}),/Patient action failed/);
 });
+test('patient record summaries: allergy alerts, BMI, visits, sorting and CSV export',async()=>{
+  const records=await import('../src/domain/patient-records.js');
+  for(const none of ['','None','none.','N/A','NKDA','No known allergies'])assert.equal(records.hasAllergyAlert(none),false,none);
+  assert.equal(records.hasAllergyAlert('Penicillin'),true);
+  assert.deepEqual(records.bodyMassIndex('170cm','65kg'),{value:22.5,category:'Normal'});
+  assert.equal(records.bodyMassIndex('','65kg'),null);
+  assert.equal(records.bodyMassIndex('170cm','80kg').category,'Overweight');
+  const appointments=[{patientId:1,date:'2026-10-01',status:'Completed'},{patientId:1,date:'2026-10-30',time:'09:00',status:'Scheduled'},{patientId:1,date:'2026-10-26',time:'10:00',status:'Scheduled'},{patientId:2,date:'2026-10-20',status:'Completed'}];
+  const summary=records.patientVisitSummary(1,{appointments,treatments:[{patientId:1,date:'2026-10-12'}],today:'2026-10-24'});
+  assert.equal(summary.lastVisit,'2026-10-12');assert.equal(summary.nextAppointment.date,'2026-10-26');
+  const rows=[{fname:'Ana',lname:'Reyes',age:20},{fname:'Ben',lname:'Cruz',age:''},{fname:'Carl',lname:'Abad',age:31}];
+  assert.deepEqual(records.sortPatients(rows,'name').map(p=>p.lname),['Abad','Cruz','Reyes']);
+  assert.deepEqual(records.sortPatients(rows,'age','desc').map(p=>p.lname),['Abad','Reyes','Cruz'],'Blank ages sort last');
+  const csv=records.patientsCsv([{id:200001,fname:'Ana',lname:'=Reyes',idNo:'1350098',allergies:'Dust, "pollen"'}]);
+  assert.match(csv.split('\r\n')[1],/'=Reyes/);assert.match(csv,/"Dust, ""pollen"""/);
+});

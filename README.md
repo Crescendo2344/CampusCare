@@ -36,7 +36,6 @@ Existing public project settings remain compatibility defaults. Browser configur
 - `src/domain/`, `src/services/`, `src/shared/` and `src/ui/` contain independent rules, injected transport/synchronization, formatting and event controls.
 - `src/styles/` and `public/assets/` hold shared styling and extracted images.
 - `public/bootstrap/theme.js` applies the initial appearance before the module graph loads.
-- `archive/newchange.html` preserves the unchanged older alternate page for reference.
 
 There is no source-concatenating Vite plugin, ordered fragment list, session bootstrap bridge or global inline-handler registry. Features import their dependencies and use named state containers. Generated HTML uses registered lexical event callbacks instead of executable HTML attributes. Reports, exports and the camera load on demand; the build splits shared code and the SDK into smaller chunks.
 

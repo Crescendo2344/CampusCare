@@ -40,7 +40,6 @@ export function createDailyBackup(force=false){
     return true;
   }catch(e){console.warn('Daily backup could not be created',e);return false;}
 }
-export function runAutomatedDailyBackup(){createDailyBackup(false);}
 export function downloadBackup(id){
   const b=getDailyBackups().find(x=>x.id===id);if(!b)return;
   const blob=new Blob([JSON.stringify(b.snapshot,null,2)],{type:'application/json'}),a=document.createElement('a');

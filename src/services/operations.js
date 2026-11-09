@@ -183,24 +183,6 @@ async function surveyAction(payload){
   return result;
 }
 
-async function messageAction(payload){
-  const {data:{session}}=await getClient().auth.getSession();
-  if(!session)throw new Error('Your session has expired. Please log in again.');
-
-  const response=await request(`${baseUrl}/functions/v1/message-actions`,{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      apikey:publishableKey,
-      Authorization:`Bearer ${session.access_token}`
-    },
-    body:JSON.stringify(payload)
-  });
-
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.ok)throw new Error(result.error||'Messaging action failed.');
-  return result;
-}
 
 async function adminUserAction(payload){
   const {data:{session}}=await getClient().auth.getSession();
@@ -215,8 +197,13 @@ async function adminUserAction(payload){
     body:JSON.stringify(payload)
   });
   const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.ok)throw new Error(result.error||'Unable to update user.');
+  if(!response.ok||!result.ok){
+    // Field-level messages let a form point at the exact input the server rejected.
+    const error=new Error(result.error||'Unable to update user.');
+    if(result.field_errors)error.fieldErrors=result.field_errors;
+    throw error;
+  }
   return result;
 }
-return {backupAction,settingsAction,emailDeliveryAction,auditAction,privacyAction,taskBadgeAction,healthResourceAction,workflowAction,fitnessAction,surveyAction,messageAction,adminUserAction};
+return {backupAction,settingsAction,emailDeliveryAction,auditAction,privacyAction,taskBadgeAction,healthResourceAction,workflowAction,fitnessAction,surveyAction,adminUserAction};
 }

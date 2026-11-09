@@ -4,6 +4,7 @@ import {buildStudentReport} from '../domain/student-report.js';
 import {bindAction} from '../ui/events.js';
 import {escapeHtml as escapeText} from '../features/issueReports.js';
 import {captureCampusPageToken,isCampusPageCurrent} from '../features/navigationRaceProtection.js';
+import {csvFileName,toCsv} from '../shared/csv.js';
 const escapeHtml=value=>escapeText(String(value??''));
 const choices=(id,label,values)=>`<div class="form-group"><label for="${id}">${label}</label><select id="${id}">${values.map(([value,text])=>`<option value="${value}">${text}</option>`).join('')}</select></div>`;
 export function studentFilterMarkup(){
@@ -21,7 +22,7 @@ export function studentFilterMarkup(){
     <div class="form-group"><label for="rpt-min-age">Minimum age at end date</label><input type="number" id="rpt-min-age" min="0" max="150"></div>
     <div class="form-group"><label for="rpt-max-age">Maximum age at end date</label><input type="number" id="rpt-max-age" min="0" max="150"></div>
     <div class="form-group"><label for="rpt-student-search">Student name or university ID</label><input id="rpt-student-search" type="search" maxlength="120"></div>
-    </div></details><p class="form-note">Filters combine with College and Date Range above. Dental/medical use counts completed bookings and recorded treatments, not pending or cancelled appointments. Registration totals are unique CampusCare student accounts, not university enrollment. Missing class sessions are never guessed.</p></fieldset>`;
+    </div></details></fieldset>`;
 }
 export function readStudentFilters(){
   const value=id=>document.getElementById(id)?.value||'';
@@ -56,18 +57,18 @@ export async function generateStudentReport(exportToolbar,download){
   // An old report response must not overwrite a newer request, page or account.
   if(state.auth.currentUser!==account||!isCampusPageCurrent('reports',token)||requestToken!==state.reportCharts.studentReportToken)return;
   const columns=['ID','Name','College','Class Session','Sex','Age','Status','Verified','Registered','Dental Visits','Medical Visits','Last Dental','Coverage'];
-  state.reportCharts.lastReportRows=report.rows.map(r=>Object.fromEntries(columns.map((key,i)=>[key,[r.idNumber||r.userId,r.name,r.college,r.classSession==='Unknown'?'Not recorded':r.classSession,r.sex,r.age??'Not recorded',r.status,r.verified?'Yes':'No',r.registered||'Not recorded',r.dentalVisits,r.medicalVisits,r.lastDental||'',r.coverageKnown?'Recorded patient':'No linked patient record'][i]])));
+  // Exported with grouped headers ("Student: ID No.", "School: College", "Visits: Dental"); the screen keeps short ones.
+  const exportHeaders=['Student: ID No.','Student: Name','School: College/Department','School: Class Session','Profile: Sex','Profile: Age','Account: Status','Account: Verified','Account: Registered','Visits: Dental','Visits: Medical','Visits: Last Dental','Coverage: Patient Record'];
+  const screenRows=report.rows.map(r=>Object.fromEntries(columns.map((key,i)=>[key,[r.idNumber||r.userId,r.name,r.college,r.classSession==='Unknown'?'Not recorded':r.classSession,r.sex,r.age??'Not recorded',r.status,r.verified?'Yes':'No',r.registered||'Not recorded',r.dentalVisits,r.medicalVisits,r.lastDental||'',r.coverageKnown?'Recorded patient':'No linked patient record'][i]])));
+  state.reportCharts.lastReportRows=screenRows.map(row=>Object.fromEntries(columns.map((key,i)=>[exportHeaders[i],row[key]])));
   state.reportCharts.lastReportTitle=`Student Coverage ${filters.from} to ${filters.to}`;
-  // College labels are text, including labels beginning with spreadsheet formula markers.
-  const csvCell=value=>{let text=String(value??'');if(typeof value==='string'&&/^[=+@\-\t\r]/.test(text))text="'"+text;return '"'+text.replaceAll('"','""')+'"';};
-  const collegeColumns=['college','registered','dentalUsed','dentalNotUsed','unknownCoverage','morning','evening','mixed','unknownSession'];
-  const summaryExport=()=>download([collegeColumns,...report.colleges.map(c=>collegeColumns.map(k=>c[k]))].map(row=>row.map(csvCell).join(',')).join('\r\n'),'Student_College_Summary.csv','text/csv');
+  const collegeColumns=[['college','College/Department'],['registered','Students: Registered'],['dentalUsed','Dental Care: Used'],['dentalNotUsed','Dental Care: Not Recorded'],['unknownCoverage','Dental Care: Coverage Unknown'],['morning','Class Session: Morning'],['evening','Class Session: Evening'],['mixed','Class Session: Mixed'],['unknownSession','Class Session: Not Recorded']];
+  const summaryExport=()=>download(toCsv([collegeColumns.map(([,label])=>label),...report.colleges.map(c=>collegeColumns.map(([k])=>c[k]))]),csvFileName(`student college summary ${filters.from} to ${filters.to}`),'text/csv;charset=utf-8');
   target.innerHTML=`<div class="card"><div class="card-header"><h3>Student Coverage &amp; Registration</h3></div>
     <p class="form-note">${escapeHtml(filters.history==='all'?'Service use: all recorded history through '+filters.to:'Service use: '+filters.from+' to '+filters.to)}. ${filters.registration==='range'?'New registrations in this range':'Accounts registered by the end date'}. College totals apply demographic filters before dental/medical-use filters.</p>
     <p class="form-note">Applied filters: ${escapeHtml(Object.entries(filters).filter(([,v])=>v!=='').map(([k,v])=>`${k}: ${v}`).join(' · '))}</p>
     <div class="stats-grid">${[['Registered students in cohort',report.registered],['Matching students',report.matched],['Availed dental care',report.dentalUsed],['No recorded dental care',report.dentalNotUsed],['Class session not recorded',report.unknownSession],['No linked patient record',report.unknownCoverage]].map(([label,count])=>`<div class="stat-card"><div class="stat-val">${count}</div><div class="stat-lbl">${label}</div></div>`).join('')}</div>
     <h4>Registered students by college</h4><div class="table-wrap"><table><thead><tr>${['College','Registered','Dental used','No dental recorded','Coverage unknown','Morning','Evening','Mixed','Session unknown','Dental coverage'].map(k=>`<th>${k}</th>`).join('')}</tr></thead><tbody>${report.colleges.map(c=>`<tr>${collegeColumns.map(k=>`<td>${escapeHtml(c[k])}</td>`).join('')}<td>${c.registered?Math.round(c.dentalUsed/c.registered*100)+'%':'—'}</td></tr>`).join('')}</tbody></table></div>
     <button class="btn btn-sm" ${bindAction('click',summaryExport)}>Export college summary CSV</button>
-    <h4 style="margin-top:1rem">Matching student list</h4><div class="table-wrap"><table><thead><tr>${columns.map(k=>`<th>${k}</th>`).join('')}</tr></thead><tbody>${state.reportCharts.lastReportRows.map(row=>`<tr>${columns.map(k=>`<td>${escapeHtml(row[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!report.matched?'<p>No students match these filters.</p>':''}
-    <p class="form-note">No recorded dental care means no matching record in CampusCare for this period. It does not prove the student never received dental care elsewhere.</p></div>${report.matched?exportToolbar():''}`;
+    <h4 style="margin-top:1rem">Matching student list</h4><div class="table-wrap"><table><thead><tr>${columns.map(k=>`<th>${k}</th>`).join('')}</tr></thead><tbody>${screenRows.map(row=>`<tr>${columns.map(k=>`<td>${escapeHtml(row[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!report.matched?'<p>No students match these filters.</p>':''}</div>${report.matched?exportToolbar():''}`;
 }
