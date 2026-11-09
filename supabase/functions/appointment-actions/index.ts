@@ -63,8 +63,8 @@ Deno.serve(async(req)=>{
       const {data}=await admin.from("patients").select("patient_id").eq("user_id",actor.user_id).maybeSingle();
       return data?.patient_id||null;
     };
-    // Staff oversee every booking; administrators handle accounts only.
-    const canManageAll=actor.role==="Staff";
+    // Staff and administrators oversee every booking.
+    const canManageAll=actor.role==="Staff"||actor.role==="Administrator";
     // The patient's account and what they should bring: a signed COR for students, an Employee ID for personnel.
     const patientAccount=async(patientId:number)=>{
       const {data:p}=await admin.from("patients").select("user_id").eq("patient_id",patientId).maybeSingle();
@@ -87,7 +87,7 @@ Deno.serve(async(req)=>{
       if(action!=="create"&&!existing)return json({error:"Appointment not found."},404);
       if(action!=="create"&&!OPEN.includes(existing.status))return json({error:"Only scheduled appointments can be moved."},409);
       const reappoint=action==="reappoint";
-      if(reappoint&&!(actor.role==="Staff"||(actor.role==="Doctor"&&existing.doctor_id===actor.user_id)))
+      if(reappoint&&!(canManageAll||(actor.role==="Doctor"&&existing.doctor_id===actor.user_id)))
         return json({error:"Only the doctor of this appointment or the front desk can propose a new time."},403);
 
       let patientId=Number(body.patient_id||existing?.patient_id||0);
@@ -382,7 +382,7 @@ Deno.serve(async(req)=>{
     }
 
     // Reminder to the patient (in CampusCare and by email), at most once per appointment every 12 hours.
-    // Sending reminders is the front desk's job: Staff only.
+    // Reminders are sent by staff or an administrator.
     if(action==="remind"){
       const id=Number(body.appointment_id||0);
       const appt=await loadAppointment(id);

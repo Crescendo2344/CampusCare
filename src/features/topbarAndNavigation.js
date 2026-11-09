@@ -469,7 +469,8 @@ export function initializeFeature(){
   Administrator:[
     {section:'Accounts'},
     {id:'dashboard',label:'Dashboard'},
-    {id:'approvals',label:'Account Verification'},
+    {id:'approvals',label:'Approval Queue'},
+    {id:'appointments',label:'Appointments'},
     {id:'users',label:'User Management'},
     {section:'Oversight'},
     {id:'purchase-orders',label:'Purchase Orders'},

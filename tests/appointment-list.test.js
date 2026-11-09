@@ -21,7 +21,7 @@ test('actions follow role, ownership, status and timing',()=>{
   assert.deepEqual(appointmentActions(past,staff),{document:false,reschedule:false,cancel:false,reappoint:true,noShow:true,remind:false});
   // The clinic never cancels; a visit that cannot push through is returned for reappointment.
   assert.equal(appointmentActions({...later,doctorId:7},doctor).reappoint,true,'The appointment doctor can propose a new time');
-  assert.equal(appointmentActions(later,{role:'Administrator',userId:1,today,now}).reappoint,false,'Administrators do not handle bookings');
+  assert.equal(appointmentActions(later,{role:'Administrator',userId:1,today,now}).reappoint,true,'Administrators can return a booking for reappointment');
   assert.equal(appointmentActions({...later,patientResponse:'Awaiting'},staff).remind,false,'No reminder while the patient decides on a new time');
   assert.equal(appointmentActions(past,doctor).document,true);
   assert.equal(appointmentActions({...later,doctorId:7},doctor).remind,false,'Doctors do not send reminders');
