@@ -17,7 +17,7 @@ export function appointmentHasStarted(a,{today,now}){
 // Allowed actions per role; the server enforces the same status and timing rules.
 export function appointmentActions(a,{role,userId,today,now}){
   // The front desk (staff) oversees bookings; administrators handle accounts only.
-  const open=a.status===OPEN,manage=role==='Staff'||role==='Administrator';
+  const open=a.status===OPEN,manage=role==='Staff';
   const ownDoctor=role==='Doctor'&&a.doctorId===userId;
   const started=appointmentHasStarted(a,{today,now});
   return {

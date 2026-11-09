@@ -63,8 +63,8 @@ Deno.serve(async(req)=>{
       const {data}=await admin.from("patients").select("patient_id").eq("user_id",actor.user_id).maybeSingle();
       return data?.patient_id||null;
     };
-    // Staff and administrators oversee every booking.
-    const canManageAll=actor.role==="Staff"||actor.role==="Administrator";
+    // Staff oversee every booking; administrators handle accounts only.
+    const canManageAll=actor.role==="Staff";
     // The patient's account and what they should bring: a signed COR for students, an Employee ID for personnel.
     const patientAccount=async(patientId:number)=>{
       const {data:p}=await admin.from("patients").select("user_id").eq("patient_id",patientId).maybeSingle();
@@ -382,7 +382,7 @@ Deno.serve(async(req)=>{
     }
 
     // Reminder to the patient (in CampusCare and by email), at most once per appointment every 12 hours.
-    // Reminders are sent by staff or an administrator.
+    // Sending reminders is the front desk's job: Staff only.
     if(action==="remind"){
       const id=Number(body.appointment_id||0);
       const appt=await loadAppointment(id);
