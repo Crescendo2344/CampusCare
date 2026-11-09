@@ -311,6 +311,10 @@ Deno.serve(async(req)=>{
       if(!["Active","Suspended","Archived"].includes(nextStatus)) return json({error:"Invalid status."},400);
       if(nextStatus!=="Archived"&&(target.status==="Pending"||!target.verified))return json({error:"Approve this account through registration review before changing its status."},409);
       if(targetId===actor.user_id && nextStatus!=="Active") return json({error:"You cannot suspend or archive your own administrator account."},400);
+      // Patient records archive themselves after five years without activity; there is no manual archive.
+      // A returning patient is restored by staff in Patient Records, which also reopens the record.
+      if(target.role==="Patient"&&nextStatus==="Archived") return json({error:"Patient records archive automatically after five years without activity."},409);
+      if(target.role==="Patient"&&target.status==="Archived") return json({error:"Restore a returning patient from Patient Records (staff)."},409);
       const {error}=await admin.from("users").update({status:nextStatus}).eq("user_id",targetId);
       if(error) throw error;
       await admin.from("audit_logs").insert({
