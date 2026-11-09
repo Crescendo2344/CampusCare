@@ -95,7 +95,7 @@ export function openBookApptModal(apptId=null){
       <p class="booking-steps">Choose a doctor → Pick an available date → Select a time</p>
 
       <div class="form-row">
-        <div class="form-group ${isPt?'full':''}">
+        <div class="form-group full">
           <label>Patient <span class="required">*</span></label>
           ${isPt
             ?`<input type="hidden" id="b-pt" value="${pt?pt.id:''}">
@@ -109,9 +109,6 @@ export function openBookApptModal(apptId=null){
                 <div class="patient-combobox-list" id="b-pt-results"></div>
               </div>`}
         </div>
-        ${!isPt?`<div class="form-group"><label for="b-priority">Priority</label>
-          <div class="booking-locked-field"><input id="b-priority" readonly aria-readonly="true" tabindex="-1" placeholder="Choose a patient first" value="${escapeHtml(editing?patientPriority(getPatientById(editing.patientId))||'':'')}"><i class="bi bi-lock" aria-hidden="true"></i></div>
-        </div>`:''}
       </div>
 
       <div class="form-row">

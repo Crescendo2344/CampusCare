@@ -638,10 +638,9 @@ try{
     for(const time of ['09:00','10:00','12:00'])assert(await page.locator('#slot-grid button[data-time="'+time+'"]').isDisabled());
     assert.equal(await page.locator('#b-manage-slots').count(),0,'Slot management lives outside the booking form');
     if(role!=='Patient'){
-      // Priority follows the chosen patient's record and cannot be edited.
+      // Priority is not shown; it is saved from the chosen patient's record.
       await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const p=state.data.DB.patients.find(x=>x.id===200004)||state.data.DB.patients[0];features.datePicker.selectBookPatient(p.id);});
-      assert(await page.locator('#b-priority').evaluate(el=>el.readOnly&&el.tagName==='INPUT'),'Priority is read-only');
-      assert.match(await page.locator('#b-priority').inputValue(),/^(Student|Teaching|Non-Teaching)$/);
+      assert.equal(await page.locator('#b-priority').count(),0,'No priority field on the booking form');
     }
     if(role!=='Patient')await page.locator('#b-pt').evaluate(el=>el.value='200004');
     await page.locator('#b-reason').fill('Synthetic booking flow verification');
