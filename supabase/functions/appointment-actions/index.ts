@@ -594,6 +594,7 @@ Deno.serve(async(req)=>{
       const id=Number(body.appointment_id||0);
       const appt=await loadAppointment(id);
       if(!appt)return json({error:"Appointment not found."},404);
+      if(!ownsClinic(appt.clinic))return otherClinic();
       if(!OPEN.includes(appt.status))return json({error:"Vital signs can only be changed before the visit is completed."},409);
       if(appt.appointment_date>manilaNow().date)return json({error:"Vital signs are taken on the day of the visit."},409);
       const errors=triageVitalErrors(body.vitals||{});
