@@ -15,7 +15,7 @@ export function auditCategory(action='',entity=''){
   if(/^(LOGIN|LOGOUT)$|PASSWORD|SESSION|MFA|LOCKOUT|SIGN_?IN|SIGN_?OUT/.test(a)||e==='session')return 'security';
   if(e==='appointments'||a.startsWith('APPOINTMENT'))return 'appointments';
   if(['patients','treatments','dental_records','medical_certificates','fitness_assessments'].includes(e)||/^(PATIENT|TREATMENT|MEDICAL_CERTIFICATE|FITNESS|DENTAL)/.test(a))return 'records';
-  if(e.startsWith('inventory')||a.startsWith('INVENTORY'))return 'inventory';
+  if(e.startsWith('inventory')||e.startsWith('purchase_order')||/^(INVENTORY|PURCHASE_ORDER|MEDICINE_REQUEST)/.test(a))return 'inventory';
   if(['users','workflow_requests','doctor_leaves'].includes(e)||/^(USER|WORKFLOW|NAME_CHANGE|SCHEDULE|DAY_OFF|DOCTOR|REGISTRATION|ACCOUNT)/.test(a))return 'accounts';
   if(e==='issue_reports'||a.startsWith('ISSUE'))return 'feedback';
   return 'system';
@@ -27,12 +27,14 @@ export function friendlyAuditAction(action=''){
   return text?text.charAt(0).toUpperCase()+text.slice(1):'';
 }
 
-const RECORD_NAMES={appointments:'appointment',patients:'patient record',treatments:'treatment',dental_records:'dental record',medical_certificates:'medical certificate',fitness_assessments:'fitness assessment',inventory_items:'inventory item',inventory_transactions:'stock movement',users:'account',workflow_requests:'request',doctor_leaves:'day off',issue_reports:'report',health_resources:'health article',audit_logs:'activity log',system_settings:'settings',session:'session'};
+const RECORD_NAMES={appointments:'appointment',patients:'patient record',treatments:'treatment',dental_records:'dental record',medical_certificates:'medical certificate',fitness_assessments:'fitness assessment',inventory_items:'inventory item',inventory_transactions:'stock movement',inventory_requests:'medicine request',purchase_orders:'purchase order',users:'account',workflow_requests:'request',doctor_leaves:'day off',issue_reports:'report',health_resources:'health article',audit_logs:'activity log',system_settings:'settings',session:'session'};
 export const recordName=entity=>RECORD_NAMES[String(entity||'').toLowerCase()]||String(entity||'record').replace(/_/g,' ');
 
 // A short sentence after the person's name: "cancelled appointment #42".
 const VERBS=[
   [/^LOGIN$/,'signed in'],[/^LOGOUT$/,'signed out'],
+  [/^PURCHASE_ORDER_PREPARED$/,'prepared'],[/^PURCHASE_ORDER_SENT$/,'sent to purchasing'],[/^PURCHASE_ORDER_RECEIVED$/,'recorded the delivery of'],
+  [/^MEDICINE_REQUEST_RELEASED$/,'released'],[/^MEDICINE_REQUEST_DECLINED$/,'declined'],
   [/_UNDONE$/,'undid a change to'],[/_CANCEL(LED)?$/,'cancelled'],[/_CREATED$|_ADDED$|_REQUESTED$|_DRAFTED$/,'created'],
   [/_UPDATED$|_CHANGED$/,'updated'],[/_ARCHIVED$/,'archived'],[/_RESTORED$/,'restored'],[/_DELETED$|_DISCARDED$/,'deleted'],
   [/_APPROVED$/,'approved'],[/_REJECTED$/,'rejected'],[/_RESOLVED$/,'resolved'],[/_DISMISSED$/,'dismissed'],[/_REOPENED$/,'reopened'],

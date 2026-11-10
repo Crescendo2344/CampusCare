@@ -25,7 +25,7 @@ export function customReportControls(){
     ${reportSelect('rpt-measure','Measure',definition.measures.map(k=>[k,reportLabels[k]]),markReportStale)}
     ${dimensions.filter(k=>k!=='college').map(k=>reportSelect('rpt-filter-'+k,reportLabels[k],[['','All'],...[...new Set(data.map(r=>r[k]||'Not recorded'))].sort().map(v=>[v,v])],markReportStale)).join('')}
     <div class="form-group"><label for="rpt-search">Search matching records</label><input type="search" id="rpt-search" placeholder="Name, ID or keyword" ${bindAction('input',markReportStale)}></div>
-  </div><p class="form-note">${type==='inventory'?'Current stock snapshot. Date range and college do not apply. Stock value uses recorded unit costs; quantities with different units are not added together.':type==='patients'?'Current non-archived patient snapshot. The date range does not reconstruct past patient counts.':type==='medicine_use'?'Each stock release in the date range counts once. Quantities with different units are not added together, so group by item when comparing amounts. College does not apply.':'Filters combine with the date range and college above. Counts use the appointment date or treatment date.'}</p>`;
+  </div><p class="form-note">${type==='inventory'?'Current stock snapshot. Date range and college do not apply. Quantities with different units are not added together.':type==='patients'?'Current non-archived patient snapshot. The date range does not reconstruct past patient counts.':type==='medicine_use'?'Each stock release in the date range counts once. Quantities with different units are not added together, so group by item when comparing amounts. College does not apply.':'Filters combine with the date range and college above. Counts use the appointment date or treatment date.'}</p>`;
 }
 export function buildCustomReport(exportToolbar){
   const type=value('rpt-type'),definition=reportDefinitions[type];if(!definition)return;
@@ -43,7 +43,7 @@ export function buildCustomReport(exportToolbar){
   const applied=[scope,...Object.entries(filters).filter(([k,v])=>v&&!['from','to'].includes(k)).map(([k,v])=>`${reportLabels[k]||k}: ${v}`)].join(' · ');
   const columns=[reportLabels[group],...(split?[reportLabels[split]]:[]),reportLabels[measure]];
   const summaryRows=groups.map(r=>Object.fromEntries(columns.map((c,i)=>[c,[r.group,...(split?[r.split]:[]),Number(r.value.toFixed(2))][i]])));
-  const detailColumns=Object.keys(rows[0]||{}).filter(k=>['id','patient','college','clinic','service','date','doctor','diagnosis','status','personType','classSession','sex','blood','item','category','qty','quantity','unit','source','value','stock'].includes(k));
+  const detailColumns=Object.keys(rows[0]||{}).filter(k=>['id','patient','college','clinic','service','date','doctor','diagnosis','status','personType','classSession','sex','blood','item','category','qty','quantity','unit','source','stock'].includes(k));
   const details=rows.map(r=>Object.fromEntries(detailColumns.map(k=>[reportLabels[k]||k,r[k]??'—'])));
   // Exports use the shared grouped headers: "Breakdown: College", "Result: Record count", "Record: Patient".
   const grouped=(list,prefix)=>list.map(row=>Object.fromEntries(Object.entries(row).map(([k,v])=>[`${typeof prefix==='function'?prefix(k):prefix}: ${k}`,v])));
@@ -53,7 +53,7 @@ export function buildCustomReport(exportToolbar){
   const host=document.getElementById('rpt-result');
   host.innerHTML=`<div class="card report-result"><div class="card-header"><div><h3>${esc(title)}</h3><p class="form-note">${esc(applied)}</p></div><span class="intel-badge">${rows.length} matching records</span></div>
     <p id="rpt-stale" class="report-stale" role="status" hidden>Filters changed. Generate the report again to update these results.</p>
-    <div class="report-answer"><span>${esc(reportLabels[measure])}</span><strong>${measure==='value'?'₱':''}${total.toLocaleString(undefined,{maximumFractionDigits:2})}</strong><small>${groups.length} group${groups.length===1?'':'s'}${measure==='patients'?' · A patient can appear in more than one group.':''}</small></div>
+    <div class="report-answer"><span>${esc(reportLabels[measure])}</span><strong>${total.toLocaleString(undefined,{maximumFractionDigits:2})}</strong><small>${groups.length} group${groups.length===1?'':'s'}${measure==='patients'?' · A patient can appear in more than one group.':''}</small></div>
     <div id="rpt-chart-block"></div>
     <h4>Summary table</h4><div class="table-wrap report-table-scroll"><table><thead><tr>${columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${summaryRows.map(r=>`<tr>${columns.map(c=>`<td>${esc(r[c])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
     ${!rows.length?'<p>No records match these filters.</p>':`<details class="report-details"><summary>View ${rows.length} matching records</summary><div class="table-wrap report-table-scroll"><table><thead><tr>${detailColumns.map(c=>`<th>${esc(reportLabels[c]||c)}</th>`).join('')}</tr></thead><tbody>${details.map(r=>`<tr>${Object.values(r).map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>`}

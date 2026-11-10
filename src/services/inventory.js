@@ -33,7 +33,7 @@ export function createInventoryService({getClient,request,baseUrl,publishableKey
     const client=getClient();
     const [itemsRes,txRes,forecastRes]=await Promise.all([
       client.from('inventory_items')
-        .select('item_id,item_name,category,quantity,threshold,unit,expiry_date,supplier,unit_cost,photo_data,target_disbursement_date,archived,archived_at,archived_by,created_at,updated_at')
+        .select('item_id,item_name,category,quantity,threshold,unit,expiry_date,supplier,photo_data,target_disbursement_date,archived,archived_at,archived_by,archive_reason,created_at,updated_at')
         .order('item_name',{ascending:true}),
       client.from('inventory_transactions')
         .select('transaction_id,item_id,transaction_type,quantity,transaction_date,notes,created_by')

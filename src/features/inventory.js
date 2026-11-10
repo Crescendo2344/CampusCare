@@ -48,7 +48,6 @@ export async function renderInventory(){
       ${stat('At or below reorder level',sum.low,sum.low?'warn':'','low')}
       ${stat(`Expiring within ${stockData.EXPIRY_WARNING_DAYS} days`,sum.expiringSoon,sum.expiringSoon?'warn':'','soon')}
       ${stat('Expired',sum.expired,sum.expired?'danger':'','expired')}
-      ${stat('Stock value',`₱${sum.value.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}`)}
     </div>
     <div class="report-tabs inv-tabs" role="tablist" aria-label="Inventory views">${views.map(([id,label,icon])=>`<button type="button" role="tab" id="inv-tab-${id}" data-inv-view="${id}" aria-controls="inv-panel-${id}" aria-selected="${ui.view===id}" tabindex="${ui.view===id?0:-1}" ${bindAction('click',()=>switchInventoryView(id))}><i class="bi ${icon}" aria-hidden="true"></i>${label}</button>`).join('')}</div>
     <section id="inv-panel-items" role="tabpanel" aria-labelledby="inv-tab-items" ${ui.view==='items'?'':'hidden'}>
@@ -166,7 +165,7 @@ export function renderInvTable(){
   const onOrder=itemsOnOrder();
   const stockBadge={out:['badge-danger','Out of stock'],low:['badge-danger','Reorder'],medium:['badge-warning','Medium'],ok:['badge-success','Sufficient']};
   el.innerHTML=`<div class="table-wrap"><table class="treat-table inv-table">
-    <thead><tr><th scope="col">Item</th><th scope="col">Category</th><th scope="col">Stock</th><th scope="col">Expiry</th><th scope="col">Forecast</th><th scope="col">Unit cost</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <thead><tr><th scope="col">Item</th><th scope="col">Category</th><th scope="col">Stock</th><th scope="col">Expiry</th><th scope="col">Forecast</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>${items.map(i=>{
       const st=stockData.stockState(i),exp=stockData.expiryState(i,today);
       const pct=Math.min(100,Math.round(i.qty/Math.max(i.threshold*2,1)*100));
@@ -174,12 +173,11 @@ export function renderInvTable(){
       const f=getInventoryForecast(i);
       const [cls,label]=stockBadge[st];
       return `<tr class="${i.archived?'archived':''}">
-        <td data-label="Item"><div class="pt-identity">${itemAvatarHtml(i,34)}<div><strong>${escapeHtml(i.name)}</strong>${i.archived?' <span class="badge badge-gray">Archived</span>':''}<div class="text-muted">#${inventoryDisplayId(i)}${i.supplier?' · '+escapeHtml(i.supplier):''}</div>${i.disbursementDate?`<div class="text-muted">Disburse by ${fmtDate(i.disbursementDate)}${daysToDisb!==''&&daysToDisb>=0&&daysToDisb<=7?` <span class="tr-due today">in ${daysToDisb}d</span>`:''}</div>`:''}</div></div></td>
+        <td data-label="Item"><div class="pt-identity">${itemAvatarHtml(i,34)}<div><strong>${escapeHtml(i.name)}</strong>${i.archived?` <span class="badge badge-gray">Archived${i.archiveReason?' · '+escapeHtml(i.archiveReason):''}</span>`:''}<div class="text-muted">#${inventoryDisplayId(i)}${i.supplier?' · '+escapeHtml(i.supplier):''}</div>${i.disbursementDate?`<div class="text-muted">Disburse by ${fmtDate(i.disbursementDate)}${daysToDisb!==''&&daysToDisb>=0&&daysToDisb<=7?` <span class="tr-due today">in ${daysToDisb}d</span>`:''}</div>`:''}</div></div></td>
         <td data-label="Category"><span class="badge badge-gray">${escapeHtml(i.category)}</span></td>
         <td data-label="Stock"><div class="inv-stock-line"><strong>${i.qty}</strong> ${escapeHtml(i.unit)} <span class="badge ${cls}">${label}</span></div><div class="progress-bar" title="Reorder level ${i.threshold} ${escapeHtml(i.unit)}"><div class="progress-fill" style="width:${pct}%;background:${st==='out'||st==='low'?'var(--danger)':st==='medium'?'var(--warning)':'var(--success)'}"></div></div><div class="text-muted">Reorder at ${i.threshold} ${escapeHtml(i.unit)}</div></td>
         <td data-label="Expiry">${i.expiryDate?`${fmtDate(i.expiryDate)}${exp.state==='expired'?'<span class="tr-due overdue">Expired</span>':exp.state==='soon'?`<span class="tr-due today">${exp.days}d left</span>`:''}`:'<span class="text-muted">—</span>'}</td>
         <td data-label="Forecast">${inventoryForecastBadge(f)}${f.hasData?`<div class="text-muted">Runs out in about ${Math.max(0,Math.floor(f.daysRemaining))} days</div>`:'<div class="text-muted">Needs disbursement history</div>'}${onOrder.has(i.dbItemId)?'<div><span class="badge badge-info">On order</span></div>':canEdit&&!i.archived&&((f.hasData&&f.daysRemaining<=30)||i.qty<=i.threshold)?`<button class="btn btn-xs btn-primary inv-order-now" ${bindAction('click',()=>openPurchaseOrderModal([{item_id:i.dbItemId,quantity:Math.max(Number(f.reorderQty)||0,i.threshold*2-i.qty,1)}]))}>Order now</button>`:''}</td>
-        <td data-label="Unit cost">₱${Number(i.unitCost||0).toFixed(2)}</td>
         <td data-label="Actions"><div class="td-actions">
           ${canEdit&&!i.archived?`<button class="btn btn-xs btn-info" ${bindAction('click',()=>openUpdateQtyModal(i.id))}>Adjust stock</button>
             <button class="btn btn-xs" ${bindAction('click',()=>openInvModal(i.id))}>Edit</button>`:''}

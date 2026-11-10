@@ -204,28 +204,6 @@ Deno.serve(async(req)=>{
       return json({ok:true,request:saved});
     }
 
-    // Purchase orders are approved or rejected by an administrator.
-    if(action==="approve_po"||action==="reject_po"){
-      if(actor.role!=="Administrator")return json({error:"Only an administrator approves purchase orders."},403);
-      const id=Number(body.po_id||0);
-      const reason=clean(body.reason,500);
-      if(action==="reject_po"&&reason.length<3)return json({error:"Give a reason for rejecting the order."},400);
-      const {data:po}=await admin.from("purchase_orders").select("*").eq("po_id",id).maybeSingle();
-      if(!po)return json({error:"Purchase order not found."},404);
-      if(po.status!=="Submitted")return json({error:`This order is already ${po.status.toLowerCase()}.`},409);
-      const patch:any={status:action==="approve_po"?"Approved":"Rejected",decided_by:actor.user_id,decided_at:new Date().toISOString()};
-      if(action==="reject_po")patch.reject_reason=reason;
-      const {data:saved,error}=await admin.from("purchase_orders").update(patch).eq("po_id",id).eq("status","Submitted").select("*").maybeSingle();
-      if(error)return json({error:error.message},400);
-      if(!saved)return json({error:"This order was just decided. Refresh to see it."},409);
-      await admin.from("audit_logs").insert({user_id:actor.user_id,action:action==="approve_po"?"PURCHASE_ORDER_APPROVED":"PURCHASE_ORDER_REJECTED",entity_type:"purchase_orders",entity_id:id,details:{po_no:po.po_no,reason:reason||null}});
-      await notifyUsers(admin,[po.created_by,...await roleUserIds(admin,"Staff")],
-        action==="approve_po"?"Purchase order approved":"Purchase order rejected",
-        action==="approve_po"?`${po.po_no} was approved. Record the delivery in Inventory when it arrives.`:`${po.po_no} was rejected: ${reason}`,
-        "inventory","purchase_orders",id);
-      return json({ok:true,purchase_order:saved});
-    }
-
     if(!canManage)return json({error:"Staff access required."},403);
 
     if(action==="release_request"||action==="decline_request"){
@@ -265,15 +243,13 @@ Deno.serve(async(req)=>{
 
     if(action==="create_po"){
       const lines=(Array.isArray(body.items)?body.items:[]).map((l:any)=>({
-        item_id:Number(l?.item_id||0),quantity:Number(l?.quantity),
-        unit_cost:l?.unit_cost===""||l?.unit_cost==null?null:Number(l.unit_cost)
+        item_id:Number(l?.item_id||0),quantity:Number(l?.quantity)
       }));
       if(!lines.length||lines.length>50)return json({error:"Add at least one medicine to the order."},400);
       const ids=new Set<number>();
       for(const l of lines){
         if(!l.item_id||!Number.isInteger(l.quantity)||l.quantity<=0||l.quantity>100000)
           return json({error:"Each line needs a medicine and a quantity of at least 1."},400);
-        if(l.unit_cost!=null&&(!Number.isFinite(l.unit_cost)||l.unit_cost<0))return json({error:"Unit cost cannot be negative."},400);
         if(ids.has(l.item_id))return json({error:"Each medicine can appear once per order."},400);
         ids.add(l.item_id);
       }
@@ -290,22 +266,50 @@ Deno.serve(async(req)=>{
       await admin.from("purchase_orders").update({po_no:poNo}).eq("po_id",po.po_id);
       const {error:lineErr}=await admin.from("purchase_order_items").insert(lines.map((l:any)=>({...l,po_id:po.po_id})));
       if(lineErr){await admin.from("purchase_orders").delete().eq("po_id",po.po_id);return json({error:lineErr.message},400);}
-      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"PURCHASE_ORDER_SUBMITTED",entity_type:"purchase_orders",entity_id:po.po_id,details:{po_no:poNo,lines:lines.length}});
-      await notifyUsers(admin,await roleUserIds(admin,"Administrator"),"Purchase order to approve",
-        `${poNo} (${lines.length} item${lines.length===1?"":"s"}) is waiting for your approval.`,"purchase-orders","purchase_orders",po.po_id);
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"PURCHASE_ORDER_PREPARED",entity_type:"purchase_orders",entity_id:po.po_id,details:{po_no:poNo,lines:lines.length}});
       return json({ok:true,purchase_order:{...po,po_no:poNo}});
+    }
+
+    // Staff hand the printed order to whoever buys, then mark it sent; or cancel an order no longer needed.
+    if(action==="send_po"||action==="cancel_po"){
+      const id=Number(body.po_id||0);
+      const reason=clean(body.reason,500);
+      const {data:po}=await admin.from("purchase_orders").select("*").eq("po_id",id).maybeSingle();
+      if(!po)return json({error:"Purchase order not found."},404);
+      const from=action==="send_po"?["Prepared"]:["Prepared","Sent"];
+      if(!from.includes(po.status))return json({error:`This order is already ${po.status.toLowerCase()}.`},409);
+      if(action==="cancel_po"&&reason.length<3)return json({error:"Give a reason for cancelling the order."},400);
+      const patch:any=action==="send_po"
+        ?{status:"Sent",sent_by:actor.user_id,sent_at:new Date().toISOString()}
+        :{status:"Cancelled",cancel_reason:reason,cancelled_at:new Date().toISOString()};
+      const {data:saved,error}=await admin.from("purchase_orders").update(patch).eq("po_id",id).in("status",from).select("*").maybeSingle();
+      if(error)return json({error:error.message},400);
+      if(!saved)return json({error:"This order just changed. Refresh to see it."},409);
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:action==="send_po"?"PURCHASE_ORDER_SENT":"PURCHASE_ORDER_CANCELLED",entity_type:"purchase_orders",entity_id:id,details:{po_no:po.po_no,reason:reason||null}});
+      return json({ok:true,purchase_order:saved});
     }
 
     if(action==="receive_po"){
       const id=Number(body.po_id||0);
       const {data:po}=await admin.from("purchase_orders").select("*").eq("po_id",id).maybeSingle();
       if(!po)return json({error:"Purchase order not found."},404);
-      if(po.status!=="Approved")return json({error:po.status==="Received"?"This order was already received.":"Only approved orders can be received."},409);
-      const {data:claimed}=await admin.from("purchase_orders").update({status:"Received",received_by:actor.user_id,received_at:new Date().toISOString()}).eq("po_id",id).eq("status","Approved").select("*").maybeSingle();
+      if(!["Prepared","Sent"].includes(po.status))return json({error:po.status==="Received"?"This order was already received.":"A cancelled order cannot be received."},409);
+      // Only what arrived in good condition goes into stock; anything short or damaged needs a note.
+      const {data:lines}=await admin.from("purchase_order_items").select("po_item_id,item_id,quantity").eq("po_id",id);
+      const given=new Map((Array.isArray(body.received)?body.received:[]).map((r:any)=>[Number(r?.item_id),Number(r?.quantity)]));
+      const counts=(lines||[]).map((l:any)=>({...l,received:given.has(Number(l.item_id))?given.get(Number(l.item_id)):Number(l.quantity)}));
+      if(counts.some((l:any)=>!Number.isInteger(l.received)||l.received<0||l.received>Number(l.quantity)))
+        return json({error:"Each received amount must be a whole number from 0 up to the amount ordered."},400);
+      const short=counts.reduce((n:number,l:any)=>n+Number(l.quantity)-l.received,0);
+      const note=clean(body.note,500);
+      if(short>0&&note.length<3)return json({error:"Say what was short or damaged."},400);
+      const {data:claimed}=await admin.from("purchase_orders").update({status:"Received",received_by:actor.user_id,received_at:new Date().toISOString(),receive_note:note||null}).eq("po_id",id).eq("status",po.status).select("*").maybeSingle();
       if(!claimed)return json({error:"This order was just received. Refresh to see it."},409);
-      const {data:lines}=await admin.from("purchase_order_items").select("item_id,quantity").eq("po_id",id);
-      for(const l of lines||[])await applyTx(admin,actor.user_id,l.item_id,"Stock In",l.quantity,`Received on ${po.po_no}`);
-      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"PURCHASE_ORDER_RECEIVED",entity_type:"purchase_orders",entity_id:id,details:{po_no:po.po_no}});
+      for(const l of counts){
+        await admin.from("purchase_order_items").update({received_quantity:l.received}).eq("po_item_id",l.po_item_id);
+        if(l.received>0)await applyTx(admin,actor.user_id,l.item_id,"Stock In",l.received,`Received on ${po.po_no}${l.received<Number(l.quantity)?` (${Number(l.quantity)-l.received} short or damaged)`:""}`);
+      }
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"PURCHASE_ORDER_RECEIVED",entity_type:"purchase_orders",entity_id:id,details:{po_no:po.po_no,short,note:note||null}});
       await regenerateForecasts(admin,(lines||[]).map((l:any)=>l.item_id));
       return json({ok:true,purchase_order:claimed});
     }
@@ -319,21 +323,18 @@ Deno.serve(async(req)=>{
       const unit=clean(body.unit,80);
       const expiryDate=body.expiry_date?String(body.expiry_date):null;
       const supplier=clean(body.supplier,255);
-      const unitCost=body.unit_cost===""||body.unit_cost==null?null:Number(body.unit_cost);
       const targetDate=body.target_disbursement_date?String(body.target_disbursement_date):null;
       const photoData=clean(body.photo_data,350000);
 
       if(!itemName||!category||!unit||!Number.isInteger(quantity)||quantity<0||!Number.isInteger(threshold)||threshold<0)
         return json({error:"Name, category, quantity, threshold, and unit are required."},400);
-      if(unitCost!==null&&(!Number.isFinite(unitCost)||unitCost<0))
-        return json({error:"Unit cost must be zero or greater."},400);
 
       let saved:any=null;
 
       if(action==="create"){
         const {data,error}=await admin.from("inventory_items").insert({
           item_name:itemName,category,quantity,threshold,unit,
-          expiry_date:expiryDate,supplier:supplier||null,unit_cost:unitCost,
+          expiry_date:expiryDate,supplier:supplier||null,
           target_disbursement_date:targetDate,photo_data:photoData||null,
           archived:false
         }).select("*").single();
@@ -364,7 +365,7 @@ Deno.serve(async(req)=>{
 
         const {data,error}=await admin.from("inventory_items").update({
           item_name:itemName,category,quantity,threshold,unit,
-          expiry_date:expiryDate,supplier:supplier||null,unit_cost:unitCost,
+          expiry_date:expiryDate,supplier:supplier||null,
           target_disbursement_date:targetDate,photo_data:photoData||null,
           updated_at:new Date().toISOString()
         }).eq("item_id",itemId).select("*").single();
@@ -398,6 +399,9 @@ Deno.serve(async(req)=>{
       const itemId=Number(body.item_id||0);
       const newQuantity=Number(body.quantity);
       const reason=clean(body.reason,500);
+      // The reason decides how the change shows in stock movements: a delivery is Stock In, removed expired
+      // stock is Expired, anything else (count correction, damage, return) is an Adjustment.
+      const movement=["Stock In","Expired"].includes(String(body.movement))?String(body.movement):"Adjustment";
 
       if(!itemId||!Number.isInteger(newQuantity)||newQuantity<0)
         return json({error:"A valid non-negative quantity is required."},400);
@@ -406,6 +410,8 @@ Deno.serve(async(req)=>{
         .select("*").eq("item_id",itemId).maybeSingle();
       if(!existing)return json({error:"Inventory item not found."},404);
       if(existing.archived)return json({error:"Restore this item before updating quantity."},400);
+      if(movement==="Stock In"&&newQuantity<=Number(existing.quantity))return json({error:"New stock should raise the quantity. Enter the count after adding the delivery."},400);
+      if(movement==="Expired"&&newQuantity>=Number(existing.quantity))return json({error:"Removing expired stock should lower the quantity."},400);
 
       const {data:saved,error}=await admin.from("inventory_items")
         .update({quantity:newQuantity,updated_at:new Date().toISOString()})
@@ -416,7 +422,7 @@ Deno.serve(async(req)=>{
       if(Number(existing.quantity)!==newQuantity){
         const {data:tx}=await admin.from("inventory_transactions").insert({
           item_id:itemId,
-          transaction_type:"Adjustment",
+          transaction_type:movement,
           quantity:Math.abs(newQuantity-Number(existing.quantity)),
           transaction_date:new Date().toISOString(),
           notes:`${reason||"Manual adjustment"}: ${existing.quantity} → ${newQuantity}`,
@@ -428,7 +434,7 @@ Deno.serve(async(req)=>{
       await admin.from("audit_logs").insert({
         user_id:actor.user_id,action:"INVENTORY_QUANTITY_UPDATED",
         entity_type:"inventory_items",entity_id:itemId,
-        details:{previous_quantity:existing.quantity,new_quantity:newQuantity,reason:reason||null}
+        details:{previous_quantity:existing.quantity,new_quantity:newQuantity,reason:reason||null,movement}
       });
 
       await notifyLowStock(admin,saved);
@@ -529,9 +535,15 @@ Deno.serve(async(req)=>{
 
       const itemId=Number(body.item_id||0);
       const archived=action==="archive";
+      const kind=String(body.reason||"");
+      const note=clean(body.note,200);
+      if(archived&&!["Discontinued","Expired","Inactive","Other"].includes(kind))return json({error:"Choose why the item is archived."},400);
+      if(archived&&kind==="Other"&&note.length<3)return json({error:"Describe the reason for archiving."},400);
+      const archiveReason=archived?(kind==="Other"?note:kind):null;
       const {data:item,error}=await admin.from("inventory_items")
         .update({
           archived,
+          archive_reason:archiveReason,
           archived_at:archived?new Date().toISOString():null,
           archived_by:archived?actor.user_id:null,
           updated_at:new Date().toISOString()
@@ -545,7 +557,7 @@ Deno.serve(async(req)=>{
         user_id:actor.user_id,
         action:archived?"INVENTORY_ITEM_ARCHIVED":"INVENTORY_ITEM_RESTORED",
         entity_type:"inventory_items",entity_id:itemId,
-        details:{item_name:item.item_name}
+        details:{item_name:item.item_name,reason:archiveReason}
       });
 
       return json({ok:true,item});

@@ -24,7 +24,7 @@ export function reportData(){
   return {
     appointments:appointments.filter(a=>!a.archived).map(decorate),treatments:treatments.filter(t=>!t.archived).map(decorate),
     patients:patients.map(p=>({id:p.dbPatientId||p.id,patientId:p.id,patient:name(p),college:p.college,personType:p.personType,classSession:p.classSession,sex:p.gender,blood:p.blood})),
-    inventory:stock.map(i=>({...i,item:i.name,stock:i.qty<=i.threshold?'Low stock':'Available',value:Number(i.qty||0)*Number(i.unitCost||0)})),
+    inventory:stock.map(i=>({...i,item:i.name,stock:i.qty<=i.threshold?'Low stock':'Available'})),
     visits:clinicalVisitEvents(appointments,treatments).map(decorate),
     // Every disbursement is one use of stock; medicine requests released to doctors are marked as such.
     medicine_use:stock.filter(i=>i.category!=='Equipment').flatMap(i=>inventoryTransactionRecords(db,account).filter(t=>t.itemId===i.id&&t.type==='Disbursement').map(t=>({id:t.id,date:isoDay(t.date),item:i.name,category:i.category,unit:i.unit,quantity:Math.abs(Number(t.qty||0)),source:/medicine request/i.test(t.notes||'')?'Doctor request':'Front desk'}))),

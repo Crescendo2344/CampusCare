@@ -31,7 +31,7 @@ export async function loadReportSnapshot(client,role){
     readReportPages(client,'patients','patient_id,user_id,class_session,sex,blood_type,archived_at','patient_id'),
     readReportPages(client,'appointments','appointment_id,patient_id,doctor_id,clinic,service,appointment_date,appointment_time,status','appointment_id'),
     stockAccess?readTreatmentFactPages(client):readReportPages(client,'treatments','treatment_id,patient_id,doctor_id,appointment_id,diagnosis,treatment_date,status,archived_at','treatment_id'),
-    stockAccess?readReportPages(client,'inventory_items','item_id,item_name,category,quantity,threshold,unit,unit_cost,archived','item_id'):[],
+    stockAccess?readReportPages(client,'inventory_items','item_id,item_name,category,quantity,threshold,unit,archived','item_id'):[],
     stockAccess?readReportPages(client,'inventory_transactions','transaction_id,item_id,transaction_type,quantity,transaction_date','transaction_id'):[]
   ]);
   const userMap=new Map(users.map(u=>[Number(u.user_id),u]));
