@@ -255,7 +255,7 @@ export async function renderFeedbackIssues({refresh=true}={}){
   }
 
   const ui=queueUi();
-  ui.selected.clear();
+  ui.selected.clear();ui.selecting=false;
   const all=issueReportRecords();
   const stats=queueStats(all);
   const count=fn=>all.filter(fn).length;
@@ -319,11 +319,13 @@ export function renderFeedbackIssuesList(){
     return;
   }
   const allChecked=reports.every(r=>ui.selected.has(r.id));
-  el.innerHTML=`<div class="card fi-card"><div class="fi-list-head"><label class="fi-check"><input type="checkbox" ${allChecked?'checked':''} aria-label="Select all reports shown" ${bindAction('change',(event,element)=>{reports.forEach(r=>element.checked?ui.selected.add(r.id):ui.selected.delete(r.id));renderFeedbackIssuesList();})}> Select all</label></div><div class="fi-list">${reports.map(r=>{
+  const selecting=!!ui.selecting;
+  const toggleSelecting=()=>{ui.selecting=!ui.selecting;if(!ui.selecting)ui.selected.clear();renderFeedbackIssuesList();};
+  el.innerHTML=`<div class="card fi-card"><div class="fi-list-head" style="display:flex;align-items:center;justify-content:flex-start;gap:.75rem"><button type="button" class="btn btn-xs" ${bindAction('click',toggleSelecting)}>${selecting?'Cancel':'<i class="bi bi-check2-square" aria-hidden="true"></i> Select'}</button>${selecting?`<label class="fi-check"><input type="checkbox" ${allChecked?'checked':''} aria-label="Select all reports shown" ${bindAction('change',(event,element)=>{reports.forEach(r=>element.checked?ui.selected.add(r.id):ui.selected.delete(r.id));renderFeedbackIssuesList();})}> Select all</label>`:''}</div><div class="fi-list">${reports.map(r=>{
     const user=getUserById(r.reporterId);
     const replyCount=(r.replies||[]).filter(rp=>!rp.internal).length;
     return `<div class="fi-row ${ui.selected.has(r.id)?'selected':''}">
-      <input type="checkbox" class="fi-select" aria-label="Select report #${issueDisplayId(r)}" ${ui.selected.has(r.id)?'checked':''} ${bindAction('change',(event,element)=>{element.checked?ui.selected.add(r.id):ui.selected.delete(r.id);element.closest('.fi-row').classList.toggle('selected',element.checked);renderBulkBar();})}>
+      ${selecting?`<input type="checkbox" class="fi-select" aria-label="Select report #${issueDisplayId(r)}" ${ui.selected.has(r.id)?'checked':''} ${bindAction('change',(event,element)=>{element.checked?ui.selected.add(r.id):ui.selected.delete(r.id);element.closest('.fi-row').classList.toggle('selected',element.checked);renderBulkBar();})}>`:''}
       <button type="button" class="fi-open" ${bindAction('click',()=>viewIssueThread(r.id))}>
         ${user?userAvatarHtml(user,32):'<div class="sb-avatar" style="width:32px;height:32px;font-size:.7rem">?</div>'}
         <span class="fi-main">

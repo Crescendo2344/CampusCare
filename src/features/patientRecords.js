@@ -81,6 +81,8 @@ function healthInfoCard(pt,editing){
         <div id="mr-health-msg"></div>
         <div style="font-size:.83rem">
           <div class="info-row"><span class="info-label">Blood Type</span><span class="info-val">${escapeHtml(blood||'—')}</span></div>
+          <div class="info-row"><span class="info-label">Height</span><span class="info-val">${pt.height?`${escapeHtml(String(pt.height).replace(/[^\d.]/g,''))} cm`:'—'}</span></div>
+          <div class="info-row"><span class="info-label">Weight</span><span class="info-val">${pt.weight?`${escapeHtml(String(pt.weight).replace(/[^\d.]/g,''))} kg`:'—'}</span></div>
           <div class="info-row"><span class="info-label">Allergies</span><span class="info-val text-danger">${escapeHtml(pt.allergies?.trim()||'—')}</span></div>
           <div class="info-row"><span class="info-label">Medical History</span><span class="info-val">${escapeHtml(pt.medHistory?.trim()||'—')}</span></div>
         </div>
@@ -90,6 +92,10 @@ function healthInfoCard(pt,editing){
         <div class="card-header"><h3>Health Information</h3></div>
         <div id="mr-health-msg"></div>
         <div class="form-group"><label for="mr-blood">Blood Type</label><select id="mr-blood">${BLOOD_TYPES.map(b=>`<option ${String(pt.blood||'Unknown')===b?'selected':''}>${b}</option>`).join('')}</select></div>
+        <div class="form-row">
+          <div class="form-group"><label for="mr-height">Height (cm)</label><input id="mr-height" type="number" inputmode="decimal" min="40" max="260" step=".1" value="${escapeHtml(String(pt.height||'').replace(/[^\d.]/g,''))}"></div>
+          <div class="form-group"><label for="mr-weight">Weight (kg)</label><input id="mr-weight" type="number" inputmode="decimal" min="1" max="500" step=".1" value="${escapeHtml(String(pt.weight||'').replace(/[^\d.]/g,''))}"></div>
+        </div>
         <div class="form-group"><label for="mr-allergies">Allergies</label><input id="mr-allergies" maxlength="300" value="${escapeHtml(pt.allergies?.trim()||'')}" placeholder="e.g. Penicillin, shrimp, or None"></div>
         <div class="form-group"><label for="mr-history">Medical History</label><textarea id="mr-history" maxlength="5000" rows="4" placeholder="Past illnesses, surgeries, maintenance medicines">${escapeHtml(pt.medHistory?.trim()||'')}</textarea></div>
         <div class="td-actions">
@@ -114,7 +120,7 @@ async function saveMyHealthInfo(){
   if(btn){btn.disabled=true;btn.textContent='Saving…';}
   try{
     await patientAction({action:'self_update',address:pt.address||'',emergency_contact_name:pt.emergencyName||'',
-      emergency_contact_number:pt.emergencyContact||'',blood_type:document.getElementById('mr-blood').value||'Unknown',height_cm:num(pt.height),weight_kg:num(pt.weight),
+      emergency_contact_number:pt.emergencyContact||'',blood_type:document.getElementById('mr-blood').value||'Unknown',height_cm:num(document.getElementById('mr-height').value),weight_kg:num(document.getElementById('mr-weight').value),
       allergies:document.getElementById('mr-allergies').value.trim(),medical_history:document.getElementById('mr-history').value.trim(),
       course:pt.course||'',major:pt.major||''});
     await syncCurrentPatientFromSupabase();
