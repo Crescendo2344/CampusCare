@@ -60,3 +60,16 @@ test('invalid, duplicate and unchanged updates do not write',async()=>{
   const f=await fixture();for(const body of [{first_name:''},{email:'user@gmal.com'},{contact_number:'12345'},{}])assert.notEqual((await f.call(body)).status,200);
   assert.equal(f.writes.length,0);const duplicate=await fixture({duplicate:true});assert.equal((await duplicate.call({email:'taken@example.test'})).status,409);assert.equal(duplicate.authUpdates.length,0);
 });
+test('staff and doctor employee numbers can be added or corrected: five digits and unique',async()=>{
+  const staff={status:'Active',role:'Staff',id_number:''};
+  assert.deepEqual(buildUserEditPatch({id_number:' 12345 '},staff).patch,{id_number:'12345'});
+  assert.deepEqual(buildUserEditPatch({id_number:'12345'},{...staff,role:'Doctor'}).patch,{id_number:'12345'});
+  assert.deepEqual(buildUserEditPatch({id_number:'12345'},{...staff,id_number:'12345'}).patch,{},'An unchanged number is not a change');
+  for(const value of ['1234','123456','12a45',''])assert.match(buildUserEditPatch({id_number:value},{...staff,id_number:'11111'}).error,/5-digit/);
+  assert.match(buildUserEditPatch({id_number:'12345'},{...staff,role:'Patient'}).error,/Only staff and doctor/,"A patient's ID comes from registration");
+  const ok=await fixture();const saved=await ok.call({id_number:'54321'});
+  assert.equal(saved.status,200);assert.equal(ok.writes.at(-1).id_number,'54321');
+  assert.match(JSON.stringify(ok.audits),/previous_id_number/);
+  const taken=await fixture({duplicate:true});const refused=await taken.call({id_number:'54321'});
+  assert.equal(refused.status,409);assert.match((await refused.json()).error,/belongs to another account/);assert.equal(taken.writes.length,0);
+});

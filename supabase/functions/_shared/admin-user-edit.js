@@ -16,6 +16,13 @@ export function buildUserEditPatch(body,target){
     if(!services.length)return {error:'Tick at least one service the doctor renders.'};
     if(services.join('|')!==(target.services_rendered||[]).join('|'))patch.services_rendered=services;
   }
+  // Staff and doctors carry a 5-digit employee number; a patient's ID number comes from their registration.
+  if(body.id_number!==undefined&&String(body.id_number).trim()!==String(target.id_number||'').trim()){
+    if(!['Staff','Doctor'].includes(target.role))return {error:'Only staff and doctor employee numbers can be edited here.'};
+    const value=String(body.id_number).trim();
+    if(!/^\d{5}$/.test(value))return {error:'Enter the 5-digit employee number.'};
+    patch.id_number=value;
+  }
   if(body.clinic!==undefined){
     if(target.role!=='Staff')return {error:'Only staff accounts are assigned to a clinic. A doctor\'s clinic follows the specialization.'};
     const value=String(body.clinic).trim();
