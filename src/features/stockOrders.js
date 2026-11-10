@@ -1,6 +1,7 @@
 // Medicine requests and purchase orders.
 // Doctors ask the clinic's stock for medicine; staff release it (stock goes down) or decline it.
-// Staff order stock before it runs out; an administrator approves; staff record the delivery (stock goes up).
+// Staff order stock before it runs out: they print the purchase order for the person or office that buys,
+// mark it sent, and record the delivery (stock goes up). Purchasing is a staff task; there is no approval step.
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {fmtDate} from './inputValidation.js';
@@ -21,7 +22,8 @@ const manilaDate=ts=>ts?new Date(ts).toLocaleDateString('en-CA',{timeZone:'Asia/
 const personName=dbUserId=>{const u=dbUserId?getUserById(100000+Number(dbUserId)):null;return u?`${u.role==='Doctor'?'Dr. ':''}${u.fname} ${u.lname}`:'Clinic team';};
 const patientName=dbPatientId=>{const p=dbPatientId?getPatientById(200000+Number(dbPatientId)):null;return p?`${p.fname} ${p.lname}`:'';};
 const REQUEST_BADGE={Pending:'badge-warning',Released:'badge-success',Declined:'badge-danger',Withdrawn:'badge-gray'};
-const PO_BADGE={Submitted:'badge-warning',Approved:'badge-info',Rejected:'badge-danger',Received:'badge-success'};
+const PO_BADGE={Prepared:'badge-warning',Sent:'badge-info',Received:'badge-success',Cancelled:'badge-gray'};
+const PO_LABEL={Prepared:'Prepared',Sent:'Sent to purchasing',Received:'Received',Cancelled:'Cancelled'};
 const badge=(map,status)=>`<span class="badge ${map[status]||'badge-gray'}">${escapeHtml(status)}</span>`;
 
 // Loading ------------------------------------------------------------------------------------------
@@ -33,8 +35,8 @@ export async function loadStockOrders(){
     r==='Administrator'?Promise.resolve({data:[]}):client().from('inventory_requests')
       .select('request_id,item_id,quantity,requested_by,patient_id,purpose,status,decided_by,decided_at,decline_reason,created_at')
       .order('created_at',{ascending:false}).limit(300),
-    r==='Doctor'?Promise.resolve({data:[]}):client().from('purchase_orders')
-      .select('po_id,po_no,status,supplier,notes,needed_by,created_by,decided_by,decided_at,reject_reason,received_by,received_at,created_at,purchase_order_items(po_item_id,item_id,quantity,unit_cost)')
+    r!=='Staff'?Promise.resolve({data:[]}):client().from('purchase_orders')
+      .select('po_id,po_no,status,supplier,notes,needed_by,created_by,sent_by,sent_at,cancel_reason,cancelled_at,received_by,received_at,created_at,purchase_order_items(po_item_id,item_id,quantity,unit_cost)')
       .order('created_at',{ascending:false}).limit(200),
     client().from('inventory_items').select('item_id,item_name,category,quantity,threshold,unit,expiry_date,supplier,unit_cost').eq('archived',false).order('item_name')
   ];
@@ -49,7 +51,7 @@ const itemLabel=id=>{const i=itemById(id);return i?i.item_name:`Item #${id}`;};
 // Items with a submitted or approved order are "on order", so staff are not reminded twice.
 export function itemsOnOrder(){
   const ids=new Set();
-  for(const po of st().orders||[])if(['Submitted','Approved'].includes(po.status))for(const l of po.purchase_order_items||[])ids.add(Number(l.item_id));
+  for(const po of st().orders||[])if(['Prepared','Sent'].includes(po.status))for(const l of po.purchase_order_items||[])ids.add(Number(l.item_id));
   return ids;
 }
 export function pendingRequestCount(){return (st().requests||[]).filter(r=>r.status==='Pending').length;}
@@ -191,9 +193,9 @@ export function renderOrdersTable(){
   const el=document.getElementById('so-orders');if(!el)return;
   const rows=st().orders||[];
   if(!rows.length){el.innerHTML='<div class="empty-state"><p>No purchase orders yet.</p></div>';return;}
-  el.innerHTML=ordersTableHtml(rows,{staff:true});
+  el.innerHTML=ordersTableHtml(rows);
 }
-function ordersTableHtml(rows,{staff=false,admin=false}={}){
+function ordersTableHtml(rows){
   return `<div class="table-wrap"><table class="treat-table"><thead><tr><th scope="col">Order</th><th scope="col">Items</th><th scope="col">Supplier</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>${rows.map(po=>{
     const lines=po.purchase_order_items||[];
@@ -202,10 +204,11 @@ function ordersTableHtml(rows,{staff=false,admin=false}={}){
       <td data-label="Order"><strong>${escapeHtml(po.po_no||`PO #${po.po_id}`)}</strong><div class="text-muted">${fmtDate(manilaDate(po.created_at))} · ${escapeHtml(personName(po.created_by))}</div>${po.needed_by?`<div class="text-muted">Needed by ${fmtDate(po.needed_by)}</div>`:''}</td>
       <td data-label="Items">${lines.map(l=>`<div>${escapeHtml(itemLabel(l.item_id))} × ${l.quantity}${l.unit_cost!=null?` <span class="text-muted">@ ₱${Number(l.unit_cost).toFixed(2)}</span>`:''}</div>`).join('')}${total?`<div class="text-muted">Total ₱${total.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>`:''}${po.notes?`<div class="text-muted">${escapeHtml(po.notes)}</div>`:''}</td>
       <td data-label="Supplier">${escapeHtml(po.supplier||'—')}</td>
-      <td data-label="Status">${badge(PO_BADGE,po.status)}${po.status==='Rejected'&&po.reject_reason?`<div class="text-muted">${escapeHtml(po.reject_reason)}</div>`:''}${po.status==='Received'&&po.received_at?`<div class="text-muted">${fmtDate(manilaDate(po.received_at))}</div>`:''}</td>
+      <td data-label="Status"><span class="badge ${PO_BADGE[po.status]||'badge-gray'}">${escapeHtml(PO_LABEL[po.status]||po.status)}</span>${po.status==='Sent'&&po.sent_at?`<div class="text-muted">${fmtDate(manilaDate(po.sent_at))}</div>`:''}${po.status==='Cancelled'&&po.cancel_reason?`<div class="text-muted">${escapeHtml(po.cancel_reason)}</div>`:''}${po.status==='Received'&&po.received_at?`<div class="text-muted">${fmtDate(manilaDate(po.received_at))}</div>`:''}</td>
       <td data-label="Actions"><div class="td-actions">
-        ${staff&&po.status==='Approved'?`<button class="btn btn-xs btn-success" ${bindAction('click',()=>receiveOrder(po))}>Record delivery</button>`:''}
-        ${admin&&po.status==='Submitted'?`<button class="btn btn-xs btn-success" ${bindAction('click',()=>decideOrder(po,'approve_po'))}>Approve</button><button class="btn btn-xs" ${bindAction('click',()=>decideOrder(po,'reject_po'))}>Reject</button>`:''}
+        <button class="btn btn-xs" ${bindAction('click',()=>printPurchaseOrder(po.po_id))}><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
+        ${po.status==='Prepared'?`<button class="btn btn-xs btn-info" ${bindAction('click',()=>orderStep(po,'send_po'))}>Mark as sent</button>`:''}
+        ${['Prepared','Sent'].includes(po.status)?`<button class="btn btn-xs btn-success" ${bindAction('click',()=>receiveOrder(po))}>Record delivery</button><button class="btn btn-xs" ${bindAction('click',()=>orderStep(po,'cancel_po'))}>Cancel</button>`:''}
       </div></td>
     </tr>`;}).join('')}</tbody></table></div>`;
 }
@@ -226,7 +229,7 @@ export function openPurchaseOrderModal(prefill=[]){
       <button type="button" class="btn btn-sm" ${bindAction('click',()=>{st().draft.push({item_id:'',quantity:''});renderDraftLines();})}>+ Add another item</button>
       <div class="form-group"><label for="so-po-notes">Notes</label><textarea id="so-po-notes" rows="2" maxlength="800"></textarea></div>
     </div>
-    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button class="btn btn-primary" id="so-po-send" ${bindAction('click',()=>submitPurchaseOrder())}>Send for approval</button></div>
+    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button class="btn btn-primary" id="so-po-send" ${bindAction('click',()=>submitPurchaseOrder())}>Prepare order</button></div>
   </div>`);
   renderDraftLines();
 }
@@ -252,9 +255,10 @@ async function submitPurchaseOrder(){
   try{
     const res=await inventoryAction({action:'create_po',items:lines,supplier:document.getElementById('so-po-supplier').value.trim(),needed_by:document.getElementById('so-po-needed').value||null,notes:document.getElementById('so-po-notes').value.trim()});
     closeAllModals();
-    toast(`${res.purchase_order?.po_no||'Purchase order'} sent to the administrator for approval.`,'success');
+    toast(`${res.purchase_order?.po_no||'Purchase order'} is ready. Print it for the person who buys.`,'success');
     await refreshInventoryAfterOrderChange();
-  }catch(e){fail(e?.message||'The order could not be sent.');btn.disabled=false;btn.textContent='Send for approval';}
+    if(res.purchase_order?.po_id)printPurchaseOrder(res.purchase_order.po_id);
+  }catch(e){fail(e?.message||'The order could not be sent.');btn.disabled=false;btn.textContent='Prepare order';}
 }
 function receiveOrder(po){
   showConfirmDialog({title:`Record delivery of ${escapeHtml(po.po_no)}?`,message:'Each item on the order is added to stock as received today.',confirmLabel:'Record delivery',onConfirm:async()=>{
@@ -272,28 +276,52 @@ async function refreshInventoryAfterOrderChange(){
   }
 }
 
-// Administrator: Purchase Orders page --------------------------------------------------------------
-export async function renderPurchaseOrderApprovals(){
-  const c=document.getElementById('app-content');if(!c)return;
-  const token=captureCampusPageToken();
-  showDatabaseSkeleton('table');
-  try{await loadStockOrders();}
-  catch(e){if(!isCampusPageCurrent('purchase-orders',token))return;c.innerHTML=`<div class="alert alert-danger show">${escapeHtml(e?.message||'Purchase orders could not be loaded.')}</div><button class="btn btn-sm" ${bindAction('click',()=>renderPurchaseOrderApprovals())}>Retry</button>`;return;}
-  if(!isCampusPageCurrent('purchase-orders',token))return;
-  const waiting=(st().orders||[]).filter(p=>p.status==='Submitted'),rest=(st().orders||[]).filter(p=>p.status!=='Submitted');
-  c.innerHTML=`<div class="card"><div class="card-header"><h3>Waiting for approval</h3><span class="badge ${waiting.length?'badge-warning':'badge-gray'}">${waiting.length}</span></div>
-      ${waiting.length?ordersTableHtml(waiting,{admin:true}):'<div class="empty-state"><i class="bi bi-cart-check" aria-hidden="true" style="font-size:1.6rem"></i><p>No purchase orders are waiting.</p></div>'}</div>
-    <div class="card"><div class="card-header"><h3>Order history</h3></div>${rest.length?ordersTableHtml(rest):'<div class="empty-state"><p>No decided orders yet.</p></div>'}</div>`;
-}
-async function decideOrder(po,action){
-  if(action==='reject_po'){
-    askReason({title:`Reject ${po.po_no}`,label:'Reason staff will read',confirm:'Reject order',onSubmit:async reason=>{
-      await inventoryAction({action,po_id:po.po_id,reason});toast(`${po.po_no} rejected.`,'success');await renderPurchaseOrderApprovals();
+function orderStep(po,action){
+  if(action==='cancel_po'){
+    askReason({title:`Cancel ${po.po_no}`,label:'Why is it no longer needed?',confirm:'Cancel order',onSubmit:async reason=>{
+      await inventoryAction({action,po_id:po.po_id,reason});toast(`${po.po_no} cancelled.`,'success');await refreshInventoryAfterOrderChange();
     }});
     return;
   }
-  try{await inventoryAction({action,po_id:po.po_id});toast(`${po.po_no} approved. Staff were told.`,'success');await renderPurchaseOrderApprovals();}
-  catch(e){toast(e?.message||'The order could not be approved.','error');}
+  showConfirmDialog({title:`Mark ${escapeHtml(po.po_no)} as sent?`,message:'Use this once the printed order has been handed to the person or office that buys.',confirmLabel:'Mark as sent',onConfirm:async()=>{
+    try{await inventoryAction({action,po_id:po.po_id});toast(`${po.po_no} marked as sent.`,'success');await refreshInventoryAfterOrderChange();}
+    catch(e){toast(e?.message||'The order could not be updated.','error');}
+  }});
+}
+
+// A one-page purchase order the purchasing office can act on; the browser's print dialog also saves it as PDF.
+export function printPurchaseOrder(poId){
+  const po=(st().orders||[]).find(p=>Number(p.po_id)===Number(poId));
+  if(!po){toast('Purchase order not found. Refresh and try again.','error');return;}
+  const lines=po.purchase_order_items||[];
+  const peso=n=>'₱'+Number(n).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const total=lines.reduce((sum,l)=>sum+(Number(l.unit_cost)||0)*Number(l.quantity),0);
+  const rows=lines.map((l,i)=>{const it=itemById(l.item_id);const cost=l.unit_cost!=null?Number(l.unit_cost):null;
+    return `<tr><td>${i+1}</td><td>${escapeHtml(it?.item_name||itemLabel(l.item_id))}</td><td>${escapeHtml(it?.category||'')}</td><td class="n">${l.quantity}</td><td>${escapeHtml(it?.unit||'')}</td><td class="n">${cost!=null?peso(cost):'—'}</td><td class="n">${cost!=null?peso(cost*l.quantity):'—'}</td></tr>`;}).join('');
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(po.po_no||'Purchase order')}</title><style>
+    @page{size:A4;margin:16mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;margin:0}
+    h1{font-size:20px;margin:0}h2{font-size:13px;margin:0 0 2px;font-weight:normal;color:#444}
+    .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0a7ea8;padding-bottom:10px;margin-bottom:14px}
+    .meta{width:100%;border-collapse:collapse;margin-bottom:14px}.meta td{padding:3px 0;vertical-align:top}.meta td:first-child{width:120px;color:#555}
+    table.items{width:100%;border-collapse:collapse}table.items th,table.items td{border:1px solid #bbb;padding:6px;text-align:left}table.items th{background:#eef5f9}
+    .n{text-align:right}.total td{font-weight:bold}.sign{display:flex;gap:40px;margin-top:48px}.sign div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center}
+    .note{margin-top:12px;white-space:pre-wrap}
+  </style></head><body>
+    <div class="head"><div><h1>Purchase Order</h1><h2>CTU Main Medical &amp; Dental Clinic</h2></div><div style="text-align:right"><strong style="font-size:15px">${escapeHtml(po.po_no||'')}</strong><div>Date: ${escapeHtml(fmtDate(manilaDate(po.created_at)))}</div></div></div>
+    <table class="meta"><tr><td>Supplier</td><td>${escapeHtml(po.supplier||'To be chosen by purchasing')}</td></tr>
+      <tr><td>Needed by</td><td>${po.needed_by?escapeHtml(fmtDate(po.needed_by)):'As soon as possible'}</td></tr>
+      <tr><td>Prepared by</td><td>${escapeHtml(personName(po.created_by))}</td></tr></table>
+    <table class="items"><thead><tr><th>#</th><th>Item</th><th>Category</th><th class="n">Qty</th><th>Unit</th><th class="n">Unit cost</th><th class="n">Amount</th></tr></thead>
+      <tbody>${rows}${total?`<tr class="total"><td colspan="6" class="n">Estimated total</td><td class="n">${peso(total)}</td></tr>`:''}</tbody></table>
+    ${po.notes?`<div class="note"><strong>Notes:</strong> ${escapeHtml(po.notes)}</div>`:''}
+    <div class="sign"><div>Prepared by</div><div>Noted by (Clinic head)</div><div>Received by (Purchasing)</div></div>
+  </body></html>`;
+  const frame=document.createElement('iframe');
+  frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
+  frame.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.append(frame);
+  const doc=frame.contentDocument;doc.open();doc.write(html);doc.close();
+  setTimeout(()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),1000);},150);
 }
 
 export function initializeFeature(){}

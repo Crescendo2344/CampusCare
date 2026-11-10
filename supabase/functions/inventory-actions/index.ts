@@ -204,28 +204,6 @@ Deno.serve(async(req)=>{
       return json({ok:true,request:saved});
     }
 
-    // Purchase orders are approved or rejected by an administrator.
-    if(action==="approve_po"||action==="reject_po"){
-      if(actor.role!=="Administrator")return json({error:"Only an administrator approves purchase orders."},403);
-      const id=Number(body.po_id||0);
-      const reason=clean(body.reason,500);
-      if(action==="reject_po"&&reason.length<3)return json({error:"Give a reason for rejecting the order."},400);
-      const {data:po}=await admin.from("purchase_orders").select("*").eq("po_id",id).maybeSingle();
-      if(!po)return json({error:"Purchase order not found."},404);
-      if(po.status!=="Submitted")return json({error:`This order is already ${po.status.toLowerCase()}.`},409);
-      const patch:any={status:action==="approve_po"?"Approved":"Rejected",decided_by:actor.user_id,decided_at:new Date().toISOString()};
-      if(action==="reject_po")patch.reject_reason=reason;
-      const {data:saved,error}=await admin.from("purchase_orders").update(patch).eq("po_id",id).eq("status","Submitted").select("*").maybeSingle();
-      if(error)return json({error:error.message},400);
-      if(!saved)return json({error:"This order was just decided. Refresh to see it."},409);
-      await admin.from("audit_logs").insert({user_id:actor.user_id,action:action==="approve_po"?"PURCHASE_ORDER_APPROVED":"PURCHASE_ORDER_REJECTED",entity_type:"purchase_orders",entity_id:id,details:{po_no:po.po_no,reason:reason||null}});
-      await notifyUsers(admin,[po.created_by,...await roleUserIds(admin,"Staff")],
-        action==="approve_po"?"Purchase order approved":"Purchase order rejected",
-        action==="approve_po"?`${po.po_no} was approved. Record the delivery in Inventory when it arrives.`:`${po.po_no} was rejected: ${reason}`,
-        "inventory","purchase_orders",id);
-      return json({ok:true,purchase_order:saved});
-    }
-
     if(!canManage)return json({error:"Staff access required."},403);
 
     if(action==="release_request"||action==="decline_request"){
@@ -290,18 +268,35 @@ Deno.serve(async(req)=>{
       await admin.from("purchase_orders").update({po_no:poNo}).eq("po_id",po.po_id);
       const {error:lineErr}=await admin.from("purchase_order_items").insert(lines.map((l:any)=>({...l,po_id:po.po_id})));
       if(lineErr){await admin.from("purchase_orders").delete().eq("po_id",po.po_id);return json({error:lineErr.message},400);}
-      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"PURCHASE_ORDER_SUBMITTED",entity_type:"purchase_orders",entity_id:po.po_id,details:{po_no:poNo,lines:lines.length}});
-      await notifyUsers(admin,await roleUserIds(admin,"Administrator"),"Purchase order to approve",
-        `${poNo} (${lines.length} item${lines.length===1?"":"s"}) is waiting for your approval.`,"purchase-orders","purchase_orders",po.po_id);
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"PURCHASE_ORDER_PREPARED",entity_type:"purchase_orders",entity_id:po.po_id,details:{po_no:poNo,lines:lines.length}});
       return json({ok:true,purchase_order:{...po,po_no:poNo}});
+    }
+
+    // Staff hand the printed order to whoever buys, then mark it sent; or cancel an order no longer needed.
+    if(action==="send_po"||action==="cancel_po"){
+      const id=Number(body.po_id||0);
+      const reason=clean(body.reason,500);
+      const {data:po}=await admin.from("purchase_orders").select("*").eq("po_id",id).maybeSingle();
+      if(!po)return json({error:"Purchase order not found."},404);
+      const from=action==="send_po"?["Prepared"]:["Prepared","Sent"];
+      if(!from.includes(po.status))return json({error:`This order is already ${po.status.toLowerCase()}.`},409);
+      if(action==="cancel_po"&&reason.length<3)return json({error:"Give a reason for cancelling the order."},400);
+      const patch:any=action==="send_po"
+        ?{status:"Sent",sent_by:actor.user_id,sent_at:new Date().toISOString()}
+        :{status:"Cancelled",cancel_reason:reason,cancelled_at:new Date().toISOString()};
+      const {data:saved,error}=await admin.from("purchase_orders").update(patch).eq("po_id",id).in("status",from).select("*").maybeSingle();
+      if(error)return json({error:error.message},400);
+      if(!saved)return json({error:"This order just changed. Refresh to see it."},409);
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:action==="send_po"?"PURCHASE_ORDER_SENT":"PURCHASE_ORDER_CANCELLED",entity_type:"purchase_orders",entity_id:id,details:{po_no:po.po_no,reason:reason||null}});
+      return json({ok:true,purchase_order:saved});
     }
 
     if(action==="receive_po"){
       const id=Number(body.po_id||0);
       const {data:po}=await admin.from("purchase_orders").select("*").eq("po_id",id).maybeSingle();
       if(!po)return json({error:"Purchase order not found."},404);
-      if(po.status!=="Approved")return json({error:po.status==="Received"?"This order was already received.":"Only approved orders can be received."},409);
-      const {data:claimed}=await admin.from("purchase_orders").update({status:"Received",received_by:actor.user_id,received_at:new Date().toISOString()}).eq("po_id",id).eq("status","Approved").select("*").maybeSingle();
+      if(!["Prepared","Sent"].includes(po.status))return json({error:po.status==="Received"?"This order was already received.":"A cancelled order cannot be received."},409);
+      const {data:claimed}=await admin.from("purchase_orders").update({status:"Received",received_by:actor.user_id,received_at:new Date().toISOString()}).eq("po_id",id).eq("status",po.status).select("*").maybeSingle();
       if(!claimed)return json({error:"This order was just received. Refresh to see it."},409);
       const {data:lines}=await admin.from("purchase_order_items").select("item_id,quantity").eq("po_id",id);
       for(const l of lines||[])await applyTx(admin,actor.user_id,l.item_id,"Stock In",l.quantity,`Received on ${po.po_no}`);

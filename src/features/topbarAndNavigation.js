@@ -373,7 +373,7 @@ export function initializeFeature(){
   approvals:['approval','registration','pending account'],
   'cert-requests':['certificate','medical certificate','signature'],
   treatments:['treatment','diagnosis','medical notes'],
-  inventory:['stock','medicine','supplies','predictive inventory','stock forecast','reorder prediction'],
+  inventory:['stock','medicine','supplies','predictive inventory','stock forecast','reorder prediction','purchase order'],
   reports:['report','analytics','statistics','campus health intelligence','predictive health','health trends'],
   users:['user','account','management'],
   settings:['settings','configuration'],
@@ -385,8 +385,7 @@ export function initializeFeature(){
   'feedback-issues':['feedback','issues','support'],
   fitness:['fitness','fit to compete','sports clearance','athletics assessment'],
   'activity-log':['activity','audit','audit trail','logs'],
-  'medicine-requests':['medicine request','request medicine','dispense'],
-  'purchase-orders':['purchase order','po','order stock','approve order']
+  'medicine-requests':['medicine request','request medicine','dispense']
 };
   appState.topbarAndNavigation.topSearchIndex=-1;
   document.addEventListener('click',e=>{
@@ -406,7 +405,6 @@ export function initializeFeature(){
   treatments:'bi-activity',
   inventory:'bi-box-seam',
   'medicine-requests':'bi-capsule',
-  'purchase-orders':'bi-cart-check',
   reports:'bi-bar-chart-line',
   health_education:'bi-book',
   users:'bi-people',
@@ -472,7 +470,6 @@ export function initializeFeature(){
     {id:'approvals',label:'Approval Queue'},
     {id:'users',label:'User Management'},
     {section:'Oversight'},
-    {id:'purchase-orders',label:'Purchase Orders'},
     {id:'reports',label:'Reports &amp; Analytics'},
     {id:'survey-results',label:'Survey Results'},
     {id:'feedback-issues',label:'Feedback &amp; Issues'},
