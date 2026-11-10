@@ -5,7 +5,7 @@ import {closeAllModals,openModal,showFilePreview} from './modals.js';
 import {fmtTime,sanitizeInput,statusBadge} from './inputValidation.js';
 import {openCamera} from '../app/optional-features.js';
 import {changeAccountPassword,changeProfilePhoto,checkPasswordConfirmation,hideAccountPasswordChecklist,openNameChangeRequest,renderPasswordCooldownNotice,setPasswordFieldError,showAccountPasswordChecklist,updateAccountPasswordStrength} from './nameChangeRequests.js';
-import {saveAccount} from './workflowRequests.js';
+import {saveAccount,updateAccountSaveLabel} from './workflowRequests.js';
 import {openPrivacyNotice} from './loginLockout.js';
 import {openPrivacyRequestModal} from './privacy.js';
 import {openCookiePolicy,openTermsOfService} from './legalPages.js';
@@ -90,6 +90,7 @@ function setAccountEditing(editing,reset=false){
     }
     hideAlert(document.getElementById('acc-msg'));
   }
+  updateAccountSaveLabel();
   document.getElementById('acc-view-fields').hidden=editing;
   document.getElementById('acc-edit-fields').hidden=!editing;
   if(editing)document.getElementById('acc-email')?.focus();
@@ -150,7 +151,7 @@ export function renderMyAccount(){
           </div>
           <div id="acc-edit-fields" hidden>
             <div class="form-row">
-              <div class="form-group"><label>Email</label><input id="acc-email" value="${escapeHtml(u.email||'')}" type="email" autocomplete="email" ${bindAction('input',(event,element)=>{sanitizeInput(element,'email')})}></div>
+              <div class="form-group"><label>Email</label><input id="acc-email" value="${escapeHtml(u.email||'')}" type="email" autocomplete="email" aria-describedby="acc-email-hint" ${bindAction('input',(event,element)=>{sanitizeInput(element,'email');updateAccountSaveLabel();})}><p class="form-note acc-email-hint" id="acc-email-hint" hidden><i class="bi bi-shield-check" aria-hidden="true"></i> We'll send a 6-digit code to this address to confirm it's yours.</p></div>
               <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${escapeHtml(u.contact||'')}" autocomplete="tel" type="tel" inputmode="tel" maxlength="24" placeholder="09XXXXXXXXX or +639XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
               ${programEditFields(pt)}
             </div>
