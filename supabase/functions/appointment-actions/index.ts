@@ -48,7 +48,7 @@ Deno.serve(async(req)=>{
     if(userErr||!user)return json({error:"Invalid session."},401);
 
     const {data:actor}=await admin.from("users")
-      .select("user_id,role,status")
+      .select("user_id,role,status,clinic")
       .eq("auth_user_id",user.id).maybeSingle();
     if(!actor||actor.status!=="Active")return json({error:"Active CampusCare account required."},403);
 
@@ -63,8 +63,11 @@ Deno.serve(async(req)=>{
       const {data}=await admin.from("patients").select("patient_id").eq("user_id",actor.user_id).maybeSingle();
       return data?.patient_id||null;
     };
-    // Staff oversee every booking; administrators handle accounts only.
+    // Staff oversee the bookings of their own clinic only; administrators handle accounts.
     const canManageAll=actor.role==="Staff";
+    const staffClinic=actor.role==="Staff"?String(actor.clinic||""):"";
+    const ownsClinic=(clinic:string)=>canManageAll&&!!staffClinic&&clinic===staffClinic;
+    const otherClinic=()=>json({error:`This belongs to the other clinic. ${staffClinic||"Your clinic"} staff can only manage their own clinic.`},403);
     // The patient's account and what they should bring: a signed COR for students, an Employee ID for personnel.
     const patientAccount=async(patientId:number)=>{
       const {data:p}=await admin.from("patients").select("user_id").eq("patient_id",patientId).maybeSingle();
@@ -87,8 +90,9 @@ Deno.serve(async(req)=>{
       if(action!=="create"&&!existing)return json({error:"Appointment not found."},404);
       if(action!=="create"&&!OPEN.includes(existing.status))return json({error:"Only scheduled appointments can be moved."},409);
       const reappoint=action==="reappoint";
-      if(reappoint&&!(canManageAll||(actor.role==="Doctor"&&existing.doctor_id===actor.user_id)))
-        return json({error:"Only the doctor of this appointment or the front desk can propose a new time."},403);
+      if(reappoint&&!(ownsClinic(existing.clinic)||(actor.role==="Doctor"&&existing.doctor_id===actor.user_id)))
+        return canManageAll?otherClinic():json({error:"Only the doctor of this appointment or the front desk can propose a new time."},403);
+      if(canManageAll&&!reappoint&&existing&&!ownsClinic(existing.clinic))return otherClinic();
 
       let patientId=Number(body.patient_id||existing?.patient_id||0);
       if(reappoint){
@@ -104,7 +108,8 @@ Deno.serve(async(req)=>{
 
       // A doctor proposing a new time keeps the visit with themselves.
       const doctorId=reappoint&&actor.role==="Doctor"?existing.doctor_id:Number(body.doctor_id||existing?.doctor_id||0);
-      const clinic=String(body.clinic||existing?.clinic||"Medical Clinic");
+      const clinic=String(body.clinic||existing?.clinic||(canManageAll?staffClinic:"")||"Medical Clinic");
+      if(canManageAll&&!ownsClinic(clinic))return otherClinic();
       const serviceName=String(body.service||existing?.service||"").trim();
       const date=String(body.appointment_date||"");
       const time=time5(String(body.appointment_time||""));
@@ -366,8 +371,8 @@ Deno.serve(async(req)=>{
       if(!["Completed","No-show","Scheduled"].includes(status))return json({error:"Invalid appointment status."},400);
       const appt=await loadAppointment(id);
       if(!appt)return json({error:"Appointment not found."},404);
-      const allowed=canManageAll||(actor.role==="Doctor"&&appt.doctor_id===actor.user_id);
-      if(!allowed)return json({error:"You cannot update this appointment."},403);
+      const allowed=ownsClinic(appt.clinic)||(actor.role==="Doctor"&&appt.doctor_id===actor.user_id);
+      if(!allowed)return canManageAll?otherClinic():json({error:"You cannot update this appointment."},403);
       // Outcomes apply to open bookings only. A visit can be completed from its day onward (patients may
       // arrive early); a no-show only once the appointment time has passed.
       if(status!=="Scheduled"){
@@ -388,6 +393,7 @@ Deno.serve(async(req)=>{
       const appt=await loadAppointment(id);
       if(!appt)return json({error:"Appointment not found."},404);
       if(!canManageAll)return json({error:"Only clinic staff can send appointment reminders."},403);
+      if(!ownsClinic(appt.clinic))return otherClinic();
       if(!OPEN.includes(appt.status)||hasStarted(appt))return json({error:"Reminders can only be sent for upcoming scheduled appointments."},409);
 
       const patientUser=await patientAccount(appt.patient_id);
@@ -442,6 +448,9 @@ Deno.serve(async(req)=>{
       const date=String(body.date||"");
       const slots=Array.isArray(body.slots)?body.slots:[];
       if(!doctorId||!date)return json({error:"Doctor and date are required."},400);
+      const {data:slotDoctor}=await admin.from("users").select("role,specialty").eq("user_id",doctorId).maybeSingle();
+      if(!slotDoctor||slotDoctor.role!=="Doctor")return json({error:"Doctor not found."},404);
+      if(!ownsClinic(clinicForSpecialization(slotDoctor.specialty||"General Medicine")))return otherClinic();
 
       await admin.from("appointment_slot_overrides").delete().eq("doctor_id",doctorId).eq("override_date",date);
       if(slots.length){

@@ -1,4 +1,5 @@
 // bookingForm: imported feature APIs; state belongs to explicit application namespaces.
+import {CLINICS,staffClinicOf} from '../domain/clinic-scope.js';
 import {queueLabel} from './reappointment.js';
 import {CLINIC_SERVICES,doctorRendersService} from '../../supabase/functions/_shared/clinic-services.js';
 import {state as appState} from '../app/state.js';
@@ -84,6 +85,7 @@ export function openBookApptModal(apptId=null){
   appState.bookingForm.activeBookingEditId=apptId?Number(apptId):null;
   const editing=apptId?appointmentRecords().find(a=>a.id===Number(apptId)):null;
   const isPt=appState.auth.currentUser.role==='Patient';
+  const staffClinic=staffClinicOf(appState.auth.currentUser);
   const pt=isPt?appState.auth.currentPatient:null;
   const selectedDate=editing?editing.date:'';
 
@@ -113,9 +115,8 @@ export function openBookApptModal(apptId=null){
 
       <div class="form-row">
         <div class="form-group"><label>Clinic <span class="required">*</span></label>
-          <select id="b-clinic" ${bindAction('change',(event,element)=>{onClinicChange()})}>
-            <option value="Medical Clinic" ${editing&&editing.clinic==='Medical Clinic'?'selected':''}>Medical Clinic</option>
-            <option value="Dental Clinic" ${editing&&editing.clinic==='Dental Clinic'?'selected':''}>Dental Clinic</option>
+          <select id="b-clinic" ${staffClinic?'disabled title="You book for your own clinic only"':''} ${bindAction('change',(event,element)=>{onClinicChange()})}>
+            ${CLINICS.filter(c=>!staffClinic||c===staffClinic).map(c=>`<option value="${c}" ${(editing?editing.clinic===c:staffClinic===c)?'selected':''}>${c}</option>`).join('')}
           </select>
         </div>
         <div class="form-group"><label>Service <span class="required">*</span></label>

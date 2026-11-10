@@ -1,4 +1,5 @@
 // topbarAndNavigation: imported feature APIs; state belongs to explicit application namespaces.
+import {pagesHiddenFor} from '../domain/clinic-scope.js';
 import {state as appState} from '../app/state.js';
 import {escapeHtml,issueReportRecords} from './issueReports.js';
 import {navTo} from './navigationRaceProtection.js';
@@ -27,8 +28,9 @@ export function updateTopDate(){
 
 export function getTopSearchItems(){
   if(!appState.auth.currentUser)return[];
+  const hidden=pagesHiddenFor(appState.auth.currentUser);
   return (appState.topbarAndNavigation.NAV_CONFIG[appState.auth.currentUser.role]||[])
-    .filter(x=>x.id)
+    .filter(x=>x.id&&!hidden.includes(x.id))
     .map(x=>({
       id:x.id,
       label:String(x.label||x.id).replace(/&amp;/g,'&'),
@@ -213,7 +215,7 @@ export function applyNavBadges(){
   const updates=navNotificationCounts();
 
   for(const item of (appState.topbarAndNavigation.NAV_CONFIG[appState.auth.currentUser.role]||[])){
-    if(!item.id)continue;
+    if(!item.id||pagesHiddenFor(appState.auth.currentUser).includes(item.id))continue;
     const btn=document.getElementById(`nav-${item.id}`);
     if(!btn)continue;
 
@@ -327,7 +329,8 @@ export function startTaskBadgeRefresh(){
 
 export function buildNav(){
   const nav=document.getElementById('sidebar-nav');
-  const source=appState.topbarAndNavigation.NAV_CONFIG[appState.auth.currentUser.role]||[];
+  const hiddenPages=pagesHiddenFor(appState.auth.currentUser);
+  const source=(appState.topbarAndNavigation.NAV_CONFIG[appState.auth.currentUser.role]||[]).filter(item=>!item.id||!hiddenPages.includes(item.id));
   const items=[];
 
   for(let i=0;i<source.length;i++){

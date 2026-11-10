@@ -16,5 +16,11 @@ export function buildUserEditPatch(body,target){
     if(!services.length)return {error:'Tick at least one service the doctor renders.'};
     if(services.join('|')!==(target.services_rendered||[]).join('|'))patch.services_rendered=services;
   }
+  if(body.clinic!==undefined){
+    if(target.role!=='Staff')return {error:'Only staff accounts are assigned to a clinic. A doctor\'s clinic follows the specialization.'};
+    const value=String(body.clinic).trim();
+    if(!['Medical Clinic','Dental Clinic'].includes(value))return {error:'Choose Medical Clinic or Dental Clinic.'};
+    if(value!==target.clinic)patch.clinic=value;
+  }
   return {patch};
 }

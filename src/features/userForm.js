@@ -20,7 +20,7 @@ const ROLE_CHOICES=[
 ];
 // Administrator accounts are not created here: an administrator only adds doctors and staff.
 const specialties=()=>Object.keys(SPECIALIZATIONS);
-const AU_SERVER_FIELDS={first_name:'au-fname',last_name:'au-lname',username:'au-user',email:'au-email',contact_number:'au-contact',id_number:'au-empno',services_rendered:'au-services'};
+const AU_SERVER_FIELDS={clinic:'au-clinic',first_name:'au-fname',last_name:'au-lname',username:'au-user',email:'au-email',contact_number:'au-contact',id_number:'au-empno',services_rendered:'au-services'};
 
 function addUserState(){return appState.userManagement.addUser??={};}
 
@@ -42,6 +42,9 @@ export function openAddUserModal(){
       <div id="au-form">
         <section class="au-section"><h4><span class="au-step">1</span> Role</h4>
           <div class="au-roles" role="radiogroup" aria-label="Role">${ROLE_CHOICES.map(([role,icon,text])=>`<label class="au-role"><input type="radio" name="au-role" value="${role}" ${role===st.role?'checked':''} ${bindAction('change',()=>setAddUserRole(role))}><span class="au-role-card"><i class="bi ${icon}" aria-hidden="true"></i><strong>${role}</strong><small>${text}</small></span></label>`).join('')}</div>
+          <div id="au-staff" class="au-doctor" hidden>
+            <div class="form-row">${field('au-clinic','Clinic',`<select id="au-clinic"><option value="">Choose a clinic</option><option>Medical Clinic</option><option>Dental Clinic</option></select>`,{hint:'Staff see and manage only this clinic\'s appointments, inventory and records.'})}</div>
+          </div>
           <div id="au-doctor" class="au-doctor">
             <div class="form-row">${field('au-spec','Specialization',`<select id="au-spec" ${bindAction('change',()=>renderServicesRendered())}>${specialties().map(x=>`<option>${x}</option>`).join('')}</select>`,{hint:'Field of expertise.'})}</div>
             <fieldset class="au-services" id="au-services" aria-describedby="au-services-error"><legend>Services rendered <span class="required">*</span></legend><div id="au-services-list"></div><p class="registration-field-error" id="au-services-error" aria-live="polite" hidden></p></fieldset>
@@ -86,6 +89,8 @@ function setAddUserRole(role){
   addUserState().role=role;
   const doctor=document.getElementById('au-doctor');
   if(doctor)doctor.hidden=role!=='Doctor';
+  const staff=document.getElementById('au-staff');
+  if(staff)staff.hidden=role!=='Staff';
 }
 
 
@@ -96,7 +101,7 @@ function setAddUserRole(role){
 function newUserValues(){
   const st=addUserState(),val=id=>document.getElementById(id)?.value||'';
   const services=[...document.querySelectorAll('#au-services-list input:checked')].map(i=>i.value);
-  return {role:st.role,specialty:st.role==='Doctor'?val('au-spec'):null,services_rendered:st.role==='Doctor'?services:[],
+  return {role:st.role,specialty:st.role==='Doctor'?val('au-spec'):null,services_rendered:st.role==='Doctor'?services:[],clinic:st.role==='Staff'?val('au-clinic'):null,
     first_name:val('au-fname').trim(),last_name:val('au-lname').trim(),id_number:val('au-empno').trim(),
     username:val('au-user').trim(),email:val('au-email').trim().toLowerCase(),contact_number:normalizePhilippineMobile(val('au-contact'))||val('au-contact').trim()};
 }
@@ -108,13 +113,14 @@ export function reviewNewUser(){
   const v=newUserValues();
   if(!/^\d{5}$/.test(v.id_number)){setRegistrationFieldError('au-empno','Enter the 5-digit employee number.',true);invalid.push('au-empno');}
   if(v.role==='Doctor'&&!v.services_rendered.length){setRegistrationFieldError('au-services','Tick at least one service.',true);invalid.push('au-services');}
+  if(v.role==='Staff'&&!v.clinic){setRegistrationFieldError('au-clinic','Choose the clinic this staff member works in.',true);invalid.unshift('au-clinic');}
   if(invalid.length){document.getElementById(invalid[0])?.focus();return;}
   const row=(label,value)=>`<div class="info-row"><span class="info-label">${label}</span><span class="info-val">${value}</span></div>`;
   document.getElementById('au-form').hidden=true;
   const review=document.getElementById('au-review');review.hidden=false;
   review.innerHTML=`<h4 class="au-review-title">Check the new account</h4>
     ${row('Name',escapeHtml(v.first_name+' '+v.last_name))}
-    ${row('Role',escapeHtml(v.role)+(v.specialty?' · '+escapeHtml(v.specialty):''))}
+    ${row('Role',escapeHtml(v.role)+(v.specialty?' · '+escapeHtml(v.specialty):'')+(v.clinic?' · '+escapeHtml(v.clinic):''))}
     ${v.role==='Doctor'?row('Services rendered',escapeHtml(v.services_rendered.join(', '))):''}
     ${row('Employee No.',escapeHtml(v.id_number))}
     ${row('Username','@'+escapeHtml(v.username))}${row('Email',escapeHtml(v.email))}
@@ -176,11 +182,11 @@ async function openCreatedDoctorSchedule(){
 // Editing an account is two deliberate steps, as in admin consoles such as Google Workspace and Okta:
 // edit the details (changed fields are marked), then review every change with a reason and confirm by
 // typing the account's username before anything is saved.
-const EDIT_LABELS={first_name:'First name',last_name:'Last name',email:'Email',contact_number:'Mobile number',specialty:'Specialization',services_rendered:'Services rendered'};
+const EDIT_LABELS={first_name:'First name',last_name:'Last name',email:'Email',contact_number:'Mobile number',specialty:'Specialization',services_rendered:'Services rendered',clinic:'Clinic'};
 function editState(){return appState.userManagement.editUser??={};}
 function editOriginal(u){return {...u,first_name:u.fname,last_name:u.lname,contact_number:u.contact||'',services_rendered:u.servicesRendered||[]};}
 function editInputs(u){
-  return {first_name:document.getElementById('eu-fname').value,last_name:document.getElementById('eu-lname').value,email:document.getElementById('eu-email').value,contact_number:document.getElementById('eu-contact').value,...(u.role==='Doctor'?{specialty:document.getElementById('eu-spec').value,services_rendered:[...document.querySelectorAll('#eu-services input:checked')].map(i=>i.value)}:{})};
+  return {first_name:document.getElementById('eu-fname').value,last_name:document.getElementById('eu-lname').value,email:document.getElementById('eu-email').value,contact_number:document.getElementById('eu-contact').value,...(u.role==='Doctor'?{specialty:document.getElementById('eu-spec').value,services_rendered:[...document.querySelectorAll('#eu-services input:checked')].map(i=>i.value)}:{}),...(u.role==='Staff'?{clinic:document.getElementById('eu-clinic').value}:{})};
 }
 // A doctor's services come from their clinic's list; an empty saved list means every service.
 function editServicesHtml(specialization,current=[]){
@@ -214,6 +220,7 @@ export function openEditUserModal(id){
           ${field('eu-email','email','Email',`<input id="eu-email" type="email" maxlength="150" autocomplete="off" value="${escapeHtml(u.email)}">`)}
           ${field('eu-contact','contact_number','Mobile number',`<input id="eu-contact" type="tel" placeholder="09XXXXXXXXX" autocomplete="off" value="${escapeHtml(u.contact||'')}">`)}
         </div></section>
+        ${u.role==='Staff'?`<section class="eu-section"><h4>Clinic</h4><div class="form-row">${field('eu-clinic','clinic','Clinic',`<select id="eu-clinic">${['Medical Clinic','Dental Clinic'].map(value=>`<option ${u.clinic===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div></section>`:''}
         ${u.role==='Doctor'?`<section class="eu-section"><h4>Professional</h4><div class="form-row">${field('eu-spec','specialty','Specialization',`<select id="eu-spec" ${bindAction('change',()=>renderEditServices(u))}>${specialties().map(value=>`<option ${u.specialty===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div>
           <fieldset class="au-services"><legend>Services rendered</legend><div id="eu-services">${editServicesHtml(u.specialty,u.servicesRendered)}</div></fieldset></section>`:''}
         <dl class="eu-locked"><div><dt>Username</dt><dd>@${escapeHtml(u.username||'—')}</dd></div><div><dt>Role</dt><dd>${escapeHtml(u.role)}</dd></div><div><dt>Account status</dt><dd>${escapeHtml(u.status)}</dd></div></dl>
@@ -280,7 +287,7 @@ export async function saveEditUser(id){
       const result=await adminUserAction({action:'update',user_id:u.dbUserId,...patch,confirmed:true,reason,notify});
       const saved=result.user;
       if(!saved)throw new Error('The update could not be verified. Reload the account before retrying.');
-      Object.assign(u,{fname:saved.first_name,lname:saved.last_name,email:saved.email,contact:saved.contact_number||'',contactNo:saved.contact_number||'',specialty:saved.specialty||'',servicesRendered:saved.services_rendered||u.servicesRendered||[]});
+      Object.assign(u,{fname:saved.first_name,lname:saved.last_name,email:saved.email,contact:saved.contact_number||'',contactNo:saved.contact_number||'',specialty:saved.specialty||'',servicesRendered:saved.services_rendered||u.servicesRendered||[],clinic:saved.clinic??u.clinic});
       if(modal.isConnected)closeAllModals();toast(`${saved.first_name} ${saved.last_name}'s account updated.`,'success');
       if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
     }catch(error){if(modal.isConnected)showAlert(msg,error?.message||'Unable to update user.');else toast(error?.message||'Unable to update user.','error');}

@@ -1,5 +1,6 @@
 import {createFeatureSyncService} from '../services/feature-sync.js';
 // navigationRaceProtection: imported feature APIs; state belongs to explicit application namespaces.
+import {pagesHiddenFor} from '../domain/clinic-scope.js';
 import {state as appState} from '../app/state.js';
 import {acknowledgeNavAttention,toggleSidebar} from './topbarAndNavigation.js';
 import {renderPage,showDatabaseSkeleton} from './loadingSkeletons.js';
@@ -61,7 +62,8 @@ export function navTo(id,{historyMode='push'}={}){
   if(!appState.auth.currentUser)return;
   if(RETIRED_PAGES.has(id))id='dashboard';
   // Each role opens only the pages in its own menu (admin: accounts; staff: front desk; doctor: clinical).
-  const allowed=(appState.topbarAndNavigation.NAV_CONFIG?.[appState.auth.currentUser.role]||[]).map(item=>item.id).filter(Boolean);
+  const hiddenPages=pagesHiddenFor(appState.auth.currentUser);
+  const allowed=(appState.topbarAndNavigation.NAV_CONFIG?.[appState.auth.currentUser.role]||[]).map(item=>item.id).filter(id=>id&&!hiddenPages.includes(id));
   if(allowed.length&&!allowed.includes(id))id='dashboard';
   recordPageHistory(id,historyMode);
   if(window.innerWidth<=768) toggleSidebar(false);

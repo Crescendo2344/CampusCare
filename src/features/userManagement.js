@@ -128,6 +128,7 @@ export async function openUserDetails(id){
                 ${userDetailField('Verification Document',documentTitle)}
                 ${userDetailField('Account Created',formatLastLogin(d.auth_created_at||d.created_at))}
                 ${userDetailField('Last Login',formatLastLogin(d.last_sign_in_at||d.last_login_at))}
+                ${d.role==='Staff'?userDetailField('Clinic',d.clinic||'Not set'):''}
                 ${d.role==='Doctor'?userDetailField('Specialization',d.specialty)+userDetailField('Services rendered',(d.services_rendered||[]).join(', '),true):''}
                 ${d.role==='Doctor'?userDetailField('Work Schedule',roleSchedule,true):''}
               </div>
@@ -391,7 +392,7 @@ export function renderUserTable(){
     pageUsers.map(u=>`<tr class="user-detail-row-click ${u.archived?'archived':''}" ${bindAction('click',()=>openUserDetails(u.id))} title="Open complete user information">
       <td data-label="User"><div class="pt-identity">${userAvatarHtml(u,32)}<div><strong>${escapeHtml(u.lname)}, ${escapeHtml(u.fname)}</strong>${u.id===appState.auth.currentUser.id?' <span class="badge badge-info">You</span>':''}<div class="text-muted">@${escapeHtml(u.username||'—')} · ${escapeHtml(u.email||'')}</div>${u.idNo?`<div class="text-muted">ID ${escapeHtml(u.idNo)}</div>`:''}</div></div></td>
       <td data-label="Role"><span class="badge badge-info">${escapeHtml(u.role)}</span></td>
-      <td data-label="Type / Dept.">${escapeHtml(u.personType||u.specialty||u.department||'—')}${u.college?`<div class="text-muted">${escapeHtml(u.college)}</div>`:''}</td>
+      <td data-label="Type / Dept.">${escapeHtml(u.role==='Staff'?(u.clinic||'No clinic set'):(u.personType||u.specialty||u.department||'—'))}${u.college?`<div class="text-muted">${escapeHtml(u.college)}</div>`:''}</td>
       <td data-label="Last login" class="text-muted">${u.lastLogin?formatLastLogin(u.lastLogin):'Never'}</td>
       <td data-label="Status">${u.archived?'<span class="badge badge-gray">Archived</span>':statusBadge(u.status)}</td>
       <td data-label="Actions"><div class="td-actions" ${bindAction('click',(event)=>event.stopPropagation())}>

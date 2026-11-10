@@ -66,7 +66,7 @@ try{
   },mobile);
   // OCR is isolated from third-party networks; live framing still analyzes real camera pixels.
   await page.addInitScript(()=>{window.Tesseract={recognize:async()=>({data:{confidence:25,text:'Unclear printed document'}})};});
-  const profile={user_id:1,auth_user_id:authId,first_name:'Fixture',last_name:role,username:'fixture',email:'fixture@example.test',role,status:'Active',verified:true,person_type:'Staff',work_days:['Mon','Tue','Wed','Thu','Fri'],start_time:'08:00',end_time:'17:00',slot_duration:60,max_patients:20,specialty:'General Medicine'};
+  const profile={user_id:1,auth_user_id:authId,first_name:'Fixture',last_name:role,username:'fixture',email:'fixture@example.test',role,status:'Active',verified:true,clinic:role==='Staff'?'Medical Clinic':null,person_type:'Staff',work_days:['Mon','Tue','Wed','Thu','Fri'],start_time:'08:00',end_time:'17:00',slot_duration:60,max_patients:20,specialty:'General Medicine'};
   const doctor={...profile,user_id:2,auth_user_id:'00000000-0000-4000-8000-000000000002',role:'Doctor',first_name:'Fixture',last_name:'Doctor'};
   const managedUsers=[profile,doctor];
   const patient={patient_id:4,user_id:1,birth_date:'2000-01-01',college:'CCICT',person_type:'Student',archived:false};
@@ -667,6 +667,9 @@ try{
       await page.waitForFunction(()=>![...document.querySelectorAll('#toast-wrap .toast')].some(t=>/signed COR/.test(t.textContent)&&!t.classList.contains('leaving')));
     }
     if(role==='Staff'){
+      // Medical Clinic staff: their clinic is shown, the dental survey results are not theirs, and bookings stay in their clinic.
+      assert.equal((await page.locator('#sb-role-badge').innerText()).trim(),'Medical Staff');
+      assert.equal(await page.locator('#nav-survey-results').count(),0,'Survey Results belongs to the Dental Clinic');
       // Time slots are managed from the Appointments page: pick a doctor and a day, toggle times, save.
       await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('appointments'));
       page.__wideAvailability=true;
@@ -850,6 +853,8 @@ try{
     await page.getByRole('button',{name:'Review account'}).click();
     assert(await page.locator('#au-fname-error').isVisible());assert(await page.locator('#au-email-error').isVisible());
     assert(await page.locator('#au-empno-error').isVisible(),'The employee number is required');
+    assert(await page.locator('#au-clinic-error').isVisible(),'Staff must be assigned to a clinic');
+    await page.locator('#au-clinic').selectOption('Dental Clinic');
     await page.locator('#au-fname').fill('Ma. Clara');await page.locator('#au-lname').fill('Dela Cruz');
     await page.locator('#au-empno').fill('1a4');
     assert.equal(await page.locator('#au-empno').inputValue(),'14','Digits only');
@@ -872,6 +877,7 @@ try{
     const created=requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='create').at(-1);
     assert.equal(created.body.role,'Staff');assert.equal(created.body.contact_number,'09171234567');
     assert.equal(created.body.id_number,'14982');assert.equal(created.body.specialty,null);
+    assert.equal(created.body.clinic,'Dental Clinic','The staff member is assigned to the chosen clinic');
     assert.equal(created.body.password,undefined,'No password leaves the browser');
     assert.doesNotMatch(await page.locator('.au-done').innerText(),/password:/i);
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.au-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/add-user-done-${mobile?'mobile':'desktop'}.png`});

@@ -27,7 +27,7 @@ Deno.serve(async(req)=>{
     if(userErr||!user)return json({error:"Invalid session."},401);
 
     const {data:actor,error:actorErr}=await admin.from("users")
-      .select("user_id,first_name,last_name,role,status")
+      .select("user_id,first_name,last_name,role,status,clinic")
       .eq("auth_user_id",user.id)
       .maybeSingle();
 
@@ -50,20 +50,22 @@ Deno.serve(async(req)=>{
     };
 
     if(["Administrator","Staff"].includes(actor.role)){
+      // Staff counts cover their own clinic only; administrators see every clinic.
+      const ownClinic=(query:any)=>actor.role==="Staff"?query.eq("clinic",actor.clinic||"none"):query;
       const [approvalRes,inventoryRes,appointmentRes]=await Promise.all([
         admin.from("users")
           .select("user_id,created_at")
           .eq("role","Patient").eq("status","Pending")
           .order("created_at",{ascending:true}),
-        admin.from("inventory_items")
+        ownClinic(admin.from("inventory_items")
           .select("item_id,item_name,quantity,threshold,updated_at")
-          .eq("archived",false)
+          .eq("archived",false))
           .order("updated_at",{ascending:true}),
         // Past appointments still marked Scheduled have no recorded outcome yet.
-        admin.from("appointments")
+        ownClinic(admin.from("appointments")
           .select("appointment_id,appointment_date")
           .in("status",["Scheduled","Confirmed"])
-          .lt("appointment_date",today)
+          .lt("appointment_date",today))
           .order("appointment_date",{ascending:true})
       ]);
       if(approvalRes.error)throw approvalRes.error;
