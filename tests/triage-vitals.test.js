@@ -34,6 +34,8 @@ test('only staff record triage vitals, only before the visit is completed',()=>{
   const src=fs.readFileSync('supabase/functions/appointment-actions/index.ts','utf8');
   const block=src.slice(src.indexOf('if(action==="vitals")'),src.indexOf('if(action==="manage_slots")'));
   assert.match(block,/if\(!canManageAll\)return json/);
+  assert.match(block,/if\(!ownsClinic\(appt\.clinic\)\)return otherClinic\(\)/,'Staff record vitals for their own clinic only');
+  assert.match(fs.readFileSync('supabase/migrations/20261110150000_triage_vitals_clinic_scope.sql','utf8'),/a\.clinic::text=\(select private\.current_clinic\(\)\)/,'Staff read their own clinic\'s vitals only');
   assert.match(block,/!OPEN\.includes\(appt\.status\)/);
   assert.match(block,/appointment_date>manilaNow\(\)\.date/);
   assert.match(block,/triageVitalErrors/);

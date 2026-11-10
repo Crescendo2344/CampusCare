@@ -468,9 +468,12 @@ Deno.serve(async(req)=>{
       if(!EMERGENCY_REASONS.includes(reasonChoice))return json({error:"Choose the reason for the emergency."},400);
 
       const {data:doctor}=await admin.from("users")
-        .select("user_id,role,status,first_name,last_name,work_days,start_time,end_time,slot_duration,max_patients")
+        .select("user_id,role,status,first_name,last_name,specialty,work_days,start_time,end_time,slot_duration,max_patients")
         .eq("user_id",doctorId).maybeSingle();
       if(!doctor||doctor.role!=="Doctor"||doctor.status!=="Active")return json({error:"Doctor not found."},404);
+      // Staff act only for the doctors of their own clinic.
+      const doctorClinic=clinicForSpecialization(doctor.specialty||"General Medicine");
+      if(canManageAll&&!ownsClinic(doctorClinic))return otherClinic();
 
       // The same calendar the booking screen uses, so proposals land only on genuinely open slots.
       const to=emergencySearchEnd(date);
@@ -559,8 +562,12 @@ Deno.serve(async(req)=>{
       const summary=`${who} declared an emergency for ${prettyDate(date)} (${reasonChoice}${note?": "+note:""}). `+
         `${moved.length} appointment${moved.length===1?" was":"s were"} returned for reappointment and the rest of the day is closed to bookings.`+
         (unplaced.length?` ${unplaced.length} could not be placed in the next 60 days and still need a new time from the front desk.`:"");
-      const {data:team}=await admin.from("users").select("user_id").in("role",["Staff","Administrator"]).eq("status","Active");
-      const recipients=new Set<number>((team||[]).map((u:any)=>u.user_id));
+      // Staff of the doctor's clinic and the administrators.
+      const [{data:clinicStaff},{data:admins}]=await Promise.all([
+        admin.from("users").select("user_id").eq("role","Staff").eq("clinic",doctorClinic).eq("status","Active"),
+        admin.from("users").select("user_id").eq("role","Administrator").eq("status","Active")
+      ]);
+      const recipients=new Set<number>([...(clinicStaff||[]),...(admins||[])].map((u:any)=>u.user_id));
       if(actor.role!=="Doctor")recipients.add(doctorId);
       recipients.delete(actor.user_id);
       if(recipients.size)await admin.from("notifications").insert([...recipients].map(user_id=>({
@@ -587,6 +594,7 @@ Deno.serve(async(req)=>{
       const id=Number(body.appointment_id||0);
       const appt=await loadAppointment(id);
       if(!appt)return json({error:"Appointment not found."},404);
+      if(!ownsClinic(appt.clinic))return otherClinic();
       if(!OPEN.includes(appt.status))return json({error:"Vital signs can only be changed before the visit is completed."},409);
       if(appt.appointment_date>manilaNow().date)return json({error:"Vital signs are taken on the day of the visit."},409);
       const errors=triageVitalErrors(body.vitals||{});
