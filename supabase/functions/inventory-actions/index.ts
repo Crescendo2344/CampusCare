@@ -17,8 +17,12 @@ const UNDO_WINDOW_MS=15*60*1000;
 
 async function notifyLowStock(admin:any,item:any){
   if(Number(item.quantity)>Number(item.threshold))return;
+  // Only the staff of the item's own clinic are told.
+  let clinic=item.clinic;
+  if(!clinic){const {data}=await admin.from("inventory_items").select("clinic").eq("item_id",item.item_id).maybeSingle();clinic=data?.clinic;}
+  if(!clinic)return;
   const {data:recipients}=await admin.from("users")
-    .select("user_id").eq("role","Staff").eq("status","Active");
+    .select("user_id").eq("role","Staff").eq("status","Active").eq("clinic",clinic);
 
   const rows=(recipients||[]).map((u:any)=>({
     user_id:u.user_id,
@@ -141,7 +145,7 @@ Deno.serve(async(req)=>{
     if(userErr||!user)return json({error:"Invalid session."},401);
 
     const {data:actor,error:actorErr}=await admin.from("users")
-      .select("user_id,role,status")
+      .select("user_id,role,status,clinic")
       .eq("auth_user_id",user.id).maybeSingle();
 
     if(actorErr||!actor||actor.status!=="Active")
@@ -160,6 +164,21 @@ Deno.serve(async(req)=>{
 
     if(!canManage)return json({error:"Staff access required."},403);
 
+    // Each clinic runs its own stock: staff act only on their clinic's items and orders.
+    const staffClinic=String(actor.clinic||"");
+    if(!staffClinic)return json({error:"Your account is not assigned to a clinic yet. Ask the administrator to set it."},403);
+    const otherClinic=()=>json({error:`This belongs to the other clinic. ${staffClinic} staff can only manage their own clinic's inventory.`},403);
+    if(["update","set_quantity","disburse","stock_in","expired","archive","restore"].includes(action)){
+      const {data:owned}=await admin.from("inventory_items").select("clinic").eq("item_id",Number(body.item_id||0)).maybeSingle();
+      if(!owned)return json({error:"Inventory item not found."},404);
+      if(owned.clinic!==staffClinic)return otherClinic();
+    }
+    if(["send_po","cancel_po","receive_po"].includes(action)){
+      const {data:ownedPo}=await admin.from("purchase_orders").select("clinic").eq("po_id",Number(body.po_id||0)).maybeSingle();
+      if(!ownedPo)return json({error:"Purchase order not found."},404);
+      if(ownedPo.clinic!==staffClinic)return otherClinic();
+    }
+
     if(action==="create_po"){
       const lines=(Array.isArray(body.items)?body.items:[]).map((l:any)=>({
         item_id:Number(l?.item_id||0),quantity:Number(l?.quantity)
@@ -172,12 +191,13 @@ Deno.serve(async(req)=>{
         if(ids.has(l.item_id))return json({error:"Each medicine can appear once per order."},400);
         ids.add(l.item_id);
       }
-      const {data:items}=await admin.from("inventory_items").select("item_id,archived").in("item_id",[...ids]);
+      const {data:items}=await admin.from("inventory_items").select("item_id,archived,clinic").in("item_id",[...ids]);
+      if((items||[]).some((i:any)=>i.clinic!==staffClinic))return otherClinic();
       if((items||[]).filter((i:any)=>!i.archived).length!==ids.size)return json({error:"An item on the order is not in the stock list."},400);
       const neededBy=body.needed_by?String(body.needed_by).slice(0,10):null;
       if(neededBy&&!/^\d{4}-\d{2}-\d{2}$/.test(neededBy))return json({error:"Needed-by date is not valid."},400);
       const {data:po,error}=await admin.from("purchase_orders").insert({
-        supplier:clean(body.supplier,255)||null,notes:clean(body.notes,800)||null,needed_by:neededBy,created_by:actor.user_id
+        supplier:clean(body.supplier,255)||null,notes:clean(body.notes,800)||null,needed_by:neededBy,created_by:actor.user_id,clinic:staffClinic
       }).select("*").single();
       if(error)return json({error:error.message},400);
       const year=new Date().getUTCFullYear();
@@ -255,7 +275,7 @@ Deno.serve(async(req)=>{
           item_name:itemName,category,quantity,threshold,unit,
           expiry_date:expiryDate,supplier:supplier||null,
           target_disbursement_date:targetDate,photo_data:photoData||null,
-          archived:false
+          archived:false,clinic:staffClinic
         }).select("*").single();
         if(error)throw error;
         saved=data;
@@ -414,6 +434,7 @@ Deno.serve(async(req)=>{
 
       const {data:item}=await admin.from("inventory_items").select("*").eq("item_id",tx.item_id).maybeSingle();
       if(!item)return json({error:"Inventory item not found."},404);
+      if(item.clinic!==staffClinic)return otherClinic();
       if(item.archived)return json({error:"Restore this item before undoing its stock changes."},409);
 
       let delta=0;

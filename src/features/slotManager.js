@@ -1,4 +1,5 @@
 // slotManager: open or close a doctor's bookable times for any date, from its own screen.
+import {staffClinicOf,userClinic} from '../domain/clinic-scope.js';
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {closeAllModals,openModal} from './modals.js';
@@ -21,7 +22,8 @@ export function canManageSlots(){return ['Staff','Administrator'].includes(appSt
 
 export function openSlotManager(doctorId=null){
   if(!canManageSlots())return;
-  const doctors=getDoctors();
+  const ownClinic=staffClinicOf(appState.auth.currentUser);
+  const doctors=getDoctors().filter(d=>!ownClinic||userClinic(d)===ownClinic);
   Object.assign(st(),{doctorId:null,days:[],date:'',draft:null,batch:null,request:(st().request||0)+1});
   openModal(`<div class="modal modal-lg slot-manager-modal" role="dialog" aria-labelledby="sm-title">
     <div class="modal-header"><h3 id="sm-title">Manage time slots</h3><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>

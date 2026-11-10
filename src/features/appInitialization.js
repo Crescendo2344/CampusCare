@@ -1,4 +1,5 @@
 // appInitialization: imported feature APIs; state belongs to explicit application namespaces.
+import {staffClinicOf} from '../domain/clinic-scope.js';
 import {state as appState} from '../app/state.js';
 import {applyDueScheduleChanges} from './workflowRequests.js';
 import {configureSessionGuard} from './sessionSecurity.js';
@@ -32,7 +33,8 @@ export function initApp(){
     }
   }
   const roleBadge=document.getElementById('sb-role-badge');
-  roleBadge.textContent=appState.auth.currentUser.role;
+  const ownClinic=staffClinicOf(appState.auth.currentUser);
+  roleBadge.textContent=ownClinic?`${ownClinic.replace(' Clinic','')} Staff`:appState.auth.currentUser.role;
   const rColors={Administrator:'badge-purple',Doctor:'badge-teal',Staff:'badge-warning',Patient:'badge-info'};
   roleBadge.className=`badge sb-role-badge ${rColors[appState.auth.currentUser.role]||'badge-gray'}`;
   updateTopDate();

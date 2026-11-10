@@ -31,6 +31,7 @@ export function registrationDetailsCard(u,pt){
     </div>`;
   }
   const fields=[userDetailField('Username',u.username?'@'+u.username:''),userDetailField(u.role==='Staff'?'Employee No.':'ID No.',u.idNo)];
+  if(u.role==='Staff')fields.push(userDetailField('Clinic',u.clinic||'Not set'));
   if(u.role==='Doctor'){
     fields.push(userDetailField('Specialization',u.specialty));
     fields.push(userDetailField('Services rendered',(u.servicesRendered||[]).join(', '),true));

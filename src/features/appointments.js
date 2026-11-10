@@ -1,4 +1,5 @@
 // appointments: imported feature APIs; state belongs to explicit application namespaces.
+import {staffClinicOf,userClinic} from '../domain/clinic-scope.js';
 import {state as appState} from '../app/state.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
@@ -45,7 +46,8 @@ export async function renderAppointments(){
   const role=appState.auth.currentUser.role;
   const ui=appState.appointments??={};
   ui.view=ui.view||'upcoming';ui.page=1;
-  const doctors=role==='Doctor'?[]:(appState.data.DB.users||[]).filter(u=>u.role==='Doctor'&&(!appState.auth.currentUser._realSupabase||u._realSupabase));
+  const ownClinic=staffClinicOf(appState.auth.currentUser);
+  const doctors=role==='Doctor'?[]:(appState.data.DB.users||[]).filter(u=>u.role==='Doctor'&&(!appState.auth.currentUser._realSupabase||u._realSupabase)&&(!ownClinic||userClinic(u)===ownClinic));
   c.innerHTML=`
     <div class="appt-head"><div class="appt-views" role="tablist" aria-label="Appointment lists" id="appt-views"></div>
       <div class="appt-head-actions">${canManageSlots()?`<button class="btn btn-sm" id="appt-manage-slots" ${bindAction('click',()=>openSlotManager())}><i class="bi bi-sliders" aria-hidden="true"></i> Manage time slots</button>`:''}
@@ -58,7 +60,7 @@ export async function renderAppointments(){
         <option>Scheduled</option><option>Completed</option><option>Cancelled</option><option>No-show</option>
       </select>
       <select id="appt-college" aria-label="College or department" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>${unitFilterOptionsHtml('')}</select>
-      ${appState.auth.currentUser.role==='Doctor'?'':`      <select id="appt-clinic" aria-label="Clinic" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>
+      ${appState.auth.currentUser.role==='Doctor'||ownClinic?'':`      <select id="appt-clinic" aria-label="Clinic" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>
         <option value="">All clinics</option>
         <option>Medical Clinic</option><option>Dental Clinic</option>
       </select>`}
