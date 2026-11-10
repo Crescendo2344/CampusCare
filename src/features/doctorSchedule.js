@@ -18,6 +18,9 @@ import {docName} from './displayNames.js';
 import {persistDB} from './persistence.js';
 import {openWorkflowRequestReview,renderUsers} from './userManagement.js';
 import {bindAction} from '../dependencies.js';
+import {closeAllModals,openModal} from './modals.js';
+import {appointmentAction} from './appointmentService.js';
+import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {paginate,pagerHtml} from '../ui/pager.js';
 import {patientAvatarHtml} from './patientManagement.js';
 import {triageVitalsChipHtml} from './triageVitals.js';
@@ -63,7 +66,10 @@ export async function renderDoctorSchedule(){
   const upcoming=myAppts.filter(a=>a.date>=appState.clinicInformation.TODAY).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
   const today=myAppts.filter(a=>a.date===appState.clinicInformation.TODAY);
   appState.doctorSchedule.upcoming=upcoming;
+  const requests=myAppts.filter(a=>a.rescheduleRequest&&['Scheduled','Confirmed'].includes(a.status))
+    .sort((a,b)=>String(a.rescheduleRequest.requestedAt).localeCompare(String(b.rescheduleRequest.requestedAt)));
   c.innerHTML=`
+    ${rescheduleRequestsHtml(requests)}
     <div class="grid-2">
       <div class="card">
         <div class="card-header"><h3>Today – ${fmtDate(appState.clinicInformation.TODAY)}</h3><button class="btn btn-sm btn-danger" title="Return a day's remaining appointments for reappointment" ${bindAction('click',()=>openEmergencyModal())}><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> Emergency</button></div>
@@ -275,4 +281,50 @@ export function removeDoctorLeave(id){
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
 
+}
+
+// Patients' reschedule requests: the appointment keeps its time until the doctor approves.
+function rescheduleRequestsHtml(requests){
+  if(!requests.length)return '';
+  return `<div class="card resched-requests" aria-labelledby="resched-title">
+    <div class="card-header"><h3 id="resched-title">Reschedule requests <span class="badge badge-warning">${requests.length}</span></h3></div>
+    <div class="resched-list">${requests.map(a=>{
+      const pt=getPatientById(a.patientId),r=a.rescheduleRequest;
+      return `<div class="resched-item">
+        <div class="resched-who">${pt?patientAvatarHtml(pt,36):''}<div><strong>${pt?escapeHtml(pt.fname+' '+pt.lname):'Patient'}</strong><span class="text-muted">${escapeHtml(a.clinic)}${a.service?' · '+escapeHtml(a.service):''}</span></div></div>
+        <div class="resched-move">
+          <div><span class="resched-label">Current</span>${escapeHtml(dayOfWeek(a.date))}, ${escapeHtml(fmtDate(a.date))} · ${escapeHtml(fmtTime(a.time))}</div>
+          <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          <div><span class="resched-label">Requested</span><strong>${escapeHtml(dayOfWeek(r.date))}, ${escapeHtml(fmtDate(r.date))} · ${escapeHtml(fmtTime(r.time))}</strong></div>
+        </div>
+        ${a.reason?`<p class="resched-reason">${escapeHtml(a.reason)}</p>`:''}
+        <div class="resched-actions">
+          <button class="btn btn-sm btn-success" ${bindAction('click',()=>decideReschedule(a.id,'approve'))}><i class="bi bi-check2" aria-hidden="true"></i> Approve</button>
+          <button class="btn btn-sm" ${bindAction('click',()=>openDeclineReschedule(a.id))}>Decline</button>
+        </div>
+      </div>`;}).join('')}</div>
+  </div>`;
+}
+
+function openDeclineReschedule(id){
+  openModal(`<div class="modal modal-sm" role="dialog" aria-labelledby="resched-decline-title">
+    <div class="modal-header"><h3 id="resched-decline-title">Decline reschedule request</h3><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body"><p>The patient keeps their current appointment and is told why.</p>
+      <div class="form-group"><label for="resched-decline-note">Reason for the patient (optional)</label>
+      <textarea id="resched-decline-note" rows="3" maxlength="300" placeholder="e.g. I'm fully booked that day. Please choose another time."></textarea></div></div>
+    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button>
+      <button class="btn btn-danger" ${bindAction('click',()=>decideReschedule(id,'decline',document.getElementById('resched-decline-note')?.value||''))}>Decline request</button></div>
+  </div>`);
+}
+
+async function decideReschedule(id,decision,note=''){
+  const appt=appointmentRecords().find(a=>a.id===Number(id));
+  if(!appt)return;
+  try{
+    await appointmentAction({action:'reschedule_decision',appointment_id:appt.dbAppointmentId,decision,note});
+    closeAllModals();
+    await renderDoctorSchedule();
+    void refreshTaskBadges(true);
+    toast(decision==='approve'?`Approved. The appointment moved to ${fmtDate(appt.rescheduleRequest.date)} at ${fmtTime(appt.rescheduleRequest.time)}.`:'Declined. The patient keeps the current time.','success');
+  }catch(e){toast(e?.message||'The request could not be updated.','error',7000);}
 }

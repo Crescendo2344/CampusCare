@@ -15,6 +15,9 @@ import {appointmentHasStarted} from '../domain/appointment-list.js';
 import {clinicToday} from './scheduleAndDrafts.js';
 import {viewTreatmentForAppt} from './treatmentForm.js';
 import {bindAction} from '../dependencies.js';
+import {RESCHEDULE_CUTOFF_HOURS,patientRescheduleState} from '../domain/reschedule-requests.js';
+import {appointmentAction} from './appointmentService.js';
+import {showConfirmDialog,toast} from './theme.js';
 import {paginate,pagerHtml} from '../ui/pager.js';
 // ================================================================
 // PATIENT – MY APPOINTMENTS
@@ -89,20 +92,40 @@ export function renderMyApptsList(appts,filter){
     page.rows.map(a=>{
       const doc=getUserById(a.doctorId);
       const canCancel=a.status==='Scheduled'&&!appointmentHasStarted(a,{today:clinicToday(),now:new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date())});
-      const canReschedule=a.status==='Scheduled'&&a.date>appState.clinicInformation.TODAY;
+      const reschedule=a.status==='Scheduled'?patientRescheduleState(a):'none';
+      const request=a.rescheduleRequest;
       return`<tr style="cursor:pointer" ${bindAction('click',(event,element)=>{viewAppt((a.id))})} title="Click to open appointment">
         <td>#${appointmentDisplayId(a)}</td><td>${escapeHtml(a.clinic||'')}</td><td>${escapeHtml(a.service||'')}</td>
         <td>${fmtDate(a.date)}</td><td>${fmtTime(a.time)}${a.status==='Scheduled'?`<div class="text-muted queue-no">Queue No. ${queueNumber(a)}</div>`:''}</td>
         <td>${doc?'Dr. '+escapeHtml(doc.lname):'—'}</td>
-        <td>${a.patientResponse==='Awaiting'&&a.status==='Scheduled'?'<span class="badge badge-warning">New time proposed</span>':statusBadge(a.status)}</td>
+        <td>${a.patientResponse==='Awaiting'&&a.status==='Scheduled'?'<span class="badge badge-warning">New time proposed</span>':reschedule==='pending'?`<span class="badge badge-warning">Reschedule requested</span><div class="text-muted resched-note">To ${escapeHtml(fmtDate(request.date))} · ${escapeHtml(fmtTime(request.time))}, waiting for ${doc?'Dr. '+escapeHtml(doc.lname):'your doctor'}</div>`:statusBadge(a.status)}</td>
         <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
-          ${canReschedule?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openRescheduleModal((a.id))})}>Reschedule</button>`:''}
+          ${reschedule==='open'?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openRescheduleModal((a.id))})}>Reschedule</button>`:''}
+          ${reschedule==='pending'?`<button class="btn btn-xs" ${bindAction('click',()=>withdrawReschedule(a.id))}>Withdraw request</button>`:''}
+          ${reschedule==='closed'?`<span class="text-muted resched-note" title="Reschedule requests close ${RESCHEDULE_CUTOFF_HOURS} hours before the appointment">Reschedule closed · contact the clinic</span>`:''}
           ${canCancel?`<button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{cancelAppt((a.id),true)})}>Cancel</button>`:''}
           ${a.status==='Completed'?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewTreatmentForAppt((a.id))})}>View Notes</button>`:''}
         </div></td>
       </tr>`;
     }).join('')
   }</tbody></table></div>${pagerHtml(page,()=>renderMyApptsList(appts,filter))}`;
+}
+
+export function withdrawReschedule(id){
+  const appt=appointmentRecords().find(a=>a.id===Number(id));
+  if(!appt?.rescheduleRequest)return;
+  showConfirmDialog({
+    title:'Withdraw reschedule request?',
+    message:`Your appointment stays on ${fmtDate(appt.date)} at ${fmtTime(appt.time)}.`,
+    confirmLabel:'Withdraw request',
+    onConfirm:async()=>{
+      try{
+        await appointmentAction({action:'withdraw_reschedule',appointment_id:appt.dbAppointmentId});
+        await renderMyAppointments();
+        toast('Reschedule request withdrawn. Your appointment time is unchanged.','success');
+      }catch(e){toast(e?.message||'The request could not be withdrawn.','error');}
+    }
+  });
 }
 
 // Run side effects only after every feature's function exports are available.

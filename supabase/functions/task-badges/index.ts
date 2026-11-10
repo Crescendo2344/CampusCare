@@ -83,7 +83,7 @@ Deno.serve(async(req)=>{
     }
 
     if(actor.role==="Doctor"){
-      const [certRes,fitnessUnassignedRes,fitnessAssignedRes,appointmentRes]=await Promise.all([
+      const [certRes,fitnessUnassignedRes,fitnessAssignedRes,appointmentRes,rescheduleRes]=await Promise.all([
         admin.from("medical_certificates")
           .select("certificate_id,updated_at")
           .eq("status","Awaiting Signature")
@@ -105,9 +105,17 @@ Deno.serve(async(req)=>{
           .eq("doctor_id",actor.user_id)
           .in("status",["Scheduled","Confirmed"])
           .lte("appointment_date",today)
-          .order("appointment_date",{ascending:true})
+          .order("appointment_date",{ascending:true}),
+        // Patients' reschedule requests waiting for this doctor's decision.
+        admin.from("appointments")
+          .select("appointment_id,reschedule_requested_at")
+          .eq("doctor_id",actor.user_id)
+          .in("status",["Scheduled","Confirmed"])
+          .not("reschedule_request_date","is",null)
+          .order("reschedule_requested_at",{ascending:true})
       ]);
       if(certRes.error)throw certRes.error;
+      if(rescheduleRes.error)throw rescheduleRes.error;
       if(fitnessUnassignedRes.error)throw fitnessUnassignedRes.error;
       if(fitnessAssignedRes.error)throw fitnessAssignedRes.error;
       if(appointmentRes.error)throw appointmentRes.error;
@@ -119,9 +127,11 @@ Deno.serve(async(req)=>{
         r=>`fitness:${r.assessment_id}:${r.updated_at||""}`
       );
       set("appointments",appointmentRes.data||[],r=>`appointment:${r.appointment_id}:${r.appointment_date}`);
+      set("schedule",rescheduleRes.data||[],r=>`reschedule:${r.appointment_id}:${r.reschedule_requested_at||""}`);
 
       addCenter("cert-requests",counts["cert-requests"]||0,"Certificate drafts","Finish, sign and issue, or discard your certificate drafts.","warning");
       addCenter("fitness",counts.fitness||0,"Fitness assessments","Claim or continue fitness-to-compete assessments.","warning");
+      addCenter("schedule",counts.schedule||0,"Reschedule requests","Approve or decline patients' requests to move their appointments.","warning");
       addCenter("appointments",counts.appointments||0,"Appointments to document","Add visit notes for today's and earlier appointments to complete them.","warning");
     }
 

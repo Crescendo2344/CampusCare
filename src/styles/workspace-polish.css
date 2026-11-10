@@ -1693,3 +1693,16 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .acc-email-row .btn{align-self:flex-start;white-space:nowrap}
 .otp-fields{text-align:left;margin-bottom:.2rem}
 @media (prefers-reduced-motion:reduce){.otp-boxes.shake{animation:none}}
+
+/* Reschedule requests: the patient's appointment keeps its time until the doctor approves. */
+.resched-requests{margin-bottom:1rem;border-color:color-mix(in srgb,var(--warning,#d29922) 45%,transparent)}
+.resched-list{display:flex;flex-direction:column;gap:.75rem}
+.resched-item{display:grid;grid-template-columns:minmax(180px,1fr) minmax(260px,2fr) auto;gap:.75rem 1rem;align-items:center;padding:.8rem;border:1px solid var(--glass-border-soft);border-radius:12px}
+.resched-who{display:flex;align-items:center;gap:.6rem}.resched-who>div{display:flex;flex-direction:column}
+.resched-move{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;font-size:.88rem}
+.resched-label{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-muted)}
+.resched-reason{grid-column:1/-1;margin:0;font-size:.82rem;color:var(--ink-muted)}
+.resched-actions{display:flex;gap:.4rem;justify-content:flex-end;grid-column:3;grid-row:1}
+.resched-note{display:block;font-size:.72rem;margin-top:.2rem}
+.booking-done-icon.pending{background:color-mix(in srgb,var(--warning,#d29922) 18%,transparent);color:var(--warning,#d29922)}
+@media (max-width:860px){.resched-item{grid-template-columns:1fr}.resched-actions{justify-content:flex-start;grid-column:auto;grid-row:auto}}
