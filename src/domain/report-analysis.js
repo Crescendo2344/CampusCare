@@ -4,10 +4,10 @@ export const reportDefinitions={
   appointments:{label:'Appointments',groups:['month','week','date','clinic','service','status','college','personType','classSession','sex','doctor'],measures:['count','patients']},
   treatments:{label:'Treatments',groups:['month','week','date','clinic','diagnosis','college','personType','classSession','sex','doctor'],measures:['count','patients']},
   patients:{label:'Patients',groups:['college','personType','classSession','sex','blood'],measures:['count']},
-  inventory:{label:'Inventory',groups:['category','stock','item'],measures:['count','value']},
+  inventory:{label:'Inventory',groups:['category','stock','item'],measures:['count','onhand']},
   medicine_use:{label:'Medicine consumption',groups:['month','week','date','item','category','source'],measures:['quantity','count']}
 };
-export const reportLabels={month:'Month',week:'Week starting Monday',date:'Day',clinic:'Clinic',status:'Status',college:'College',personType:'Person type',classSession:'Class session',sex:'Sex',doctor:'Doctor',diagnosis:'Diagnosis',service:'Service / procedure',source:'Released through',quantity:'Quantity used',blood:'Blood type',category:'Category',stock:'Stock level',item:'Item',count:'Record count',patients:'Unique patients',value:'Stock value (₱)'};
+export const reportLabels={month:'Month',week:'Week starting Monday',date:'Day',clinic:'Clinic',status:'Status',college:'College',personType:'Person type',classSession:'Class session',sex:'Sex',doctor:'Doctor',diagnosis:'Diagnosis',service:'Service / procedure',source:'Released through',quantity:'Quantity used',onhand:'Quantity on hand',blood:'Blood type',category:'Category',stock:'Stock level',item:'Item',count:'Record count',patients:'Unique patients',value:'Stock value (₱)'};
 export const isoDay=value=>String(value||'').slice(0,10);
 export function validDay(day){return /^\d{4}-\d{2}-\d{2}$/.test(day)&&!Number.isNaN(Date.parse(day+'T00:00:00Z'))&&new Date(day+'T00:00:00Z').toISOString().slice(0,10)===day;}
 export function offsetDay(day,amount){return new Date(Date.parse(day+'T00:00:00Z')+amount*86400000).toISOString().slice(0,10);}
@@ -34,7 +34,7 @@ export function groupReportRows(rows,{group='month',split='',measure='count'}){
     if(!groups.has(key))groups.set(key,{group:a,split:b,value:0,patients:new Set()});
     const bucket=groups.get(key);
     if(measure==='patients'){if(row.patientId!=null)bucket.patients.add(row.patientId);bucket.value=bucket.patients.size;}
-    else bucket.value+=measure==='value'?Number(row.value||0):measure==='quantity'?Number(row.quantity||0):1;
+    else bucket.value+=measure==='value'?Number(row.value||0):measure==='quantity'?Number(row.quantity||0):measure==='onhand'?Number(row.qty||0):1;
   }
   return [...groups.values()].map(({patients,...row})=>row).sort((a,b)=>a.group.localeCompare(b.group)||a.split.localeCompare(b.split));
 }

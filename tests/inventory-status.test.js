@@ -17,7 +17,7 @@ test('expiry is flagged 90 days ahead',()=>{
 });
 test('summary and export',()=>{
   const items=[{id:1,name:'Paracetamol',category:'Medicine',qty:0,threshold:5,unit:'tabs',unitCost:2,expiryDate:'2026-11-01'},{id:2,name:'=Gauze',category:'Supplies',qty:20,threshold:5,unit:'pcs',unitCost:1.5},{id:3,name:'Old',qty:5,threshold:1,archived:true,unitCost:100}];
-  assert.deepEqual(inventorySummary(items,today),{items:2,out:1,low:0,expired:0,expiringSoon:1,value:30});
+  assert.deepEqual(inventorySummary(items,today),{items:2,out:1,low:0,expired:0,expiringSoon:1});
   const csv=inventoryCsv(items.slice(0,2),today);
   assert.match(csv,/Out of stock/);assert.match(csv,/Expires in 9 days/);assert.match(csv,/"'=Gauze"/);
 });

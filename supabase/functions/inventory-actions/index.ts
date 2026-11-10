@@ -243,15 +243,13 @@ Deno.serve(async(req)=>{
 
     if(action==="create_po"){
       const lines=(Array.isArray(body.items)?body.items:[]).map((l:any)=>({
-        item_id:Number(l?.item_id||0),quantity:Number(l?.quantity),
-        unit_cost:l?.unit_cost===""||l?.unit_cost==null?null:Number(l.unit_cost)
+        item_id:Number(l?.item_id||0),quantity:Number(l?.quantity)
       }));
       if(!lines.length||lines.length>50)return json({error:"Add at least one medicine to the order."},400);
       const ids=new Set<number>();
       for(const l of lines){
         if(!l.item_id||!Number.isInteger(l.quantity)||l.quantity<=0||l.quantity>100000)
           return json({error:"Each line needs a medicine and a quantity of at least 1."},400);
-        if(l.unit_cost!=null&&(!Number.isFinite(l.unit_cost)||l.unit_cost<0))return json({error:"Unit cost cannot be negative."},400);
         if(ids.has(l.item_id))return json({error:"Each medicine can appear once per order."},400);
         ids.add(l.item_id);
       }
@@ -314,21 +312,18 @@ Deno.serve(async(req)=>{
       const unit=clean(body.unit,80);
       const expiryDate=body.expiry_date?String(body.expiry_date):null;
       const supplier=clean(body.supplier,255);
-      const unitCost=body.unit_cost===""||body.unit_cost==null?null:Number(body.unit_cost);
       const targetDate=body.target_disbursement_date?String(body.target_disbursement_date):null;
       const photoData=clean(body.photo_data,350000);
 
       if(!itemName||!category||!unit||!Number.isInteger(quantity)||quantity<0||!Number.isInteger(threshold)||threshold<0)
         return json({error:"Name, category, quantity, threshold, and unit are required."},400);
-      if(unitCost!==null&&(!Number.isFinite(unitCost)||unitCost<0))
-        return json({error:"Unit cost must be zero or greater."},400);
 
       let saved:any=null;
 
       if(action==="create"){
         const {data,error}=await admin.from("inventory_items").insert({
           item_name:itemName,category,quantity,threshold,unit,
-          expiry_date:expiryDate,supplier:supplier||null,unit_cost:unitCost,
+          expiry_date:expiryDate,supplier:supplier||null,
           target_disbursement_date:targetDate,photo_data:photoData||null,
           archived:false
         }).select("*").single();
@@ -359,7 +354,7 @@ Deno.serve(async(req)=>{
 
         const {data,error}=await admin.from("inventory_items").update({
           item_name:itemName,category,quantity,threshold,unit,
-          expiry_date:expiryDate,supplier:supplier||null,unit_cost:unitCost,
+          expiry_date:expiryDate,supplier:supplier||null,
           target_disbursement_date:targetDate,photo_data:photoData||null,
           updated_at:new Date().toISOString()
         }).eq("item_id",itemId).select("*").single();

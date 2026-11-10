@@ -50,7 +50,6 @@ export function openInvModal(id=null){
       </div></fieldset>
       <fieldset class="inv-form-group"><legend>Supplier</legend><div class="form-row">
         <div class="form-group"><label for="im-supplier">Supplier</label><input id="im-supplier" maxlength="255" list="im-supplier-list" placeholder="Pick or type a supplier" value="${it?escapeHtml(it.supplier||''):''}"><datalist id="im-supplier-list">${[...new Set(inventoryRecords().map(i=>String(i.supplier||'').trim()).filter(Boolean))].sort().map(v=>`<option value="${escapeHtml(v)}">`).join('')}</datalist></div>
-        <div class="form-group"><label for="im-cost">Unit cost (₱)</label><input id="im-cost" type="number" inputmode="decimal" value="${it?it.unitCost||'':''}" min="0" step="0.01"></div>
       </div></fieldset>
     </div>
     <div class="modal-footer">
@@ -110,7 +109,6 @@ export async function saveInv(id){
     qty,
     threshold:thresh,
     unit,
-    unitCost:parseFloat(document.getElementById('im-cost').value)||0,
     expiryDate:document.getElementById('im-expiry').value,
     disbursementDate:it0?.disbursementDate||'',
     photo
@@ -131,7 +129,6 @@ export async function saveInv(id){
         quantity:data.qty,
         threshold:data.threshold,
         unit:data.unit,
-        unit_cost:data.unitCost,
         expiry_date:data.expiryDate||null,
         target_disbursement_date:data.disbursementDate||null,
         photo_data:data.photo||null

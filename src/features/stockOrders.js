@@ -36,9 +36,9 @@ export async function loadStockOrders(){
       .select('request_id,item_id,quantity,requested_by,patient_id,purpose,status,decided_by,decided_at,decline_reason,created_at')
       .order('created_at',{ascending:false}).limit(300),
     r!=='Staff'?Promise.resolve({data:[]}):client().from('purchase_orders')
-      .select('po_id,po_no,status,supplier,notes,needed_by,created_by,sent_by,sent_at,cancel_reason,cancelled_at,received_by,received_at,created_at,purchase_order_items(po_item_id,item_id,quantity,unit_cost)')
+      .select('po_id,po_no,status,supplier,notes,needed_by,created_by,sent_by,sent_at,cancel_reason,cancelled_at,received_by,received_at,created_at,purchase_order_items(po_item_id,item_id,quantity)')
       .order('created_at',{ascending:false}).limit(200),
-    client().from('inventory_items').select('item_id,item_name,category,quantity,threshold,unit,expiry_date,supplier,unit_cost').eq('archived',false).order('item_name')
+    client().from('inventory_items').select('item_id,item_name,category,quantity,threshold,unit,expiry_date,supplier').eq('archived',false).order('item_name')
   ];
   const [req,po,items]=await Promise.all(jobs);
   for(const res of [req,po,items])if(res.error)throw res.error;
@@ -199,10 +199,9 @@ function ordersTableHtml(rows){
   return `<div class="table-wrap"><table class="treat-table"><thead><tr><th scope="col">Order</th><th scope="col">Items</th><th scope="col">Supplier</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>${rows.map(po=>{
     const lines=po.purchase_order_items||[];
-    const total=lines.reduce((s,l)=>s+(Number(l.unit_cost)||0)*Number(l.quantity),0);
     return `<tr>
       <td data-label="Order"><strong>${escapeHtml(po.po_no||`PO #${po.po_id}`)}</strong><div class="text-muted">${fmtDate(manilaDate(po.created_at))} · ${escapeHtml(personName(po.created_by))}</div>${po.needed_by?`<div class="text-muted">Needed by ${fmtDate(po.needed_by)}</div>`:''}</td>
-      <td data-label="Items">${lines.map(l=>`<div>${escapeHtml(itemLabel(l.item_id))} × ${l.quantity}${l.unit_cost!=null?` <span class="text-muted">@ ₱${Number(l.unit_cost).toFixed(2)}</span>`:''}</div>`).join('')}${total?`<div class="text-muted">Total ₱${total.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>`:''}${po.notes?`<div class="text-muted">${escapeHtml(po.notes)}</div>`:''}</td>
+      <td data-label="Items">${lines.map(l=>`<div>${escapeHtml(itemLabel(l.item_id))} × ${l.quantity} ${escapeHtml(itemById(l.item_id)?.unit||'')}</div>`).join('')}${po.notes?`<div class="text-muted">${escapeHtml(po.notes)}</div>`:''}</td>
       <td data-label="Supplier">${escapeHtml(po.supplier||'—')}</td>
       <td data-label="Status"><span class="badge ${PO_BADGE[po.status]||'badge-gray'}">${escapeHtml(PO_LABEL[po.status]||po.status)}</span>${po.status==='Sent'&&po.sent_at?`<div class="text-muted">${fmtDate(manilaDate(po.sent_at))}</div>`:''}${po.status==='Cancelled'&&po.cancel_reason?`<div class="text-muted">${escapeHtml(po.cancel_reason)}</div>`:''}${po.status==='Received'&&po.received_at?`<div class="text-muted">${fmtDate(manilaDate(po.received_at))}</div>`:''}</td>
       <td data-label="Actions"><div class="td-actions">
@@ -239,14 +238,13 @@ function renderDraftLines(){
   el.innerHTML=st().draft.map((l,idx)=>`<div class="so-po-line">
     <select aria-label="Item ${idx+1}" data-line="${idx}" data-field="item_id"><option value="">Choose an item</option>${items.map(i=>`<option value="${i.dbItemId}" ${Number(l.item_id)===i.dbItemId?'selected':''}>${escapeHtml(i.name)} · ${i.qty} ${escapeHtml(i.unit)} left</option>`).join('')}</select>
     <input type="number" min="1" step="1" inputmode="numeric" aria-label="Quantity ${idx+1}" placeholder="Qty" data-line="${idx}" data-field="quantity" value="${escapeHtml(String(l.quantity??''))}">
-    <input type="number" min="0" step="0.01" inputmode="decimal" aria-label="Unit cost ${idx+1}" placeholder="₱ unit cost" data-line="${idx}" data-field="unit_cost" value="${escapeHtml(String(l.unit_cost??(items.find(i=>i.dbItemId===Number(l.item_id))?.unitCost||'')))}">
     <button type="button" class="btn btn-xs" aria-label="Remove item ${idx+1}" ${st().draft.length===1?'disabled':''} ${bindAction('click',()=>{st().draft.splice(idx,1);renderDraftLines();})}>✕</button>
   </div>`).join('');
   el.querySelectorAll('[data-line]').forEach(input=>input.addEventListener(input.tagName==='SELECT'?'change':'input',()=>{st().draft[Number(input.dataset.line)][input.dataset.field]=input.value;}));
 }
 async function submitPurchaseOrder(){
   const msg=document.getElementById('so-po-msg'),btn=document.getElementById('so-po-send');
-  const lines=st().draft.map(l=>({item_id:Number(l.item_id),quantity:Number(l.quantity),unit_cost:l.unit_cost===''||l.unit_cost==null?(inventoryRecords().find(i=>i.dbItemId===Number(l.item_id))?.unitCost||null):Number(l.unit_cost)})).filter(l=>l.item_id||l.quantity);
+  const lines=st().draft.map(l=>({item_id:Number(l.item_id),quantity:Number(l.quantity)})).filter(l=>l.item_id||l.quantity);
   const fail=t=>{msg.innerHTML=`<div class="alert alert-danger show">${escapeHtml(t)}</div>`;};
   if(!lines.length)return fail('Add at least one item.');
   if(lines.some(l=>!l.item_id||!Number.isInteger(l.quantity)||l.quantity<1))return fail('Each line needs an item and a quantity of at least 1.');
@@ -294,25 +292,23 @@ export function printPurchaseOrder(poId){
   const po=(st().orders||[]).find(p=>Number(p.po_id)===Number(poId));
   if(!po){toast('Purchase order not found. Refresh and try again.','error');return;}
   const lines=po.purchase_order_items||[];
-  const peso=n=>'₱'+Number(n).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const total=lines.reduce((sum,l)=>sum+(Number(l.unit_cost)||0)*Number(l.quantity),0);
-  const rows=lines.map((l,i)=>{const it=itemById(l.item_id);const cost=l.unit_cost!=null?Number(l.unit_cost):null;
-    return `<tr><td>${i+1}</td><td>${escapeHtml(it?.item_name||itemLabel(l.item_id))}</td><td>${escapeHtml(it?.category||'')}</td><td class="n">${l.quantity}</td><td>${escapeHtml(it?.unit||'')}</td><td class="n">${cost!=null?peso(cost):'—'}</td><td class="n">${cost!=null?peso(cost*l.quantity):'—'}</td></tr>`;}).join('');
+  const rows=lines.map((l,i)=>{const it=itemById(l.item_id);
+    return `<tr><td>${i+1}</td><td>${escapeHtml(it?.item_name||itemLabel(l.item_id))}</td><td>${escapeHtml(it?.category||'')}</td><td class="n">${l.quantity}</td><td>${escapeHtml(it?.unit||'')}</td></tr>`;}).join('');
   const html=`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(po.po_no||'Purchase order')}</title><style>
     @page{size:A4;margin:16mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;margin:0}
     h1{font-size:20px;margin:0}h2{font-size:13px;margin:0 0 2px;font-weight:normal;color:#444}
     .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0a7ea8;padding-bottom:10px;margin-bottom:14px}
     .meta{width:100%;border-collapse:collapse;margin-bottom:14px}.meta td{padding:3px 0;vertical-align:top}.meta td:first-child{width:120px;color:#555}
     table.items{width:100%;border-collapse:collapse}table.items th,table.items td{border:1px solid #bbb;padding:6px;text-align:left}table.items th{background:#eef5f9}
-    .n{text-align:right}.total td{font-weight:bold}.sign{display:flex;gap:40px;margin-top:48px}.sign div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center}
+    .n{text-align:right}.sign{display:flex;gap:40px;margin-top:48px}.sign div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center}
     .note{margin-top:12px;white-space:pre-wrap}
   </style></head><body>
     <div class="head"><div><h1>Purchase Order</h1><h2>CTU Main Medical &amp; Dental Clinic</h2></div><div style="text-align:right"><strong style="font-size:15px">${escapeHtml(po.po_no||'')}</strong><div>Date: ${escapeHtml(fmtDate(manilaDate(po.created_at)))}</div></div></div>
     <table class="meta"><tr><td>Supplier</td><td>${escapeHtml(po.supplier||'To be chosen by purchasing')}</td></tr>
       <tr><td>Needed by</td><td>${po.needed_by?escapeHtml(fmtDate(po.needed_by)):'As soon as possible'}</td></tr>
       <tr><td>Prepared by</td><td>${escapeHtml(personName(po.created_by))}</td></tr></table>
-    <table class="items"><thead><tr><th>#</th><th>Item</th><th>Category</th><th class="n">Qty</th><th>Unit</th><th class="n">Unit cost</th><th class="n">Amount</th></tr></thead>
-      <tbody>${rows}${total?`<tr class="total"><td colspan="6" class="n">Estimated total</td><td class="n">${peso(total)}</td></tr>`:''}</tbody></table>
+    <table class="items"><thead><tr><th>#</th><th>Item</th><th>Category</th><th class="n">Qty</th><th>Unit</th></tr></thead>
+      <tbody>${rows}</tbody></table>
     ${po.notes?`<div class="note"><strong>Notes:</strong> ${escapeHtml(po.notes)}</div>`:''}
     <div class="sign"><div>Prepared by</div><div>Noted by (Clinic head)</div><div>Received by (Purchasing)</div></div>
   </body></html>`;

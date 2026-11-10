@@ -69,7 +69,6 @@ export function computeMetricData(type,metric,rows){
   }else if(type==='inventory'){
     if(metric==='category')return rows.reduce((m,i)=>{m[i.category]=(m[i.category]||0)+i.qty;return m;},{});
     if(metric==='stocklevel')return count(rows,i=>i.qty<=i.threshold?'Low':i.qty<=i.threshold*1.5?'Medium':'Good');
-    if(metric==='value')return rows.reduce((m,i)=>{m[i.category]=(m[i.category]||0)+i.qty*(i.unitCost||0);return m;},{});
   }else if(type==='patients'){
     if(metric==='college')return count(rows,p=>p.college);
     if(metric==='type')return count(rows,p=>p.personType);

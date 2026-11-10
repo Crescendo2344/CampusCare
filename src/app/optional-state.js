@@ -22,8 +22,7 @@ export function initializeOptionalState(){
   ],
   inventory:[
     {value:'category',label:'By Category (Qty)'},
-    {value:'stocklevel',label:'By Stock Level'},
-    {value:'value',label:'Value by Category (₱)'}
+    {value:'stocklevel',label:'By Stock Level'}
   ],
   patients:[
     {value:'college',label:'By College'},
