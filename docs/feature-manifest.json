@@ -18,7 +18,6 @@
       "./issueReports.js",
       "./modals.js",
       "./inputValidation.js",
-      "./navigationRaceProtection.js",
       "../app/optional-features.js",
       "./nameChangeRequests.js",
       "./workflowRequests.js",
@@ -27,7 +26,6 @@
       "./legalPages.js",
       "./theme.js",
       "../dependencies.js",
-      "./passwordRecovery.js",
       "./patientService.js",
       "./profileDetails.js"
     ]
@@ -1334,7 +1332,6 @@
       "./approvalQueue.js",
       "./treatmentList.js",
       "./inventory.js",
-      "./stockOrders.js",
       "../app/optional-features.js",
       "./userManagement.js",
       "./settingsAndCertificates.js",
@@ -2188,10 +2185,6 @@
     "functions": [
       "loadStockOrders",
       "itemsOnOrder",
-      "pendingRequestCount",
-      "renderMedicineRequests",
-      "requestsPanelHtml",
-      "renderRequestsTable",
       "ordersPanelHtml",
       "itemsToOrder",
       "renderOrdersTable",
@@ -2208,8 +2201,6 @@
       "./theme.js",
       "./datePicker.js",
       "./inventoryService.js",
-      "./navigationRaceProtection.js",
-      "./loadingSkeletons.js",
       "../dependencies.js"
     ]
   },
@@ -2583,12 +2574,6 @@
       "normalizePhilippinePhoneForAuth",
       "refreshCurrentProfileContact",
       "saveAccount",
-      "openAccountUpdateVerification",
-      "resendAccountVerificationCode",
-      "confirmAccountUpdate",
-      "openPhoneChangeVerification",
-      "resendPhoneChangeCode",
-      "confirmPhoneChangeCode",
       "cancelAccountUpdate"
     ],
     "state": [
@@ -2600,7 +2585,6 @@
     "imports": [
       "../../supabase/functions/_shared/contact-validation.js",
       "../services/feature-sync.js",
-      "../shared/privacy-formatting.js",
       "../app/state.js",
       "./theme.js",
       "./modals.js",

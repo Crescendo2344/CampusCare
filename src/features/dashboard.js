@@ -3,7 +3,7 @@ import {describeTrend,periodComparison} from '../domain/dashboard-metrics.js';
 import {state as appState} from '../app/state.js';
 import {followTodayIfDefaultRange,dashboardAttentionItem,dashboardChartControlHtml,dashboardControlsHtml,dashboardInRange,dashboardMobileQuickLinks,dashboardRangeCounts,dashboardRangeLabel,dashboardStatCard,dashboardTrendSvg} from './dashboardChartHelpers.js';
 import {appointmentRecords} from './appointmentService.js';
-import {getDoctors,getLowStock,getPatientById,getUserById} from './documentScanner.js';
+import {dentalQuotaState,getDoctors,getLowStock,getPatientById,getUserById} from './documentScanner.js';
 import {docName} from './displayNames.js';
 import {collegeBadge,currentSemester,fmtDate,fmtTime,getSemester,statusBadge} from './inputValidation.js';
 import {escapeHtml} from './issueReports.js';
@@ -60,8 +60,11 @@ export function renderDashboard(){
     const semester=currentSemester();
     const semesterVisits=mine.filter(a=>a.status==='Completed'&&getSemester(a.date)===semester);
     const reminders=appState.data.DB.medReminders.filter(r=>r.patientId===pt.id&&r.status==='active'&&r.endDate>=today);
-    const dental=mine.filter(a=>a.clinic==='Dental Clinic'&&a.status!=='Cancelled'&&getSemester(a.date)===semester);
-    const dentalLimit=appState.data.DB.settings.dentalLimitPerSemester;
+    // Only a visit the dentist has completed uses up the semester limit; a booked visit counts once the patient is seen.
+    const dental=dentalQuotaState(pt.id);
+    const dentalNote=dental.limitReached?'Semester limit reached'
+      :dental.open?`Visit booked ${fmtDate(dental.open.date)} · counts once you're seen`
+      :`${dental.limit-dental.completed} remaining this semester`;
     const visits=treatmentRecords().filter(t=>t.patientId===pt.id&&!t.archived).sort((a,b)=>String(b.date).localeCompare(String(a.date))||b.id-a.id);
     const followUp=visits.map(t=>t.followupDate).filter(d=>d&&d>=today).sort()[0];
     const articles=healthResourceRecords().filter(r=>r.published).sort((a,b)=>String(b.publishedAt||b.createdAt).localeCompare(String(a.publishedAt||a.createdAt))).slice(0,3);
@@ -77,7 +80,7 @@ export function renderDashboard(){
       <div class="dashboard-a-grid">
         ${dashboardStatCard('Next appointment',next?fmtDate(next.date):'None',next?`${fmtTime(next.time)} · ${escapeHtml(next.clinic)}`:'Nothing scheduled',note(upcoming.length>1?`${plural(upcoming.length-1,'more appointment')} after this`:next?'Arrive 10 minutes early':'Book a visit whenever you need one'),'bi-calendar-event')}
         ${dashboardStatCard('Visits this semester',semesterVisits.length,'Completed clinic visits',note(visits[0]?`Last visit ${fmtDate(visits[0].date)}`:'No visits recorded yet'),'bi-check2-circle')}
-        ${dashboardStatCard('Dental visits',`${dental.length}/${dentalLimit}`,'Used this semester',note(dental.length>=dentalLimit?'Semester limit reached':`${dentalLimit-dental.length} remaining this semester`),'bi-emoji-smile',dental.length>=dentalLimit?'attention':'')}
+        ${dashboardStatCard('Dental visits',`${dental.completed}/${dental.limit}`,'Used this semester',note(dentalNote),'bi-emoji-smile',dental.limitReached?'attention':'')}
         ${dashboardStatCard('Current medications',reminders.length,reminders.length?'Prescribed by your doctor':'Nothing to take right now',note(reminders.length?`Until ${fmtDate(reminders.map(r=>r.endDate).sort().pop())}`:'From your clinic visits'),'bi-capsule',reminders.length?'attention':'')}
       </div>
       ${dashboardMobileQuickLinks(role)}
