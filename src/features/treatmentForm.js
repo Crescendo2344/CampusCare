@@ -60,9 +60,11 @@ function treatmentPatientCardHtml(pt){
     ${patientAvatarHtml(pt,44)}
     <div class="tv-patient-main"><strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong><span>${facts.map(escapeHtml).join(' · ')}</span>
       ${last?`<span class="tv-last">Last visit ${escapeHtml(fmtDate(last.date))} · ${escapeHtml(last.diagnosis||'')}</span>`:''}</div>
-    ${patientData.hasAllergyAlert(pt.allergies)
-      ?`<span class="tv-allergy" role="alert"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> Allergies: ${escapeHtml(pt.allergies)}</span>`
-      :'<span class="tv-no-allergy"><i class="bi bi-shield-check" aria-hidden="true"></i> No known allergies</span>'}
+    ${{
+      alert:`<span class="tv-allergy" role="alert"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> Allergies: ${escapeHtml(pt.allergies)}</span>`,
+      none:'<span class="tv-no-allergy"><i class="bi bi-shield-check" aria-hidden="true"></i> No known allergies</span>',
+      unrecorded:'<span class="tv-allergy-unknown" title="The patient has not filled in allergies. Ask before prescribing."><i class="bi bi-question-circle" aria-hidden="true"></i> Allergies not recorded · ask the patient</span>'
+    }[patientData.allergyStatus(pt.allergies)]}
   </div>`;
 }
 

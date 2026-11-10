@@ -135,6 +135,12 @@ export function mergeClinicalDirectory(db,rows,now=new Date()){
 }
 
 // An allergy entry needs a warning unless it explicitly records that there are none.
+// "alert": allergies are listed. "none": the patient said they have none. "unrecorded": the field is blank,
+// so nobody has asked yet and it must not read as "no known allergies".
+export function allergyStatus(allergies){
+  if(!String(allergies||'').trim())return 'unrecorded';
+  return hasAllergyAlert(allergies)?'alert':'none';
+}
 export function hasAllergyAlert(allergies){
   const text=String(allergies||'').trim().toLowerCase().replace(/[.\s]+$/,'');
   return Boolean(text)&&!['none','n/a','na','no','nka','nkda','no known allergies','no known drug allergies','-','—'].includes(text);
