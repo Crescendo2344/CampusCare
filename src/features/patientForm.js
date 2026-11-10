@@ -503,15 +503,6 @@ export function dentalRecordFormHtml(existing={},pt=null,defaultDate=appState.cl
   return `<div class="dental-record-section dr" id="tm-dental-section">
     <div class="dr-head"><h4><i class="bi bi-emoji-smile" aria-hidden="true"></i> Dental record</h4></div>
 
-    <div class="dr-block"><h5>Patient details</h5>
-      <div class="dr-fields">
-        <div class="form-group"><label for="tm-dental-course">Course &amp; major</label><input id="tm-dental-course" maxlength="180" value="${escapeHtml(existing?.courseMajor||pt?.college||'')}"></div>
-        <div class="form-group"><label for="tm-dental-year">Year &amp; section</label><input id="tm-dental-year" maxlength="120" value="${escapeHtml(existing?.yearSection||'')}"></div>
-        <div class="form-group"><label for="tm-dental-cell">Cell no.</label><input id="tm-dental-cell" maxlength="80" inputmode="tel" value="${escapeHtml(existing?.cellNo||pt?.contact||'')}"></div>
-        <div class="form-group"><label for="tm-dental-messenger">Messenger account</label><input id="tm-dental-messenger" maxlength="180" value="${escapeHtml(existing?.messengerAccount||'')}"></div>
-      </div>
-    </div>
-
     <div class="dr-block"><h5>Tooth chart</h5>
       <div class="dr-codes" role="group" aria-label="Mark teeth">${TOOTH_CODES.map(([code,label])=>`<button type="button" class="dr-code" data-code="${code}" ${bindAction('click',()=>setToothCode(code))}><b>${code}</b> ${label}</button>`).join('')}</div>
       <div class="dr-chart">
@@ -541,14 +532,6 @@ export function dentalRecordFormHtml(existing={},pt=null,defaultDate=appState.cl
       <div class="dr-ops">${operations.map(op=>operationRowHtml(op)).join('')}</div>
       <button type="button" class="btn btn-xs" ${bindAction('click',(event,element)=>element.previousElementSibling.insertAdjacentHTML('beforeend',operationRowHtml()))}><i class="bi bi-plus-lg" aria-hidden="true"></i> Add procedure</button>
       <datalist id="dr-procedure-list">${DENTAL_PROCEDURES.map(v=>`<option value="${v}">`).join('')}</datalist>
-    </div>
-
-    <div class="dr-block"><h5>Outcome</h5>
-      <div class="dr-row"><span class="dr-label">Dental work</span><div class="dr-status" role="radiogroup" aria-label="Dental work status">${DENTAL_STATUS.map(v=>`<label><input type="radio" name="tm-dental-status" value="${v}" ${existing?.workStatus===v?'checked':''}><span>${v}</span></label>`).join('')}</div></div>
-      <div class="dr-fields">
-        <div class="form-group"><label>Record date</label>${campusDateFieldHtml('tm-dental-date',existing?.recordDate||defaultDate,'Dental record date','',appState.clinicInformation.TODAY)}</div>
-      </div>
-      <div class="form-group"><label for="tm-dental-recommendation">Recommendation</label><textarea id="tm-dental-recommendation" rows="2" maxlength="5000">${escapeHtml(existing?.recommendation||'')}</textarea></div>
     </div>
   </div>`;
 }

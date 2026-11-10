@@ -753,7 +753,7 @@ tr.dsb-row:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
 .au-section{margin-bottom:1.15rem}
 .au-section h4{display:flex;align-items:center;gap:.45rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted);margin:0 0 .6rem;font-weight:700}
 .au-step{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--primary);color:var(--on-primary);font-size:.7rem}
-.au-roles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem}
+.au-roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem}
 .au-role input{position:absolute;opacity:0;width:1px;height:1px}
 .au-role-card{display:flex;flex-direction:column;gap:.2rem;height:100%;padding:.75rem .8rem;border:1.5px solid var(--line);border-radius:12px;background:var(--overlay);cursor:pointer;transition:border-color .15s,background .15s}
 .au-role-card i{font-size:1.2rem;color:var(--primary)}

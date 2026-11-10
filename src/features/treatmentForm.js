@@ -106,46 +106,21 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
         <select id="tm-pt" ${bindAction('change',(event,element)=>{const host=document.getElementById('tm-patient-card'),p=getPatientById(Number(element.value));if(host)host.innerHTML=p?treatmentPatientCardHtml(p):'';})}><option value="">Choose a patient</option>${patientSource.map(p=>`<option value="${p.id}">${escapeHtml(p.lname+', '+p.fname)}${p.idNo?' · '+escapeHtml(p.idNo):''}</option>`).join('')}</select>
         <p class="registration-field-error" id="tm-pt-error" aria-live="polite" hidden></p></div><div id="tm-patient-card"></div>`}
 
-      <section class="tv-section"><h4><span class="tv-step">V</span> Vital signs</h4>
+      <section class="tv-section"><h4>Vital signs</h4>
         <p class="form-note tv-note">${triage?`<i class="bi bi-check2-circle" aria-hidden="true"></i> From triage${escapeHtml(triageVitalsTakenBy(triage))}. Correct them here if needed.`:'Taken first, when the patient arrives.'}</p>
         <div class="tv-vitals" ${bindAction('input',()=>updateVitalFlags())}>${TRIAGE_VITAL_FIELDS.map(vital).join('')}</div>
       </section>
 
-      <section class="tv-section"><h4><span class="tv-step">S</span> Chief complaint and history</h4>
+      <section class="tv-section"><h4>Chief complaint and history</h4>
         <div class="form-group"><label for="tm-findings">Chief complaint <span class="required">*</span></label>
           <textarea id="tm-findings" rows="2" maxlength="2500" placeholder="e.g. Headache and fever for 2 days">${escapeHtml(appt?.reason||'')}</textarea>${appt?.reason?'<p class="form-note">From the patient’s booking. Edit it to match what they tell you.</p>':''}<p class="registration-field-error" id="tm-findings-error" aria-live="polite" hidden></p></div>
       </section>
 
-      <section class="tv-section"><h4><span class="tv-step">O</span> Examination</h4>
-        <div class="form-group"><label for="tm-exam">Examination findings</label>
+      ${dental?dentalRecordFormHtml({},pt,defaultDate):''}
+
+      <section class="tv-section"><h4>Findings</h4>
+        <div class="form-group"><label for="tm-exam">Findings</label>
           <textarea id="tm-exam" rows="2" maxlength="2400" placeholder="${dental?'e.g. Caries on 36, gums slightly inflamed':'e.g. Throat inflamed, lungs clear'}"></textarea></div>
-        ${dental?dentalRecordFormHtml({},pt,defaultDate):''}
-      </section>
-
-      <section class="tv-section"><h4><span class="tv-step">A</span> Assessment</h4>
-        <div class="form-group"><label for="tm-diag">Diagnosis <span class="required">*</span></label>
-          <input id="tm-diag" maxlength="300" list="tm-diag-list" autocomplete="off"><datalist id="tm-diag-list">${diagnoses.map(d=>`<option value="${escapeHtml(d)}">`).join('')}</datalist><p class="registration-field-error" id="tm-diag-error" aria-live="polite" hidden></p></div>
-      </section>
-
-      <section class="tv-section"><h4><span class="tv-step">P</span> Plan</h4>
-        <div class="form-group"><label for="tm-presc">${dental?'Procedure done and medicines given':'Medicines given or prescribed'}</label>
-          <textarea id="tm-presc" rows="2" maxlength="600" placeholder="e.g. Paracetamol 500 mg, 1 tablet every 6 hours for 3 days"></textarea><p class="registration-field-error" id="tm-presc-error" aria-live="polite" hidden></p></div>
-        <div class="form-group"><label for="tm-notes">Advice and instructions</label>
-          <textarea id="tm-notes" rows="2" maxlength="2000" placeholder="e.g. Rest, increase fluids, return if fever persists"></textarea></div>
-        <div class="form-row">
-          <div class="form-group"><label>Visit date <span class="required">*</span></label>${campusDateFieldHtml('tm-date',defaultDate,'Visit date','',appState.clinicInformation.TODAY)}<p class="registration-field-error" id="tm-date-error" aria-live="polite" hidden></p></div>
-          <div class="form-group"><label>Follow-up</label>${campusDateFieldHtml('tm-followup','','Follow-up date',defaultDate)}
-            <div class="tv-chips">${FOLLOWUP_PRESETS.map(([label,days])=>`<button type="button" class="tv-chip" data-days="${days}" ${bindAction('click',()=>setFollowUp(days))}>${label}</button>`).join('')}<button type="button" class="tv-chip" data-days="0" ${bindAction('click',()=>setFollowUp(0))}>None</button></div>
-            <p class="registration-field-error" id="tm-followup-error" aria-live="polite" hidden></p></div>
-        </div>
-        <details class="tv-reminder"><summary><i class="bi bi-alarm" aria-hidden="true"></i> Medication reminder for the patient</summary>
-          <div class="form-row">
-            <div class="form-group"><label for="tm-medname">Medicine</label><input id="tm-medname" maxlength="120" placeholder="e.g. Amoxicillin"></div>
-            <div class="form-group"><label for="tm-dosage">Dose</label><input id="tm-dosage" maxlength="60" placeholder="e.g. 500 mg"><p class="registration-field-error" id="tm-dosage-error" aria-live="polite" hidden></p></div>
-            <div class="form-group"><label for="tm-frequency">How often</label><input id="tm-frequency" maxlength="60" list="tm-frequency-list" placeholder="e.g. 3 times a day"><datalist id="tm-frequency-list">${['Once a day','2 times a day','3 times a day','Every 6 hours','As needed'].map(v=>`<option value="${v}">`).join('')}</datalist><p class="registration-field-error" id="tm-frequency-error" aria-live="polite" hidden></p></div>
-            <div class="form-group"><label>Until</label>${campusDateFieldHtml('tm-enddate',isoAfter(defaultDate,7),'Medication end date',defaultDate)}<p class="registration-field-error" id="tm-enddate-error" aria-live="polite" hidden></p></div>
-          </div>
-        </details>
       </section>
     </div>
     <div class="modal-footer">
@@ -181,11 +156,11 @@ export async function saveTreatment(ptId,apptId){
   const complaint=document.getElementById('tm-findings').value.trim(),exam=document.getElementById('tm-exam')?.value.trim()||'';
   // Stored as one findings text: the complaint, then the examination when recorded.
   const findings=exam?`${complaint}\n\nExamination: ${exam}`:complaint;
-  const diag=document.getElementById('tm-diag').value.trim();
-  const presc=document.getElementById('tm-presc').value.trim();
-  const notes=document.getElementById('tm-notes').value.trim();
-  const date=document.getElementById('tm-date').value;
-  const followup=document.getElementById('tm-followup').value;
+  const diag=document.getElementById('tm-diag')?.value.trim()||'Unspecified';
+  const presc=document.getElementById('tm-presc')?.value.trim()||'';
+  const notes=document.getElementById('tm-notes')?.value.trim()||'';
+  const date=document.getElementById('tm-date')?.value||appState.clinicInformation.TODAY;
+  const followup=document.getElementById('tm-followup')?.value||'';
   const msg=document.getElementById('trm-msg');
   const medName=document.getElementById('tm-medname')?.value.trim()||'';
   const dosage=document.getElementById('tm-dosage')?.value.trim()||'';

@@ -160,45 +160,6 @@ export function renderMyAccount(){
         </div>
         ${registrationDetailsCard(u,pt)}
         ${u.role==='Patient'?healthDetailsCard(pt):''}
-      </div>
-      <div>
-        <div class="card">
-          <div class="card-header"><h3>Account Status</h3></div>
-          <div class="user-detail-fields">
-            ${statusTile('Status',statusBadge(u.status))}
-            ${statusTile('Email verification',u.emailVerificationSkipped?'<span class="badge badge-info">Temporarily skipped</span>':u.emailConfirmedAt?'<span class="badge badge-success">Confirmed</span>':'<span class="badge badge-warning">Not confirmed</span>')}
-            ${statusTile('Last login',escapeHtml(formatLastLogin(u.lastLogin)),true)}
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h3>Privacy &amp; Personal Data</h3>
-            </div>
-          </div>
-          <p class="text-muted" style="font-size:.78rem;line-height:1.6">
-            You can review the current CampusCare Privacy Notice at any time or submit a privacy/data request for authorized CTU review.
-          </p>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
-            <button class="btn btn-sm" ${bindAction('click',(event,element)=>{openPrivacyNotice()})}>View Privacy Notice</button>
-            <button class="btn btn-sm" ${bindAction('click',()=>openTermsOfService())}>Terms of Service</button>
-            <button class="btn btn-sm" ${bindAction('click',()=>openCookiePolicy())}>Cookie &amp; Storage Policy</button>
-            <button class="btn btn-sm btn-warning" ${bindAction('click',(event,element)=>{openPrivacyRequestModal()})}>Submit Privacy / Data Request</button>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header"><h3>Appearance</h3></div>
-          <div class="form-group"><label for="acc-theme">Theme</label>
-            <select id="acc-theme" ${bindAction('change',(event,element)=>{setThemePreference(element.value);toast(element.value==='auto'?'Theme now follows the time of day.':`${element.value==='dark'?'Dark':'Light'} theme saved on this device.`,'success');})}>
-              ${[['auto','Automatic (dark from 6 PM to 6 AM)'],['light','Light'],['dark','Dark']].map(([v,t])=>`<option value="${v}" ${themePreference()===v?'selected':''}>${t}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        ${u._realSupabase?`<div class="card">
-          <div class="card-header"><h3>Signed-in devices</h3><button class="btn btn-xs" ${bindAction('click',()=>renderSignedInDevices())}><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button></div>
-          <p class="text-muted" style="font-size:.8rem;line-height:1.55;margin:0 0 .6rem">Sign out any device you don't recognise or no longer use. A signed-out device loses access within an hour at most.</p>
-          <div id="acc-devices"><div class="db-skeleton-shimmer" style="height:90px;border-radius:12px"></div></div>
-        </div>`:''}
         <div class="card">
           <div class="card-header">
             <div>
@@ -243,6 +204,45 @@ export function renderMyAccount(){
           <button class="btn btn-sm" ${bindAction('click',()=>setPasswordEditing(false,true))}>Cancel</button>
           </div>
         </div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="card-header"><h3>Account Status</h3></div>
+          <div class="user-detail-fields">
+            ${statusTile('Status',statusBadge(u.status))}
+            ${statusTile('Email verification',u.emailVerificationSkipped?'<span class="badge badge-info">Temporarily skipped</span>':u.emailConfirmedAt?'<span class="badge badge-success">Confirmed</span>':'<span class="badge badge-warning">Not confirmed</span>')}
+            ${statusTile('Last login',escapeHtml(formatLastLogin(u.lastLogin)),true)}
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Privacy &amp; Personal Data</h3>
+            </div>
+          </div>
+          <p class="text-muted" style="font-size:.78rem;line-height:1.6">
+            You can review the current CampusCare Privacy Notice at any time or submit a privacy/data request for authorized CTU review.
+          </p>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
+            <button class="btn btn-sm" ${bindAction('click',(event,element)=>{openPrivacyNotice()})}>View Privacy Notice</button>
+            <button class="btn btn-sm" ${bindAction('click',()=>openTermsOfService())}>Terms of Service</button>
+            <button class="btn btn-sm" ${bindAction('click',()=>openCookiePolicy())}>Cookie &amp; Storage Policy</button>
+            <button class="btn btn-sm btn-warning" ${bindAction('click',(event,element)=>{openPrivacyRequestModal()})}>Submit Privacy / Data Request</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Appearance</h3></div>
+          <div class="form-group"><label for="acc-theme">Theme</label>
+            <select id="acc-theme" ${bindAction('change',(event,element)=>{setThemePreference(element.value);toast(element.value==='auto'?'Theme now follows the time of day.':`${element.value==='dark'?'Dark':'Light'} theme saved on this device.`,'success');})}>
+              ${[['auto','Automatic (dark from 6 PM to 6 AM)'],['light','Light'],['dark','Dark']].map(([v,t])=>`<option value="${v}" ${themePreference()===v?'selected':''}>${t}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        ${u._realSupabase?`<div class="card">
+          <div class="card-header"><h3>Signed-in devices</h3><button class="btn btn-xs" ${bindAction('click',()=>renderSignedInDevices())}><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button></div>
+          <p class="text-muted" style="font-size:.8rem;line-height:1.55;margin:0 0 .6rem">Sign out any device you don't recognise or no longer use. A signed-out device loses access within an hour at most.</p>
+          <div id="acc-devices"><div class="db-skeleton-shimmer" style="height:90px;border-radius:12px"></div></div>
+        </div>`:''}
       </div>
     </div>`;
 
