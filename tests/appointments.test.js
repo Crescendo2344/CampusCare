@@ -83,9 +83,11 @@ test('directory requests retain silent missing-session behavior and server error
 
 test('queries preserve both appointment sort keys and reject every table failure',async()=>{
   const {service,queries,raw}=fixture();const data=await service.load();assert.equal(data.appointments,raw.appointments);
-  assert.deepEqual(queries.map(q=>q.table),['appointments','appointment_slot_overrides','doctor_leaves']);
+  assert.deepEqual(queries.map(q=>q.table),['appointments','appointment_slot_overrides','doctor_leaves','appointment_vitals']);
   assert.deepEqual(queries[0].orders,[{column:'appointment_date',ascending:false},{column:'appointment_time',ascending:false}]);
   for(const failureTable of ['appointments','appointment_slot_overrides','doctor_leaves'])await assert.rejects(fixture({failureTable}).service.load(),/Query failed/);
+  // Triage vitals are optional: a failure there never hides the appointment list.
+  assert.deepEqual((await fixture({failureTable:'appointment_vitals'}).service.load()).vitals,[]);
 });
 
 // The availability endpoint uses the same authenticated transport without requesting patient records.

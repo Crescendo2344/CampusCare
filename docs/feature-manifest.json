@@ -89,6 +89,7 @@
       "../domain/appointment-list.js",
       "./treatmentForm.js",
       "./bookingForm.js",
+      "./triageVitals.js",
       "../dependencies.js"
     ]
   },
@@ -153,7 +154,9 @@
       "./topbarAndNavigation.js",
       "./slotManager.js",
       "./reappointment.js",
-      "../shared/csv.js"
+      "../shared/csv.js",
+      "./triageVitals.js",
+      "../../supabase/functions/_shared/triage-vitals.js"
     ]
   },
   {
@@ -581,6 +584,7 @@
     "state": [],
     "imports": [
       "../domain/dashboard-metrics.js",
+      "./triageVitals.js",
       "../app/state.js",
       "./dashboardChartHelpers.js",
       "./appointmentService.js",
@@ -850,6 +854,7 @@
       "../dependencies.js",
       "../ui/pager.js",
       "./patientManagement.js",
+      "./triageVitals.js",
       "./requestAttachments.js"
     ]
   },
@@ -2425,6 +2430,8 @@
       "./settingsAndCertificates.js",
       "./certificateService.js",
       "../domain/clinical-validation.js",
+      "../../supabase/functions/_shared/triage-vitals.js",
+      "./triageVitals.js",
       "../dependencies.js"
     ]
   },
@@ -2475,6 +2482,35 @@
       "../app/state.js",
       "./appointmentService.js",
       "./patientService.js",
+      "../dependencies.js"
+    ]
+  },
+  {
+    "name": "triageVitals",
+    "path": "src/features/triageVitals.js",
+    "functions": [
+      "triageVitalsTakenBy",
+      "triageVitalsChipHtml",
+      "triageVitalsPanelHtml",
+      "openTriageVitalsModal",
+      "saveTriageVitals"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./appointmentService.js",
+      "./documentScanner.js",
+      "./issueReports.js",
+      "./inputValidation.js",
+      "./modals.js",
+      "./theme.js",
+      "./persistence.js",
+      "./auditAndBackups.js",
+      "./patientManagement.js",
+      "./appointments.js",
+      "./appointmentDetails.js",
+      "../domain/clinical-validation.js",
+      "../../supabase/functions/_shared/triage-vitals.js",
       "../dependencies.js"
     ]
   },

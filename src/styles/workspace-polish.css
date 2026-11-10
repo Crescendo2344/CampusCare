@@ -1256,10 +1256,6 @@ select:disabled::-ms-expand{display:none}
 .tv-flag.high{background:var(--danger-bg);color:var(--danger)}
 .tv-flag.low{background:var(--warning-bg);color:var(--warning)}
 .tv-vital.flagged input{border-color:var(--danger)}
-.tv-bmi{display:flex;flex-direction:column;justify-content:center;padding:.4rem .7rem;border:1px dashed var(--line);border-radius:10px;font-size:.72rem;color:var(--ink-muted)}
-.tv-bmi strong{font-size:1rem;color:var(--ink)}
-.tv-bmi small{font-weight:700;color:var(--success,#2ea043)}
-.tv-bmi small.off{color:var(--warning)}
 .tv-chips{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.4rem}
 .tv-chip{border:1px solid var(--line);background:var(--overlay);color:var(--ink);font:inherit;font-size:.72rem;padding:.25rem .65rem;border-radius:999px;cursor:pointer}
 .tv-chip:hover,.tv-chip.active{border-color:var(--primary);color:var(--primary)}
@@ -1637,3 +1633,20 @@ tr[data-action-click]{transition:background .15s}
 .inv-archive-reason{display:flex;flex-direction:column;gap:.35rem;margin-top:.8rem}
 .inv-archive-reason label{font-size:.8rem;font-weight:600;color:var(--ink-muted)}
 .so-rc-qty{width:100px}
+
+/* Triage vital signs (front desk → doctor) */
+.triage-chips{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.3rem}
+.triage-chip{display:inline-block;padding:.08rem .42rem;border-radius:999px;font-size:.68rem;font-weight:600;background:var(--surface-2,#eef3f7);color:var(--ink);border:1px solid var(--line);white-space:nowrap}
+.triage-chip.flagged.high{border-color:var(--danger,#d64545);color:var(--danger,#d64545)}
+.triage-chip.flagged.low{border-color:var(--warning,#c98a00);color:var(--warning,#c98a00)}
+.triage-panel{margin-top:.9rem}
+.triage-panel-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.triage-panel-head .appt-detail-section{margin:0}
+.triage-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;margin:.5rem 0 .3rem}
+.triage-box{border:1px solid var(--line);border-radius:10px;padding:.45rem .6rem;display:flex;flex-direction:column;gap:.1rem}
+.triage-box span{font-size:.68rem;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);font-weight:700}
+.triage-box strong{font-size:.95rem;color:var(--ink)}
+.triage-box small{font-weight:700;font-size:.7rem}
+.triage-box.flagged.high{border-color:var(--danger,#d64545)}.triage-box.flagged.high small{color:var(--danger,#d64545)}
+.triage-box.flagged.low{border-color:var(--warning,#c98a00)}.triage-box.flagged.low small{color:var(--warning,#c98a00)}
+@media (max-width:480px){.triage-grid{grid-template-columns:1fr 1fr}}

@@ -28,7 +28,10 @@ export function appointmentActions(a,{role,userId,today,now}){
     reappoint:open&&(manage||ownDoctor),
     noShow:open&&(manage||ownDoctor)&&started,
     // Reminders are the front desk's job: staff send them, doctors do not.
-    remind:open&&manage&&!started&&a.patientResponse!=='Awaiting'
+    remind:open&&manage&&!started&&a.patientResponse!=='Awaiting',
+    // Triage: the front desk takes the vital signs on the day of the visit and may correct them until
+    // the visit is completed. The doctor reads them; they are copied into the visit record.
+    vitals:open&&manage&&a.date<=today
   };
 }
 

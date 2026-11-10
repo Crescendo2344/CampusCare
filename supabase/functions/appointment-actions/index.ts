@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {CLINIC_SERVICES,clinicForSpecialization,doctorRendersService} from "../_shared/clinic-services.js";
 import {buildDoctorAvailability} from "../_shared/booking-availability.js";
+import {cleanTriageVitals,triageVitalErrors} from "../_shared/triage-vitals.js";
 import {EMERGENCY_MAX_DAYS_AHEAD,EMERGENCY_REASONS,emergencyBlockedTimes,emergencyReappointMessage,emergencySearchEnd,planEmergencyReappointments,prettyDeadline} from "../_shared/emergency-reappointment.js";
 
 const cors={
@@ -571,6 +572,31 @@ Deno.serve(async(req)=>{
 
       return json({ok:true,date,moved,unplaced,blocked_slots:blockTimes.length,
         deadline_example:moved[0]?prettyDeadline(moved[0].deadline):null});
+    }
+
+    // Triage vital signs: the front desk records them when the patient arrives and may correct them
+    // until the visit is completed, so the doctor reads them before the consultation.
+    if(action==="vitals"){
+      if(!canManageAll)return json({error:"Only clinic staff record triage vital signs."},403);
+      const id=Number(body.appointment_id||0);
+      const appt=await loadAppointment(id);
+      if(!appt)return json({error:"Appointment not found."},404);
+      if(!OPEN.includes(appt.status))return json({error:"Vital signs can only be changed before the visit is completed."},409);
+      if(appt.appointment_date>manilaNow().date)return json({error:"Vital signs are taken on the day of the visit."},409);
+      const errors=triageVitalErrors(body.vitals||{});
+      if(Object.keys(errors).length)return json({error:Object.values(errors)[0],errors},400);
+      const vitals=cleanTriageVitals(body.vitals||{});
+      const {data:previous}=await admin.from("appointment_vitals").select("vitals,recorded_by,recorded_at").eq("appointment_id",id).maybeSingle();
+      const now=new Date().toISOString();
+      const {error}=await admin.from("appointment_vitals").upsert({
+        appointment_id:id,vitals,
+        recorded_by:previous?.recorded_by||actor.user_id,recorded_at:previous?.recorded_at||now,
+        updated_by:actor.user_id,updated_at:now
+      },{onConflict:"appointment_id"});
+      if(error)throw error;
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:previous?"APPOINTMENT_VITALS_UPDATED":"APPOINTMENT_VITALS_RECORDED",entity_type:"appointments",entity_id:id,
+        details:previous?{before:previous.vitals,after:vitals}:{vitals}});
+      return json({ok:true,vitals});
     }
 
     if(action==="manage_slots"){

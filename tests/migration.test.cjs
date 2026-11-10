@@ -72,7 +72,7 @@ async function checkAppointmentAdapter(){
   const overrides=w.DB.settings.slotOverrides;let queries=0;
   w.supabaseClient={auth:{getSession:async()=>({data:{session:{access_token:'test-session'}}})},from(table){
     queries++;return {select(){return this;},order(){return this;},then(resolve,reject){
-      const data=table==='appointments'?[{appointment_id:77,patient_id:4,doctor_id:2,status:'Confirmed'}]:table==='doctor_leaves'?[{leave_id:8,doctor_id:2,leave_date:'2026-10-09'}]:[{doctor_id:2,override_date:'2026-10-08',slot_time:'12:00:00',is_available:true}];
+      const data=table==='appointments'?[{appointment_id:77,patient_id:4,doctor_id:2,status:'Confirmed'}]:table==='appointment_vitals'?[{appointment_id:77,vitals:{bp:'118/76',temp:'36.6',spo2:'99'},recorded_by:5,recorded_at:'2026-10-08T01:00:00Z',updated_by:5,updated_at:'2026-10-08T01:00:00Z'}]:table==='doctor_leaves'?[{leave_id:8,doctor_id:2,leave_date:'2026-10-09'}]:[{doctor_id:2,override_date:'2026-10-08',slot_time:'12:00:00',is_available:true}];
       return Promise.resolve({data}).then(resolve,reject);
     }};
   }};
@@ -81,7 +81,7 @@ async function checkAppointmentAdapter(){
     w.currentUser={role:'Patient',_realSupabase:false};assert.equal((await w.syncRealAppointments()).length,0);assert.equal(queries,0);
     w.currentUser={role:'Patient',_realSupabase:true};await w.syncRealDoctorDirectory();
     assert(w.DB.users.some(u=>u.dbUserId===2&&u._realDoctorDirectory));
-    const rows=await w.syncRealAppointments();assert.equal(queries,3);assert.equal(rows.length,1);
+    const rows=await w.syncRealAppointments();assert.equal(queries,4);assert.equal(rows.length,1);assert.equal(rows[0].triageVitals.bp,'118/76');
     assert.equal(rows[0].dbAppointmentId,77);assert.equal(rows[0].status,'Scheduled');assert.equal(w.appointmentDisplayId(rows[0]),'000077');
     assert.equal(w.DB.settings.slotOverrides[0].availableTimes.join(','),'12:00');
     assert(w.DB.doctorLeaves.some(l=>l.dbLeaveId===8));

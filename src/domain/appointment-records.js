@@ -9,7 +9,18 @@ export function appointmentRecords(db,account){
   return db.appointments||[];
 }
 
-export function realAppointmentToUi(a,db){
+// Triage vitals taken by the front desk, in the UI's id space (recordedBy/updatedBy are UI user ids).
+export function realTriageVitalsToUi(row){
+  if(!row)return null;
+  const v=row.vitals&&typeof row.vitals==='object'?row.vitals:{};
+  return {
+    bp:String(v.bp||''),temp:String(v.temp||''),spo2:String(v.spo2||''),
+    recordedBy:row.recorded_by?100000+Number(row.recorded_by):null,recordedAt:row.recorded_at||'',
+    updatedBy:row.updated_by?100000+Number(row.updated_by):null,updatedAt:row.updated_at||''
+  };
+}
+
+export function realAppointmentToUi(a,db,vitalsRow=null){
   const pt=(db.patients||[]).find(p=>p._realSupabase&&Number(p.dbPatientId)===Number(a.patient_id));
   const doc=(db.users||[]).find(u=>u._realSupabase&&Number(u.dbUserId)===Number(a.doctor_id));
   const service=String(a.service||'');
@@ -42,6 +53,7 @@ export function realAppointmentToUi(a,db){
     reappointedAt:a.reappointed_at||'',
     // Emergency reappointments must be confirmed by this time, or the reserved slot is released.
     reappointDeadline:a.reappoint_deadline||'',
+    triageVitals:realTriageVitalsToUi(vitalsRow),
     _realSupabase:true
   };
 }
@@ -96,9 +108,10 @@ export function realDoctorLeaveToUi(l){
 }
 
 // Produce a new snapshot while preserving demo rows and the caller's patient/user records.
-export function mergeAppointmentSnapshot(db,{appointments,overrides,leaves}){
+export function mergeAppointmentSnapshot(db,{appointments,overrides,leaves,vitals=[]}){
+  const vitalsById=new Map((vitals||[]).map(v=>[Number(v.appointment_id),v]));
   return {
-    appointments:[...(db.appointments||[]).filter(a=>!a._realSupabase),...appointments.map(a=>realAppointmentToUi(a,db))],
+    appointments:[...(db.appointments||[]).filter(a=>!a._realSupabase),...appointments.map(a=>realAppointmentToUi(a,db,vitalsById.get(Number(a.appointment_id))))],
     slotOverrides:groupSlotOverrides(overrides),
     doctorLeaves:[...(db.doctorLeaves||[]).filter(l=>!l._realSupabase),...leaves.map(realDoctorLeaveToUi)]
   };

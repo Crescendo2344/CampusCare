@@ -35,7 +35,7 @@ export function createAppointmentService({getClient,request,baseUrl,publishableK
 
   async function load(){
     const client=getClient();
-    const [apptRes,overrideRes,leaveRes]=await Promise.all([
+    const [apptRes,overrideRes,leaveRes,vitalsRes]=await Promise.all([
       client.from('appointments')
         .select('appointment_id,patient_id,doctor_id,clinic,service,appointment_date,appointment_time,status,priority,reason,notes,created_by,created_at,cancelled_at,cancellation_reason,patient_response,reappoint_from_date,reappoint_from_time,reappoint_reason,reappointed_at,reappoint_deadline')
         .order('appointment_date',{ascending:false})
@@ -43,14 +43,19 @@ export function createAppointmentService({getClient,request,baseUrl,publishableK
       client.from('appointment_slot_overrides')
         .select('doctor_id,override_date,slot_time,is_available,reason'),
       client.from('doctor_leaves')
-        .select('leave_id,doctor_id,leave_date,reason')
+        .select('leave_id,doctor_id,leave_date,reason'),
+      // Triage vitals are readable by staff, the appointment's doctor and the patient (row-level security).
+      client.from('appointment_vitals')
+        .select('appointment_id,vitals,recorded_by,recorded_at,updated_by,updated_at')
     ]);
 
     if(apptRes.error)throw apptRes.error;
     if(overrideRes.error)throw overrideRes.error;
     if(leaveRes.error)throw leaveRes.error;
 
-    return {appointments:apptRes.data||[],overrides:overrideRes.data||[],leaves:leaveRes.data||[]};
+    // Missing triage vitals never block the appointment list.
+    const vitals=vitalsRes?.error?[]:(vitalsRes?.data||[]);
+    return {appointments:apptRes.data||[],overrides:overrideRes.data||[],leaves:leaveRes.data||[],vitals};
   }
   return {action,loadDoctorDirectory,load,availability:payload=>action(payload,'booking-availability')};
 }
