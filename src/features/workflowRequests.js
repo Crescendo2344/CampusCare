@@ -293,39 +293,31 @@ export async function saveAccount(){
   const msg=document.getElementById('acc-msg');
   hideAlert(msg);
 
-  const email=document.getElementById('acc-email').value.trim().toLowerCase();
   const contactRaw=document.getElementById('acc-contact').value.trim();
   const contact=normalizePhilippineMobile(contactRaw);
 
   // Apply the registration rules to profile edits without truncating an international number.
-  if(emailValidationError(email)){
-    showAlert(msg,emailValidationError(email));
-    return;
-  }
   if(contactRaw&&!contact){
     showAlert(msg,'Use a Philippine mobile number starting with 09 or +639.');
     return;
   }
 
-  const emailChanged=email!==String(u.email||'').toLowerCase();
   const contactChanged=contact!==String(u.contact||'');
   const program=readProgramFields();
   const programEdited=programChanged(program);
-  if(!emailChanged&&!contactChanged&&!programEdited){
+  if(!contactChanged&&!programEdited){
     showAlert(msg,'No changes to save.','info');
     return;
   }
 
-  // Everyone, administrators included, saves their own details here. The contact number and program are
-  // saved at once. A new email is the sign-in address, so it switches only after the 6-digit code sent to
-  // it is entered: a typo can never lock anyone out.
+  // Everyone, administrators included, saves their own contact number and program here. The sign-in
+  // email has its own "Change email" step, confirmed by a code sent to the current address.
   const btn=document.getElementById('account-save-button');
   const oldText=btn?.textContent;
   if(btn){btn.disabled=true;btn.textContent='Saving…';}
   try{
     if(!u._realSupabase){
       if(contactChanged){u.contact=contact;u.contactNo=contact;}
-      if(emailChanged)u.email=email;
       if(programEdited&&appState.auth.currentPatient)Object.assign(appState.auth.currentPatient,program);
       persistDB();
       toast('Profile updated.','success');
@@ -335,13 +327,7 @@ export async function saveAccount(){
     if(!initializeSupabaseClient())throw new Error('Unable to connect to CampusCare.');
     if(programEdited)await savePatientProgram(program);
     if(contactChanged)await profileAction({action:'update_contact',contact_number:contact});
-    if(contactChanged||programEdited)await refreshCurrentProfileContact();
-    if(emailChanged){
-      await profileAction({action:'request_email_change',email});
-      if(contactChanged||programEdited){renderMyAccount();toast('Your other changes were saved.','success');}
-      openEmailCodeModal(email);
-      return;
-    }
+    await refreshCurrentProfileContact();
     renderMyAccount();
     toast(contactChanged&&!programEdited?'Contact number updated.':'Profile updated.','success');
   }catch(e){
@@ -364,30 +350,59 @@ async function profileAction(payload){
   return result;
 }
 
-// The Save button says what will happen: a changed email is verified by a code before it is saved.
-export function updateAccountSaveLabel(){
-  const button=document.getElementById('account-save-button'),input=document.getElementById('acc-email'),hint=document.getElementById('acc-email-hint');
-  if(!button||!input)return;
-  const changed=input.value.trim().toLowerCase()!==String(appState.auth.currentUser?.email||'').toLowerCase();
-  button.innerHTML=changed?'<i class="bi bi-shield-check" aria-hidden="true"></i> Send verification code':'Save Changes';
-  if(hint)hint.hidden=!changed;
+// Step 1 of changing the sign-in email: type the new address twice, then request a code. The code goes to
+// the current address, so only the account owner can move the sign-in email.
+export function openChangeEmailModal(prefill=''){
+  const current=String(appState.auth.currentUser?.email||'');
+  openModal(`<div class="modal otp-modal" role="dialog" aria-labelledby="otp-title" aria-describedby="otp-desc">
+    <button class="close-btn otp-close" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button>
+    <div class="otp-icon" aria-hidden="true"><i class="bi bi-envelope-at"></i></div>
+    <h3 id="otp-title">Change sign-in email</h3>
+    <p id="otp-desc" class="otp-desc">Your current email is<br><strong>${escapeHtml(current)}</strong><br>We'll send a code there to confirm it's you.</p>
+    <div class="otp-fields">
+      <div class="form-group"><label for="ce-new">New email</label><input id="ce-new" type="email" autocomplete="email" maxlength="150" value="${escapeHtml(prefill)}"></div>
+      <div class="form-group"><label for="ce-confirm">Confirm new email</label><input id="ce-confirm" type="email" autocomplete="off" maxlength="150" value="${escapeHtml(prefill)}"></div>
+    </div>
+    <p class="otp-status" id="otp-status" role="alert" aria-live="assertive"></p>
+    <button class="btn btn-primary otp-verify" id="ce-request" ${bindAction('click',()=>requestEmailChangeCode())}>Request code</button>
+  </div>`);
+  for(const id of ['ce-new','ce-confirm'])document.getElementById(id)?.addEventListener('keydown',event=>{if(event.key==='Enter')requestEmailChangeCode();});
+  for(const id of ['ce-new','ce-confirm'])document.getElementById(id)?.addEventListener('input',()=>setCodeStatus(''));
+  setTimeout(()=>document.getElementById('ce-new')?.focus(),50);
 }
 
-// Six boxes like most sign-in screens: typing moves on, paste fills them all, Backspace steps back,
-// and the code is checked as soon as the sixth digit is in.
-export function openEmailCodeModal(email){
+async function requestEmailChangeCode(){
+  const email=String(document.getElementById('ce-new')?.value||'').trim().toLowerCase();
+  const again=String(document.getElementById('ce-confirm')?.value||'').trim().toLowerCase();
+  const current=String(appState.auth.currentUser?.email||'').toLowerCase();
+  const problem=!email?'Enter your new email.':emailValidationError(email)||(email===current?'That is already your sign-in email.':email!==again?'The two emails do not match.':'');
+  if(problem){setCodeStatus(problem,'error');return;}
+  const button=document.getElementById('ce-request');
+  if(button){button.disabled=true;button.textContent='Sending…';}
+  try{
+    const result=await profileAction({action:'request_email_change',email});
+    openEmailCodeModal(email,result.sent_to||appState.auth.currentUser?.email||'');
+  }catch(e){
+    setCodeStatus(e.message,'error');
+    if(button){button.disabled=false;button.textContent='Request code';}
+  }
+}
+
+// Step 2: six boxes like most sign-in screens. Typing moves on, paste fills them all, Backspace steps
+// back, and the code is checked as soon as the sixth digit is in.
+export function openEmailCodeModal(email,sentTo){
   openModal(`<div class="modal otp-modal" role="dialog" aria-labelledby="otp-title" aria-describedby="otp-desc">
     <button class="close-btn otp-close" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button>
     <div class="otp-icon" aria-hidden="true"><i class="bi bi-envelope-check"></i></div>
     <h3 id="otp-title">Check your email</h3>
-    <p id="otp-desc" class="otp-desc">Enter the 6-digit code we sent to<br><strong>${escapeHtml(email)}</strong></p>
+    <p id="otp-desc" class="otp-desc">Enter the 6-digit code we sent to your current email<br><strong>${escapeHtml(sentTo)}</strong><br>Your sign-in email will change to <strong>${escapeHtml(email)}</strong>.</p>
     <div class="otp-boxes" id="otp-boxes" role="group" aria-label="6-digit verification code">
       ${Array.from({length:6},(_,i)=>`<input class="otp-box" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit ${i+1} of 6" ${i===0?'autocomplete="one-time-code"':'autocomplete="off"'}>`).join('')}
     </div>
     <p class="otp-status" id="otp-status" role="alert" aria-live="assertive"></p>
     <button class="btn btn-primary otp-verify" id="otp-verify" disabled ${bindAction('click',()=>confirmEmailCode(email))}>Verify</button>
-    <p class="otp-resend">Didn't get it? <button type="button" class="link-btn" id="otp-resend" disabled ${bindAction('click',()=>resendEmailCode(email))}>Resend code</button></p>
-    <button type="button" class="link-btn otp-change" ${bindAction('click',()=>{closeAllModals();const input=document.getElementById('acc-email');input?.focus();input?.select();})}>Use a different email</button>
+    <p class="otp-resend">Didn't get it? <button type="button" class="link-btn" id="otp-resend" disabled ${bindAction('click',()=>resendEmailCode(email,sentTo))}>Resend code</button></p>
+    <button type="button" class="link-btn otp-change" ${bindAction('click',()=>openChangeEmailModal(email))}>Use a different new email</button>
     <p class="otp-note">The code expires in 10 minutes. Check Spam or Promotions if it isn't in your inbox.</p>
   </div>`);
   wireCodeBoxes(()=>confirmEmailCode(email));
@@ -452,12 +467,12 @@ function startResendCountdown(seconds){
   tick();
 }
 
-async function resendEmailCode(email){
+async function resendEmailCode(email,sentTo){
   const button=document.getElementById('otp-resend');if(button)button.disabled=true;
   try{
     await profileAction({action:'request_email_change',email});
     codeBoxes().forEach(box=>{box.value='';box.classList.remove('filled');});
-    setCodeStatus(`A new code was sent to ${email}.`,'success');
+    setCodeStatus(`A new code was sent to ${sentTo}.`,'success');
     codeBoxes()[0]?.focus();
     startResendCountdown(60);
   }catch(e){
