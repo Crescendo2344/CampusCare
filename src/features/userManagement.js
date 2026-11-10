@@ -399,7 +399,8 @@ export function renderUserTable(){
         ${canEditApprovedUser(u)?`<button class="btn btn-xs" ${bindAction('click',()=>openEditUserModal(u.id))}>Edit</button>`:''}
         ${!u.archived&&u.status==='Active'&&u.id!==appState.auth.currentUser.id?`<button class="btn btn-xs btn-warning" ${bindAction('click',()=>suspendUser(u.id))}>Suspend</button>`:''}
         ${!u.archived&&u.status==='Suspended'?`<button class="btn btn-xs btn-success" ${bindAction('click',()=>reactivateUser(u.id))}>Reactivate</button>`:''}
-        ${u.id!==appState.auth.currentUser.id&&u.status!=='Pending'?(u.archived?`<button class="btn btn-xs btn-success" ${bindAction('click',()=>restoreUser(u.id))}>Restore</button>`:`<button class="btn btn-xs" ${bindAction('click',()=>archiveUser(u.id))}>Archive</button>`):''}
+        ${u.role==='Patient'&&u.archived?'<span class="text-muted" title="Patient records archive themselves after five years without activity. Staff restore a returning patient in Patient Records.">Archived automatically</span>':''}
+        ${u.role!=='Patient'&&u.id!==appState.auth.currentUser.id&&u.status!=='Pending'?(u.archived?`<button class="btn btn-xs btn-success" ${bindAction('click',()=>restoreUser(u.id))}>Restore</button>`:`<button class="btn btn-xs" ${bindAction('click',()=>archiveUser(u.id))}>Archive</button>`):''}
       </div></td>
     </tr>`).join('')
   }</tbody></table></div>
