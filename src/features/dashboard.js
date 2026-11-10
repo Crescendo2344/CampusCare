@@ -120,7 +120,7 @@ export function renderDashboard(){
     // A patient's first booking with this doctor marks when they joined the doctor's list.
     const firstVisits=[...mine.filter(a=>a.status!=='Cancelled').sort((a,b)=>a.date.localeCompare(b.date)).reduce((first,a)=>first.has(a.patientId)?first:first.set(a.patientId,a),new Map()).values()];
     c.innerHTML=`<div class="dashboard-a">
-      <div class="dashboard-a-head"><div><h3>${greeting}, Dr. ${escapeHtml(appState.auth.currentUser.lname)}.</h3><p>Your patient load and clinic activity at a glance.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-sm" ${bindAction('click',(event,element)=>{navTo('schedule')})}>Full Schedule</button>${dashboardControlsHtml()}</div></div>
+      <div class="dashboard-a-head"><div><h3>${greeting}, Dr. ${escapeHtml(appState.auth.currentUser.lname)}.</h3><p>Your patient load and clinic activity at a glance.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap">${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
         ${dashboardStatCard("Today's patients",todayMine.length,`${todayCompleted} seen · ${todayMine.filter(a=>a.status==='Scheduled').length} waiting`,note(next?`Next at ${fmtTime(next.time)}`:'No one waiting right now'),'bi-clipboard2-pulse')}
         ${dashboardStatCard('Upcoming appointments',scheduled.length,'Scheduled from today onward',note(scheduled.length?`${plural(todayMine.filter(a=>a.status==='Scheduled').length,'appointment')} left today`:'Schedule is clear'),'bi-calendar-event',scheduled.length>8?'attention':'')}
