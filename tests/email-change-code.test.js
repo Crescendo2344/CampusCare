@@ -32,3 +32,12 @@ test('administrators save their own details through the same path as everyone',(
   assert.match(ui,/action:'request_email_change'/);
   assert.match(ui,/autocomplete="one-time-code"/);
 });
+
+test('the code screen uses six boxes and the button says what will happen',()=>{
+  assert.match(ui,/Array\.from\(\{length:6\}/,'Six digit boxes');
+  assert.match(ui,/addEventListener\('paste'/,'Pasting fills every box');
+  assert.match(ui,/event\.key==='Backspace'&&!box\.value&&i>0/,'Backspace steps back');
+  assert.match(ui,/if\(code\.length===6\)onComplete\(\)/,'The sixth digit submits');
+  assert.match(ui,/Send verification code/);
+  assert.match(fs.readFileSync('src/features/accountSettings.js','utf8'),/updateAccountSaveLabel\(\)/);
+});

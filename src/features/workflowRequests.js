@@ -364,66 +364,130 @@ async function profileAction(payload){
   return result;
 }
 
-// The code goes to the new address; the email switches only once the code is entered here.
+// The Save button says what will happen: a changed email is verified by a code before it is saved.
+export function updateAccountSaveLabel(){
+  const button=document.getElementById('account-save-button'),input=document.getElementById('acc-email'),hint=document.getElementById('acc-email-hint');
+  if(!button||!input)return;
+  const changed=input.value.trim().toLowerCase()!==String(appState.auth.currentUser?.email||'').toLowerCase();
+  button.innerHTML=changed?'<i class="bi bi-shield-check" aria-hidden="true"></i> Send verification code':'Save Changes';
+  if(hint)hint.hidden=!changed;
+}
+
+// Six boxes like most sign-in screens: typing moves on, paste fills them all, Backspace steps back,
+// and the code is checked as soon as the sixth digit is in.
 export function openEmailCodeModal(email){
-  openModal(`<div class="modal email-code-modal" role="dialog" aria-labelledby="email-code-title">
-    <div class="modal-header"><h3 id="email-code-title">Enter the code</h3><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
-    <div class="modal-body">
-      <p>We sent a 6-digit code to <strong>${escapeHtml(email)}</strong>. Enter it to make this your sign-in email. Until then you keep signing in with your current email.</p>
-      <div id="email-code-msg"></div>
-      <div class="form-group"><label for="email-code-input">Verification code</label>
-        <input id="email-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" placeholder="6-digit code" style="letter-spacing:.3em;font-size:1.2rem"
-          ${bindAction('input',(event,element)=>{element.value=element.value.replace(/\D/g,'').slice(0,6);document.getElementById('email-code-confirm').disabled=element.value.length!==6;})}
-          ${bindAction('keydown',(event,element)=>{if(event.key==='Enter'&&element.value.length===6)confirmEmailCode(email);})}></div>
-      <p class="form-note">The code expires in 10 minutes. Check Spam or Promotions if you don't see it.</p>
+  openModal(`<div class="modal otp-modal" role="dialog" aria-labelledby="otp-title" aria-describedby="otp-desc">
+    <button class="close-btn otp-close" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button>
+    <div class="otp-icon" aria-hidden="true"><i class="bi bi-envelope-check"></i></div>
+    <h3 id="otp-title">Check your email</h3>
+    <p id="otp-desc" class="otp-desc">Enter the 6-digit code we sent to<br><strong>${escapeHtml(email)}</strong></p>
+    <div class="otp-boxes" id="otp-boxes" role="group" aria-label="6-digit verification code">
+      ${Array.from({length:6},(_,i)=>`<input class="otp-box" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit ${i+1} of 6" ${i===0?'autocomplete="one-time-code"':'autocomplete="off"'}>`).join('')}
     </div>
-    <div class="modal-footer">
-      <button class="btn" id="email-code-resend" disabled ${bindAction('click',()=>resendEmailCode(email))}>Resend code</button>
-      <button class="btn btn-primary" id="email-code-confirm" disabled ${bindAction('click',()=>confirmEmailCode(email))}>Confirm</button>
-    </div>
+    <p class="otp-status" id="otp-status" role="alert" aria-live="assertive"></p>
+    <button class="btn btn-primary otp-verify" id="otp-verify" disabled ${bindAction('click',()=>confirmEmailCode(email))}>Verify</button>
+    <p class="otp-resend">Didn't get it? <button type="button" class="link-btn" id="otp-resend" disabled ${bindAction('click',()=>resendEmailCode(email))}>Resend code</button></p>
+    <button type="button" class="link-btn otp-change" ${bindAction('click',()=>{closeAllModals();const input=document.getElementById('acc-email');input?.focus();input?.select();})}>Use a different email</button>
+    <p class="otp-note">The code expires in 10 minutes. Check Spam or Promotions if it isn't in your inbox.</p>
   </div>`);
+  wireCodeBoxes(()=>confirmEmailCode(email));
   startResendCountdown(60);
-  setTimeout(()=>document.getElementById('email-code-input')?.focus(),50);
+}
+
+function codeBoxes(){return [...document.querySelectorAll('#otp-boxes .otp-box')];}
+function enteredCode(){return codeBoxes().map(box=>box.value).join('');}
+function setCodeStatus(text,kind=''){
+  const status=document.getElementById('otp-status'),boxes=document.getElementById('otp-boxes');
+  if(status){status.textContent=text;status.className=`otp-status ${kind}`;}
+  boxes?.classList.toggle('error',kind==='error');
+  if(kind==='error'){boxes?.classList.remove('shake');void boxes?.offsetWidth;boxes?.classList.add('shake');}
+}
+
+function wireCodeBoxes(onComplete){
+  const boxes=codeBoxes();
+  const refresh=()=>{
+    const code=enteredCode();
+    boxes.forEach(box=>box.classList.toggle('filled',Boolean(box.value)));
+    const verify=document.getElementById('otp-verify');if(verify)verify.disabled=code.length!==6;
+    if(code.length===6)onComplete();
+  };
+  const fill=(start,digits)=>{
+    digits.slice(0,6-start).split('').forEach((d,i)=>{boxes[start+i].value=d;});
+    boxes[Math.min(start+digits.length,5)].focus();
+  };
+  boxes.forEach((box,i)=>{
+    box.addEventListener('input',()=>{
+      const digits=box.value.replace(/\D/g,'');
+      if(document.getElementById('otp-status')?.textContent)setCodeStatus('');
+      if(digits.length>1)fill(i,digits);           // autofill or a phone keyboard suggestion
+      else{box.value=digits;if(digits&&i<5)boxes[i+1].focus();}
+      refresh();
+    });
+    box.addEventListener('keydown',event=>{
+      if(event.key==='Backspace'&&!box.value&&i>0){boxes[i-1].value='';boxes[i-1].focus();refresh();event.preventDefault();}
+      else if(event.key==='ArrowLeft'&&i>0){boxes[i-1].focus();event.preventDefault();}
+      else if(event.key==='ArrowRight'&&i<5){boxes[i+1].focus();event.preventDefault();}
+      else if(event.key==='Enter'&&enteredCode().length===6)onComplete();
+    });
+    box.addEventListener('focus',()=>box.select());
+    box.addEventListener('paste',event=>{
+      const digits=(event.clipboardData?.getData('text')||'').replace(/\D/g,'');
+      if(!digits)return;
+      event.preventDefault();fill(digits.length>=6?0:i,digits);refresh();
+    });
+  });
+  setTimeout(()=>boxes[0]?.focus(),50);
 }
 
 function startResendCountdown(seconds){
-  const button=document.getElementById('email-code-resend');if(!button)return;
+  const button=document.getElementById('otp-resend');if(!button)return;
+  clearTimeout(button._timer);
   let left=Math.max(0,Math.ceil(seconds));
   const tick=()=>{
     if(!document.body.contains(button))return;
-    button.disabled=left>0;button.textContent=left>0?`Resend code (${left}s)`:'Resend code';
-    if(left-->0)setTimeout(tick,1000);
+    button.disabled=left>0;
+    button.textContent=left>0?`Resend code in 0:${String(left).padStart(2,'0')}`:'Resend code';
+    if(left-->0)button._timer=setTimeout(tick,1000);
   };
   tick();
 }
 
 async function resendEmailCode(email){
-  const msg=document.getElementById('email-code-msg');hideAlert(msg);
+  const button=document.getElementById('otp-resend');if(button)button.disabled=true;
   try{
     await profileAction({action:'request_email_change',email});
-    showAlert(msg,`A new code was sent to ${email}.`,'success');
+    codeBoxes().forEach(box=>{box.value='';box.classList.remove('filled');});
+    setCodeStatus(`A new code was sent to ${email}.`,'success');
+    codeBoxes()[0]?.focus();
     startResendCountdown(60);
   }catch(e){
-    showAlert(msg,e.message);
-    if(e.retryAfter)startResendCountdown(e.retryAfter);
+    setCodeStatus(e.message,'error');
+    startResendCountdown(e.retryAfter||0);
   }
 }
 
+let checkingCode=false;
 async function confirmEmailCode(email){
-  const msg=document.getElementById('email-code-msg'),input=document.getElementById('email-code-input'),button=document.getElementById('email-code-confirm');
-  hideAlert(msg);
-  if(button){button.disabled=true;button.textContent='Checking…';}
+  if(checkingCode||enteredCode().length!==6)return;
+  checkingCode=true;
+  const button=document.getElementById('otp-verify');
+  if(button){button.disabled=true;button.textContent='Verifying…';}
+  codeBoxes().forEach(box=>{box.disabled=true;});
   try{
-    await profileAction({action:'confirm_email_change',code:input?.value||''});
+    await profileAction({action:'confirm_email_change',code:enteredCode()});
+    document.getElementById('otp-boxes')?.classList.add('success');
+    setCodeStatus('Verified','success');
+    await new Promise(resolve=>setTimeout(resolve,600));
     closeAllModals();
     await refreshCurrentProfileContact();
     renderMyAccount();
     toast(`Your sign-in email is now ${email}.`,'success');
   }catch(e){
-    showAlert(msg,e.message);
-    if(input){input.value='';input.focus();}
-    if(button){button.textContent='Confirm';button.disabled=true;}
-  }
+    codeBoxes().forEach(box=>{box.disabled=false;box.value='';box.classList.remove('filled');});
+    setCodeStatus(e.message,'error');
+    codeBoxes()[0]?.focus();
+    if(button){button.textContent='Verify';button.disabled=true;}
+  }finally{checkingCode=false;}
 }
 
 export function cancelAccountUpdate(){

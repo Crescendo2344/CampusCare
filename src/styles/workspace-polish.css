@@ -1652,3 +1652,28 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .triage-box.flagged.high{border-color:var(--danger,#d64545)}.triage-box.flagged.high small{color:var(--danger,#d64545)}
 .triage-box.flagged.low{border-color:var(--warning,#c98a00)}.triage-box.flagged.low small{color:var(--warning,#c98a00)}
 @media (max-width:480px){.triage-grid{grid-template-columns:1fr 1fr}}
+
+/* 6-digit verification code, laid out like common sign-in screens. */
+.otp-modal{max-width:420px;width:calc(100vw - 32px);padding:2rem clamp(1rem,5vw,1.75rem) 1.5rem;text-align:center;position:relative}
+.otp-modal .otp-close{position:absolute;top:.85rem;right:.85rem}
+.otp-icon{width:56px;height:56px;margin:0 auto .9rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:var(--primary);background:color-mix(in srgb,var(--primary) 14%,transparent)}
+.otp-modal h3{margin:0 0 .4rem;font-size:1.3rem}
+.otp-desc{margin:0 0 1.3rem;color:var(--ink-muted);line-height:1.5;overflow-wrap:anywhere}
+.otp-desc strong{color:var(--ink)}
+.otp-boxes{display:flex;justify-content:center;gap:clamp(.3rem,2vw,.5rem)}
+.otp-box{flex:1 1 0;min-width:0;max-width:50px;height:58px;padding:0;text-align:center;font-size:1.55rem;font-weight:700;font-variant-numeric:tabular-nums;border-radius:12px;caret-color:var(--primary);transition:border-color .15s,box-shadow .15s,transform .15s}
+.otp-box:focus{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 28%,transparent);outline:none}
+.otp-box.filled{border-color:color-mix(in srgb,var(--primary) 55%,transparent)}
+.otp-boxes.error .otp-box{border-color:var(--danger,#e5484d)}
+.otp-boxes.success .otp-box{border-color:var(--success,#30a46c);color:var(--success,#30a46c)}
+.otp-boxes.shake{animation:cc-shake .4s ease}
+.otp-status{min-height:1.3rem;margin:.6rem 0 .2rem;font-size:.88rem}
+.otp-status.error{color:var(--danger,#e5484d)}
+.otp-status.success{color:var(--success,#30a46c)}
+.otp-verify{width:100%;min-height:44px;margin-top:.4rem;font-size:1rem}
+.otp-resend{margin:1rem 0 .35rem;font-size:.9rem;color:var(--ink-muted)}
+.otp-resend .link-btn:disabled{opacity:.75;cursor:default;text-decoration:none}
+.otp-change{font-size:.88rem}
+.otp-note{margin:1rem 0 0;font-size:.8rem;color:var(--ink-muted)}
+.acc-email-hint{margin:.35rem 0 0;color:var(--primary)}
+@media (prefers-reduced-motion:reduce){.otp-boxes.shake{animation:none}}
