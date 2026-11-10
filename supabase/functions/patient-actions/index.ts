@@ -319,7 +319,7 @@ Deno.serve(async(req)=>{
       const blood=clean(body.blood_type,20)||"Unknown";
       // Class session is recorded explicitly; omitted fields preserve existing clients.
       const classSession=body.class_session===undefined?undefined:clean(body.class_session,20)||null;
-      if(classSession&&!["Morning","Evening","Mixed"].includes(classSession))return json({error:"Choose a valid class session."},400);
+      if(classSession&&!["Morning","Evening"].includes(classSession))return json({error:"Choose a valid class session."},400);
 
       // Record edits follow the registration rules for the fields they change.
       const manilaToday=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
