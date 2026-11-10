@@ -89,7 +89,7 @@ export async function renderReportIssue(){
             ${[['Bug','bi-bug','Something is broken'],['Suggestion','bi-lightbulb','An idea or improvement'],['Feedback','bi-chat-heart','General feedback']].map(([value,icon,label],i)=>`<label class="fi-type-choice"><input type="radio" name="ri-type" value="${value}" ${i===0?'checked':''}><span><i class="bi ${icon}" aria-hidden="true"></i><strong>${value}</strong><small>${label}</small></span></label>`).join('')}
           </div>
         </div>
-        <div class="form-group"><label for="ri-page">Page or feature</label><input id="ri-page" maxlength="160" placeholder="e.g. Appointments, Messages"></div>
+        <div class="form-group"><label for="ri-page">Page or feature</label><select id="ri-page"><option value="">Select a page (optional)</option>${(appState.topbarAndNavigation.NAV_CONFIG?.[appState.auth.currentUser.role]||[]).filter(item=>item.id&&item.id!=='report-issue').map(item=>`<option value="${escapeHtml(item.label)}">${escapeHtml(item.label)}</option>`).join('')}<option value="Other">Other</option></select></div>
         <div class="form-group"><label for="ri-desc">What happened? <span class="required">*</span></label><textarea id="ri-desc" maxlength="6000" rows="5" placeholder="The first line becomes the title. Add the steps that led to it and what you expected instead."></textarea></div>
         <div class="form-group">
           <span class="form-label-text">Screenshot</span>

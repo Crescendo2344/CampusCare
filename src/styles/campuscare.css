@@ -245,27 +245,23 @@ nav a.active::before,nav button.active::before{content:'';position:absolute;left
 nav svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
 .nav-badge{
   margin-left:auto;
-  min-width:18px;
-  height:18px;
-  padding:0 5px;
+  min-width:22px;
+  height:22px;
+  padding:1px 7px 0;
+  box-sizing:border-box;
   display:inline-flex;
   align-items:center;
   justify-content:center;
   border-radius:999px;
-  background:var(--danger);
-  color:#fff;
-  border:2px solid var(--glass-surface);
-  font-size:.6rem;
+  background:var(--warning-bg);
+  color:var(--warning);
+  border:1px solid var(--warning-border);
+  font-size:.74rem;
   line-height:1;
-  font-weight:850;
+  font-weight:600;
   font-variant-numeric:tabular-nums;
-  box-shadow:0 3px 10px rgba(198,40,40,.28);
 }
-.nav-badge[data-kind="task"]{background:var(--warning);box-shadow:0 3px 10px rgba(180,110,0,.25)}
-.nav-badge[data-kind="urgent"]{background:var(--danger)}
-.nav-badge[data-kind="update"]{background:var(--primary);box-shadow:0 3px 10px rgba(10,126,168,.25)}
 /* Work count plus a small dot when there are also unread updates for the page. */
-[data-theme="dark"] .nav-badge[data-kind]{color:#10202b}
 .nav-badge.has-updates{position:relative}
 .nav-badge.has-updates{margin-right:4px}
 .nav-badge.has-updates::after{content:'';position:absolute;top:-5px;right:-7px;width:6px;height:6px;border-radius:50%;background:var(--primary);border:2px solid var(--glass-surface)}

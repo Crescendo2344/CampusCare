@@ -3,7 +3,6 @@ import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {closeAllModals,openModal,showFilePreview} from './modals.js';
 import {collegeBadge,fmtTime,priorityBadge,sanitizeInput,statusBadge} from './inputValidation.js';
-import {navTo} from './navigationRaceProtection.js';
 import {openCamera} from '../app/optional-features.js';
 import {changeAccountPassword,changeProfilePhoto,checkPasswordConfirmation,hideAccountPasswordChecklist,openNameChangeRequest,renderPasswordCooldownNotice,setPasswordFieldError,showAccountPasswordChecklist,updateAccountPasswordStrength} from './nameChangeRequests.js';
 import {saveAccount} from './workflowRequests.js';
@@ -12,7 +11,6 @@ import {openPrivacyRequestModal} from './privacy.js';
 import {openCookiePolicy,openTermsOfService} from './legalPages.js';
 import {setThemePreference,showConfirmDialog,themePreference,toast} from './theme.js';
 import {bindAction} from '../dependencies.js';
-import {logout} from './passwordRecovery.js';
 import {patientDisplayId} from './patientService.js';
 import {healthDetailsCard,registrationDetailsCard} from './profileDetails.js';
 // ================================================================
@@ -70,11 +68,6 @@ export function openProfileDetails(){
         row('Last sign-in',escapeHtml(formatLastLogin(u.lastLogin)))
       ].join(''))}
       ${section(pt?'Clinic record':'Work',clinic)}
-    </div>
-    <div class="modal-footer profile-card-actions">
-      <button class="btn btn-sm" ${bindAction('click',()=>{closeAllModals();logout();})}><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Log out</button>
-      <button class="btn btn-sm" ${bindAction('click',()=>{closeAllModals();navTo('my-account');setTimeout(()=>{const el=document.getElementById('pw-cur');el?.scrollIntoView({block:'center',behavior:'smooth'});el?.focus({preventScroll:true});},150);})}><i class="bi bi-key" aria-hidden="true"></i> Change password</button>
-      <button class="btn btn-sm btn-primary" ${bindAction('click',()=>{closeAllModals();navTo('my-account');})}>Account Settings</button>
     </div>
   </div>`);
 }
