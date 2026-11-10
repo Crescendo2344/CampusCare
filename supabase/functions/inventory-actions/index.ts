@@ -112,17 +112,6 @@ async function regenerateForecasts(admin:any,itemIds:number[]|null=null){
   return generated;
 }
 
-async function notifyUsers(admin:any,userIds:number[],title:string,message:string,page:string,refType:string,refId:number){
-  const rows=[...new Set(userIds.filter(Boolean))].map(id=>({
-    user_id:id,title,message,type:"Inventory",channel:"In-app",delivery_status:"Created",
-    reference_type:refType,reference_id:refId,action_page:page
-  }));
-  if(rows.length)await admin.from("notifications").insert(rows);
-}
-async function roleUserIds(admin:any,role:string){
-  const {data}=await admin.from("users").select("user_id").eq("role",role).eq("status","Active");
-  return (data||[]).map((u:any)=>u.user_id);
-}
 async function applyTx(admin:any,actorId:number,itemId:number,txType:string,quantity:number,notes:string){
   const {data,error}=await admin.rpc("inventory_apply_transaction_at",{
     p_item_id:itemId,p_transaction_type:txType,p_quantity:quantity,p_notes:notes,
@@ -169,77 +158,7 @@ Deno.serve(async(req)=>{
       return json({ok:true,forecast_count:forecasts.length});
     }
 
-    // Medicine requests: a doctor asks the clinic's stock for medicine; staff release or decline it.
-    if(action==="request_medicine"){
-      if(actor.role!=="Doctor")return json({error:"Only doctors request medicine."},403);
-      const itemId=Number(body.item_id||0),quantity=Number(body.quantity);
-      const purpose=clean(body.purpose,500);
-      const patientId=body.patient_id?Number(body.patient_id):null;
-      if(!itemId||!Number.isInteger(quantity)||quantity<=0||quantity>10000)
-        return json({error:"Choose a medicine and a quantity of at least 1."},400);
-      if(purpose.length<3)return json({error:"Say what the medicine is for."},400);
-      const {data:item}=await admin.from("inventory_items").select("item_id,item_name,unit,archived").eq("item_id",itemId).maybeSingle();
-      if(!item||item.archived)return json({error:"That medicine is not in the clinic's stock list."},404);
-      if(patientId){
-        const {data:pt}=await admin.from("patients").select("patient_id").eq("patient_id",patientId).maybeSingle();
-        if(!pt)return json({error:"Patient not found."},404);
-      }
-      const {data:req,error}=await admin.from("inventory_requests").insert({
-        item_id:itemId,quantity,requested_by:actor.user_id,patient_id:patientId,purpose
-      }).select("*").single();
-      if(error)return json({error:error.message},400);
-      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"MEDICINE_REQUESTED",entity_type:"inventory_requests",entity_id:req.request_id,details:{item_id:itemId,quantity}});
-      await notifyUsers(admin,await roleUserIds(admin,"Staff"),"Medicine request",
-        `A doctor asked for ${quantity} ${item.unit||""} of ${item.item_name}. Release it or decline it in Inventory.`,"inventory","inventory_requests",req.request_id);
-      return json({ok:true,request:req});
-    }
-    if(action==="withdraw_request"){
-      const id=Number(body.request_id||0);
-      const {data:r}=await admin.from("inventory_requests").select("*").eq("request_id",id).maybeSingle();
-      if(!r)return json({error:"Request not found."},404);
-      if(r.requested_by!==actor.user_id)return json({error:"Only the doctor who asked can withdraw this request."},403);
-      if(r.status!=="Pending")return json({error:`This request was already ${r.status.toLowerCase()}.`},409);
-      const {data:saved}=await admin.from("inventory_requests").update({status:"Withdrawn",decided_at:new Date().toISOString()}).eq("request_id",id).eq("status","Pending").select("*").maybeSingle();
-      if(!saved)return json({error:"This request was just answered. Refresh to see it."},409);
-      return json({ok:true,request:saved});
-    }
-
     if(!canManage)return json({error:"Staff access required."},403);
-
-    if(action==="release_request"||action==="decline_request"){
-      const id=Number(body.request_id||0);
-      const reason=clean(body.reason,500);
-      const {data:r}=await admin.from("inventory_requests").select("*").eq("request_id",id).maybeSingle();
-      if(!r)return json({error:"Request not found."},404);
-      if(r.status!=="Pending")return json({error:`This request was already ${r.status.toLowerCase()}.`},409);
-      const {data:item}=await admin.from("inventory_items").select("item_id,item_name,unit,quantity").eq("item_id",r.item_id).maybeSingle();
-      if(action==="decline_request"){
-        if(reason.length<3)return json({error:"Give a reason for declining."},400);
-        const {data:saved}=await admin.from("inventory_requests").update({status:"Declined",decided_by:actor.user_id,decided_at:new Date().toISOString(),decline_reason:reason}).eq("request_id",id).eq("status","Pending").select("*").maybeSingle();
-        if(!saved)return json({error:"This request was just answered. Refresh to see it."},409);
-        await admin.from("audit_logs").insert({user_id:actor.user_id,action:"MEDICINE_REQUEST_DECLINED",entity_type:"inventory_requests",entity_id:id,details:{reason}});
-        await notifyUsers(admin,[r.requested_by],"Medicine request declined",`Your request for ${r.quantity} ${item?.unit||""} of ${item?.item_name||"medicine"} was declined: ${reason}`,"medicine-requests","inventory_requests",id);
-        return json({ok:true,request:saved});
-      }
-      if(!item||Number(item.quantity)<Number(r.quantity))
-        return json({error:`Only ${item?.quantity??0} ${item?.unit||""} on hand. Decline the request or record new stock first.`},409);
-      // Claim the request first so two staff cannot release it twice.
-      const {data:claimed}=await admin.from("inventory_requests").update({status:"Released",decided_by:actor.user_id,decided_at:new Date().toISOString()}).eq("request_id",id).eq("status","Pending").select("*").maybeSingle();
-      if(!claimed)return json({error:"This request was just answered. Refresh to see it."},409);
-      let result;
-      try{
-        result=await applyTx(admin,actor.user_id,r.item_id,"Disbursement",r.quantity,`Released for medicine request #${id}${r.purpose?`: ${r.purpose}`:""}`.slice(0,800));
-      }catch(e){
-        await admin.from("inventory_requests").update({status:"Pending",decided_by:null,decided_at:null}).eq("request_id",id);
-        return json({error:(e as Error).message},400);
-      }
-      const {data:saved}=await admin.from("inventory_requests").update({transaction_id:result.transactionId}).eq("request_id",id).select("*").single();
-      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"MEDICINE_REQUEST_RELEASED",entity_type:"inventory_requests",entity_id:id,details:{item_id:r.item_id,quantity:r.quantity,transaction_id:result.transactionId}});
-      await notifyUsers(admin,[r.requested_by],"Medicine released",`${r.quantity} ${item.unit||""} of ${item.item_name} is ready at the clinic.`,"medicine-requests","inventory_requests",id);
-      if(result.item)await notifyLowStock(admin,result.item);
-      await regenerateForecasts(admin,[r.item_id]);
-      return json({ok:true,request:saved,item:result.item});
-    }
 
     if(action==="create_po"){
       const lines=(Array.isArray(body.items)?body.items:[]).map((l:any)=>({
