@@ -7,7 +7,7 @@ export function buildStudentReport(data,filters={}){
   for(const [key,values] of Object.entries({history:['','range','all'],registration:['','snapshot','range'],archive:['','current','all','archived'],dental:['','used','not','unknown'],medical:['','used','not'],verified:['','yes','no'],sex:['','Male','Female','Other','Unknown'],status:['','Active','Pending','Suspended','Archived']})){
     if(!values.includes(filters[key]||''))throw new Error('Invalid '+key+' filter.');
   }
-  const valid=['','Morning','Evening','Mixed','Unknown'];
+  const valid=['','Morning','Evening','Unknown'];
   if(!valid.includes(filters.classSession||''))throw new Error('Invalid class session.');
   const min=filters.minAge===''||filters.minAge==null?null:Number(filters.minAge);
   const max=filters.maxAge===''||filters.maxAge==null?null:Number(filters.maxAge);
@@ -67,11 +67,11 @@ export function buildStudentReport(data,filters={}){
     rows.push({userId:Number(u.user_id),patientId:p?.patient_id||null,name,idNumber:u.id_number||'',college,classSession,sex,age,status:u.status,verified:!!u.verified,registered,archived,dentalVisits:care.dental.size,medicalVisits:care.medical.size,lastDental:care.lastDental,coverageKnown:!!p});
   }
   // Registration denominators use demographic filters, before dental/medical-use filters.
-  const collegeMap=new Map((filters.college?[filters.college]:['CCICT','COE','COED','CME','CAS','COT']).map(college=>[college,{college,registered:0,dentalUsed:0,dentalNotUsed:0,unknownCoverage:0,morning:0,evening:0,mixed:0,unknownSession:0}]));
+  const collegeMap=new Map((filters.college?[filters.college]:['CCICT','COE','COED','CME','CAS','COT']).map(college=>[college,{college,registered:0,dentalUsed:0,dentalNotUsed:0,unknownCoverage:0,morning:0,evening:0,unknownSession:0}]));
   for(const row of rows){
-    const c=collegeMap.get(row.college)||{college:row.college,registered:0,dentalUsed:0,dentalNotUsed:0,unknownCoverage:0,morning:0,evening:0,mixed:0,unknownSession:0};
+    const c=collegeMap.get(row.college)||{college:row.college,registered:0,dentalUsed:0,dentalNotUsed:0,unknownCoverage:0,morning:0,evening:0,unknownSession:0};
     c.registered++;if(!row.coverageKnown)c.unknownCoverage++;else if(row.dentalVisits)c.dentalUsed++;else c.dentalNotUsed++;
-    c[{Morning:'morning',Evening:'evening',Mixed:'mixed',Unknown:'unknownSession'}[row.classSession]]++;
+    c[{Morning:'morning',Evening:'evening',Unknown:'unknownSession'}[row.classSession]]++;
     collegeMap.set(row.college,c);
   }
   const filtered=rows.filter(row=>{
