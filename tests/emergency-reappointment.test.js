@@ -70,7 +70,9 @@ test('the server lets doctors act without approval and enforces the confirmation
   assert.match(block,/actor\.role==="Doctor"\|\|canManageAll/);
   assert.match(block,/actor\.role==="Doctor"\?actor\.user_id/,'A doctor can only declare an emergency for themselves');
   assert.match(block,/title:"Appointment Will Not Push Through"/,'The email uses the apology template');
-  assert.match(block,/\["Staff","Administrator"\]/,'Staff and administrators are told afterwards');
+  assert.match(block,/eq\("role","Staff"\)\.eq\("clinic",doctorClinic\)/,"The doctor's clinic staff are told afterwards");
+  assert.match(block,/eq\("role","Administrator"\)/,'Administrators are told afterwards');
+  assert.match(block,/canManageAll&&!ownsClinic\(doctorClinic\)/,"Staff declare only for their own clinic's doctors");
   assert.match(block,/appointment_slot_overrides/,'The rest of the day closes to bookings');
   assert.match(src,/deadlinePassed\(appt\)\)return json\(\{error:"The time to confirm this rebooking has passed/);
   assert.match(src,/action==="reschedule"&&deadlinePassed\(existing\)/);

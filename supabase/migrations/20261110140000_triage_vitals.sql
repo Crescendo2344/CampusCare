@@ -21,12 +21,12 @@ drop policy if exists appointment_vitals_select on public.appointment_vitals;
 create policy appointment_vitals_select on public.appointment_vitals
   for select to authenticated
   using (
-    (select private.has_role(array['Staff']::text[]))
-    or exists(
+    exists(
       select 1 from public.appointments a
        where a.appointment_id=appointment_vitals.appointment_id
          and (
-           a.patient_id=(select private.current_patient_id())
+           ((select private.has_role(array['Staff']::text[])) and a.clinic=(select private.current_clinic()))
+           or a.patient_id=(select private.current_patient_id())
            or (a.doctor_id=(select private.current_app_user_id()) and (select private.has_role(array['Doctor']::text[])))
          )
     )
