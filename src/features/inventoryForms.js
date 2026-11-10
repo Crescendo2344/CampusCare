@@ -204,6 +204,10 @@ export async function updateQty(id){
     showAlert(msg,reasonType?'Describe the reason in the note.':'Choose the reason for this adjustment.');
     return;
   }
+  // The reason decides how the change appears in stock movements.
+  const movement=reasonType==='Received new stock'?'Stock In':reasonType==='Expired stock removed'?'Expired':'Adjustment';
+  if(movement==='Stock In'&&newQty<=Number(it.qty)){showAlert(msg,'New stock should raise the quantity. Enter the count after adding the delivery.');return;}
+  if(movement==='Expired'&&newQty>=Number(it.qty)){showAlert(msg,'Removing expired stock should lower the quantity.');return;}
 
   const old=btn?.textContent;
   if(btn){btn.disabled=true;btn.textContent='Updating…';}
@@ -216,7 +220,8 @@ export async function updateQty(id){
         action:'set_quantity',
         item_id:it.dbItemId,
         quantity:newQty,
-        reason
+        reason,
+        movement
       }));
       await syncRealInventory(false);
     }else{
@@ -238,9 +243,9 @@ export async function updateQty(id){
   }
 }
 
-async function setInventoryArchived(it,archived){
+async function setInventoryArchived(it,archived,reason='',note=''){
   if(it._realSupabase){
-    await inventoryAction({action:archived?'archive':'restore',item_id:it.dbItemId});
+    await inventoryAction({action:archived?'archive':'restore',item_id:it.dbItemId,reason,note});
     await syncRealInventory(false);
   }else{
     it.archived=archived;
@@ -252,17 +257,32 @@ async function setInventoryArchived(it,archived){
 export function archiveInv(id){
   const it=inventoryRecords().find(i=>i.id===Number(id));if(!it)return;
 
+  // One quick choice; an expired item has "Expired" already picked.
+  const expired=it.expiryDate&&it.expiryDate<appState.clinicInformation.TODAY;
+  const pick=expired?'Expired':'Discontinued';
   showConfirmDialog({
     title:'Archive Inventory Item',
-    message:`Archive <strong>${escapeHtml(it.name)}</strong>? The item and its transaction history will be preserved, but it will no longer appear in the active inventory list.`,
+    message:`Archive <strong>${escapeHtml(it.name)}</strong>? Its history is kept and it can be restored later.
+      <span class="inv-archive-reason"><label for="ia-reason">Reason</label><select id="ia-reason">${['Discontinued','Expired','Inactive','Other'].map(r=>`<option ${r===pick?'selected':''}>${r}</option>`).join('')}</select>
+      <input id="ia-note" maxlength="200" placeholder="Describe the reason" hidden></span>`,
     confirmLabel:'Archive',
     danger:true,
     onConfirm:async()=>{
-      try{await setInventoryArchived(it,true);}
+      const reason=archiveChoice.reason,note=archiveChoice.note;
+      if(reason==='Other'&&note.length<3){toast('Describe the reason for archiving.','warning');return;}
+      try{await setInventoryArchived(it,true,reason,note);}
       catch(e){toast(e?.message||'Unable to archive inventory item.','error');return;}
-      toastWithUndo(`${it.name} archived.`,()=>setInventoryArchived(it,false),{undoneMessage:`${it.name} restored.`});
+      toastWithUndo(`${it.name} archived (${reason==='Other'?note:reason}).`,()=>setInventoryArchived(it,false),{undoneMessage:`${it.name} restored.`});
     }
   });
+  trackArchiveChoice();
+}
+// The confirm dialog closes before its callback runs, so the chosen reason is kept as it changes.
+const archiveChoice={reason:'',note:''};
+function trackArchiveChoice(){
+  const select=document.getElementById('ia-reason'),note=document.getElementById('ia-note');if(!select)return;
+  const sync=()=>{archiveChoice.reason=select.value;archiveChoice.note=(note?.value||'').trim();if(note)note.hidden=select.value!=='Other';};
+  select.addEventListener('change',sync);note?.addEventListener('input',sync);sync();
 }
 
 export function restoreInv(id){

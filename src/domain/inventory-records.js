@@ -36,6 +36,7 @@ export function realInventoryToUi(i){
     photo:i.photo_data||'',
     archived:Boolean(i.archived),
     archivedAt:i.archived_at||'',
+    archiveReason:i.archive_reason||'',
     archivedBy:i.archived_by?100000+Number(i.archived_by):null,
     createdAt:i.created_at||'',
     updatedAt:i.updated_at||'',

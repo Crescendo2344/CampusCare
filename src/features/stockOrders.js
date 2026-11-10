@@ -36,7 +36,7 @@ export async function loadStockOrders(){
       .select('request_id,item_id,quantity,requested_by,patient_id,purpose,status,decided_by,decided_at,decline_reason,created_at')
       .order('created_at',{ascending:false}).limit(300),
     r!=='Staff'?Promise.resolve({data:[]}):client().from('purchase_orders')
-      .select('po_id,po_no,status,supplier,notes,needed_by,created_by,sent_by,sent_at,cancel_reason,cancelled_at,received_by,received_at,created_at,purchase_order_items(po_item_id,item_id,quantity)')
+      .select('po_id,po_no,status,supplier,notes,needed_by,created_by,sent_by,sent_at,cancel_reason,cancelled_at,received_by,received_at,created_at,receive_note,purchase_order_items(po_item_id,item_id,quantity,received_quantity)')
       .order('created_at',{ascending:false}).limit(200),
     client().from('inventory_items').select('item_id,item_name,category,quantity,threshold,unit,expiry_date,supplier').eq('archived',false).order('item_name')
   ];
@@ -203,7 +203,7 @@ function ordersTableHtml(rows){
       <td data-label="Order"><strong>${escapeHtml(po.po_no||`PO #${po.po_id}`)}</strong><div class="text-muted">${fmtDate(manilaDate(po.created_at))} · ${escapeHtml(personName(po.created_by))}</div>${po.needed_by?`<div class="text-muted">Needed by ${fmtDate(po.needed_by)}</div>`:''}</td>
       <td data-label="Items">${lines.map(l=>`<div>${escapeHtml(itemLabel(l.item_id))} × ${l.quantity} ${escapeHtml(itemById(l.item_id)?.unit||'')}</div>`).join('')}${po.notes?`<div class="text-muted">${escapeHtml(po.notes)}</div>`:''}</td>
       <td data-label="Supplier">${escapeHtml(po.supplier||'—')}</td>
-      <td data-label="Status"><span class="badge ${PO_BADGE[po.status]||'badge-gray'}">${escapeHtml(PO_LABEL[po.status]||po.status)}</span>${po.status==='Sent'&&po.sent_at?`<div class="text-muted">${fmtDate(manilaDate(po.sent_at))}</div>`:''}${po.status==='Cancelled'&&po.cancel_reason?`<div class="text-muted">${escapeHtml(po.cancel_reason)}</div>`:''}${po.status==='Received'&&po.received_at?`<div class="text-muted">${fmtDate(manilaDate(po.received_at))}</div>`:''}</td>
+      <td data-label="Status"><span class="badge ${PO_BADGE[po.status]||'badge-gray'}">${escapeHtml(PO_LABEL[po.status]||po.status)}</span>${po.status==='Sent'&&po.sent_at?`<div class="text-muted">${fmtDate(manilaDate(po.sent_at))}</div>`:''}${po.status==='Cancelled'&&po.cancel_reason?`<div class="text-muted">${escapeHtml(po.cancel_reason)}</div>`:''}${po.status==='Received'?(()=>{const short=(po.purchase_order_items||[]).reduce((n,l)=>n+(l.received_quantity==null?0:Number(l.quantity)-Number(l.received_quantity)),0);return `<div class="text-muted">${po.received_at?fmtDate(manilaDate(po.received_at)):''}${short?` · <span class="text-danger">${short} short</span>`:''}</div>${po.receive_note?`<div class="text-muted">${escapeHtml(po.receive_note)}</div>`:''}`;})():''}</td>
       <td data-label="Actions"><div class="td-actions">
         <button class="btn btn-xs" ${bindAction('click',()=>printPurchaseOrder(po.po_id))}><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
         ${po.status==='Prepared'?`<button class="btn btn-xs btn-info" ${bindAction('click',()=>orderStep(po,'send_po'))}>Mark as sent</button>`:''}
@@ -258,14 +258,37 @@ async function submitPurchaseOrder(){
     if(res.purchase_order?.po_id)printPurchaseOrder(res.purchase_order.po_id);
   }catch(e){fail(e?.message||'The order could not be sent.');btn.disabled=false;btn.textContent='Prepare order';}
 }
+// What arrived: amounts start at the ordered quantity, so a complete delivery is one click.
+// Only the good quantity goes into stock; a shortfall needs a short note for purchasing.
 function receiveOrder(po){
-  showConfirmDialog({title:`Record delivery of ${escapeHtml(po.po_no)}?`,message:'Each item on the order is added to stock as received today.',confirmLabel:'Record delivery',onConfirm:async()=>{
-    try{
-      await inventoryAction({action:'receive_po',po_id:po.po_id});
-      toast(`${po.po_no} received. Stock was updated.`,'success');
-      await refreshInventoryAfterOrderChange();
-    }catch(e){toast(e?.message||'The delivery could not be recorded.','error');}
-  }});
+  const lines=po.purchase_order_items||[];
+  openModal(`<div class="modal" role="dialog" aria-labelledby="so-rc-title">
+    <div class="modal-header"><h3 id="so-rc-title">Record delivery · ${escapeHtml(po.po_no)}</h3><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body"><div id="so-rc-msg"></div>
+      <div class="table-wrap"><table class="treat-table so-rc-table"><thead><tr><th scope="col">Item</th><th scope="col">Ordered</th><th scope="col">Received in good condition</th></tr></thead>
+      <tbody>${lines.map(l=>{const it=itemById(l.item_id);return `<tr><td data-label="Item">${escapeHtml(itemLabel(l.item_id))}</td><td data-label="Ordered">${l.quantity} ${escapeHtml(it?.unit||'')}</td><td data-label="Received"><input type="number" class="so-rc-qty" data-item="${l.item_id}" data-ordered="${l.quantity}" min="0" max="${l.quantity}" step="1" inputmode="numeric" value="${l.quantity}" aria-label="Received ${escapeHtml(itemLabel(l.item_id))}"></td></tr>`;}).join('')}</tbody></table></div>
+      <div class="form-group" id="so-rc-note-wrap" hidden><label for="so-rc-note">What was short or damaged? <span class="required">*</span></label><textarea id="so-rc-note" rows="2" maxlength="500" placeholder="e.g. 10 capsules damaged, returned to supplier"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button class="btn btn-success" id="so-rc-save" ${bindAction('click',()=>saveDelivery(po))}>Save delivery</button></div>
+  </div>`);
+  const sync=()=>{const short=[...document.querySelectorAll('.so-rc-qty')].some(i=>Number(i.value)<Number(i.dataset.ordered));const w=document.getElementById('so-rc-note-wrap');if(w)w.hidden=!short;};
+  document.querySelectorAll('.so-rc-qty').forEach(i=>i.addEventListener('input',sync));
+}
+async function saveDelivery(po){
+  const msg=document.getElementById('so-rc-msg'),btn=document.getElementById('so-rc-save');
+  const fail=t=>{msg.innerHTML=`<div class="alert alert-danger show">${escapeHtml(t)}</div>`;};
+  const received=[...document.querySelectorAll('.so-rc-qty')].map(i=>({item_id:Number(i.dataset.item),quantity:Number(i.value),ordered:Number(i.dataset.ordered)}));
+  if(received.some(r=>!Number.isInteger(r.quantity)||r.quantity<0||r.quantity>r.ordered))return fail('Each amount must be a whole number from 0 up to the amount ordered.');
+  const short=received.reduce((n,r)=>n+r.ordered-r.quantity,0);
+  const note=(document.getElementById('so-rc-note')?.value||'').trim();
+  if(short>0&&note.length<3)return fail('Say what was short or damaged.');
+  btn.disabled=true;
+  try{
+    await inventoryAction({action:'receive_po',po_id:po.po_id,received:received.map(({item_id,quantity})=>({item_id,quantity})),note});
+    closeAllModals();
+    toast(short?`${po.po_no} received, ${short} short or damaged. Stock was updated.`:`${po.po_no} received. Stock was updated.`,'success');
+    await refreshInventoryAfterOrderChange();
+  }catch(e){fail(e?.message||'The delivery could not be recorded.');btn.disabled=false;}
 }
 async function refreshInventoryAfterOrderChange(){
   await Promise.all([loadStockOrders(),syncRealInventory(false)]);

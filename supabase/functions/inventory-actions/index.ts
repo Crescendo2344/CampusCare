@@ -294,11 +294,22 @@ Deno.serve(async(req)=>{
       const {data:po}=await admin.from("purchase_orders").select("*").eq("po_id",id).maybeSingle();
       if(!po)return json({error:"Purchase order not found."},404);
       if(!["Prepared","Sent"].includes(po.status))return json({error:po.status==="Received"?"This order was already received.":"A cancelled order cannot be received."},409);
-      const {data:claimed}=await admin.from("purchase_orders").update({status:"Received",received_by:actor.user_id,received_at:new Date().toISOString()}).eq("po_id",id).eq("status",po.status).select("*").maybeSingle();
+      // Only what arrived in good condition goes into stock; anything short or damaged needs a note.
+      const {data:lines}=await admin.from("purchase_order_items").select("po_item_id,item_id,quantity").eq("po_id",id);
+      const given=new Map((Array.isArray(body.received)?body.received:[]).map((r:any)=>[Number(r?.item_id),Number(r?.quantity)]));
+      const counts=(lines||[]).map((l:any)=>({...l,received:given.has(Number(l.item_id))?given.get(Number(l.item_id)):Number(l.quantity)}));
+      if(counts.some((l:any)=>!Number.isInteger(l.received)||l.received<0||l.received>Number(l.quantity)))
+        return json({error:"Each received amount must be a whole number from 0 up to the amount ordered."},400);
+      const short=counts.reduce((n:number,l:any)=>n+Number(l.quantity)-l.received,0);
+      const note=clean(body.note,500);
+      if(short>0&&note.length<3)return json({error:"Say what was short or damaged."},400);
+      const {data:claimed}=await admin.from("purchase_orders").update({status:"Received",received_by:actor.user_id,received_at:new Date().toISOString(),receive_note:note||null}).eq("po_id",id).eq("status",po.status).select("*").maybeSingle();
       if(!claimed)return json({error:"This order was just received. Refresh to see it."},409);
-      const {data:lines}=await admin.from("purchase_order_items").select("item_id,quantity").eq("po_id",id);
-      for(const l of lines||[])await applyTx(admin,actor.user_id,l.item_id,"Stock In",l.quantity,`Received on ${po.po_no}`);
-      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"PURCHASE_ORDER_RECEIVED",entity_type:"purchase_orders",entity_id:id,details:{po_no:po.po_no}});
+      for(const l of counts){
+        await admin.from("purchase_order_items").update({received_quantity:l.received}).eq("po_item_id",l.po_item_id);
+        if(l.received>0)await applyTx(admin,actor.user_id,l.item_id,"Stock In",l.received,`Received on ${po.po_no}${l.received<Number(l.quantity)?` (${Number(l.quantity)-l.received} short or damaged)`:""}`);
+      }
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"PURCHASE_ORDER_RECEIVED",entity_type:"purchase_orders",entity_id:id,details:{po_no:po.po_no,short,note:note||null}});
       await regenerateForecasts(admin,(lines||[]).map((l:any)=>l.item_id));
       return json({ok:true,purchase_order:claimed});
     }
@@ -388,6 +399,9 @@ Deno.serve(async(req)=>{
       const itemId=Number(body.item_id||0);
       const newQuantity=Number(body.quantity);
       const reason=clean(body.reason,500);
+      // The reason decides how the change shows in stock movements: a delivery is Stock In, removed expired
+      // stock is Expired, anything else (count correction, damage, return) is an Adjustment.
+      const movement=["Stock In","Expired"].includes(String(body.movement))?String(body.movement):"Adjustment";
 
       if(!itemId||!Number.isInteger(newQuantity)||newQuantity<0)
         return json({error:"A valid non-negative quantity is required."},400);
@@ -396,6 +410,8 @@ Deno.serve(async(req)=>{
         .select("*").eq("item_id",itemId).maybeSingle();
       if(!existing)return json({error:"Inventory item not found."},404);
       if(existing.archived)return json({error:"Restore this item before updating quantity."},400);
+      if(movement==="Stock In"&&newQuantity<=Number(existing.quantity))return json({error:"New stock should raise the quantity. Enter the count after adding the delivery."},400);
+      if(movement==="Expired"&&newQuantity>=Number(existing.quantity))return json({error:"Removing expired stock should lower the quantity."},400);
 
       const {data:saved,error}=await admin.from("inventory_items")
         .update({quantity:newQuantity,updated_at:new Date().toISOString()})
@@ -406,7 +422,7 @@ Deno.serve(async(req)=>{
       if(Number(existing.quantity)!==newQuantity){
         const {data:tx}=await admin.from("inventory_transactions").insert({
           item_id:itemId,
-          transaction_type:"Adjustment",
+          transaction_type:movement,
           quantity:Math.abs(newQuantity-Number(existing.quantity)),
           transaction_date:new Date().toISOString(),
           notes:`${reason||"Manual adjustment"}: ${existing.quantity} → ${newQuantity}`,
@@ -418,7 +434,7 @@ Deno.serve(async(req)=>{
       await admin.from("audit_logs").insert({
         user_id:actor.user_id,action:"INVENTORY_QUANTITY_UPDATED",
         entity_type:"inventory_items",entity_id:itemId,
-        details:{previous_quantity:existing.quantity,new_quantity:newQuantity,reason:reason||null}
+        details:{previous_quantity:existing.quantity,new_quantity:newQuantity,reason:reason||null,movement}
       });
 
       await notifyLowStock(admin,saved);
@@ -519,9 +535,15 @@ Deno.serve(async(req)=>{
 
       const itemId=Number(body.item_id||0);
       const archived=action==="archive";
+      const kind=String(body.reason||"");
+      const note=clean(body.note,200);
+      if(archived&&!["Discontinued","Expired","Inactive","Other"].includes(kind))return json({error:"Choose why the item is archived."},400);
+      if(archived&&kind==="Other"&&note.length<3)return json({error:"Describe the reason for archiving."},400);
+      const archiveReason=archived?(kind==="Other"?note:kind):null;
       const {data:item,error}=await admin.from("inventory_items")
         .update({
           archived,
+          archive_reason:archiveReason,
           archived_at:archived?new Date().toISOString():null,
           archived_by:archived?actor.user_id:null,
           updated_at:new Date().toISOString()
@@ -535,7 +557,7 @@ Deno.serve(async(req)=>{
         user_id:actor.user_id,
         action:archived?"INVENTORY_ITEM_ARCHIVED":"INVENTORY_ITEM_RESTORED",
         entity_type:"inventory_items",entity_id:itemId,
-        details:{item_name:item.item_name}
+        details:{item_name:item.item_name,reason:archiveReason}
       });
 
       return json({ok:true,item});
