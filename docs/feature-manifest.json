@@ -28,7 +28,8 @@
       "./theme.js",
       "../dependencies.js",
       "./passwordRecovery.js",
-      "./patientService.js"
+      "./patientService.js",
+      "./profileDetails.js"
     ]
   },
   {
@@ -62,7 +63,8 @@
       "./topbarAndNavigation.js",
       "./notifications.js",
       "./navigationRaceProtection.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "./firstPassword.js"
     ]
   },
   {
@@ -73,6 +75,7 @@
     ],
     "state": [],
     "imports": [
+      "./reappointment.js",
       "../app/state.js",
       "./appointmentService.js",
       "./documentScanner.js",
@@ -150,6 +153,7 @@
       "../dependencies.js",
       "./topbarAndNavigation.js",
       "./slotManager.js",
+      "./reappointment.js",
       "../shared/csv.js"
     ]
   },
@@ -255,6 +259,7 @@
     "state": [],
     "imports": [
       "../app/state.js",
+      "../services/warm-cache.js",
       "./supabaseClient.js",
       "./patientService.js",
       "./appInitialization.js",
@@ -340,6 +345,7 @@
     "path": "src/features/bookingForm.js",
     "functions": [
       "fetchDoctorAvailability",
+      "applyBookingLead",
       "onBookingDoctorChange",
       "openBookApptModal",
       "chooseBookingDate",
@@ -369,6 +375,8 @@
       }
     ],
     "imports": [
+      "./reappointment.js",
+      "../../supabase/functions/_shared/clinic-services.js",
       "../app/state.js",
       "./scheduleAndDrafts.js",
       "./inputValidation.js",
@@ -494,6 +502,7 @@
       "sanitizeCertHtml",
       "signCert",
       "loadHtml2Canvas",
+      "printCertificate",
       "downloadCertPdf"
     ],
     "state": [
@@ -829,6 +838,7 @@
       "./inputValidation.js",
       "./documentScanner.js",
       "./appointmentDetails.js",
+      "./reappointment.js",
       "./treatmentForm.js",
       "./datePicker.js",
       "./theme.js",
@@ -892,6 +902,7 @@
       "recheckNameMatch",
       "sanitizeRegistrationId",
       "updateRegistrationIdentityFields",
+      "dentalQuotaState",
       "checkDentalQuota",
       "getLowStock",
       "getUserById",
@@ -975,6 +986,23 @@
       "./persistence.js",
       "../dependencies.js",
       "../shared/csv.js"
+    ]
+  },
+  {
+    "name": "firstPassword",
+    "path": "src/features/firstPassword.js",
+    "functions": [
+      "enforceFirstPasswordChange"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./modals.js",
+      "../dependencies.js",
+      "./issueReports.js",
+      "./loginLockout.js",
+      "./passwordRecovery.js",
+      "./theme.js"
     ]
   },
   {
@@ -1105,7 +1133,8 @@
       "./inventoryForms.js",
       "./inputValidation.js",
       "../dependencies.js",
-      "../shared/csv.js"
+      "../shared/csv.js",
+      "./stockOrders.js"
     ]
   },
   {
@@ -1279,7 +1308,8 @@
     "imports": [
       "../app/state.js",
       "./modals.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "../ui/motion.js"
     ]
   },
   {
@@ -1304,6 +1334,7 @@
       "./approvalQueue.js",
       "./treatmentList.js",
       "./inventory.js",
+      "./stockOrders.js",
       "../app/optional-features.js",
       "./userManagement.js",
       "./settingsAndCertificates.js",
@@ -1374,7 +1405,8 @@
       "./authentication.js",
       "./idVerification.js",
       "../verification/registration-captcha.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "../ui/motion.js"
     ]
   },
   {
@@ -1433,6 +1465,7 @@
       "./loginLockout.js",
       "./authentication.js",
       "../dependencies.js",
+      "../ui/motion.js",
       "./requestAttachments.js"
     ]
   },
@@ -1480,6 +1513,8 @@
       "./modals.js",
       "./theme.js",
       "./persistence.js",
+      "../ui/motion.js",
+      "../services/warm-cache.js",
       "../dependencies.js",
       "../ui/app-icons.js",
       "../domain/health-articles.js"
@@ -1498,7 +1533,8 @@
       "syncRealNotifications",
       "addNotif",
       "updateNotifUI",
-      "startNotificationRefresh"
+      "startNotificationRefresh",
+      "ringBell"
     ],
     "state": [],
     "imports": [
@@ -1555,6 +1591,7 @@
     ],
     "state": [],
     "imports": [
+      "./reappointment.js",
       "../app/state.js",
       "./navigationRaceProtection.js",
       "./loadingSkeletons.js",
@@ -1582,7 +1619,6 @@
       "savePatient",
       "viewPatient",
       "printPatientSummary",
-      "archivePatient",
       "restorePatient",
       "dentalToothInputsHtml",
       "dentalRecordFormHtml",
@@ -1679,7 +1715,9 @@
       "./treatmentForm.js",
       "./displayNames.js",
       "../ui/pager.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "./patientService.js",
+      "./theme.js"
     ]
   },
   {
@@ -1764,6 +1802,53 @@
       "./modals.js",
       "./theme.js",
       "./loginLockout.js",
+      "../dependencies.js"
+    ]
+  },
+  {
+    "name": "profileDetails",
+    "path": "src/features/profileDetails.js",
+    "functions": [
+      "registrationDetailsCard",
+      "healthDetailsCard",
+      "saveHealthDetails"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./issueReports.js",
+      "./inputValidation.js",
+      "./userManagement.js",
+      "./patientService.js",
+      "./theme.js",
+      "../dependencies.js",
+      "../domain/patient-records.js"
+    ]
+  },
+  {
+    "name": "reappointment",
+    "path": "src/features/reappointment.js",
+    "functions": [
+      "queueNumber",
+      "queueLabel",
+      "openReappointModal",
+      "reappointmentNoticeHtml",
+      "acceptReappointment",
+      "openEmergencyModal"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./issueReports.js",
+      "./modals.js",
+      "./inputValidation.js",
+      "./documentScanner.js",
+      "./appointmentService.js",
+      "../domain/booking-availability.js",
+      "../domain/emergency-reappointment.js",
+      "../domain/appointment-list.js",
+      "./bookingForm.js",
+      "./theme.js",
       "../dependencies.js"
     ]
   },
@@ -2032,6 +2117,7 @@
       "./theme.js",
       "./inputValidation.js",
       "./legalPages.js",
+      "./notifications.js",
       "./loginLockout.js",
       "./passwordRecovery.js",
       "./documentScanner.js",
@@ -2096,6 +2182,37 @@
     ]
   },
   {
+    "name": "stockOrders",
+    "path": "src/features/stockOrders.js",
+    "functions": [
+      "loadStockOrders",
+      "itemsOnOrder",
+      "pendingRequestCount",
+      "renderMedicineRequests",
+      "requestsPanelHtml",
+      "renderRequestsTable",
+      "ordersPanelHtml",
+      "itemsToOrder",
+      "renderOrdersTable",
+      "openPurchaseOrderModal",
+      "printPurchaseOrder"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./issueReports.js",
+      "./inputValidation.js",
+      "./documentScanner.js",
+      "./modals.js",
+      "./theme.js",
+      "./datePicker.js",
+      "./inventoryService.js",
+      "./navigationRaceProtection.js",
+      "./loadingSkeletons.js",
+      "../dependencies.js"
+    ]
+  },
+  {
     "name": "supabaseClient",
     "path": "src/features/supabaseClient.js",
     "functions": [
@@ -2142,6 +2259,7 @@
     "imports": [
       "../services/feature-sync.js",
       "../app/state.js",
+      "../services/warm-cache.js",
       "./sessionSecurity.js",
       "../dependencies.js"
     ]
@@ -2278,6 +2396,7 @@
       "printDentalRecord",
       "downloadDentalRecordPDF",
       "viewTreatment",
+      "openClarifyTreatment",
       "printTreatmentRecord",
       "waitForDocumentImages",
       "downloadTreatmentPDF",
@@ -2365,7 +2484,6 @@
     "name": "userForm",
     "path": "src/features/userForm.js",
     "functions": [
-      "generateTemporaryPassword",
       "openAddUserModal",
       "reviewNewUser",
       "saveNewUser",
@@ -2381,13 +2499,12 @@
       "./modals.js",
       "./theme.js",
       "./inputValidation.js",
-      "./loginLockout.js",
       "./patientService.js",
-      "../../supabase/functions/_shared/registration-validation.js",
       "../../supabase/functions/_shared/contact-validation.js",
       "./userManagement.js",
       "../dependencies.js",
-      "./doctorSchedules.js"
+      "./doctorSchedules.js",
+      "../../supabase/functions/_shared/clinic-services.js"
     ]
   },
   {

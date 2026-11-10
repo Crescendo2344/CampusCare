@@ -40,6 +40,8 @@ export function realAppointmentToUi(a,db){
     reappointFromTime:String(a.reappoint_from_time||'').slice(0,5),
     reappointReason:a.reappoint_reason||'',
     reappointedAt:a.reappointed_at||'',
+    // Emergency reappointments must be confirmed by this time, or the reserved slot is released.
+    reappointDeadline:a.reappoint_deadline||'',
     _realSupabase:true
   };
 }

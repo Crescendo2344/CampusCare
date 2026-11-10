@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {CLINIC_SERVICES,clinicForSpecialization,doctorRendersService} from "../_shared/clinic-services.js";
+import {buildDoctorAvailability} from "../_shared/booking-availability.js";
+import {EMERGENCY_MAX_DAYS_AHEAD,EMERGENCY_REASONS,emergencyBlockedTimes,emergencyReappointMessage,emergencySearchEnd,planEmergencyReappointments,prettyDeadline} from "../_shared/emergency-reappointment.js";
 
 const cors={
   "Access-Control-Allow-Origin":"*",
@@ -28,6 +30,8 @@ const semesterLabel=(day:string,s:any)=>{
   return m>=7?`1st Semester, SY ${y}–${y+1}`:`2nd Semester, SY ${y-1}–${y}`;
 };
 const PERSONNEL=["Teaching Personnel","Non-Teaching Personnel"];
+// An emergency reappointment must be confirmed by its deadline; after that the patient books anew.
+const deadlinePassed=(appt:any)=>appt?.patient_response==="Awaiting"&&!!appt?.reappoint_deadline&&Date.parse(appt.reappoint_deadline)<=Date.now();
 const hasStarted=(appt:any)=>{
   const now=manilaNow();
   return appt.appointment_date<now.date||(appt.appointment_date===now.date&&mins(appt.appointment_time)<=now.minutes);
@@ -97,6 +101,7 @@ Deno.serve(async(req)=>{
         const own=await actorPatientId();
         if(!own)return json({error:"Patient record not found."},400);
         if(action==="reschedule"&&existing?.patient_id!==own)return json({error:"You may only reschedule your own appointment."},403);
+        if(action==="reschedule"&&deadlinePassed(existing))return json({error:"The time to confirm this rebooking has passed. Please book a new appointment."},409);
         patientId=own;
       }else if(!canManageAll){
         return json({error:"Only patients and clinic staff may book or reschedule appointments."},403);
@@ -239,10 +244,12 @@ Deno.serve(async(req)=>{
           patient_response:"Awaiting",
           reappoint_from_date:existing.patient_response==="Awaiting"&&existing.reappoint_from_date?existing.reappoint_from_date:existing.appointment_date,
           reappoint_from_time:existing.patient_response==="Awaiting"&&existing.reappoint_from_time?existing.reappoint_from_time:existing.appointment_time,
-          reappoint_reason:apology,reappointed_by:actor.user_id,reappointed_at:new Date().toISOString()
-        }:{patient_response:existing?.patient_response?null:undefined})
+          reappoint_reason:apology,reappointed_by:actor.user_id,reappointed_at:new Date().toISOString(),
+          reappoint_deadline:null
+        }:{patient_response:existing?.patient_response?null:undefined,reappoint_deadline:existing?.reappoint_deadline?null:undefined})
       };
       if(payload.patient_response===undefined)delete payload.patient_response;
+      if(payload.reappoint_deadline===undefined)delete payload.reappoint_deadline;
 
       let saved:any,error:any;
       if(action==="create"){
@@ -349,7 +356,8 @@ Deno.serve(async(req)=>{
       if(!appt)return json({error:"Appointment not found."},404);
       if(actor.role!=="Patient"||appt.patient_id!==await actorPatientId())return json({error:"You cannot answer for this appointment."},403);
       if(appt.patient_response!=="Awaiting"||!OPEN.includes(appt.status))return json({error:"There is no new time waiting for your answer."},409);
-      const {error}=await admin.from("appointments").update({patient_response:"Accepted"}).eq("appointment_id",id);
+      if(deadlinePassed(appt))return json({error:"The time to confirm this rebooking has passed. Please book a new appointment."},409);
+      const {error}=await admin.from("appointments").update({patient_response:"Accepted",reappoint_deadline:null}).eq("appointment_id",id);
       if(error)throw error;
       await admin.from("audit_logs").insert({user_id:actor.user_id,action:"APPOINTMENT_REAPPOINTMENT_ACCEPTED",entity_type:"appointments",entity_id:id,details:{}});
       if(appt.reappointed_by)await admin.from("notifications").insert({
@@ -434,6 +442,135 @@ Deno.serve(async(req)=>{
         }catch{ /* The 5-minute job sends it if this attempt fails. */ }
       }
       return json({ok:true,email});
+    }
+
+    // Emergency: the doctor cannot see patients for the rest of a day. No administrator approval is
+    // needed. Every visit that has not started is returned for reappointment to the earliest open slot
+    // with the same doctor, the rest of the day stops taking bookings, and staff and administrators are
+    // told afterwards. Patients confirm by a deadline or book again on their own.
+    if(action==="emergency_reappoint"){
+      if(!(actor.role==="Doctor"||canManageAll))return json({error:"Only doctors and clinic staff can declare an emergency."},403);
+      const doctorId=actor.role==="Doctor"?actor.user_id:Number(body.doctor_id||0);
+      const now=manilaNow();
+      const date=String(body.date||now.date);
+      const reasonChoice=String(body.reason||"").trim();
+      const note=String(body.note||"").trim().slice(0,300);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return json({error:"Choose a valid date."},400);
+      const maxDate=new Date(Date.parse(now.date+"T00:00:00Z")+EMERGENCY_MAX_DAYS_AHEAD*86400000).toISOString().slice(0,10);
+      if(date<now.date||date>maxDate)return json({error:`Choose today or a date within the next ${EMERGENCY_MAX_DAYS_AHEAD} days.`},400);
+      if(!EMERGENCY_REASONS.includes(reasonChoice))return json({error:"Choose the reason for the emergency."},400);
+
+      const {data:doctor}=await admin.from("users")
+        .select("user_id,role,status,first_name,last_name,work_days,start_time,end_time,slot_duration,max_patients")
+        .eq("user_id",doctorId).maybeSingle();
+      if(!doctor||doctor.role!=="Doctor"||doctor.status!=="Active")return json({error:"Doctor not found."},404);
+
+      // The same calendar the booking screen uses, so proposals land only on genuinely open slots.
+      const to=emergencySearchEnd(date);
+      const loadRows=async(makeQuery:()=>any)=>{
+        const rows:any[]=[];
+        for(let offset=0;;offset+=1000){
+          const {data,error}=await makeQuery().range(offset,offset+999);
+          if(error)throw error;
+          rows.push(...(data||[]));if((data||[]).length<1000)break;
+        }
+        return rows;
+      };
+      const [rules,booked,leaves,overrides,lunch]=await Promise.all([
+        loadRows(()=>admin.from("doctor_schedule_rules").select("weekday,is_working,start_time,end_time,slot_duration,max_patients,effective_from,effective_to").eq("doctor_id",doctorId).lte("effective_from",to).order("effective_from").order("rule_id")),
+        loadRows(()=>admin.from("appointments").select("*").eq("doctor_id",doctorId).gte("appointment_date",date).lte("appointment_date",to).neq("status","Cancelled").order("appointment_id")),
+        loadRows(()=>admin.from("doctor_leaves").select("leave_date").eq("doctor_id",doctorId).gte("leave_date",date).lte("leave_date",to).order("leave_date")),
+        loadRows(()=>admin.from("appointment_slot_overrides").select("override_date,slot_time,is_available").eq("doctor_id",doctorId).gte("override_date",date).lte("override_date",to).order("override_date").order("slot_time")),
+        admin.from("system_settings").select("lunch_start,lunch_end").order("settings_id").limit(1).maybeSingle()
+      ]);
+      const days=buildDoctorAvailability({
+        from:date,to,today:now.date,nowMinutes:now.minutes,
+        doctor:{workDays:Array.isArray(doctor.work_days)?doctor.work_days:["Mon","Tue","Wed","Thu","Fri"],startTime:doctor.start_time,endTime:doctor.end_time,slotDuration:doctor.slot_duration,maxPatients:doctor.max_patients},
+        rules,
+        appointments:booked.map((a:any)=>({date:a.appointment_date,time:a.appointment_time,status:a.status})),
+        leaves:leaves.map((l:any)=>({date:l.leave_date})),
+        overrides:overrides.map((o:any)=>({date:o.override_date,time:o.slot_time,available:o.is_available})),
+        settings:{lunchStart:lunch.data?.lunch_start,lunchEnd:lunch.data?.lunch_end}
+      });
+
+      const affected=booked.filter((a:any)=>a.appointment_date===date&&OPEN.includes(a.status)&&!hasStarted(a));
+      const plan=planEmergencyReappointments({appointments:affected.map((a:any)=>({id:a.appointment_id,time:time5(a.appointment_time)})),days,emergencyDate:date,nowMs:Date.now()});
+      const doctorName=String(doctor.last_name||"").trim();
+      const moved:any[]=[],unplaced:number[]=[];
+
+      for(const step of plan){
+        const appt=affected.find((a:any)=>a.appointment_id===step.id);
+        if(!step.date){unplaced.push(step.id);continue;}
+        const {data:saved,error}=await admin.from("appointments").update({
+          appointment_date:step.date,appointment_time:step.time,status:"Scheduled",
+          patient_response:"Awaiting",
+          reappoint_from_date:appt.patient_response==="Awaiting"&&appt.reappoint_from_date?appt.reappoint_from_date:appt.appointment_date,
+          reappoint_from_time:appt.patient_response==="Awaiting"&&appt.reappoint_from_time?appt.reappoint_from_time:appt.appointment_time,
+          reappoint_reason:`${reasonChoice}${note?": "+note:""}`.slice(0,500),
+          reappointed_by:actor.user_id,reappointed_at:new Date().toISOString(),reappoint_deadline:step.deadline
+        }).eq("appointment_id",step.id).eq("appointment_date",date).in("status",OPEN).select("appointment_id").maybeSingle();
+        // A slot taken a moment ago (or a visit changed meanwhile) leaves this one for staff to place.
+        if(error||!saved){unplaced.push(step.id);continue;}
+        moved.push({appointment_id:step.id,date:step.date,time:step.time,deadline:step.deadline});
+        await admin.from("audit_logs").insert({user_id:actor.user_id,action:"APPOINTMENT_REAPPOINTED",entity_type:"appointments",entity_id:step.id,
+          details:{emergency:true,reason:reasonChoice,from_date:appt.appointment_date,from_time:time5(appt.appointment_time),date:step.date,time:step.time,deadline:step.deadline}});
+        const account=await patientAccount(appt.patient_id);
+        if(account)await admin.from("notifications").insert({
+          user_id:account.user_id,
+          title:"Appointment Will Not Push Through",
+          message:emergencyReappointMessage({fromDate:appt.appointment_date,fromTime:time5(appt.appointment_time),date:step.date,time:step.time,deadline:step.deadline,reason:reasonChoice,note,clinic:appt.clinic,doctorName}),
+          type:"Appointment",channel:"In-app",delivery_status:"Created",
+          reference_type:"appointments",reference_id:step.id,action_page:"my-appointments"
+        });
+      }
+
+      // Close the rest of the day so no new bookings come in.
+      const emergencyDay=days.find((d:any)=>d.date===date);
+      const blockTimes=emergencyBlockedTimes(emergencyDay);
+      const blockReason=`Doctor unavailable – ${reasonChoice.toLowerCase()}`;
+      if(blockTimes.length){
+        const {data:existing,error:exErr}=await admin.from("appointment_slot_overrides").select("slot_time").eq("doctor_id",doctorId).eq("override_date",date);
+        if(exErr)throw exErr;
+        const have=new Set((existing||[]).map((o:any)=>time5(o.slot_time)));
+        const update=blockTimes.filter((t:string)=>have.has(t)),insert=blockTimes.filter((t:string)=>!have.has(t));
+        if(update.length){
+          const {error}=await admin.from("appointment_slot_overrides").update({is_available:false,reason:blockReason,modified_by:actor.user_id})
+            .eq("doctor_id",doctorId).eq("override_date",date).in("slot_time",update);
+          if(error)throw error;
+        }
+        if(insert.length){
+          const {error}=await admin.from("appointment_slot_overrides").insert(insert.map((t:string)=>({doctor_id:doctorId,override_date:date,slot_time:t,is_available:false,reason:blockReason,modified_by:actor.user_id})));
+          if(error)throw error;
+        }
+      }
+
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"DOCTOR_EMERGENCY_DECLARED",entity_type:"users",entity_id:doctorId,
+        details:{date,reason:reasonChoice,note:note||null,moved:moved.length,unplaced,blocked_slots:blockTimes.length}});
+
+      // No approval, but nobody is left out: staff and administrators (and the doctor, when staff acted) are told.
+      const who=`Dr. ${doctorName||"(doctor)"}`;
+      const summary=`${who} declared an emergency for ${prettyDate(date)} (${reasonChoice}${note?": "+note:""}). `+
+        `${moved.length} appointment${moved.length===1?" was":"s were"} returned for reappointment and the rest of the day is closed to bookings.`+
+        (unplaced.length?` ${unplaced.length} could not be placed in the next 60 days and still need a new time from the front desk.`:"");
+      const {data:team}=await admin.from("users").select("user_id").in("role",["Staff","Administrator"]).eq("status","Active");
+      const recipients=new Set<number>((team||[]).map((u:any)=>u.user_id));
+      if(actor.role!=="Doctor")recipients.add(doctorId);
+      recipients.delete(actor.user_id);
+      if(recipients.size)await admin.from("notifications").insert([...recipients].map(user_id=>({
+        user_id,title:"Doctor Emergency",message:summary,type:"Schedule",channel:"In-app",delivery_status:"Created",
+        reference_type:"users",reference_id:doctorId,action_page:"appointments"
+      })));
+
+      // The database queues the patients' emails; send them now instead of waiting for the 5-minute job.
+      if(moved.length){
+        try{
+          const {data:cfg}=await admin.from("email_dispatch_config").select("dispatch_key").eq("config_id",1).maybeSingle();
+          if(cfg?.dispatch_key)await fetch(`${url}/functions/v1/email-dispatch`,{method:"POST",headers:{"Content-Type":"application/json","X-Dispatch-Key":cfg.dispatch_key},body:JSON.stringify({action:"dispatch"}),signal:AbortSignal.timeout(8000)});
+        }catch{ /* The 5-minute job sends them if this attempt fails. */ }
+      }
+
+      return json({ok:true,date,moved,unplaced,blocked_slots:blockTimes.length,
+        deadline_example:moved[0]?prettyDeadline(moved[0].deadline):null});
     }
 
     if(action==="manage_slots"){
