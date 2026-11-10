@@ -15,7 +15,7 @@ import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {getUserById} from './documentScanner.js';
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
 import {programChanged,readProgramFields,savePatientProgram} from './profileDetails.js';
-import {adminUserAction,renderUsers} from './userManagement.js';
+import {renderUsers} from './userManagement.js';
 import {renderMyAccount} from './accountSettings.js';
 import {initializeSupabaseClient} from './supabaseClient.js';
 import {escapeHtml} from './issueReports.js';
@@ -316,51 +316,9 @@ export async function saveAccount(){
     return;
   }
 
-  // Administrators are explicitly exempt from verification.
-  if(u.role==='Administrator'){
-    const btn=document.getElementById('account-save-button');
-    const oldText=btn?.textContent;
-    if(btn){btn.disabled=true;btn.textContent='Saving…';}
-
-    try{
-      if(u._realSupabase){
-        await adminUserAction({
-          action:'update',
-          user_id:u.dbUserId,
-          email,
-          contact_number:contact
-        });
-        await syncAdminDirectoryFromSupabase();
-        const fresh=appState.data.DB.users.find(x=>x._realSupabase&&x.dbUserId===u.dbUserId);
-        if(fresh){
-          appState.auth.currentUser.email=fresh.email;
-          appState.auth.currentUser.contact=fresh.contact||fresh.contactNo||contact;
-          appState.auth.currentUser.contactNo=appState.auth.currentUser.contact;
-        }else{
-          appState.auth.currentUser.email=email;
-          appState.auth.currentUser.contact=contact;
-          appState.auth.currentUser.contactNo=contact;
-        }
-      }else{
-        u.email=email;
-        u.contact=contact;
-        persistDB();
-      }
-
-      showAlert(msg,'Profile updated successfully.','success');
-      toast('Contact information updated.','success');
-      renderMyAccount();
-    }catch(e){
-      showAlert(msg,e?.message||'Unable to update your profile.');
-    }finally{
-      if(btn){btn.disabled=false;btn.textContent=oldText||'Save Changes';}
-    }
-    return;
-  }
-
-  // Signed-in people edit their own details without an extra code. The contact number is saved at once.
-  // A new email is the sign-in address, so it only switches after the link sent to it is opened: a typo
-  // can never lock anyone out.
+  // Everyone, administrators included, saves their own details here. The contact number and program are
+  // saved at once. A new email is the sign-in address, so it switches only after the 6-digit code sent to
+  // it is entered: a typo can never lock anyone out.
   const btn=document.getElementById('account-save-button');
   const oldText=btn?.textContent;
   if(btn){btn.disabled=true;btn.textContent='Saving…';}
@@ -376,32 +334,95 @@ export async function saveAccount(){
     }
     if(!initializeSupabaseClient())throw new Error('Unable to connect to CampusCare.');
     if(programEdited)await savePatientProgram(program);
-    if(contactChanged){
-      const {data:{session}}=await appState.supabaseClient.supabaseClient.auth.getSession();
-      if(!session)throw new Error('Your session has expired. Please log in again.');
-      const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/profile-actions`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json',apikey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY,Authorization:`Bearer ${session.access_token}`},
-        body:JSON.stringify({action:'update_contact',contact_number:contact})
-      });
-      const result=await response.json().catch(()=>({}));
-      if(!response.ok||!result.ok)throw new Error(result.error||'Your contact number could not be saved.');
-    }
+    if(contactChanged)await profileAction({action:'update_contact',contact_number:contact});
+    if(contactChanged||programEdited)await refreshCurrentProfileContact();
     if(emailChanged){
-      const {error}=await appState.supabaseClient.supabaseClient.auth.updateUser({email});
-      if(error)throw error;
+      await profileAction({action:'request_email_change',email});
+      if(contactChanged||programEdited){renderMyAccount();toast('Your other changes were saved.','success');}
+      openEmailCodeModal(email);
+      return;
     }
-    await refreshCurrentProfileContact();
     renderMyAccount();
-    if(emailChanged){
-      toast(`${contactChanged||programEdited?'Your changes were saved. ':''}Open the link sent to ${email} to switch your email. Until then you sign in with your current email.`,'success',8000);
-    }else{
-      toast(contactChanged&&!programEdited?'Contact number updated.':'Profile updated.','success');
-    }
+    toast(contactChanged&&!programEdited?'Contact number updated.':'Profile updated.','success');
   }catch(e){
     showAlert(document.getElementById('acc-msg')||msg,e?.message||'Unable to update your profile.');
   }finally{
     if(btn&&document.body.contains(btn)){btn.disabled=false;btn.textContent=oldText||'Save Changes';}
+  }
+}
+
+async function profileAction(payload){
+  const {data:{session}}=await appState.supabaseClient.supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+  const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/profile-actions`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json',apikey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY,Authorization:`Bearer ${session.access_token}`},
+    body:JSON.stringify(payload)
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw Object.assign(new Error(result.error||'Your profile could not be saved.'),{retryAfter:Number(result.retry_after||0)});
+  return result;
+}
+
+// The code goes to the new address; the email switches only once the code is entered here.
+export function openEmailCodeModal(email){
+  openModal(`<div class="modal email-code-modal" role="dialog" aria-labelledby="email-code-title">
+    <div class="modal-header"><h3 id="email-code-title">Enter the code</h3><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body">
+      <p>We sent a 6-digit code to <strong>${escapeHtml(email)}</strong>. Enter it to make this your sign-in email. Until then you keep signing in with your current email.</p>
+      <div id="email-code-msg"></div>
+      <div class="form-group"><label for="email-code-input">Verification code</label>
+        <input id="email-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" placeholder="6-digit code" style="letter-spacing:.3em;font-size:1.2rem"
+          ${bindAction('input',(event,element)=>{element.value=element.value.replace(/\D/g,'').slice(0,6);document.getElementById('email-code-confirm').disabled=element.value.length!==6;})}
+          ${bindAction('keydown',(event,element)=>{if(event.key==='Enter'&&element.value.length===6)confirmEmailCode(email);})}></div>
+      <p class="form-note">The code expires in 10 minutes. Check Spam or Promotions if you don't see it.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="email-code-resend" disabled ${bindAction('click',()=>resendEmailCode(email))}>Resend code</button>
+      <button class="btn btn-primary" id="email-code-confirm" disabled ${bindAction('click',()=>confirmEmailCode(email))}>Confirm</button>
+    </div>
+  </div>`);
+  startResendCountdown(60);
+  setTimeout(()=>document.getElementById('email-code-input')?.focus(),50);
+}
+
+function startResendCountdown(seconds){
+  const button=document.getElementById('email-code-resend');if(!button)return;
+  let left=Math.max(0,Math.ceil(seconds));
+  const tick=()=>{
+    if(!document.body.contains(button))return;
+    button.disabled=left>0;button.textContent=left>0?`Resend code (${left}s)`:'Resend code';
+    if(left-->0)setTimeout(tick,1000);
+  };
+  tick();
+}
+
+async function resendEmailCode(email){
+  const msg=document.getElementById('email-code-msg');hideAlert(msg);
+  try{
+    await profileAction({action:'request_email_change',email});
+    showAlert(msg,`A new code was sent to ${email}.`,'success');
+    startResendCountdown(60);
+  }catch(e){
+    showAlert(msg,e.message);
+    if(e.retryAfter)startResendCountdown(e.retryAfter);
+  }
+}
+
+async function confirmEmailCode(email){
+  const msg=document.getElementById('email-code-msg'),input=document.getElementById('email-code-input'),button=document.getElementById('email-code-confirm');
+  hideAlert(msg);
+  if(button){button.disabled=true;button.textContent='Checking…';}
+  try{
+    await profileAction({action:'confirm_email_change',code:input?.value||''});
+    closeAllModals();
+    await refreshCurrentProfileContact();
+    renderMyAccount();
+    toast(`Your sign-in email is now ${email}.`,'success');
+  }catch(e){
+    showAlert(msg,e.message);
+    if(input){input.value='';input.focus();}
+    if(button){button.textContent='Confirm';button.disabled=true;}
   }
 }
 
