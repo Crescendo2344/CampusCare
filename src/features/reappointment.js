@@ -1,6 +1,7 @@
 // Return for reappointment: when a visit cannot push through, the doctor or the front desk apologizes and
 // proposes a new open time (slots inside the patients' booking lead time are usable here). The patient
 // then accepts it or picks another time. The clinic does not cancel appointments.
+import {staffClinicOf,userClinic} from '../domain/clinic-scope.js';
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {closeAllModals,openModal} from './modals.js';
@@ -157,7 +158,8 @@ function emergencyDoctor(){
 
 export function openEmergencyModal(){
   const me=appState.auth.currentUser;if(!canDeclareEmergency())return;
-  const staff=me.role==='Staff',doctors=staff?getDoctors():[];
+  const ownClinic=staffClinicOf(me);
+  const staff=me.role==='Staff',doctors=staff?getDoctors().filter(d=>!ownClinic||userClinic(d)===ownClinic):[];
   if(staff&&!doctors.length){toast('There are no active doctors.','warning');return;}
   const today=clinicToday();
   const dates=Array.from({length:EMERGENCY_MAX_DAYS_AHEAD+1},(_,i)=>addBookingDays(today,i));
