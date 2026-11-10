@@ -1834,6 +1834,7 @@
       "openReappointModal",
       "reappointmentNoticeHtml",
       "acceptReappointment",
+      "canDeclareEmergency",
       "openEmergencyModal"
     ],
     "state": [],

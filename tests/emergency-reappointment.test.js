@@ -79,3 +79,12 @@ test('the server lets doctors act without approval and enforces the confirmation
   assert.match(sql,/where status<>'Cancelled'/,'Cancelled visits no longer hold their slot');
   assert.match(sql,/Reason: it was not confirmed by/);
 });
+
+test('doctors declare from My Schedule and the front desk declares for any doctor from Appointments',()=>{
+  const ui=fs.readFileSync('src/features/reappointment.js','utf8');
+  assert.match(ui,/canDeclareEmergency\(\)\{return \['Doctor','Staff'\]\.includes/,'Administrators handle accounts, not bookings');
+  assert.match(ui,/id="em-doctor"/,'Staff choose the doctor');
+  assert.match(ui,/role==='Staff'\?\{doctor_id:/,'Only staff send a doctor; the server uses the doctor themselves otherwise');
+  assert.match(fs.readFileSync('src/features/doctorSchedule.js','utf8'),/openEmergencyModal\(\)/);
+  assert.match(fs.readFileSync('src/features/appointments.js','utf8'),/role==='Staff'&&canDeclareEmergency\(\)/);
+});

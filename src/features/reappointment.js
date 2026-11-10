@@ -5,7 +5,7 @@ import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {closeAllModals,openModal} from './modals.js';
 import {fmtDate,fmtTime} from './inputValidation.js';
-import {getPatientById,getUserById} from './documentScanner.js';
+import {getDoctors,getPatientById,getUserById} from './documentScanner.js';
 import {appointmentAction,appointmentRecords,syncRealAppointments} from './appointmentService.js';
 import {addBookingDays} from '../domain/booking-availability.js';
 import {EMERGENCY_MAX_DAYS_AHEAD,EMERGENCY_REASONS,emergencyReappointMessage,prettyDeadline} from '../domain/emergency-reappointment.js';
@@ -147,15 +147,27 @@ function emergencyAffected(doctorId,date){
     .sort((a,b)=>a.time.localeCompare(b.time));
 }
 
+// Doctors declare their own emergency from My Schedule; the front desk (Staff) can declare one for any
+// doctor from Appointments, e.g. when the doctor cannot reach the app.
+export function canDeclareEmergency(){return ['Doctor','Staff'].includes(appState.auth.currentUser?.role);}
+function emergencyDoctor(){
+  const me=appState.auth.currentUser;
+  return me?.role==='Doctor'?me:getUserById(appState.reappointment.emergencyDoctorId);
+}
+
 export function openEmergencyModal(){
-  const doc=appState.auth.currentUser;if(!doc)return;
+  const me=appState.auth.currentUser;if(!canDeclareEmergency())return;
+  const staff=me.role==='Staff',doctors=staff?getDoctors():[];
+  if(staff&&!doctors.length){toast('There are no active doctors.','warning');return;}
   const today=clinicToday();
   const dates=Array.from({length:EMERGENCY_MAX_DAYS_AHEAD+1},(_,i)=>addBookingDays(today,i));
-  appState.reappointment={...(appState.reappointment||{}),emergencyDate:today};
+  appState.reappointment={...(appState.reappointment||{}),emergencyDate:today,emergencyDoctorId:staff?doctors[0].id:me.id};
   openModal(`<div class="modal emergency-modal" role="dialog" aria-labelledby="em-title">
-    <div class="modal-header"><div><h3 id="em-title">Emergency: cannot see patients</h3><div class="text-muted">No administrator approval needed. Staff and administrators are notified.</div></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-header"><div><h3 id="em-title">Emergency: cannot see patients</h3><div class="text-muted">${staff?'For a doctor who cannot see patients. The doctor, other staff and administrators are notified.':'No administrator approval needed. Staff and administrators are notified.'}</div></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
       <div id="em-msg"></div>
+      ${staff?`<div class="form-group"><label for="em-doctor">Doctor <span class="required">*</span></label>
+        <select id="em-doctor" ${bindAction('change',(event,element)=>{appState.reappointment.emergencyDoctorId=Number(element.value);syncEmergencyModal();})}>${doctors.map(d=>`<option value="${d.id}">Dr. ${escapeHtml(`${d.fname||''} ${d.lname||''}`.trim())}${d.specialty?' · '+escapeHtml(d.specialty):''}</option>`).join('')}</select></div>`:''}
       <div class="form-row">
         <div class="form-group"><label for="em-date">Day</label>
           <select id="em-date" ${bindAction('change',(event,element)=>{appState.reappointment.emergencyDate=element.value;syncEmergencyModal();})}>${dates.map((d,i)=>`<option value="${d}">${i===0?'Today · ':''}${escapeHtml(fmtDate(d))}</option>`).join('')}</select></div>
@@ -173,7 +185,7 @@ export function openEmergencyModal(){
 }
 
 function syncEmergencyModal(){
-  const doc=appState.auth.currentUser,date=appState.reappointment.emergencyDate;
+  const doc=emergencyDoctor(),date=appState.reappointment.emergencyDate;if(!doc)return;
   const reason=document.getElementById('em-reason')?.value||'',note=(document.getElementById('em-note')?.value||'').trim();
   const rows=emergencyAffected(doc.id,date);
   const summary=document.getElementById('em-summary');
@@ -181,9 +193,9 @@ function syncEmergencyModal(){
     const sample=rows[0];
     // The preview uses a placeholder new time; the server picks the real earliest open slot for each patient.
     const preview=sample&&reason?emergencyReappointMessage({fromDate:sample.date,fromTime:sample.time,date:addBookingDays(sample.date,1),time:sample.time,deadline:new Date(Date.now()+24*3600*1000).toISOString(),reason,note,clinic:sample.clinic,doctorName:doc.lname}):'';
-    summary.innerHTML=`<div class="em-count"><strong>${rows.length}</strong> appointment${rows.length===1?'':'s'} on ${escapeHtml(fmtDate(date))} will be returned for reappointment.</div>
+    summary.innerHTML=`<div class="em-count"><strong>${rows.length}</strong> appointment${rows.length===1?'':'s'} ${appState.auth.currentUser.role==='Staff'?` with Dr. ${escapeHtml(doc.lname||'')}`:''} on ${escapeHtml(fmtDate(date))} will be returned for reappointment.</div>
       ${rows.length?`<ul class="em-list">${rows.map(a=>{const pt=getPatientById(a.patientId);return `<li>${escapeHtml(fmtTime(a.time))} · ${escapeHtml(pt?`${pt.fname} ${pt.lname}`:'Patient')} · ${escapeHtml(a.service||'')}</li>`;}).join('')}</ul>`:'<p class="text-muted">No remaining appointments that day. The rest of the day will still close to new bookings.</p>'}
-      <p class="form-note">Each patient is offered the earliest open time with you on a day that is not fully booked (at least 12 hours from now). They can accept it or pick another open time, and must confirm within 24 hours (or 2 hours before the new time, whichever is earlier). If they do not, the time is released and they book again on their own.</p>
+      <p class="form-note">Each patient is offered the earliest open time with ${appState.auth.currentUser.role==='Staff'?'this doctor':'you'} on a day that is not fully booked (at least 12 hours from now). They can accept it or pick another open time, and must confirm within 24 hours (or 2 hours before the new time, whichever is earlier). If they do not, the time is released and they book again on their own.</p>
       ${preview?`<div class="ra-preview"><strong>The patient will read (example):</strong><div style="white-space:pre-line;margin-top:.35rem">${escapeHtml(preview)}</div></div>`:''}`;
   }
   const send=document.getElementById('em-send');
@@ -195,7 +207,8 @@ async function sendEmergency(){
   const reason=document.getElementById('em-reason').value,note=(document.getElementById('em-note').value||'').trim();
   const btn=document.getElementById('em-send');btn.disabled=true;btn.textContent='Sending…';
   try{
-    const result=await appointmentAction({action:'emergency_reappoint',date,reason,note});
+    const doc=emergencyDoctor();
+    const result=await appointmentAction({action:'emergency_reappoint',date,reason,note,...(appState.auth.currentUser.role==='Staff'?{doctor_id:doc.dbUserId||doc.id-100000}:{})});
     await syncRealAppointments();
     closeAllModals();
     const moved=result.moved?.length||0,unplaced=result.unplaced?.length||0;
