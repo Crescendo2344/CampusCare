@@ -1,5 +1,6 @@
 // dashboard: imported feature APIs; state belongs to explicit application namespaces.
 import {describeTrend,periodComparison} from '../domain/dashboard-metrics.js';
+import {triageVitalsChipHtml} from './triageVitals.js';
 import {state as appState} from '../app/state.js';
 import {followTodayIfDefaultRange,dashboardAttentionItem,dashboardChartControlHtml,dashboardControlsHtml,dashboardInRange,dashboardMobileQuickLinks,dashboardRangeCounts,dashboardRangeLabel,dashboardStatCard,dashboardTrendSvg} from './dashboardChartHelpers.js';
 import {appointmentRecords} from './appointmentService.js';
@@ -137,7 +138,7 @@ export function renderDashboard(){
         <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">${rangeLabel}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(visitTrend,'Visits')}</div></div>
         <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
-      <div class="card"><div class="card-header"><h3>Schedule · ${fmtDate(today)}</h3><button class="btn btn-xs" ${bindAction('click',(event,element)=>{navTo('my-patients')})}>My Patients</button></div>${todayMine.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>College</th><th>Service</th><th>Status</th></tr></thead><tbody>${todayMine.map(a=>{const pt=getPatientById(a.patientId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${collegeBadge(a.college)}</td><td>${a.service}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments scheduled for today.</p></div>'}</div>
+      <div class="card"><div class="card-header"><h3>Schedule · ${fmtDate(today)}</h3><button class="btn btn-xs" ${bindAction('click',(event,element)=>{navTo('my-patients')})}>My Patients</button></div>${todayMine.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>College</th><th>Service</th><th>Status</th></tr></thead><tbody>${todayMine.map(a=>{const pt=getPatientById(a.patientId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${collegeBadge(a.college)}</td><td>${a.service}</td><td>${statusBadge(a.status)}${triageVitalsChipHtml(a)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments scheduled for today.</p></div>'}</div>
     </div>`;
     return;
   }

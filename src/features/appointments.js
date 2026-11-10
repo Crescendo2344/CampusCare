@@ -26,6 +26,8 @@ import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {canManageSlots,openSlotManager} from './slotManager.js';
 import {canDeclareEmergency,openEmergencyModal,openReappointModal,queueNumber} from './reappointment.js';
 import {csvDate,csvFileName,csvTime,downloadCsv} from '../shared/csv.js';
+import {openTriageVitalsModal,triageVitalsChipHtml} from './triageVitals.js';
+import {hasTriageVitals} from '../../supabase/functions/_shared/triage-vitals.js';
 // ================================================================
 // APPOINTMENTS PAGE (Staff/Admin/Doctor)
 // ================================================================
@@ -113,7 +115,9 @@ function apptActionButtons(a,allowed,{compact=true}={}){
   const size=compact?'btn-xs':'btn-sm';
   const primary=allowed.document
     ?`<button class="btn ${size} btn-primary" ${bindAction('click',()=>{closeAllModals();openAddTreatmentModal(a.id)})}><i class="bi bi-journal-medical" aria-hidden="true"></i> Add notes &amp; complete</button>`
-    :`<button class="btn ${size}" ${bindAction('click',()=>viewAppt(a.id))}>View</button>`;
+    :allowed.vitals
+      ?`<button class="btn ${size} ${hasTriageVitals(a.triageVitals)?'':'btn-primary'}" ${bindAction('click',()=>openTriageVitalsModal(a.id))}><i class="bi bi-heart-pulse" aria-hidden="true"></i> ${hasTriageVitals(a.triageVitals)?'Edit vitals':'Take vitals'}</button>`
+      :`<button class="btn ${size}" ${bindAction('click',()=>viewAppt(a.id))}>View</button>`;
   const more=[
     allowed.reschedule&&`<button type="button" role="menuitem" ${bindAction('click',()=>{closeAllModals();openRescheduleModal(a.id)})}><i class="bi bi-calendar2-week" aria-hidden="true"></i> Reschedule</button>`,
     allowed.remind&&`<button type="button" role="menuitem" ${bindAction('click',()=>sendApptNotif(a.id))}><i class="bi bi-bell" aria-hidden="true"></i> Send reminder</button>`,
@@ -167,7 +171,7 @@ export function renderApptTable(){
       <td data-label="Service"><strong>${escapeHtml(a.service||a.clinic||'—')}</strong><div class="text-muted">${escapeHtml(a.clinic||'')}</div></td>
       ${doctorView?'':`<td data-label="Doctor">${doc?`Dr. ${escapeHtml(doc.fname+' '+doc.lname)}`:'<span class="text-muted">Unassigned</span>'}</td>`}
       <td data-label="Priority">${priorityBadge(a.priority||pt?.personType||'')}</td>
-      <td data-label="Status">${statusBadge(a.status)}${a.patientResponse==='Awaiting'&&a.status==='Scheduled'?'<div class="appt-overdue">Waiting for patient’s answer</div>':''}${overdue?'<div class="appt-overdue">Outcome needed</div>':''}</td>
+      <td data-label="Status">${statusBadge(a.status)}${a.patientResponse==='Awaiting'&&a.status==='Scheduled'?'<div class="appt-overdue">Waiting for patient’s answer</div>':''}${overdue?'<div class="appt-overdue">Outcome needed</div>':''}${triageVitalsChipHtml(a)}</td>
       <td data-label="Actions"><div class="td-actions" ${bindAction('click',(event)=>{event.stopPropagation()})}>${primary}${apptMenuHtml(more,`appointment #${appointmentDisplayId(a)}`)}</div></td>
     </tr>`;
   }).join('');

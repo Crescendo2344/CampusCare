@@ -20,6 +20,7 @@ import {openWorkflowRequestReview,renderUsers} from './userManagement.js';
 import {bindAction} from '../dependencies.js';
 import {paginate,pagerHtml} from '../ui/pager.js';
 import {patientAvatarHtml} from './patientManagement.js';
+import {triageVitalsChipHtml} from './triageVitals.js';
 import {requestAttachmentBadge,requestAttachmentFieldHtml,requestAttachmentLocal,requestAttachmentPayload} from './requestAttachments.js';
 // ================================================================
 // DOCTOR – SCHEDULE
@@ -35,7 +36,7 @@ function renderUpcomingAppointments(){
       <td>${fmtDate(a.date)}</td><td>${fmtTime(a.time)}</td>
       <td>${pt?`<div class="pt-identity">${patientAvatarHtml(pt,28)}<strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong></div>`:'Unknown'}</td>
       <td>${collegeBadge(a.college)}</td><td>${priorityBadge(a.priority)}</td>
-      <td>${escapeHtml(a.service||'')}</td><td>${statusBadge(a.status)}</td>
+      <td>${escapeHtml(a.service||'')}</td><td>${statusBadge(a.status)}${triageVitalsChipHtml(a)}</td>
       <td><div class="td-actions" ${bindAction('click',event=>event.stopPropagation())}>
         ${a.status==='Scheduled'&&a.date<=appState.clinicInformation.TODAY?`<button class="btn btn-xs btn-primary" ${bindAction('click',()=>openAddTreatmentModal(a.id))}><i class="bi bi-pencil-square" aria-hidden="true"></i> Add Notes &amp; Complete</button>`:''}
       </div></td>
