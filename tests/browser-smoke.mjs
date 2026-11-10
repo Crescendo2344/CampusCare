@@ -1389,10 +1389,20 @@ try{
     assert.equal(await page.locator('#backup-list .backup-day').count(),6);
     assert(await page.locator('#backup-list').evaluate(el=>el.scrollHeight>el.clientHeight&&getComputedStyle(el).overflowY==='auto'));
     managedUsers.push({...profile,user_id:93,auth_user_id:'pending-auth',first_name:'Pending',last_name:'Applicant',username:'pending.applicant',email:'pending@example.test',role:'Patient',status:'Pending',verified:false});
+    managedUsers.push({...profile,user_id:94,auth_user_id:'staff-auth',first_name:'Lorna',last_name:'Gimenez',username:'lorna.gimenez',email:'lorna@example.test',role:'Staff',status:'Active',verified:true,clinic:'Medical Clinic',specialty:null});
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('users'));
     const pending=page.locator('#user-table tbody tr').filter({hasText:'Applicant, Pending'}),active=()=>page.locator('#user-table tbody tr').filter({hasText:'Doctor, Fixture'});
     await pending.waitFor();assert.equal(await pending.getByRole('button',{name:'Edit',exact:true}).count(),0);assert.equal(await pending.getByRole('button',{name:'Review in Approval Queue',exact:true}).count(),1);
     await page.evaluate(()=>window.__fixtureApp.features.userForm.openEditUserModal(100093));assert.equal(await page.locator('#eu-fname').count(),0);
+    // A staff member's clinic is changed in Edit user; picking the other clinic counts as a change.
+    await page.evaluate(()=>window.__fixtureApp.features.userForm.openEditUserModal(100094));
+    await page.locator('#eu-clinic').waitFor();
+    assert.equal(await page.locator('#eu-clinic').inputValue(),'Medical Clinic');
+    assert(await page.locator('#eu-next').isDisabled());
+    await page.locator('#eu-clinic').selectOption('Dental Clinic');
+    assert(await page.locator('#eu-next').isEnabled(),'Changing the clinic enables Review changes');
+    await page.evaluate(()=>window.__fixtureApp.features.modals.closeAllModals());
+    managedUsers.splice(managedUsers.findIndex(u=>u.user_id===94),1);
     await pending.locator('td').first().click();await page.getByRole('heading',{name:/^(User Information|Pending Applicant)$/}).first().waitFor();await page.getByRole('heading',{name:'Pending Applicant',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Edit User',exact:true}).count(),0);await page.locator('#active-modal .close-btn').click();
     const updatesBefore=requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').length;
     await active().getByRole('button',{name:'Edit',exact:true}).click();assert.equal(await page.locator('#eu-status').count(),0);
