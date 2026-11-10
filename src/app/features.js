@@ -71,6 +71,7 @@ import * as feature69 from '../features/legalPages.js';
 import * as feature70 from '../features/reappointment.js';
 import * as feature71 from '../features/profileDetails.js';
 import * as feature72 from '../features/stockOrders.js';
+import * as feature73 from '../features/triageVitals.js';
 export const features={
 analyticsDisplay,
   authSession:feature0,
@@ -145,6 +146,7 @@ analyticsDisplay,
   reappointment:feature70,
   profileDetails:feature71,
   stockOrders:feature72,
+  triageVitals:feature73,
 };
 import {initializeOptionalState} from './optional-state.js';
 import * as analyticsDisplay from '../features/analyticsDisplay.js';

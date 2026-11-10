@@ -16,9 +16,9 @@ test('appointments fall into upcoming, needs-outcome and history lists',()=>{
 test('actions follow role, ownership, status and timing',()=>{
   const staff={role:'Staff',userId:1,today,now},doctor={role:'Doctor',userId:7,today,now};
   const later=appt(1,'2026-10-23','14:00'),earlier=appt(2,'2026-10-23','08:00'),past=appt(3,'2026-10-20','09:00'),done=appt(4,'2026-10-20','09:00','Completed');
-  assert.deepEqual(appointmentActions(later,staff),{document:false,reschedule:true,cancel:false,reappoint:true,noShow:false,remind:true});
-  assert.deepEqual(appointmentActions(earlier,staff),{document:false,reschedule:true,cancel:false,reappoint:true,noShow:true,remind:false});
-  assert.deepEqual(appointmentActions(past,staff),{document:false,reschedule:false,cancel:false,reappoint:true,noShow:true,remind:false});
+  assert.deepEqual(appointmentActions(later,staff),{document:false,reschedule:true,cancel:false,reappoint:true,noShow:false,remind:true,vitals:true});
+  assert.deepEqual(appointmentActions(earlier,staff),{document:false,reschedule:true,cancel:false,reappoint:true,noShow:true,remind:false,vitals:true});
+  assert.deepEqual(appointmentActions(past,staff),{document:false,reschedule:false,cancel:false,reappoint:true,noShow:true,remind:false,vitals:true});
   // The clinic never cancels; a visit that cannot push through is returned for reappointment.
   assert.equal(appointmentActions({...later,doctorId:7},doctor).reappoint,true,'The appointment doctor can propose a new time');
   assert.equal(appointmentActions(later,{role:'Administrator',userId:1,today,now}).reappoint,false,'Administrators do not handle bookings');
@@ -27,6 +27,11 @@ test('actions follow role, ownership, status and timing',()=>{
   assert.equal(appointmentActions({...later,doctorId:7},doctor).remind,false,'Doctors do not send reminders');
   assert.equal(appointmentActions(later,{...doctor,userId:8}).document,false);
   assert(Object.values(appointmentActions(done,staff)).every(v=>!v));
+  // Triage vitals: the front desk takes them on the visit day and may correct them until it is completed.
+  assert.equal(appointmentActions(appt(5,'2026-10-24','09:00'),staff).vitals,false,'Not before the visit day');
+  assert.equal(appointmentActions(past,doctor).vitals,false,'Doctors read the triage vitals; the front desk records them');
+  assert.equal(appointmentActions(later,{role:'Administrator',userId:1,today,now}).vitals,false);
+  assert.equal(appointmentActions(done,staff).vitals,false,'Locked once the visit is completed');
 });
 
 test('day headings and CSV export',()=>{

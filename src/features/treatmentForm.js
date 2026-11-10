@@ -20,6 +20,8 @@ import {renderDoctorSchedule} from './doctorSchedule.js';
 import {loadJsPDF} from './settingsAndCertificates.js';
 import {loadHtml2Canvas,openNewCertificateModal} from './certificateService.js';
 import * as clinicalChecks from '../domain/clinical-validation.js';
+import {TRIAGE_VITAL_FIELDS,hasTriageVitals} from '../../supabase/functions/_shared/triage-vitals.js';
+import {triageVitalsTakenBy} from './triageVitals.js';
 import {bindAction,patientData} from '../dependencies.js';
 // ── Treatment Modal ──
 export function openAddTreatmentModal(apptId){
@@ -50,7 +52,6 @@ export function treatmentClinicFor(doctor,appt){
   return doctor?.specialty==='Dental'?'Dental Clinic':'Medical Clinic';
 }
 const FOLLOWUP_PRESETS=[['1 week',7],['2 weeks',14],['1 month',30]];
-const VITAL_FIELDS=[['bp','Blood pressure','mmHg','120/80',''],['temp','Temperature','°C','36.8','decimal'],['pulse','Pulse','bpm','72','numeric'],['spo2','SpO₂','%','98','decimal'],['weight','Weight','kg','','decimal'],['height','Height','cm','','decimal']];
 
 function treatmentPatientCardHtml(pt){
   const last=treatmentRecords().filter(t=>t.patientId===pt.id&&!t.archived).sort((x,y)=>String(y.date).localeCompare(String(x.date)))[0];
@@ -89,7 +90,9 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
   const clinic=treatmentClinicFor(appState.auth.currentUser,appt);
   const dental=clinic==='Dental Clinic';
   const diagnoses=[...new Set(treatmentRecords().filter(t=>t.doctorId===appState.auth.currentUser.id).map(t=>String(t.diagnosis||'').trim()).filter(Boolean))].slice(0,40);
-  const vital=([key,label,unit,placeholder,mode])=>`<div class="form-group tv-vital" data-vital="${key}"><label for="tm-${key}">${label} <span class="tv-unit">${unit}</span><span class="tv-flag" hidden></span></label><input id="tm-${key}" ${mode?`inputmode="${mode}"`:''} placeholder="${placeholder}" autocomplete="off"><p class="registration-field-error" id="tm-${key}-error" aria-live="polite" hidden></p></div>`;
+  // Readings the front desk took at triage are filled in; the doctor may correct them here.
+  const triage=hasTriageVitals(appt?.triageVitals)?appt.triageVitals:null;
+  const vital=([key,label,unit,placeholder,mode])=>`<div class="form-group tv-vital" data-vital="${key}"><label for="tm-${key}">${label} <span class="tv-unit">${unit}</span><span class="tv-flag" hidden></span></label><input id="tm-${key}" ${mode?`inputmode="${mode}"`:''} placeholder="${placeholder}" autocomplete="off" value="${escapeHtml(triage?.[key]||'')}"><p class="registration-field-error" id="tm-${key}-error" aria-live="polite" hidden></p></div>`;
 
   openModal(`<div class="modal modal-lg tv-modal">
     <div class="modal-header"><div><h3>${appt?`Complete appointment #${appointmentDisplayId(appt)}`:'Record visit'}</h3>
@@ -104,8 +107,8 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
         <p class="registration-field-error" id="tm-pt-error" aria-live="polite" hidden></p></div><div id="tm-patient-card"></div>`}
 
       <section class="tv-section"><h4><span class="tv-step">V</span> Vital signs</h4>
-        <p class="form-note tv-note">Taken first, when the patient arrives.</p>
-        <div class="tv-vitals" ${bindAction('input',()=>updateVitalFlags())}>${VITAL_FIELDS.map(vital).join('')}<div class="tv-bmi" id="tm-bmi" aria-live="polite"><span>BMI</span><strong>—</strong></div></div>
+        <p class="form-note tv-note">${triage?`<i class="bi bi-check2-circle" aria-hidden="true"></i> From triage${escapeHtml(triageVitalsTakenBy(triage))}. Correct them here if needed.`:'Taken first, when the patient arrives.'}</p>
+        <div class="tv-vitals" ${bindAction('input',()=>updateVitalFlags())}>${TRIAGE_VITAL_FIELDS.map(vital).join('')}</div>
       </section>
 
       <section class="tv-section"><h4><span class="tv-step">S</span> Chief complaint and history</h4>
@@ -149,6 +152,7 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
       <button class="btn btn-primary" id="tm-save-btn" ${bindAction('click',()=>saveTreatment((ptId||null),(apptId||null)))}>${appt?'Save and complete appointment':'Save visit record'}</button>
     </div>
   </div>`);
+  if(triage)updateVitalFlags();
 }
 
 function isoAfter(date,days){return new Date(Date.parse(date+'T12:00:00Z')+days*86400000).toISOString().slice(0,10);}
@@ -160,18 +164,16 @@ function setFollowUp(days){
   if(label)label.textContent=days?fmtDate(input.value):'Select date';
   document.querySelectorAll('.tv-chip').forEach(chip=>chip.classList.toggle('active',chip.dataset.days===String(days)));
 }
-// Readings outside the usual range are flagged while typing; BMI follows weight and height.
+// Readings outside the usual range are flagged while typing.
 function updateVitalFlags(){
   const read=key=>document.getElementById('tm-'+key)?.value||'';
-  const vitals=Object.fromEntries(VITAL_FIELDS.map(([key])=>[key,read(key)]));
+  const vitals=Object.fromEntries(TRIAGE_VITAL_FIELDS.map(([key])=>[key,read(key)]));
   const flags=clinicalChecks.vitalFlags(vitals);
-  for(const [key] of VITAL_FIELDS){
+  for(const [key] of TRIAGE_VITAL_FIELDS){
     const wrap=document.querySelector(`.tv-vital[data-vital="${key}"]`),flag=wrap?.querySelector('.tv-flag');if(!flag)continue;
     const f=flags[key];flag.hidden=!f;flag.textContent=f?.label||'';flag.className='tv-flag '+(f?.level||'');
     wrap.classList.toggle('flagged',Boolean(f));
   }
-  const bmi=clinicalChecks.bodyMassIndex(vitals.weight,vitals.height),box=document.getElementById('tm-bmi');
-  if(box)box.innerHTML=`<span>BMI</span><strong>${bmi?bmi.value:'—'}</strong>${bmi?`<small class="${bmi.category==='Normal'?'':'off'}">${bmi.category}</small>`:''}`;
 }
 
 export async function saveTreatment(ptId,apptId){
@@ -198,13 +200,10 @@ export async function saveTreatment(ptId,apptId){
   const vitalsInput={
     bp:document.getElementById('tm-bp').value.trim(),
     temp:document.getElementById('tm-temp').value.trim(),
-    pulse:document.getElementById('tm-pulse').value.trim(),
-    spo2:document.getElementById('tm-spo2').value.trim(),
-    weight:document.getElementById('tm-weight').value.trim(),
-    height:document.getElementById('tm-height').value.trim()
+    spo2:document.getElementById('tm-spo2').value.trim()
   };
   const errors=clinicalChecks.treatmentFormErrors({patientId:ptIdVal,findings,diagnosis:diag,prescription:presc,date,followup,vitals:vitalsInput,medName,dosage,frequency,endDate},appState.clinicInformation.TODAY);
-  const fieldIds={bp:'tm-bp',temp:'tm-temp',pulse:'tm-pulse',spo2:'tm-spo2',weight:'tm-weight',height:'tm-height',patient:'tm-pt',findings:'tm-findings',diagnosis:'tm-diag',prescription:'tm-presc',date:'tm-date',followup:'tm-followup',dosage:'tm-dosage',frequency:'tm-frequency',endDate:'tm-enddate'};
+  const fieldIds={bp:'tm-bp',temp:'tm-temp',spo2:'tm-spo2',patient:'tm-pt',findings:'tm-findings',diagnosis:'tm-diag',prescription:'tm-presc',date:'tm-date',followup:'tm-followup',dosage:'tm-dosage',frequency:'tm-frequency',endDate:'tm-enddate'};
   for(const id of Object.values(fieldIds)){const el=document.getElementById(id+'-error');if(el){el.hidden=true;el.textContent='';}document.getElementById(id)?.removeAttribute('aria-invalid');}
   if(Object.keys(errors).length){
     for(const [key,message] of Object.entries(errors)){const id=fieldIds[key],el=document.getElementById(id+'-error');if(el){el.textContent=message;el.hidden=false;}document.getElementById(id)?.setAttribute('aria-invalid','true');}
@@ -343,7 +342,8 @@ export function treatmentDocumentHtml(t){
     </div>
     ${pt.allergies&&pt.allergies!=='None'?`<div style="border:1px solid #e3a6a6;background:#fff1f1;color:#8d2323;border-radius:7px;padding:8px 10px;font-size:.74rem;margin-bottom:14px"><strong>Known Allergy:</strong> ${safe(pt.allergies)}</div>`:''}
     <div class="treatment-doc-section"><h4>Vital Signs</h4><div class="treatment-doc-vitals">
-      <div class="treatment-vital-box"><span>Blood Pressure</span><strong>${safe(vit.bp)}</strong></div><div class="treatment-vital-box"><span>Temperature</span><strong>${safe(vit.temp)}${vit.temp?' °C':''}</strong></div><div class="treatment-vital-box"><span>Pulse</span><strong>${safe(vit.pulse)}${vit.pulse?' bpm':''}</strong></div><div class="treatment-vital-box"><span>SpO₂</span><strong>${safe(vit.spo2)}</strong></div><div class="treatment-vital-box"><span>Weight</span><strong>${safe(vit.weight)}</strong></div><div class="treatment-vital-box"><span>Height</span><strong>${safe(vit.height)}</strong></div>
+      <div class="treatment-vital-box"><span>Blood Pressure</span><strong>${safe(vit.bp)}</strong></div><div class="treatment-vital-box"><span>Temperature</span><strong>${safe(vit.temp)}${vit.temp?' °C':''}</strong></div><div class="treatment-vital-box"><span>SpO₂</span><strong>${safe(vit.spo2)}</strong></div>
+      ${[['pulse','Pulse',' bpm'],['weight','Weight',''],['height','Height','']].filter(([key])=>vit[key]).map(([key,label,unit])=>`<div class="treatment-vital-box"><span>${label}</span><strong>${safe(vit[key])}${unit}</strong></div>`).join('')}
     </div></div>
     <div class="treatment-doc-section"><h4>Examination Findings</h4><p>${safe(t.findings)}</p></div>
     <div class="treatment-doc-section"><h4>Diagnosis / Clinical Impression</h4><p><strong>${safe(t.diagnosis)}</strong></p></div>

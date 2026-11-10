@@ -388,7 +388,7 @@ export function buildClinicalCopilot(patientId){
 
   const soap=latest?[
     `S: ${latest.notes||latest.findings||'Review patient-reported symptoms and current concerns.'}`,
-    `O: ${latest.findings||'Enter current examination findings.'}${latest.vitals?` Vitals: BP ${latest.vitals.bp||'-'}, Temp ${latest.vitals.temp||'-'}, Pulse ${latest.vitals.pulse||'-'}, SpO₂ ${latest.vitals.spo2||'-'}.`:''}`,
+    `O: ${latest.findings||'Enter current examination findings.'}${latest.vitals?` Vitals: BP ${latest.vitals.bp||'-'}, Temp ${latest.vitals.temp||'-'}${latest.vitals.pulse?`, Pulse ${latest.vitals.pulse}`:''}, SpO₂ ${latest.vitals.spo2||'-'}.`:''}`,
     `A: Previous recorded diagnosis: ${latest.diagnosis||'not recorded'}. Reassess before using.`,
     `P: Previous treatment: ${latest.prescription||'not recorded'}. Confirm/update plan and follow-up.`
   ].join('\n'):'S: Enter current symptoms.\nO: Enter examination findings and vitals.\nA: Enter clinician assessment.\nP: Enter treatment and follow-up plan.';

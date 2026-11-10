@@ -716,18 +716,37 @@ try{
   assert.equal(await page.locator('#active-modal .modal-footer').getByRole('button',{name:'Close',exact:true}).count(),0);
   await page.locator('#active-modal .close-btn').click();
   if(role==='Doctor'){
-    // Visit record: the clinic is fixed by the doctor's own clinic, vitals are flagged, BMI is computed, no imaging field.
+    // Visit record: the clinic is fixed by the doctor's own clinic, vitals are flagged, no imaging field.
     await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const pt=state.data.DB.patients.find(p=>p._realSupabase&&!p.archived)||state.data.DB.patients[0];features.treatmentForm.openAddTreatmentModalPt(pt.id);});
     await page.locator('.tv-modal').waitFor();
     assert.equal(await page.locator('#tm-record-type').inputValue(),'Medical Clinic');
     assert.equal(await page.locator('.tv-modal select#tm-record-type').count(),0,'The clinic is not a choice');
     assert.equal(await page.locator('#tm-xray').count(),0);
     assert.match(await page.locator('.tv-meta').innerText(),/Medical Clinic/);
-    await page.locator('#tm-temp').fill('38.4');await page.locator('#tm-weight').fill('70');await page.locator('#tm-height').fill('175');
+    // Visit records keep blood pressure, temperature and SpO₂ only: no pulse (bpm), weight, height or BMI.
+    for(const id of ['#tm-pulse','#tm-weight','#tm-height','#tm-bmi'])assert.equal(await page.locator(id).count(),0,id);
+    await page.locator('#tm-bp').waitFor();await page.locator('#tm-spo2').waitFor();
+    await page.locator('#tm-temp').fill('38.4');
     assert.equal(await page.locator('.tv-vital[data-vital="temp"] .tv-flag').innerText(),'FEVER');
-    assert.match(await page.locator('#tm-bmi').innerText(),/22\.9[\s\S]*Normal/);
     await page.getByRole('button',{name:'2 weeks',exact:true}).click();
     assert.notEqual(await page.locator('#tm-followup').inputValue(),'');
+    await page.locator('#active-modal .close-btn').click();
+    // Vitals the front desk took at triage show on the appointment and fill the doctor's visit form.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const me=state.auth.currentUser,pt=state.data.DB.patients.find(p=>p._realSupabase&&!p.archived)||state.data.DB.patients[0];
+      state.data.DB.appointments.push({id:990079,dbAppointmentId:79,_realSupabase:true,patientId:pt.id,doctorId:me.id,clinic:'Medical Clinic',service:'General Checkup',date:state.clinicInformation.TODAY,time:'10:00',status:'Scheduled',reason:'Fever',
+        triageVitals:{bp:'150/95',temp:'38.2',spo2:'97',recordedAt:new Date().toISOString(),updatedAt:new Date().toISOString()}});
+      window.__allowed=features.appointments.appointmentAllowedActions(state.data.DB.appointments.at(-1));
+      features.appointmentDetails.viewAppt(990079);});
+    assert.equal(await page.evaluate(()=>window.__allowed.vitals),false,'Doctors read triage vitals; the front desk records them');
+    await page.locator('.triage-panel').waitFor();
+    assert.match(await page.locator('.triage-panel').innerText(),/150\/95[\s\S]*38\.2[\s\S]*97/);
+    assert.equal(await page.locator('.triage-panel button').count(),0,'No edit button for the doctor');
+    await page.locator('#active-modal .close-btn').click();
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const a=state.data.DB.appointments.at(-1);features.treatmentForm.openAddTreatmentModalPt(a.patientId,a.id);});
+    await page.locator('#tm-bp').waitFor();
+    assert.equal(await page.locator('#tm-bp').inputValue(),'150/95');assert.equal(await page.locator('#tm-temp').inputValue(),'38.2');assert.equal(await page.locator('#tm-spo2').inputValue(),'97');
+    assert.match(await page.locator('.tv-note').innerText(),/From triage/);
+    assert.equal(await page.locator('.tv-vital[data-vital="temp"] .tv-flag').innerText(),'FEVER');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/visit-record-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#active-modal .close-btn').click();
     // A dental doctor gets the dental record: quadrant tooth chart, tap-to-mark codes, procedure rows, work status.
@@ -971,6 +990,24 @@ try{
     // Sending refreshes the page the staff member is on; let it settle before the next check replaces it.
     await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId&&!document.querySelector('#app-content .db-skeleton-wrap'));
     await page.waitForTimeout(600);
+    // Triage: on the visit day the front desk takes BP, temperature and SpO₂ for the doctor to read.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const pt=state.data.DB.patients.find(p=>p._realSupabase)||state.data.DB.patients[0];const doc=state.data.DB.users.find(u=>u.role==='Doctor'&&u._realSupabase);
+      state.data.DB.appointments.push({id:990078,dbAppointmentId:78,_realSupabase:true,patientId:pt.id,doctorId:doc?.id,clinic:'Medical Clinic',service:'General Checkup',date:state.clinicInformation.TODAY,time:'09:00',status:'Scheduled',reason:'Fever'});
+      window.__allowed=features.appointments.appointmentAllowedActions(state.data.DB.appointments.at(-1));
+      features.triageVitals.openTriageVitalsModal(990078);});
+    assert.equal(await page.evaluate(()=>window.__allowed.vitals),true,'Staff take vitals on the visit day');
+    await page.locator('#tv-bp').waitFor();
+    for(const id of ['#tv-pulse','#tv-weight','#tv-height'])assert.equal(await page.locator(id).count(),0,id);
+    await page.locator('#tv-bp').fill('120-80');await page.locator('#tv-save-btn').click();
+    assert.match(await page.locator('#tv-bp-error').innerText(),/systolic\/diastolic/);
+    await page.locator('#tv-bp').fill('150/95');assert(await page.locator('#tv-bp-error').isHidden(),'A corrected reading clears its error');await page.locator('#tv-temp').fill('38.2');await page.locator('#tv-spo2').fill('97');
+    assert.equal(await page.locator('.tv-vital[data-vital="bp"] .tv-flag').innerText(),'HIGH');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/triage-vitals-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#tv-save-btn').click();
+    await page.waitForFunction(()=>!document.querySelector('#tv-save-btn'));
+    const triage=requests.filter(r=>r.path.endsWith('/appointment-actions')&&r.body?.action==='vitals').at(-1);
+    assert.equal(triage.body.appointment_id,78);assert.deepEqual(triage.body.vitals,{bp:'150/95',temp:'38.2',spo2:'97'});
+    await page.waitForTimeout(300);
     // Inventory forecast: 3 months by default, presets and custom days (7–365), a plan column and a CSV with options.
     await page.evaluate(()=>{
       const {state,features}=window.__fixtureApp,today=state.clinicInformation.TODAY,anchor=features.predictiveAnalytics.healthAnalyticsAnchorDate().date,back=n=>{const d=new Date(anchor+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-n);return d.toISOString().slice(0,10);};
