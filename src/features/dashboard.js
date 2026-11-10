@@ -176,7 +176,7 @@ export function renderDashboard(){
   if(!attention)attention=dashboardAttentionItem('All accounts in order','No registrations are waiting for verification.','success');
   const waiting=[...pendingUsers].sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||''))).slice(0,6);
   c.innerHTML=`<div class="dashboard-a">
-    <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Accounts, verification and clinic-wide oversight.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-sm" ${bindAction('click',(event,element)=>{navTo('reports')})}>Open Reports & Analytics</button>${dashboardControlsHtml()}</div></div>
+    <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Accounts, verification and clinic-wide oversight.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap">${dashboardControlsHtml()}</div></div>
     <div class="dashboard-a-grid">
       ${dashboardStatCard('Accounts to verify',pendingUsers.length,pendingUsers.length?'Registrations awaiting review':'No registrations waiting',trend(pendingUsers,'bad',r=>r.createdAt,'new'),'bi-hourglass-split',pendingUsers.length?'attention':'')}
       ${dashboardStatCard('Active patients',patientCohort.length,'Verified, not archived',trend(patientCohort,'good',r=>r.createdAt,'new'),'bi-people')}
