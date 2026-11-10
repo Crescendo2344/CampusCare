@@ -51,7 +51,7 @@ export function issuePriorityBadge(priority){
   const p=priority||'Normal';
   return `<span class="fi-priority ${PRIORITY_TONE[p]||'info'}"><i class="bi ${p==='Urgent'?'bi-exclamation-octagon':p==='High'?'bi-arrow-up':p==='Low'?'bi-arrow-down':'bi-dash'}" aria-hidden="true"></i>${escapeHtml(p)}</span>`;
 }
-const issueSubject=r=>{const line=String(r.description||'').split('\n')[0].trim();return line.length>90?line.slice(0,88)+'…':line||'Untitled report';};
+const issueSubject=r=>{if(r.page&&r.page.trim())return r.page.trim();const line=String(r.description||'').split('\n')[0].trim();return line.length>90?line.slice(0,88)+'…':line||'Untitled report';};
 const ageLabel=date=>{const days=Math.floor((Date.now()-new Date(date).getTime())/864e5);return Number.isNaN(days)?'':days<1?'today':days===1?'1 day ago':`${days} days ago`;};
 const when=date=>date?new Date(date).toLocaleString('en-PH',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'—';
 const activeAdmins=()=>(appState.data.DB.users||[]).filter(u=>u.role==='Administrator'&&u.status==='Active'&&(!appState.auth.currentUser?._realSupabase||u._realSupabase));
@@ -90,7 +90,7 @@ export async function renderReportIssue(){
           </div>
         </div>
         <div class="form-group"><label for="ri-page">Page or feature</label><select id="ri-page"><option value="">Select a page (optional)</option>${(appState.topbarAndNavigation.NAV_CONFIG?.[appState.auth.currentUser.role]||[]).filter(item=>item.id&&item.id!=='report-issue').map(item=>`<option value="${escapeHtml(item.label)}">${escapeHtml(item.label)}</option>`).join('')}<option value="Other">Other</option></select></div>
-        <div class="form-group"><label for="ri-desc">What happened? <span class="required">*</span></label><textarea id="ri-desc" maxlength="6000" rows="5" placeholder="The first line becomes the title. Add the steps that led to it and what you expected instead."></textarea></div>
+        <div class="form-group"><label for="ri-desc">What happened? <span class="required">*</span></label><textarea id="ri-desc" maxlength="6000" rows="5" placeholder="Add the steps that led to it and what you expected instead."></textarea></div>
         <div class="form-group">
           <span class="form-label-text">Screenshot</span>
           <div class="upload-area" role="button" tabindex="0" ${bindAction('click',()=>document.getElementById('ri-photo-file').click())} ${bindAction('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('ri-photo-file').click();}})}>
@@ -113,7 +113,7 @@ export async function renderReportIssue(){
           return `<button type="button" class="fi-row fi-open" ${bindAction('click',()=>viewIssueThread(r.id))}>
             <span class="fi-main">
               <span class="fi-title"><strong>${escapeHtml(issueSubject(r))}</strong></span>
-              <span class="text-muted">#${issueDisplayId(r)}${r.page?' · '+escapeHtml(r.page):''} · ${ageLabel(r.createdAt)}${replies?` · ${replies} repl${replies===1?'y':'ies'}`:''}</span>
+              <span class="text-muted">#${issueDisplayId(r)} · ${ageLabel(r.createdAt)}${replies?` · ${replies} repl${replies===1?'y':'ies'}`:''}</span>
             </span>
             <span class="fi-badges">${confirm?'<span class="tr-due today" style="margin:0">Confirm fix</span>':''}${issueTypeBadge(r.type)}${issueStatusBadge(r.status)}</span>
           </button>`;}).join('')}</div>`:'<div class="empty-state"><i class="bi bi-inbox" aria-hidden="true" style="font-size:1.6rem"></i><p>You haven\'t sent any reports yet.</p></div>'}
@@ -255,7 +255,7 @@ export async function renderFeedbackIssues({refresh=true}={}){
   }
 
   const ui=queueUi();
-  ui.selected.clear();
+  ui.selected.clear();ui.selecting=false;
   const all=issueReportRecords();
   const stats=queueStats(all);
   const count=fn=>all.filter(fn).length;
@@ -319,16 +319,18 @@ export function renderFeedbackIssuesList(){
     return;
   }
   const allChecked=reports.every(r=>ui.selected.has(r.id));
-  el.innerHTML=`<div class="card fi-card"><div class="fi-list-head"><label class="fi-check"><input type="checkbox" ${allChecked?'checked':''} aria-label="Select all reports shown" ${bindAction('change',(event,element)=>{reports.forEach(r=>element.checked?ui.selected.add(r.id):ui.selected.delete(r.id));renderFeedbackIssuesList();})}> Select all</label></div><div class="fi-list">${reports.map(r=>{
+  const selecting=!!ui.selecting;
+  const toggleSelecting=()=>{ui.selecting=!ui.selecting;if(!ui.selecting)ui.selected.clear();renderFeedbackIssuesList();};
+  el.innerHTML=`<div class="card fi-card"><div class="fi-list-head" style="display:flex;align-items:center;justify-content:flex-start;gap:.75rem"><button type="button" class="btn btn-xs" ${bindAction('click',toggleSelecting)}>${selecting?'Cancel':'<i class="bi bi-check2-square" aria-hidden="true"></i> Select'}</button>${selecting?`<label class="fi-check"><input type="checkbox" ${allChecked?'checked':''} aria-label="Select all reports shown" ${bindAction('change',(event,element)=>{reports.forEach(r=>element.checked?ui.selected.add(r.id):ui.selected.delete(r.id));renderFeedbackIssuesList();})}> Select all</label>`:''}</div><div class="fi-list">${reports.map(r=>{
     const user=getUserById(r.reporterId);
     const replyCount=(r.replies||[]).filter(rp=>!rp.internal).length;
     return `<div class="fi-row ${ui.selected.has(r.id)?'selected':''}">
-      <input type="checkbox" class="fi-select" aria-label="Select report #${issueDisplayId(r)}" ${ui.selected.has(r.id)?'checked':''} ${bindAction('change',(event,element)=>{element.checked?ui.selected.add(r.id):ui.selected.delete(r.id);element.closest('.fi-row').classList.toggle('selected',element.checked);renderBulkBar();})}>
+      ${selecting?`<input type="checkbox" class="fi-select" aria-label="Select report #${issueDisplayId(r)}" ${ui.selected.has(r.id)?'checked':''} ${bindAction('change',(event,element)=>{element.checked?ui.selected.add(r.id):ui.selected.delete(r.id);element.closest('.fi-row').classList.toggle('selected',element.checked);renderBulkBar();})}>`:''}
       <button type="button" class="fi-open" ${bindAction('click',()=>viewIssueThread(r.id))}>
         ${user?userAvatarHtml(user,32):'<div class="sb-avatar" style="width:32px;height:32px;font-size:.7rem">?</div>'}
         <span class="fi-main">
           <span class="fi-title"><strong>${escapeHtml(issueSubject(r))}</strong></span>
-          <span class="text-muted">#${issueDisplayId(r)} · ${escapeHtml(r.reporterName||'CampusCare user')}${r.page?' · '+escapeHtml(r.page):''} · ${ageLabel(r.createdAt)}${replyCount?` · ${replyCount} repl${replyCount===1?'y':'ies'}`:''}${r.photo?' · <i class="bi bi-image" aria-label="has screenshot"></i>':''}</span>
+          <span class="text-muted">#${issueDisplayId(r)} · ${escapeHtml(r.reporterName||'CampusCare user')} · ${ageLabel(r.createdAt)}${replyCount?` · ${replyCount} repl${replyCount===1?'y':'ies'}`:''}${r.photo?' · <i class="bi bi-image" aria-label="has screenshot"></i>':''}</span>
         </span>
         <span class="fi-badges">${awaitingReply(r)?'<span class="tr-due today" style="margin:0">Awaiting reply</span>':''}${r.reporterRating===-1&&isOpenIssue(r)?'<span class="tr-due overdue" style="margin:0">Reopened</span>':''}${issuePriorityBadge(r.priority)}${issueTypeBadge(r.type)}${issueStatusBadge(r.status)}${r.assignedTo?`<span class="fi-assignee" title="Assigned to ${escapeHtml(r.assigneeName||'')}">${escapeHtml(initials(r.assigneeName||getUserName(r.assignedTo)))}</span>`:''}</span>
       </button>

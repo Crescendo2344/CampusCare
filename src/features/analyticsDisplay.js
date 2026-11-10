@@ -41,7 +41,6 @@ export function renderLiveAnalyticsCard(summary){
         <h3>Clinic activity overview</h3>
         <div class="tech-note">${escapeHtml(scopeText)}${range.from&&range.to?` · ${fmtDate(range.from)} – ${fmtDate(range.to)}`:''}</div>
       </div>
-      ${doctor?'':'<span class="intel-badge">Clinic records</span>'}
     </div>
 
     <div class="intel-grid">
