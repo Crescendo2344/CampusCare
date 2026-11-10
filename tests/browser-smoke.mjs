@@ -707,7 +707,8 @@ try{
   }
   await page.evaluate(()=>window.__fixtureApp.features.accountSettings.openProfileDetails());
   assert.equal(await page.locator('#active-modal .modal-header .close-btn').count(),1);
-  assert.equal(await page.locator('#active-modal').getByRole('button',{name:/Change password/}).count(),1);
+  // The Profile window shows account details only; password and settings live in Account Settings.
+  assert.equal(await page.locator('#active-modal').getByRole('button',{name:/Change password/}).count(),0);
   if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/profile-${role}.png`});
   assert.equal(await page.locator('#active-modal .modal-footer').getByRole('button',{name:'Close',exact:true}).count(),0);
   await page.locator('#active-modal .close-btn').click();
@@ -1022,7 +1023,8 @@ try{
     if(process.env.CAMPUSCARE_VISUAL_DIR){await page.evaluate(()=>document.getElementById('acc-devices').scrollIntoView({block:'center'}));const box=await page.locator('#acc-devices').boundingBox();await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/devices.png`,clip:{x:box.x-10,y:box.y-60,width:box.width+20,height:box.height+70}});}
     await devices.nth(1).getByRole('button',{name:'Sign out'}).click();await page.locator('#cc-confirm-ok-btn').click();
     await page.waitForFunction(()=>document.querySelectorAll('#acc-devices .device-row').length===1);
-    // Mismatched passwords are flagged beside the confirmation field.
+    // Mismatched passwords are flagged beside the confirmation field. The password fields open from Change.
+    await page.locator('#pw-view-fields').getByRole('button',{name:'Change'}).click();
     await page.locator('#pw-new').fill('NewPass123');await page.locator('#pw-conf').fill('NewPass12x');
     assert.equal(await page.locator('#pw-conf-error').innerText(),'Passwords do not match.');
     await page.locator('#pw-conf').fill('NewPass123');assert(await page.locator('#pw-conf-error').isHidden());
@@ -1052,7 +1054,10 @@ try{
     });
     const rows=page.locator('#fi-list div.fi-row');
     assert.equal(await rows.count(),2,'Needs action lists open reports only');
-    assert.match(await rows.first().innerText(),/Add barcode scanning[\s\S]*Urgent/,'Urgent reports come first');
+    // A report is titled by the page it is about ("Inventory"), falling back to its first line.
+    assert.match(await rows.first().innerText(),/Inventory[\s\S]*Urgent/,'Urgent reports come first');
+    // Checkboxes appear once Select is turned on.
+    await page.locator('.fi-list-head').getByRole('button',{name:'Select',exact:true}).click();
     await rows.first().locator('.fi-select').check();
     assert.match(await page.locator('#fi-bulk').innerText(),/1 selected/);
     await rows.first().locator('.fi-open').click();
