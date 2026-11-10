@@ -7,6 +7,7 @@ import {escapeHtml} from './issueReports.js';
 import {collegeBadge,dayOfWeek,fmtDate,fmtTime,priorityBadge,statusBadge} from './inputValidation.js';
 import {getPatientById,getUserById} from './documentScanner.js';
 import {viewAppt} from './appointmentDetails.js';
+import {openEmergencyModal} from './reappointment.js';
 import {openAddTreatmentModal} from './treatmentForm.js';
 import {campusDateFieldHtml} from './datePicker.js';
 import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
@@ -64,7 +65,7 @@ export async function renderDoctorSchedule(){
   c.innerHTML=`
     <div class="grid-2">
       <div class="card">
-        <div class="card-header"><h3>Today – ${fmtDate(appState.clinicInformation.TODAY)}</h3></div>
+        <div class="card-header"><h3>Today – ${fmtDate(appState.clinicInformation.TODAY)}</h3><button class="btn btn-sm btn-danger" title="Return a day's remaining appointments for reappointment" ${bindAction('click',()=>openEmergencyModal())}><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> Emergency</button></div>
         ${today.length?`<div class="timeline">${today.sort((a,b)=>a.time.localeCompare(b.time)).map(a=>{const pt=getPatientById(a.patientId);return`<div class="tl-item" style="cursor:pointer" ${bindAction('click',(event,element)=>{viewAppt((a.id))})} title="Open appointment"><div class="tl-dot" style="background:${a.status==='Completed'?'#639922':'var(--primary)'}"></div><div class="tl-content"><div class="fw-500">${fmtTime(a.time)} – ${pt?pt.fname+' '+pt.lname:'Unknown'}</div><div class="text-muted">${a.service} ${collegeBadge(a.college)}</div></div></div>`;}).join('')}</div>`:
         '<div class="empty-state"><p>No patients today.</p></div>'}
       </div>
@@ -84,7 +85,7 @@ export async function renderDoctorSchedule(){
     </div>
     <div class="card">
       <div class="card-header"><h3>Time Off / Days on Leave</h3></div>
-      <p class="form-note" style="margin:-.2rem 0 .8rem">Days off need administrator approval before they block bookings. Submit a request below.</p>
+      <p class="form-note" style="margin:-.2rem 0 .8rem">Days off need administrator approval before they block bookings. Submit a request below. For an emergency or urgent meeting on a day with bookings, use <strong>Emergency</strong> above instead: it needs no approval.</p>
       <div id="leave-msg"></div>
       <div class="form-row" style="align-items:flex-end">
         <div class="form-group"><label>Date</label>${campusDateFieldHtml('leave-date','','Select Day Off',appState.clinicInformation.TODAY)}</div>

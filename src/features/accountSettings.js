@@ -2,19 +2,18 @@
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {closeAllModals,openModal,showFilePreview} from './modals.js';
-import {collegeBadge,fmtTime,priorityBadge,sanitizeInput,statusBadge} from './inputValidation.js';
-import {navTo} from './navigationRaceProtection.js';
+import {fmtTime,sanitizeInput,statusBadge} from './inputValidation.js';
 import {openCamera} from '../app/optional-features.js';
 import {changeAccountPassword,changeProfilePhoto,checkPasswordConfirmation,hideAccountPasswordChecklist,openNameChangeRequest,renderPasswordCooldownNotice,setPasswordFieldError,showAccountPasswordChecklist,updateAccountPasswordStrength} from './nameChangeRequests.js';
 import {saveAccount} from './workflowRequests.js';
 import {openPrivacyNotice} from './loginLockout.js';
 import {openPrivacyRequestModal} from './privacy.js';
 import {openCookiePolicy,openTermsOfService} from './legalPages.js';
-import {setThemePreference,showConfirmDialog,themePreference,toast} from './theme.js';
+import {hideAlert,setThemePreference,showConfirmDialog,themePreference,toast} from './theme.js';
 import {bindAction} from '../dependencies.js';
-import {logout} from './passwordRecovery.js';
 import {patientDisplayId} from './patientService.js';
-import {healthDetailsCard,registrationDetailsCard} from './profileDetails.js';
+import {healthDetailsCard,programEditFields,programViewTiles,registrationDetailsCard} from './profileDetails.js';
+import {userDetailField} from './userManagement.js';
 // ================================================================
 // MY ACCOUNT
 // ================================================================
@@ -71,11 +70,6 @@ export function openProfileDetails(){
       ].join(''))}
       ${section(pt?'Clinic record':'Work',clinic)}
     </div>
-    <div class="modal-footer profile-card-actions">
-      <button class="btn btn-sm" ${bindAction('click',()=>{closeAllModals();logout();})}><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Log out</button>
-      <button class="btn btn-sm" ${bindAction('click',()=>{closeAllModals();navTo('my-account');setTimeout(()=>{const el=document.getElementById('pw-cur');el?.scrollIntoView({block:'center',behavior:'smooth'});el?.focus({preventScroll:true});},150);})}><i class="bi bi-key" aria-hidden="true"></i> Change password</button>
-      <button class="btn btn-sm btn-primary" ${bindAction('click',()=>{closeAllModals();navTo('my-account');})}>Account Settings</button>
-    </div>
   </div>`);
 }
 
@@ -83,6 +77,38 @@ export async function copyProfileValue(value,label){
   try{await navigator.clipboard.writeText(value);toast(`${label} copied.`,'success');}
   catch{toast('Copying is not available in this browser.','warning');}
 }
+
+function setAccountEditing(editing,reset=false){
+  if(reset){
+    const u=appState.auth.currentUser;
+    document.getElementById('acc-email').value=u.email||'';
+    document.getElementById('acc-contact').value=u.contact||'';
+    const pt=appState.auth.currentPatient;
+    if(document.getElementById('hd-course')){
+      document.getElementById('hd-course').value=pt?.course||'';
+      document.getElementById('hd-major').value=pt?.major||'';
+    }
+    hideAlert(document.getElementById('acc-msg'));
+  }
+  document.getElementById('acc-view-fields').hidden=editing;
+  document.getElementById('acc-edit-fields').hidden=!editing;
+  if(editing)document.getElementById('acc-email')?.focus();
+}
+
+function setPasswordEditing(editing,reset=false){
+  if(reset){
+    ['pw-cur','pw-new','pw-conf'].forEach(id=>{const input=document.getElementById(id);if(input)input.value='';});
+    hideAlert(document.getElementById('pw-msg'));
+    updateAccountPasswordStrength();
+    checkPasswordConfirmation(false);
+  }
+  document.getElementById('pw-view-fields').hidden=editing;
+  document.getElementById('pw-edit-fields').hidden=!editing;
+  if(editing)document.getElementById('pw-cur')?.focus();
+}
+
+// Same tile as userDetailField, but the value is trusted HTML (badges) rather than escaped text.
+const statusTile=(label,html,wide=false)=>`<div class="user-detail-field ${wide?'wide':''}"><span>${label}</span><strong>${html}</strong></div>`;
 
 export function renderMyAccount(){
   const c=document.getElementById('app-content');
@@ -114,64 +140,35 @@ export function renderMyAccount(){
           </div>
           <p class="form-note" style="margin:-.2rem 0 .8rem">${u.role==='Administrator'?'As an administrator, you can update your name directly from User Management.':`For security, your name can only be changed by an administrator. <a href="#" ${bindAction('click',(event,element)=>{openNameChangeRequest();return false;})} style="color:var(--primary-text)">Request a name change →</a>`}</p>
           <div class="divider"></div>
-          <div class="form-group"><label>Email</label><input id="acc-email" value="${escapeHtml(u.email||'')}" type="email" autocomplete="email" ${bindAction('input',(event,element)=>{sanitizeInput(element,'email')})}></div>
-          <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${escapeHtml(u.contact||'')}" autocomplete="tel" type="tel" inputmode="tel" maxlength="24" placeholder="09XXXXXXXXX or +639XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
-          ${u.role==='Administrator'
-            ? ''
-            : ''}
-          <button class="btn btn-primary btn-sm" id="account-save-button" ${bindAction('click',(event,element)=>{saveAccount()})}>Save Changes</button>
+          <div id="acc-view-fields">
+            <div class="user-detail-fields">
+              ${userDetailField('Email',u.email||'')}
+              ${userDetailField('Contact No.',u.contact||'')}
+              ${programViewTiles(pt)}
+            </div>
+            <button class="btn btn-sm" id="account-edit-button" style="margin-top:.8rem" ${bindAction('click',()=>{setAccountEditing(true)})}><i class="bi bi-pencil" aria-hidden="true"></i> Edit</button>
+          </div>
+          <div id="acc-edit-fields" hidden>
+            <div class="form-row">
+              <div class="form-group"><label>Email</label><input id="acc-email" value="${escapeHtml(u.email||'')}" type="email" autocomplete="email" ${bindAction('input',(event,element)=>{sanitizeInput(element,'email')})}></div>
+              <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${escapeHtml(u.contact||'')}" autocomplete="tel" type="tel" inputmode="tel" maxlength="24" placeholder="09XXXXXXXXX or +639XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
+              ${programEditFields(pt)}
+            </div>
+            <button class="btn btn-primary btn-sm" id="account-save-button" ${bindAction('click',(event,element)=>{saveAccount()})}>Save Changes</button>
+            <button class="btn btn-sm" ${bindAction('click',()=>{setAccountEditing(false,true)})}>Cancel</button>
+          </div>
         </div>
         ${registrationDetailsCard(u,pt)}
         ${u.role==='Patient'?healthDetailsCard(pt):''}
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h3>Change Password</h3>
-              <div class="tech-note">For account security, a password can be changed only once every 7 days.</div>
-            </div>
-          </div>
-          <div id="pw-msg"></div>
-          <div id="pw-cooldown-note" hidden></div>
-          <div class="form-group">
-            <label>Current Password</label>
-            <input id="pw-cur" type="password" autocomplete="current-password"
-              ${bindAction('input',(event,element)=>{sanitizeInput(element,'password');setPasswordFieldError('pw-cur','')})}><p class="registration-field-error" id="pw-cur-error" aria-live="polite" hidden></p>
-          </div>
-          <div class="form-group">
-            <label>New Password</label>
-            <input id="pw-new" type="password" autocomplete="new-password"
-              ${bindAction('focus',(event,element)=>{showAccountPasswordChecklist()})}
-              ${bindAction('input',(event,element)=>{sanitizeInput(element,'password');updateAccountPasswordStrength();setPasswordFieldError('pw-new','');checkPasswordConfirmation(false)})}
-              ${bindAction('blur',(event,element)=>{hideAccountPasswordChecklist()})}><p class="registration-field-error" id="pw-new-error" aria-live="polite" hidden></p>
-          </div>
-          <div id="pw-strength" class="password-checklist" aria-live="polite">
-            <div id="pw-strength-label" class="password-strength-label weak">Weak password</div>
-            <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>At least 8 characters</span></div>
-            <div class="password-check" data-check="upper"><span class="pw-check-icon"></span><span>One uppercase letter</span></div>
-            <div class="password-check" data-check="lower"><span class="pw-check-icon"></span><span>One lowercase letter</span></div>
-            <div class="password-check" data-check="number"><span class="pw-check-icon"></span><span>One number</span></div>
-            <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
-          </div>
-          <div class="form-group">
-            <label>Confirm New Password</label>
-            <input id="pw-conf" type="password" autocomplete="new-password"
-              ${bindAction('input',(event,element)=>{sanitizeInput(element,'password');checkPasswordConfirmation(false)})}
-              ${bindAction('blur',()=>checkPasswordConfirmation(true))}>
-            <p class="pw-match" id="pw-conf-match" aria-live="polite" hidden></p><p class="registration-field-error" id="pw-conf-error" aria-live="polite" hidden></p>
-          </div>
-          <button class="btn btn-primary btn-sm" id="pw-change-btn" ${bindAction('click',(event,element)=>{changeAccountPassword()})}>Change Password</button>
-        </div>
       </div>
       <div>
         <div class="card">
-          <div class="card-header"><h3>Account Information</h3></div>
-          <div class="info-row"><span class="info-label">Username</span><span class="info-val">@${escapeHtml(u.username||'')}</span></div>
-          <div class="info-row"><span class="info-label">Status</span><span class="info-val">${statusBadge(u.status)}</span></div>
-          <div class="info-row"><span class="info-label">Email Verification</span><span class="info-val">${u.emailVerificationSkipped?'<span class="badge badge-info">Temporarily skipped</span>':u.emailConfirmedAt?'<span class="badge badge-success">Confirmed</span>':'<span class="badge badge-warning">Not confirmed</span>'}</span></div>
-          <div class="info-row"><span class="info-label">Last Login</span><span class="info-val">${formatLastLogin(u.lastLogin)}</span></div>
-          ${pt?`<div class="info-row"><span class="info-label">College</span><span class="info-val">${collegeBadge(pt.college)}</span></div>
-          <div class="info-row"><span class="info-label">Person Type</span><span class="info-val">${priorityBadge(pt.personType)}</span></div>
-          <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${escapeHtml(pt.idNo||'—')}</span></div>`:''}
+          <div class="card-header"><h3>Account Status</h3></div>
+          <div class="user-detail-fields">
+            ${statusTile('Status',statusBadge(u.status))}
+            ${statusTile('Email verification',u.emailVerificationSkipped?'<span class="badge badge-info">Temporarily skipped</span>':u.emailConfirmedAt?'<span class="badge badge-success">Confirmed</span>':'<span class="badge badge-warning">Not confirmed</span>')}
+            ${statusTile('Last login',escapeHtml(formatLastLogin(u.lastLogin)),true)}
+          </div>
         </div>
         <div class="card">
           <div class="card-header">
@@ -202,6 +199,50 @@ export function renderMyAccount(){
           <p class="text-muted" style="font-size:.8rem;line-height:1.55;margin:0 0 .6rem">Sign out any device you don't recognise or no longer use. A signed-out device loses access within an hour at most.</p>
           <div id="acc-devices"><div class="db-skeleton-shimmer" style="height:90px;border-radius:12px"></div></div>
         </div>`:''}
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Change Password</h3>
+              <div class="tech-note">For account security, a password can be changed only once every 7 days.</div>
+            </div>
+          </div>
+          <div id="pw-msg"></div>
+          <div id="pw-cooldown-note" hidden></div>
+          <div id="pw-view-fields">
+            <button class="btn btn-sm" ${bindAction('click',()=>setPasswordEditing(true))}><i class="bi bi-pencil" aria-hidden="true"></i> Change</button>
+          </div>
+          <div id="pw-edit-fields" hidden>
+          <div class="form-group">
+            <label>Current Password</label>
+            <input id="pw-cur" type="password" autocomplete="current-password"
+              ${bindAction('input',(event,element)=>{sanitizeInput(element,'password');setPasswordFieldError('pw-cur','')})}><p class="registration-field-error" id="pw-cur-error" aria-live="polite" hidden></p>
+          </div>
+          <div class="form-group">
+            <label>New Password</label>
+            <input id="pw-new" type="password" autocomplete="new-password"
+              ${bindAction('focus',(event,element)=>{showAccountPasswordChecklist()})}
+              ${bindAction('input',(event,element)=>{sanitizeInput(element,'password');updateAccountPasswordStrength();setPasswordFieldError('pw-new','');checkPasswordConfirmation(false)})}
+              ${bindAction('blur',(event,element)=>{hideAccountPasswordChecklist()})}><p class="registration-field-error" id="pw-new-error" aria-live="polite" hidden></p>
+          </div>
+          <div id="pw-strength" class="password-checklist" aria-live="polite">
+            <div id="pw-strength-label" class="password-strength-label weak">Weak password</div>
+            <div class="password-check" data-check="length"><span class="pw-check-icon"></span><span>At least 8 characters</span></div>
+            <div class="password-check" data-check="upper"><span class="pw-check-icon"></span><span>One uppercase letter</span></div>
+            <div class="password-check" data-check="lower"><span class="pw-check-icon"></span><span>One lowercase letter</span></div>
+            <div class="password-check" data-check="number"><span class="pw-check-icon"></span><span>One number</span></div>
+            <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
+          </div>
+          <div class="form-group">
+            <label>Confirm New Password</label>
+            <input id="pw-conf" type="password" autocomplete="new-password"
+              ${bindAction('input',(event,element)=>{sanitizeInput(element,'password');checkPasswordConfirmation(false)})}
+              ${bindAction('blur',()=>checkPasswordConfirmation(true))}>
+            <p class="pw-match" id="pw-conf-match" aria-live="polite" hidden></p><p class="registration-field-error" id="pw-conf-error" aria-live="polite" hidden></p>
+          </div>
+          <button class="btn btn-primary btn-sm" id="pw-change-btn" ${bindAction('click',(event,element)=>{changeAccountPassword()})}>Change Password</button>
+          <button class="btn btn-sm" ${bindAction('click',()=>setPasswordEditing(false,true))}>Cancel</button>
+          </div>
+        </div>
       </div>
     </div>`;
 

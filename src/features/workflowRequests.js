@@ -14,6 +14,7 @@ import {persistDB} from './persistence.js';
 import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {getUserById} from './documentScanner.js';
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
+import {programChanged,readProgramFields,savePatientProgram} from './profileDetails.js';
 import {adminUserAction,renderUsers} from './userManagement.js';
 import {renderMyAccount} from './accountSettings.js';
 import {initializeSupabaseClient} from './supabaseClient.js';
@@ -308,7 +309,9 @@ export async function saveAccount(){
 
   const emailChanged=email!==String(u.email||'').toLowerCase();
   const contactChanged=contact!==String(u.contact||'');
-  if(!emailChanged&&!contactChanged){
+  const program=readProgramFields();
+  const programEdited=programChanged(program);
+  if(!emailChanged&&!contactChanged&&!programEdited){
     showAlert(msg,'No changes to save.','info');
     return;
   }
@@ -365,12 +368,14 @@ export async function saveAccount(){
     if(!u._realSupabase){
       if(contactChanged){u.contact=contact;u.contactNo=contact;}
       if(emailChanged)u.email=email;
+      if(programEdited&&appState.auth.currentPatient)Object.assign(appState.auth.currentPatient,program);
       persistDB();
-      toast('Contact information updated.','success');
+      toast('Profile updated.','success');
       renderMyAccount();
       return;
     }
     if(!initializeSupabaseClient())throw new Error('Unable to connect to CampusCare.');
+    if(programEdited)await savePatientProgram(program);
     if(contactChanged){
       const {data:{session}}=await appState.supabaseClient.supabaseClient.auth.getSession();
       if(!session)throw new Error('Your session has expired. Please log in again.');
@@ -389,9 +394,9 @@ export async function saveAccount(){
     await refreshCurrentProfileContact();
     renderMyAccount();
     if(emailChanged){
-      toast(`${contactChanged?'Contact number saved. ':''}Open the link sent to ${email} to switch your email. Until then you sign in with your current email.`,'success',8000);
+      toast(`${contactChanged||programEdited?'Your changes were saved. ':''}Open the link sent to ${email} to switch your email. Until then you sign in with your current email.`,'success',8000);
     }else{
-      toast('Contact number updated.','success');
+      toast(contactChanged&&!programEdited?'Contact number updated.':'Profile updated.','success');
     }
   }catch(e){
     showAlert(document.getElementById('acc-msg')||msg,e?.message||'Unable to update your profile.');

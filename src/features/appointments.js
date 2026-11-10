@@ -24,7 +24,7 @@ import {addNotif} from './notifications.js';
 import {bindAction} from '../dependencies.js';
 import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {canManageSlots,openSlotManager} from './slotManager.js';
-import {openReappointModal,queueNumber} from './reappointment.js';
+import {canDeclareEmergency,openEmergencyModal,openReappointModal,queueNumber} from './reappointment.js';
 import {csvDate,csvFileName,csvTime,downloadCsv} from '../shared/csv.js';
 // ================================================================
 // APPOINTMENTS PAGE (Staff/Admin/Doctor)
@@ -51,6 +51,7 @@ export async function renderAppointments(){
   c.innerHTML=`
     <div class="appt-head"><div class="appt-views" role="tablist" aria-label="Appointment lists" id="appt-views"></div>
       <div class="appt-head-actions">${canManageSlots()?`<button class="btn btn-sm" id="appt-manage-slots" ${bindAction('click',()=>openSlotManager())}><i class="bi bi-sliders" aria-hidden="true"></i> Manage time slots</button>`:''}
+      ${role==='Staff'&&canDeclareEmergency()?`<button class="btn btn-sm btn-danger" id="appt-emergency" title="A doctor cannot see patients: return a day's remaining appointments for reappointment" ${bindAction('click',()=>openEmergencyModal())}><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> Doctor emergency</button>`:''}
       ${role!=='Doctor'?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>{openBookApptModal()})}>+ Book Appointment</button>`:''}</div></div>
     <div class="toolbar appt-toolbar">
       <input type="search" placeholder="Search patient, ID, appointment #${appState.auth.currentUser.role==='Doctor'?'':', doctor'} or service" aria-label="Search appointments" id="appt-search" ${bindAction('input',()=>{ui.page=1;renderApptTable()})}>
