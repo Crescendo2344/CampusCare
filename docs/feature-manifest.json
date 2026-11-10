@@ -27,7 +27,8 @@
       "./theme.js",
       "../dependencies.js",
       "./patientService.js",
-      "./profileDetails.js"
+      "./profileDetails.js",
+      "./userManagement.js"
     ]
   },
   {
@@ -1808,6 +1809,11 @@
     "functions": [
       "registrationDetailsCard",
       "healthDetailsCard",
+      "programViewTiles",
+      "programEditFields",
+      "readProgramFields",
+      "programChanged",
+      "savePatientProgram",
       "saveHealthDetails"
     ],
     "state": [],
@@ -2598,6 +2604,7 @@
       "./topbarAndNavigation.js",
       "./documentScanner.js",
       "./patientService.js",
+      "./profileDetails.js",
       "./userManagement.js",
       "./accountSettings.js",
       "./supabaseClient.js",
