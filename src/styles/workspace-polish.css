@@ -1612,6 +1612,14 @@ tr[data-action-click]{transition:background .15s}
 .reappoint-modal .ra-current span{display:block;font-size:.84rem;color:var(--ink-muted)}
 .reappoint-modal #ra-reason-other{margin-top:.45rem}
 .reappoint-modal .ra-preview{font-size:.82rem;padding:.65rem .8rem;border-radius:10px;background:var(--info-bg,var(--overlay));line-height:1.5}
+.reappoint-notice .reappoint-deadline{margin-top:.35rem}
+.reappoint-notice span strong{display:inline;margin:0}
+/* Doctor emergency: return a day's remaining appointments for reappointment. */
+.emergency-modal .ra-preview{font-size:.82rem;padding:.65rem .8rem;border-radius:10px;background:var(--info-bg,var(--overlay));line-height:1.5;margin-top:.6rem}
+.emergency-modal .em-count{margin:.2rem 0 .4rem}
+.emergency-modal .em-list{margin:0 0 .6rem;padding-left:1.1rem;max-height:9.5rem;overflow:auto;font-size:.88rem}
+.emergency-modal .checkbox-row{display:flex;gap:.5rem;align-items:flex-start;margin-top:.8rem;font-size:.88rem}
+.emergency-modal .checkbox-row input{margin-top:.2rem;flex:none}
 .queue-no{font-size:.74rem}
 
 /* Medicine requests and purchase orders */

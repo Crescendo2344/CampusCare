@@ -1,6 +1,5 @@
 import {emailValidationError,normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {createFeatureSyncService} from '../services/feature-sync.js';
-import {maskEmail,maskPhone} from '../shared/privacy-formatting.js';
 // workflowRequests: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
@@ -356,235 +355,48 @@ export async function saveAccount(){
     return;
   }
 
-  appState.workflowRequests.pendingAccountUpdate={
-    email:emailChanged?email:null,
-    contact:contactChanged?contact:null,
-    authPhone:contactChanged?normalizePhilippinePhoneForAuth(contact):null,
-    emailChanged,
-    contactChanged
-  };
-
-  if(contactChanged&&!appState.workflowRequests.pendingAccountUpdate.authPhone){
-    showAlert(msg,'Please enter a valid Philippine mobile number.');
-    appState.workflowRequests.pendingAccountUpdate=null;
-    return;
-  }
-
-  await openAccountUpdateVerification();
-}
-
-export async function openAccountUpdateVerification(){
-  const u=appState.auth.currentUser;
-  const msg=document.getElementById('acc-msg');
-  hideAlert(msg);
-
-  if(!appState.workflowRequests.pendingAccountUpdate)return;
-
-  try{
-    if(!initializeSupabaseClient())throw new Error('Unable to connect to CampusCare.');
-
-    // Supabase sends a real 6-digit reauthentication nonce to the user's
-    // currently verified email address or Auth phone number.
-    const {error}=await appState.supabaseClient.supabaseClient.auth.reauthenticate();
-    if(error)throw error;
-
-    const {data:{user}}=await appState.supabaseClient.supabaseClient.auth.getUser();
-    const channel=user?.email?'email':'phone';
-    const destination=user?.email?maskEmail(user.email):maskPhone(user?.phone||appState.auth.currentUser.contact);
-
-    openModal(`<div class="modal modal-sm">
-      <div class="modal-header">
-        <h3>Verify It's You</h3>
-        <button class="close-btn" ${bindAction('click',(event,element)=>{cancelAccountUpdate()})}>✕</button>
-      </div>
-      <div class="modal-body">
-        <div id="acc-verify-msg"></div>
-        <div class="alert alert-info show" style="font-size:.78rem">
-          <i class="bi bi-shield-lock" aria-hidden="true"></i> We sent a 6-digit verification code to your current verified ${channel}: <strong>${escapeHtml(destination)}</strong>.
-        </div>
-        <p class="form-note" style="margin:.65rem 0">
-          Enter that code before CampusCare starts changing your account information.
-        </p>
-        <div class="form-group">
-          <label>Verification Code</label>
-          <input id="acc-verify-code" type="text" maxlength="6" inputmode="numeric"
-            placeholder="6-digit code" style="letter-spacing:2px"
-            ${bindAction('input',(event,element)=>{sanitizeInput(element,'code')})}>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn" ${bindAction('click',(event,element)=>{cancelAccountUpdate()})}>Cancel</button>
-        <button class="btn" ${bindAction('click',(event,element)=>{resendAccountVerificationCode()})}>Resend Code</button>
-        <button class="btn btn-primary" id="acc-verify-btn" ${bindAction('click',(event,element)=>{confirmAccountUpdate()})}>Verify & Continue</button>
-      </div>
-    </div>`);
-  }catch(e){
-    appState.workflowRequests.pendingAccountUpdate=null;
-    showAlert(msg,e?.message||'Unable to send the verification code.');
-  }
-}
-
-export async function resendAccountVerificationCode(){
-  const msg=document.getElementById('acc-verify-msg');
-  hideAlert(msg);
-  try{
-    const {error}=await appState.supabaseClient.supabaseClient.auth.reauthenticate();
-    if(error)throw error;
-    showAlert(msg,'A new verification code was sent.','success');
-  }catch(e){
-    showAlert(msg,e?.message||'Unable to resend the code.');
-  }
-}
-
-export async function confirmAccountUpdate(){
-  const code=document.getElementById('acc-verify-code')?.value.trim()||'';
-  const msg=document.getElementById('acc-verify-msg');
-  const btn=document.getElementById('acc-verify-btn');
-  hideAlert(msg);
-
-  if(!/^\d{6}$/.test(code)){
-    showAlert(msg,'Enter the 6-digit verification code.');
-    return;
-  }
-  if(!appState.workflowRequests.pendingAccountUpdate){
-    showAlert(msg,'This profile change request has expired. Please start again.');
-    return;
-  }
-
+  // Signed-in people edit their own details without an extra code. The contact number is saved at once.
+  // A new email is the sign-in address, so it only switches after the link sent to it is opened: a typo
+  // can never lock anyone out.
+  const btn=document.getElementById('account-save-button');
   const oldText=btn?.textContent;
-  if(btn){btn.disabled=true;btn.textContent='Verifying…';}
-
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
   try{
-    const changes={nonce:code};
-
-    // Supabase validates the reauthentication nonce before processing these
-    // sensitive account changes. Email/phone ownership verification then
-    // follows Supabase Auth's normal secure change flow.
-    if(appState.workflowRequests.pendingAccountUpdate.emailChanged)changes.email=appState.workflowRequests.pendingAccountUpdate.email;
-    if(appState.workflowRequests.pendingAccountUpdate.contactChanged)changes.phone=appState.workflowRequests.pendingAccountUpdate.authPhone;
-
-    const {data,error}=await appState.supabaseClient.supabaseClient.auth.updateUser(changes);
-    if(error)throw error;
-
-    if(appState.workflowRequests.pendingAccountUpdate.contactChanged){
-      openPhoneChangeVerification();
+    if(!u._realSupabase){
+      if(contactChanged){u.contact=contact;u.contactNo=contact;}
+      if(emailChanged)u.email=email;
+      persistDB();
+      toast('Contact information updated.','success');
+      renderMyAccount();
       return;
     }
-
-    // Email-only change: Supabase sends its email-change verification message.
-    // The database remains on the old email until the change is confirmed.
-    const newEmail=appState.workflowRequests.pendingAccountUpdate.email;
-    appState.workflowRequests.pendingAccountUpdate=null;
-    closeAllModals();
-    toast(`Identity verified. Confirm the email-change message sent to ${newEmail} to finish updating your email.`,'success',7000);
-    renderMyAccount();
-  }catch(e){
-    const message=String(e?.message||'Verification failed.');
-    if(/nonce|reauth|otp|token/i.test(message)){
-      showAlert(msg,'The verification code is incorrect or expired. Request a new code and try again.');
-    }else if(/phone|sms|provider/i.test(message)){
-      showAlert(msg,'CampusCare could not send the SMS verification. A Supabase SMS provider must be configured before phone-number changes can be completed.');
-    }else{
-      showAlert(msg,message);
+    if(!initializeSupabaseClient())throw new Error('Unable to connect to CampusCare.');
+    if(contactChanged){
+      const {data:{session}}=await appState.supabaseClient.supabaseClient.auth.getSession();
+      if(!session)throw new Error('Your session has expired. Please log in again.');
+      const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/profile-actions`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json',apikey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY,Authorization:`Bearer ${session.access_token}`},
+        body:JSON.stringify({action:'update_contact',contact_number:contact})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||!result.ok)throw new Error(result.error||'Your contact number could not be saved.');
     }
-  }finally{
-    if(btn&&document.body.contains(btn)){
-      btn.disabled=false;
-      btn.textContent=oldText||'Verify & Continue';
+    if(emailChanged){
+      const {error}=await appState.supabaseClient.supabaseClient.auth.updateUser({email});
+      if(error)throw error;
     }
-  }
-}
-
-export function openPhoneChangeVerification(){
-  const phone=appState.workflowRequests.pendingAccountUpdate?.contact||'';
-  openModal(`<div class="modal modal-sm">
-    <div class="modal-header">
-      <h3>Verify New Contact Number</h3>
-      <button class="close-btn" ${bindAction('click',(event,element)=>{cancelAccountUpdate()})}>✕</button>
-    </div>
-    <div class="modal-body">
-      <div id="phone-change-msg"></div>
-      <div class="alert alert-info show" style="font-size:.78rem">
-        <i class="bi bi-phone" aria-hidden="true"></i> Supabase sent a 6-digit SMS code to <strong>${escapeHtml(maskPhone(phone))}</strong>.
-      </div>
-      ${appState.workflowRequests.pendingAccountUpdate?.emailChanged
-        ? `<p class="form-note">Your email change was also started. Check the verification message sent to <strong>${escapeHtml(appState.workflowRequests.pendingAccountUpdate.email)}</strong> to complete that change.</p>`
-        : ''}
-      <div class="form-group">
-        <label>SMS Verification Code</label>
-        <input id="phone-change-code" type="text" maxlength="6" inputmode="numeric"
-          placeholder="6-digit code" style="letter-spacing:2px"
-          ${bindAction('input',(event,element)=>{sanitizeInput(element,'code')})}>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" ${bindAction('click',(event,element)=>{cancelAccountUpdate()})}>Cancel</button>
-      <button class="btn" ${bindAction('click',(event,element)=>{resendPhoneChangeCode()})}>Resend SMS</button>
-      <button class="btn btn-primary" id="phone-change-btn" ${bindAction('click',(event,element)=>{confirmPhoneChangeCode()})}>Verify Number</button>
-    </div>
-  </div>`);
-}
-
-export async function resendPhoneChangeCode(){
-  const msg=document.getElementById('phone-change-msg');
-  hideAlert(msg);
-  try{
-    const {error}=await appState.supabaseClient.supabaseClient.auth.resend({
-      type:'phone_change',
-      phone:appState.workflowRequests.pendingAccountUpdate.authPhone
-    });
-    if(error)throw error;
-    showAlert(msg,'A new SMS verification code was sent.','success');
-  }catch(e){
-    showAlert(msg,e?.message||'Unable to resend the SMS code.');
-  }
-}
-
-export async function confirmPhoneChangeCode(){
-  const code=document.getElementById('phone-change-code')?.value.trim()||'';
-  const msg=document.getElementById('phone-change-msg');
-  const btn=document.getElementById('phone-change-btn');
-  hideAlert(msg);
-
-  if(!/^\d{6}$/.test(code)){
-    showAlert(msg,'Enter the 6-digit SMS code.');
-    return;
-  }
-
-  const oldText=btn?.textContent;
-  if(btn){btn.disabled=true;btn.textContent='Verifying…';}
-
-  try{
-    const {error}=await appState.supabaseClient.supabaseClient.auth.verifyOtp({
-      phone:appState.workflowRequests.pendingAccountUpdate.authPhone,
-      token:code,
-      type:'phone_change'
-    });
-    if(error)throw error;
-
-    const emailWasChanged=Boolean(appState.workflowRequests.pendingAccountUpdate.emailChanged);
-    const pendingEmail=appState.workflowRequests.pendingAccountUpdate.email;
-    appState.workflowRequests.pendingAccountUpdate=null;
-
-    // auth.users -> public.users is synchronized by the database trigger.
-    await new Promise(resolve=>setTimeout(resolve,350));
     await refreshCurrentProfileContact();
-
-    closeAllModals();
     renderMyAccount();
-
-    if(emailWasChanged){
-      toast(`Contact number verified and updated. Complete the email verification sent to ${pendingEmail} to finish the email change.`,'success',7500);
+    if(emailChanged){
+      toast(`${contactChanged?'Contact number saved. ':''}Open the link sent to ${email} to switch your email. Until then you sign in with your current email.`,'success',8000);
     }else{
-      toast('Contact number verified and updated successfully.','success');
+      toast('Contact number updated.','success');
     }
   }catch(e){
-    showAlert(msg,e?.message||'The SMS verification code is incorrect or expired.');
+    showAlert(document.getElementById('acc-msg')||msg,e?.message||'Unable to update your profile.');
   }finally{
-    if(btn&&document.body.contains(btn)){
-      btn.disabled=false;
-      btn.textContent=oldText||'Verify Number';
-    }
+    if(btn&&document.body.contains(btn)){btn.disabled=false;btn.textContent=oldText||'Save Changes';}
   }
 }
 

@@ -37,7 +37,7 @@ export function createAppointmentService({getClient,request,baseUrl,publishableK
     const client=getClient();
     const [apptRes,overrideRes,leaveRes]=await Promise.all([
       client.from('appointments')
-        .select('appointment_id,patient_id,doctor_id,clinic,service,appointment_date,appointment_time,status,priority,reason,notes,created_by,created_at,cancelled_at,cancellation_reason,patient_response,reappoint_from_date,reappoint_from_time,reappoint_reason,reappointed_at')
+        .select('appointment_id,patient_id,doctor_id,clinic,service,appointment_date,appointment_time,status,priority,reason,notes,created_by,created_at,cancelled_at,cancellation_reason,patient_response,reappoint_from_date,reappoint_from_time,reappoint_reason,reappointed_at,reappoint_deadline')
         .order('appointment_date',{ascending:false})
         .order('appointment_time',{ascending:false}),
       client.from('appointment_slot_overrides')

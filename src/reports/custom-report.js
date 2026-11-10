@@ -31,7 +31,7 @@ export function buildCustomReport(exportToolbar){
   const type=value('rpt-type'),definition=reportDefinitions[type];if(!definition)return;
   const from=value('rpt-from'),to=value('rpt-to');
   const filters={from,to,college:['inventory','medicine_use'].includes(type)?'':value('rpt-college'),search:value('rpt-search').trim()};
-  for(const key of ['clinic','service','status','personType','classSession','sex','category','stock','source'])filters[key]=value('rpt-filter-'+key);
+  for(const key of ['clinic','service','status','personType','classSession','sex','category','stock'])filters[key]=value('rpt-filter-'+key);
   const group=value('rpt-group')||definition.groups[0],split=value('rpt-split'),measure=value('rpt-measure')||'count';
   if(!definition.groups.includes(group)||(split&&!definition.groups.includes(split))||!definition.measures.includes(measure))throw new Error('Select a supported grouping and measure.');
   if(group===split)throw new Error('Choose a different second breakdown or select No second breakdown.');
@@ -43,7 +43,7 @@ export function buildCustomReport(exportToolbar){
   const applied=[scope,...Object.entries(filters).filter(([k,v])=>v&&!['from','to'].includes(k)).map(([k,v])=>`${reportLabels[k]||k}: ${v}`)].join(' · ');
   const columns=[reportLabels[group],...(split?[reportLabels[split]]:[]),reportLabels[measure]];
   const summaryRows=groups.map(r=>Object.fromEntries(columns.map((c,i)=>[c,[r.group,...(split?[r.split]:[]),Number(r.value.toFixed(2))][i]])));
-  const detailColumns=Object.keys(rows[0]||{}).filter(k=>['id','patient','college','clinic','service','date','doctor','diagnosis','status','personType','classSession','sex','blood','item','category','qty','quantity','unit','source','stock'].includes(k));
+  const detailColumns=Object.keys(rows[0]||{}).filter(k=>['id','patient','college','clinic','service','date','doctor','diagnosis','status','personType','classSession','sex','blood','item','category','qty','quantity','unit','stock'].includes(k));
   const details=rows.map(r=>Object.fromEntries(detailColumns.map(k=>[reportLabels[k]||k,r[k]??'—'])));
   // Exports use the shared grouped headers: "Breakdown: College", "Result: Record count", "Record: Patient".
   const grouped=(list,prefix)=>list.map(row=>Object.fromEntries(Object.entries(row).map(([k,v])=>[`${typeof prefix==='function'?prefix(k):prefix}: ${k}`,v])));
