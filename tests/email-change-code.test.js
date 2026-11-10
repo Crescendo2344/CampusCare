@@ -15,10 +15,12 @@ test('the code is random, short-lived, limited in tries and stored only as a has
   assert.match(sql,/revoke all on public\.contact_change_codes from anon, authenticated/);
 });
 
-test('the email switches only after the right code, and the old address is told',()=>{
+test('the code goes to the current email, and the new address is told once it switches',()=>{
+  const request=server.slice(server.indexOf('action==="request_email_change"'),server.indexOf('action==="confirm_email_change"'));
+  assert.match(request,/to:actor\.email,template:"verification"/,'The code is sent to the current email');
   const confirm=server.slice(server.indexOf('action==="confirm_email_change"'));
   assert.ok(confirm.indexOf('hashCode(actor.user_id,code)!==pending.code_hash')<confirm.indexOf('updateUserById'));
-  assert.match(confirm,/subject:"CampusCare · Your sign-in email was changed"/);
+  assert.match(confirm,/to:email,template:"account",subject:"CampusCare · This is now your sign-in email"/);
   assert.match(confirm,/action:"USER_EMAIL_CHANGED"/);
 });
 
@@ -33,11 +35,14 @@ test('administrators save their own details through the same path as everyone',(
   assert.match(ui,/autocomplete="one-time-code"/);
 });
 
-test('the code screen uses six boxes and the button says what will happen',()=>{
+test('changing the email is its own step: new email twice, Request code, then six boxes',()=>{
+  const settings=fs.readFileSync('src/features/accountSettings.js','utf8');
+  assert.match(settings,/id="acc-email"[^>]*readonly/,'Save Changes no longer changes the email');
+  assert.match(settings,/openChangeEmailModal\(\)/);
+  assert.match(ui,/>Request code<\/button>/);
+  assert.match(ui,/email!==again\?'The two emails do not match\.'/);
   assert.match(ui,/Array\.from\(\{length:6\}/,'Six digit boxes');
   assert.match(ui,/addEventListener\('paste'/,'Pasting fills every box');
   assert.match(ui,/event\.key==='Backspace'&&!box\.value&&i>0/,'Backspace steps back');
   assert.match(ui,/if\(code\.length===6\)onComplete\(\)/,'The sixth digit submits');
-  assert.match(ui,/Send verification code/);
-  assert.match(fs.readFileSync('src/features/accountSettings.js','utf8'),/updateAccountSaveLabel\(\)/);
 });

@@ -3,7 +3,8 @@ import {emailValidationError,normalizePhilippineMobile} from "../_shared/contact
 
 // Signed-in people update their own contact number here. No extra code is asked: they are already
 // signed in, and the number is contact information, not a sign-in method.
-// The email is the sign-in address, so a new one is confirmed with a 6-digit code sent to it first.
+// The email is the sign-in address, so changing it needs a 6-digit code sent to the current address:
+// only the account owner can move the sign-in email elsewhere.
 const cors={
   "Access-Control-Allow-Origin":"*",
   "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
@@ -57,12 +58,13 @@ Deno.serve(async(req)=>{
       return json({ok:true,contact_number:contact});
     }
 
-    // Step 1: send a 6-digit code to the new email. Nothing changes until the code is entered.
+    // Step 1: send a 6-digit code to the current email. Nothing changes until the code is entered.
     if(action==="request_email_change"){
       const email=String(body.email||"").trim().toLowerCase();
       const invalid=email?emailValidationError(email):"Enter an email address.";
       if(invalid)return json({error:invalid},400);
       if(email===String(actor.email||"").toLowerCase())return json({error:"That is already your email."},400);
+      if(!actor.email)return json({error:"Your account has no current email to send a code to. Ask the clinic administrator to update it."},409);
       const literal=email.replace(/[\\%_]/g,"\\$&");
       const {data:taken}=await admin.from("users").select("user_id").ilike("email",literal).neq("user_id",actor.user_id).limit(1);
       if(taken?.length)return json({error:"This email address is already registered."},409);
@@ -82,10 +84,10 @@ Deno.serve(async(req)=>{
         last_sent_at:new Date(nowMs).toISOString(),expires_at:new Date(nowMs+CODE_MINUTES*60000).toISOString()
       },{onConflict:"user_id,channel"});
       if(saveErr)throw saveErr;
-      await sendEmail(admin,url,{userId:actor.user_id,to:email,template:"verification",subject:"CampusCare · Your verification code",
-        html:mailHtml("Confirm your new email",`<p style="margin:0 0 14px;font-size:15px;line-height:1.6">Hello ${esc(actor.first_name||"there")}, enter this code in CampusCare to use this address as your sign-in email.</p><p style="margin:0 0 14px;font-size:30px;font-weight:800;letter-spacing:.3em;font-family:Consolas,monospace">${code}</p><p style="margin:0;font-size:13px;color:#4a6571">The code expires in ${CODE_MINUTES} minutes. If you did not ask for this, ignore this email; your account stays as it is.</p>`),
-        text:`Your CampusCare verification code is ${code}. It expires in ${CODE_MINUTES} minutes. If you did not ask for this, ignore this email.`});
-      return json({ok:true,email,expires_in:CODE_MINUTES*60,resend_after:RESEND_SECONDS});
+      await sendEmail(admin,url,{userId:actor.user_id,to:actor.email,template:"verification",subject:"CampusCare · Code to change your sign-in email",
+        html:mailHtml("Change your sign-in email",`<p style="margin:0 0 14px;font-size:15px;line-height:1.6">Hello ${esc(actor.first_name||"there")}, you asked to change your CampusCare sign-in email to <strong>${esc(email)}</strong>. Enter this code in CampusCare to confirm.</p><p style="margin:0 0 14px;font-size:30px;font-weight:800;letter-spacing:.3em;font-family:Consolas,monospace">${code}</p><p style="margin:0;font-size:13px;color:#4a6571">The code expires in ${CODE_MINUTES} minutes. If you did not ask for this, ignore this email and your sign-in email stays the same. Consider changing your password.</p>`),
+        text:`Your CampusCare code to change your sign-in email to ${email} is ${code}. It expires in ${CODE_MINUTES} minutes. If you did not ask for this, ignore this email.`});
+      return json({ok:true,email,sent_to:actor.email,expires_in:CODE_MINUTES*60,resend_after:RESEND_SECONDS});
     }
 
     // Step 2: the code matches, so the new email becomes the sign-in address.
@@ -115,11 +117,11 @@ Deno.serve(async(req)=>{
       const {error:profileErr}=await admin.from("users").update({email}).eq("user_id",actor.user_id);
       if(profileErr)throw profileErr;
       await admin.from("contact_change_codes").delete().eq("user_id",actor.user_id).eq("channel","email");
-      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"USER_EMAIL_CHANGED",entity_type:"users",entity_id:actor.user_id,details:{previous_email:previous||null,new_email:email,verified_by:"email_code"}});
-      // The old address is told, so a change the owner did not make is noticed.
-      if(previous)await sendEmail(admin,url,{userId:actor.user_id,to:previous,template:"account",subject:"CampusCare · Your sign-in email was changed",
-        html:mailHtml("Your sign-in email was changed",`<p style="margin:0;font-size:15px;line-height:1.6">Your CampusCare sign-in email is now <strong>${esc(email)}</strong>. If you did not make this change, contact the clinic administrator right away.</p>`),
-        text:`Your CampusCare sign-in email is now ${email}. If you did not make this change, contact the clinic administrator right away.`}).catch(()=>{});
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"USER_EMAIL_CHANGED",entity_type:"users",entity_id:actor.user_id,details:{previous_email:previous||null,new_email:email,verified_by:"code_to_current_email"}});
+      // The new address is welcomed, so it is clear which inbox CampusCare now uses.
+      await sendEmail(admin,url,{userId:actor.user_id,to:email,template:"account",subject:"CampusCare · This is now your sign-in email",
+        html:mailHtml("This is now your sign-in email",`<p style="margin:0;font-size:15px;line-height:1.6">Hello ${esc(actor.first_name||"there")}, your CampusCare sign-in email was changed${previous?` from <strong>${esc(previous)}</strong>`:""} to this address. Sign in with it from now on. If you did not make this change, contact the clinic administrator right away.</p>`),
+        text:`Your CampusCare sign-in email was changed${previous?` from ${previous}`:""} to this address. If you did not make this change, contact the clinic administrator right away.`}).catch(()=>{});
       return json({ok:true,email});
     }
 

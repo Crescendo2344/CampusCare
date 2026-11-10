@@ -1676,5 +1676,8 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .otp-resend .link-btn:disabled{opacity:.75;cursor:default;text-decoration:none}
 .otp-change{font-size:.88rem}
 .otp-note{margin:1rem 0 0;font-size:.8rem;color:var(--ink-muted)}
-.acc-email-hint{margin:.35rem 0 0;color:var(--primary)}
+.acc-email-row{display:flex;flex-direction:column;gap:.45rem;align-items:stretch}
+.acc-email-row input{width:100%;opacity:.85;cursor:default}
+.acc-email-row .btn{align-self:flex-start;white-space:nowrap}
+.otp-fields{text-align:left;margin-bottom:.2rem}
 @media (prefers-reduced-motion:reduce){.otp-boxes.shake{animation:none}}
