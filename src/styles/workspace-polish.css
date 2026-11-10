@@ -1585,6 +1585,8 @@ tr[data-action-click]{transition:background .15s}
 .pw-reveal>input{flex:1;min-width:0;padding-right:2.6rem}
 .pw-reveal-btn{position:absolute;right:.3rem;top:50%;transform:translateY(-50%);min-width:32px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:none;color:var(--ink-muted);cursor:pointer}
 .pw-reveal-btn:hover{color:var(--ink)}
+/* Edge draws its own reveal eye inside password boxes; hide it so only CampusCare's button shows. */
+input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .pw-reveal-btn:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
 
 /* Add User: services a doctor renders. */
