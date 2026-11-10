@@ -241,7 +241,19 @@
 @media(max-width:480px){.notif-panel{right:8px;left:8px;width:auto}}
 
 /* Patient records list: identity cell, sortable headers, allergy flag and pager. */
-.patient-records-table .pt-identity{display:flex;align-items:center;gap:.6rem;min-width:200px}
+.patient-records-table{width:100%}
+.patient-records-table th,.patient-records-table td{white-space:normal;overflow-wrap:anywhere}
+.patient-records-table th{white-space:nowrap}
+.patient-records-table .pt-identity{display:flex;align-items:center;gap:.6rem;min-width:180px}
+.patient-records-table .pt-sub{margin-top:.25rem;font-size:.72rem;color:var(--ink-muted)}
+.patient-records-table .td-actions{flex-wrap:nowrap}
+.patient-records-table .badge{white-space:normal;text-align:left;line-height:1.25;max-width:100%;border-radius:8px}
+.patient-records-table .pt-fold-age,.patient-records-table .pt-fold-type,.patient-records-table .pt-fold-college{display:none}
+/* Narrower screens move columns under the name instead of scrolling sideways; phones use cards. */
+@media (max-width:1180px){.patient-records-table .col-contact{display:none}}
+@media (max-width:1024px){.patient-records-table .col-age{display:none}.patient-records-table .pt-fold-age{display:block}.patient-records-table .td-actions{flex-direction:column;align-items:stretch}}
+@media (max-width:860px){.patient-records-table .col-type,.patient-records-table .col-college{display:none}.patient-records-table .pt-fold-type,.patient-records-table .pt-fold-college{display:block}.patient-records-table .pt-identity{min-width:150px}}
+@media (max-width:640px){.patient-records-table .col-contact,.patient-records-table .col-age,.patient-records-table .col-type,.patient-records-table .col-college{display:revert}.patient-records-table .pt-fold-age,.patient-records-table .pt-fold-type,.patient-records-table .pt-fold-college{display:none}.patient-records-table .td-actions{flex-direction:row}}
 .patient-records-table .pt-identity .text-muted{font-size:.72rem;margin-top:.1rem}
 .th-sort{display:inline-flex;align-items:center;gap:.15rem;padding:0;border:0;background:none;color:inherit;font:inherit;font-weight:inherit;text-transform:inherit;letter-spacing:inherit;cursor:pointer;white-space:nowrap}
 .th-sort span{opacity:.45;font-size:.8em}
