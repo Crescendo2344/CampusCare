@@ -9,6 +9,8 @@ import {installActionEvents} from './ui/events.js';
 import {installSelectPopover} from './ui/select-popover.js';
 import {installPasswordReveal} from './ui/password-reveal.js';
 import {mountApplication,application} from './app/application.js';
+import {installStaleBuildRecovery} from './app/stale-build.js';
+installStaleBuildRecovery();
 const templates={landingAndAuth:landing,appShell,notificationPanel,modalHost,sessionSkeleton};
 for(const [name,html] of Object.entries(templates)){
   const host=document.querySelector(`[data-component="${name}"]`);
