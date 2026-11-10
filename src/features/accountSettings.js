@@ -9,10 +9,11 @@ import {saveAccount} from './workflowRequests.js';
 import {openPrivacyNotice} from './loginLockout.js';
 import {openPrivacyRequestModal} from './privacy.js';
 import {openCookiePolicy,openTermsOfService} from './legalPages.js';
-import {setThemePreference,showConfirmDialog,themePreference,toast} from './theme.js';
+import {hideAlert,setThemePreference,showConfirmDialog,themePreference,toast} from './theme.js';
 import {bindAction} from '../dependencies.js';
 import {patientDisplayId} from './patientService.js';
 import {healthDetailsCard,registrationDetailsCard} from './profileDetails.js';
+import {userDetailField} from './userManagement.js';
 // ================================================================
 // MY ACCOUNT
 // ================================================================
@@ -77,6 +78,18 @@ export async function copyProfileValue(value,label){
   catch{toast('Copying is not available in this browser.','warning');}
 }
 
+function setAccountEditing(editing,reset=false){
+  if(reset){
+    const u=appState.auth.currentUser;
+    document.getElementById('acc-email').value=u.email||'';
+    document.getElementById('acc-contact').value=u.contact||'';
+    hideAlert(document.getElementById('acc-msg'));
+  }
+  document.getElementById('acc-view-fields').hidden=editing;
+  document.getElementById('acc-edit-fields').hidden=!editing;
+  if(editing)document.getElementById('acc-email')?.focus();
+}
+
 export function renderMyAccount(){
   const c=document.getElementById('app-content');
   const u=appState.auth.currentUser;
@@ -107,12 +120,21 @@ export function renderMyAccount(){
           </div>
           <p class="form-note" style="margin:-.2rem 0 .8rem">${u.role==='Administrator'?'As an administrator, you can update your name directly from User Management.':`For security, your name can only be changed by an administrator. <a href="#" ${bindAction('click',(event,element)=>{openNameChangeRequest();return false;})} style="color:var(--primary-text)">Request a name change →</a>`}</p>
           <div class="divider"></div>
-          <div class="form-group"><label>Email</label><input id="acc-email" value="${escapeHtml(u.email||'')}" type="email" autocomplete="email" ${bindAction('input',(event,element)=>{sanitizeInput(element,'email')})}></div>
-          <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${escapeHtml(u.contact||'')}" autocomplete="tel" type="tel" inputmode="tel" maxlength="24" placeholder="09XXXXXXXXX or +639XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
-          ${u.role==='Administrator'
-            ? ''
-            : ''}
-          <button class="btn btn-primary btn-sm" id="account-save-button" ${bindAction('click',(event,element)=>{saveAccount()})}>Save Changes</button>
+          <div id="acc-view-fields">
+            <div class="user-detail-fields">
+              ${userDetailField('Email',u.email||'')}
+              ${userDetailField('Contact No.',u.contact||'')}
+            </div>
+            <button class="btn btn-sm" id="account-edit-button" style="margin-top:.8rem" ${bindAction('click',()=>{setAccountEditing(true)})}><i class="bi bi-pencil" aria-hidden="true"></i> Edit</button>
+          </div>
+          <div id="acc-edit-fields" hidden>
+            <div class="form-row">
+              <div class="form-group"><label>Email</label><input id="acc-email" value="${escapeHtml(u.email||'')}" type="email" autocomplete="email" ${bindAction('input',(event,element)=>{sanitizeInput(element,'email')})}></div>
+              <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${escapeHtml(u.contact||'')}" autocomplete="tel" type="tel" inputmode="tel" maxlength="24" placeholder="09XXXXXXXXX or +639XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
+            </div>
+            <button class="btn btn-primary btn-sm" id="account-save-button" ${bindAction('click',(event,element)=>{saveAccount()})}>Save Changes</button>
+            <button class="btn btn-sm" ${bindAction('click',()=>{setAccountEditing(false,true)})}>Cancel</button>
+          </div>
         </div>
         ${registrationDetailsCard(u,pt)}
         ${u.role==='Patient'?healthDetailsCard(pt):''}
