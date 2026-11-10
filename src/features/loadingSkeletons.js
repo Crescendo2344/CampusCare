@@ -27,7 +27,7 @@ export function databaseSkeletonHtml(type='table',rows=6){
   const shimmer=cls=>`<div class="db-skeleton-shimmer ${cls}"></div>`;
 
   if(type==='dashboard'){
-    return `<div class="db-skeleton-wrap" aria-busy="true" aria-label="Loading dashboard data">
+    return `<div class="db-skeleton-wrap" role="status" aria-busy="true" aria-label="Loading dashboard data">
       <div class="db-skeleton-toolbar">
         ${shimmer('db-skeleton-pill')}
         ${shimmer('db-skeleton-pill sm')}
@@ -43,7 +43,7 @@ export function databaseSkeletonHtml(type='table',rows=6){
   }
 
   if(type==='form'){
-    return `<div class="db-skeleton-wrap" aria-busy="true" aria-label="Loading data">
+    return `<div class="db-skeleton-wrap" role="status" aria-busy="true" aria-label="Loading data">
       <div class="db-skeleton-card">
         ${shimmer('db-skeleton-line sm')}
         <div class="db-skeleton-form-grid" style="margin-top:1rem">
@@ -54,7 +54,7 @@ export function databaseSkeletonHtml(type='table',rows=6){
   }
 
   if(type==='cards'){
-    return `<div class="db-skeleton-wrap" aria-busy="true" aria-label="Loading data">
+    return `<div class="db-skeleton-wrap" role="status" aria-busy="true" aria-label="Loading data">
       <div class="stats-grid">
         ${Array.from({length:4},()=>`<div class="db-skeleton-card">
           ${shimmer('db-skeleton-line sm')}
@@ -66,7 +66,7 @@ export function databaseSkeletonHtml(type='table',rows=6){
   }
 
   // Default: table/list skeleton.
-  return `<div class="db-skeleton-wrap" aria-busy="true" aria-label="Loading records">
+  return `<div class="db-skeleton-wrap" role="status" aria-busy="true" aria-label="Loading records">
     <div class="db-skeleton-toolbar">
       ${shimmer('db-skeleton-pill')}
       ${shimmer('db-skeleton-pill sm')}
