@@ -10,7 +10,8 @@ import {getUserById} from './documentScanner.js';
 import {showFilePreview} from './modals.js';
 import {collegeBadge,fmtDate,priorityBadge} from './inputValidation.js';
 import {bindAction,patientData} from '../dependencies.js';
-import {appointmentRecords} from './appointmentService.js';
+import {appointmentRecords,syncRealAppointments} from './appointmentService.js';
+import {readTreatmentFactPages} from '../services/report-snapshot.js';
 import {treatmentRecords} from './treatmentService.js';
 import {csvFileName,downloadCsv} from '../shared/csv.js';
 // ================================================================
@@ -24,7 +25,10 @@ export async function renderPatients(){
     try{
       await Promise.all([
         syncAdminDirectoryFromSupabase(),
-        syncRealWorkflowRequests()
+        syncRealWorkflowRequests(),
+        // Last Visit needs the visits themselves, not only the directory.
+        syncRealAppointments(),
+        loadTreatmentVisitDates()
       ]);
     }
     catch(e){
@@ -99,8 +103,23 @@ export function patientAvatarHtml(pt,size=36){
 }
 
 // Last completed visit for list columns, sorting and export.
+// Staff and administrators cannot read visit notes, so their last visit also counts the dated,
+// de-identified treatment facts (walk-in visits have no appointment).
 function patientLastVisit(p){
-  return patientData.patientVisitSummary(p.id,{appointments:appointmentRecords(),treatments:treatmentRecords(),today:appState.clinicInformation.TODAY}).lastVisit;
+  const today=appState.clinicInformation.TODAY;
+  const fromRecords=patientData.patientVisitSummary(p.id,{appointments:appointmentRecords(),treatments:treatmentRecords(),today}).lastVisit;
+  const fromFacts=appState.patientForm.treatmentVisitDates?.get(p.id)||'';
+  return [fromRecords,fromFacts<=today?fromFacts:''].sort().at(-1)||'';
+}
+
+async function loadTreatmentVisitDates(){
+  const latest=new Map();
+  for(const t of await readTreatmentFactPages(appState.supabaseClient.supabaseClient)){
+    if(t.archived_at||t.status==='Archived'||!t.treatment_date)continue;
+    const id=200000+Number(t.patient_id),date=String(t.treatment_date).slice(0,10);
+    if(date>(latest.get(id)||''))latest.set(id,date);
+  }
+  appState.patientForm.treatmentVisitDates=latest;
 }
 
 // Rows matching the toolbar filters, before sorting and paging.
@@ -159,15 +178,19 @@ export function renderPatientTable(){
   const pager=pages>1?`<div class="pt-pager"><span>Showing ${(page-1)*PATIENT_PAGE_SIZE+1}–${(page-1)*PATIENT_PAGE_SIZE+pts.length} of ${all.length}</span>
     <div><button class="btn btn-xs" ${page===1?'disabled':''} ${bindAction('click',()=>{appState.patientForm.patientPage=page-1;renderPatientTable();})}>‹ Previous</button>
     <button class="btn btn-xs" ${page===pages?'disabled':''} ${bindAction('click',()=>{appState.patientForm.patientPage=page+1;renderPatientTable();})}>Next ›</button></div></div>`:'';
-  el.innerHTML=`<div class="table-wrap"><table class="patient-records-table"><thead><tr>${header('name','Patient')}${header('age','Age / Sex')}${header('college','College / Dept.')}<th>Type</th><th>Class Session</th><th>Blood</th>${header('lastVisit','Last Visit')}<th>Contact</th><th>Actions</th></tr></thead><tbody>${
+  el.innerHTML=`<div class="table-wrap"><table class="patient-records-table"><thead><tr>${header('name','Patient')}${header('age','Age / Sex').replace('<th','<th class="col-age"')}${header('college','College / Dept.').replace('<th','<th class="col-college"')}<th class="col-type">Type</th>${header('lastVisit','Last Visit')}<th class="col-contact">Contact</th><th>Actions</th></tr></thead><tbody>${
     pts.map(p=>{
       const last=patientLastVisit(p);
       const allergy=patientData.hasAllergyAlert(p.allergies);
+      const ageSex=`${p.age===''||p.age==null?'—':escapeHtml(String(p.age))}${p.gender?' · '+escapeHtml(p.gender.charAt(0)):''}`;
+      const session=p.personType==='Student'&&p.classSession?`${p.classSession} class`:'';
+      // On narrower screens hidden columns move under the name instead of making the table scroll.
+      const folded=`<div class="pt-sub pt-fold-age">${ageSex}</div><div class="pt-sub pt-fold-college">${escapeHtml(p.college||'No college / department')}</div><div class="pt-sub pt-fold-type">${escapeHtml([p.personType,session].filter(Boolean).join(' · '))}</div>`;
       return `<tr ${p.archived?'style="opacity:.6;cursor:pointer"':'style="cursor:pointer"'} ${bindAction('click',(event,element)=>{viewPatient((p.id))})} title="Click to view patient record">
-      <td><div class="pt-identity">${patientAvatarHtml(p,34)}<div><strong>${escapeHtml(p.lname)}, ${escapeHtml(p.fname)}</strong>${allergy?' <span class="badge badge-danger pt-allergy-flag" title="Allergies: '+escapeHtml(p.allergies)+'">Allergy</span>':''}${p.archived?' <span class="badge badge-gray">Archived</span>':''}<div class="text-muted">P-${patientDisplayId(p)} · ${escapeHtml(p.idNo||'No ID no.')}</div></div></div></td>
-      <td>${p.age===''||p.age==null?'—':escapeHtml(String(p.age))}${p.gender?' · '+escapeHtml(p.gender.charAt(0)):''}</td><td>${collegeBadge(p.college)}</td>
-      <td>${priorityBadge(p.personType)}</td><td>${p.personType==='Student'?escapeHtml(p.classSession||'—'):'—'}</td><td>${escapeHtml(p.blood||'—')}</td>
-      <td>${last?fmtDate(last):'<span class="text-muted">No visits</span>'}</td><td>${escapeHtml(p.contact||'—')}</td>
+      <td><div class="pt-identity">${patientAvatarHtml(p,34)}<div><strong>${escapeHtml(p.lname)}, ${escapeHtml(p.fname)}</strong>${allergy?' <span class="badge badge-danger pt-allergy-flag" title="Allergies: '+escapeHtml(p.allergies)+'">Allergy</span>':''}${p.archived?' <span class="badge badge-gray">Archived</span>':''}<div class="text-muted">P-${patientDisplayId(p)} · ${escapeHtml(p.idNo||'No ID no.')}</div>${folded}</div></div></td>
+      <td class="col-age">${ageSex}</td><td class="col-college">${collegeBadge(p.college)}</td>
+      <td class="col-type">${priorityBadge(p.personType)}${session?`<div class="pt-sub">${escapeHtml(session)}</div>`:''}</td>
+      <td>${last?fmtDate(last):'<span class="text-muted">No visits</span>'}</td><td class="col-contact">${escapeHtml(p.contact||'—')}</td>
       <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
         <button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewPatient((p.id))})}>View</button>
         ${canEdit&&!p.archived?`<button class="btn btn-xs btn-info" ${bindAction('click',(event,element)=>{openPatientModal((p.id))})}>Edit</button>`:''}
