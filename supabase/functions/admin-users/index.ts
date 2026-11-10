@@ -169,11 +169,18 @@ Deno.serve(async(req)=>{
         contact_number:contactNumber,
         person_type:role==="Doctor"?"Clinic Personnel":"Staff"
       };
+      // The sign-up trigger accepts an internal account only if this server asked for it just now.
+      const {error:requestErr}=await admin.from("internal_account_requests")
+        .upsert({email:email.toLowerCase(),requested_by:actor.user_id,created_at:new Date().toISOString()},{onConflict:"email"});
+      if(requestErr)throw requestErr;
       const {data:created,error:createErr}=await admin.auth.admin.createUser({
         email,password,email_confirm:true,user_metadata:metadata,
         app_metadata:{must_change_password:true}
       });
-      if(createErr||!created.user) return json({error:createErr?.message||"Unable to create account."},400);
+      if(createErr||!created.user){
+        await admin.from("internal_account_requests").delete().eq("email",email.toLowerCase());
+        return json({error:createErr?.message||"Unable to create account."},400);
+      }
 
       const uid=created.user.id;
       const patch:any={
