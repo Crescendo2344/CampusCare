@@ -148,7 +148,7 @@ export function renderDashboard(){
     if(needsOutcome.length)attention+=dashboardAttentionItem(`${needsOutcome.length} past booking${needsOutcome.length>1?'s':''} without an outcome`,'Mark them completed, no-show, or return for reappointment.','warn');
     if(!attention)attention=dashboardAttentionItem('Operations look good','No urgent clinic items need attention.','success');
     c.innerHTML=`<div class="dashboard-a">
-      <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Monitor clinic flow and operational tasks for the selected date.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap"><button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{navTo('appointments')})}>Manage Appointments</button>${dashboardControlsHtml()}</div></div>
+      <div class="dashboard-a-head"><div><h3>${greeting}, ${escapeHtml(appState.auth.currentUser.fname)}.</h3><p>Monitor clinic flow and operational tasks for the selected date.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap">${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
         ${dashboardStatCard("Today's appointments",allToday.length,`${allToday.filter(a=>a.status==='Completed').length} completed · ${allToday.filter(a=>a.status==='Scheduled').length} remaining`,note('Across all clinics today'),'bi-clock')}
         ${dashboardStatCard('Appointments in range',allRange.length,`<strong>${todayCompleted}</strong> completed · ${rangeLabel}`,trend(appointmentRecords().filter(a=>a.status!=='Cancelled')),'bi-calendar-event')}
