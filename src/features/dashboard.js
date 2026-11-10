@@ -25,7 +25,8 @@ export function renderDashboard(){
   const rangeLabel=dashboardRangeLabel();
   const allToday=appointmentRecords().filter(a=>a.date===today&&a.status!=='Cancelled');
   const allRange=appointmentRecords().filter(a=>dashboardInRange(a.date)&&a.status!=='Cancelled');
-  const globalTrend=dashboardRangeCounts(a=>a.status!=='Cancelled');
+  // A visit is an appointment the doctor completed; bookings, no-shows and cancellations are not visits.
+  const globalTrend=dashboardRangeCounts(a=>a.status==='Completed');
   // Each card compares the chosen range with the same-length period before it.
   const trend=(rows,upIs='neutral',date=r=>r.date,unit='')=>describeTrend(periodComparison(rows,{date,from:appState.dashboardChartHelpers.dashboardDateFrom,to:today}),{upIs,unit});
   // Counts without dated history (stock, queues) state what they are instead of inventing a trend.
@@ -110,8 +111,9 @@ export function renderDashboard(){
     const rangeMine=mine.filter(a=>dashboardInRange(a.date)&&a.status!=='Cancelled');
     const completed=mine.filter(a=>a.status==='Completed');
     const scheduled=mine.filter(a=>a.status==='Scheduled'&&a.date>=today);
-    const uniquePatients=new Set(mine.map(a=>a.patientId)).size;
-    const visitTrend=dashboardRangeCounts(a=>a.doctorId===appState.auth.currentUser.id&&a.status!=='Cancelled');
+    // Only patients the doctor has actually seen (a completed visit) count; a booking alone does not.
+    const uniquePatients=new Set(completed.map(a=>a.patientId)).size;
+    const visitTrend=dashboardRangeCounts(a=>a.doctorId===appState.auth.currentUser.id&&a.status==='Completed');
     const next=todayMine.find(a=>a.status==='Scheduled');
     let attention='';
     if(next){const pt=getPatientById(next.patientId);attention+=dashboardAttentionItem('Next patient',`${fmtTime(next.time)} · ${pt?pt.fname+' '+pt.lname:'Patient'} · ${next.service}`,'success');}
@@ -120,19 +122,19 @@ export function renderDashboard(){
     if(certDrafts)attention+=dashboardAttentionItem(`${certDrafts} certificate draft${certDrafts>1?'s':''}`,'Finish, sign and issue, or discard them.','warn');
     if(!attention)attention=dashboardAttentionItem('Schedule is clear','No urgent items need your attention.','success');
     const todayCompleted=todayMine.filter(a=>a.status==='Completed').length;
-    // A patient's first booking with this doctor marks when they joined the doctor's list.
-    const firstVisits=[...mine.filter(a=>a.status!=='Cancelled').sort((a,b)=>a.date.localeCompare(b.date)).reduce((first,a)=>first.has(a.patientId)?first:first.set(a.patientId,a),new Map()).values()];
+    // A patient's first completed visit with this doctor marks when they joined the doctor's list.
+    const firstVisits=[...[...completed].sort((a,b)=>a.date.localeCompare(b.date)).reduce((first,a)=>first.has(a.patientId)?first:first.set(a.patientId,a),new Map()).values()];
     c.innerHTML=`<div class="dashboard-a">
       <div class="dashboard-a-head"><div><h3>${greeting}, Dr. ${escapeHtml(appState.auth.currentUser.lname)}.</h3><p>Your patient load and clinic activity at a glance.</p></div><div style="display:flex;gap:.55rem;align-items:end;flex-wrap:wrap">${dashboardControlsHtml()}</div></div>
       <div class="dashboard-a-grid">
         ${dashboardStatCard("Today's patients",todayMine.length,`${todayCompleted} seen · ${todayMine.filter(a=>a.status==='Scheduled').length} waiting`,note(next?`Next at ${fmtTime(next.time)}`:'No one waiting right now'),'bi-clipboard2-pulse')}
         ${dashboardStatCard('Upcoming appointments',scheduled.length,'Scheduled from today onward',note(scheduled.length?`${plural(todayMine.filter(a=>a.status==='Scheduled').length,'appointment')} left today`:'Schedule is clear'),'bi-calendar-event',scheduled.length>8?'attention':'')}
         ${dashboardStatCard('Consultations completed',rangeMine.filter(a=>a.status==='Completed').length,rangeLabel,trend(completed,'good'),'bi-check2-circle')}
-        ${dashboardStatCard('Patients under your care',uniquePatients,'Unique patients you have seen or booked',trend(firstVisits,'neutral',r=>r.date,'new'),'bi-people')}
+        ${dashboardStatCard('Patients under your care',uniquePatients,'Unique patients you have seen',trend(firstVisits,'neutral',r=>r.date,'new'),'bi-people')}
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
-        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">${rangeLabel}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(visitTrend,'Appointments')}</div></div>
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">${rangeLabel}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(visitTrend,'Visits')}</div></div>
         <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
       <div class="card"><div class="card-header"><h3>Schedule · ${fmtDate(today)}</h3><button class="btn btn-xs" ${bindAction('click',(event,element)=>{navTo('my-patients')})}>My Patients</button></div>${todayMine.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>College</th><th>Service</th><th>Status</th></tr></thead><tbody>${todayMine.map(a=>{const pt=getPatientById(a.patientId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${collegeBadge(a.college)}</td><td>${a.service}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments scheduled for today.</p></div>'}</div>
@@ -160,7 +162,7 @@ export function renderDashboard(){
       </div>
       ${dashboardMobileQuickLinks(role)}
       <div class="dashboard-a-main">
-        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">${rangeLabel}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
+        <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">${rangeLabel}</div></div>${dashboardChartControlHtml()}</div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Visits')}</div></div>
         <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
       </div>
       <div class="card"><div class="card-header"><h3>Today's Appointments</h3><button class="btn btn-xs" ${bindAction('click',(event,element)=>{navTo('appointments')})}>View All</button></div>${allToday.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Patient</th><th>Clinic</th><th>Doctor</th><th>Status</th></tr></thead><tbody>${allToday.slice(0,8).map(a=>{const pt=getPatientById(a.patientId),d=getUserById(a.doctorId);return `<tr><td>${fmtTime(a.time)}</td><td>${pt?pt.fname+' '+pt.lname:'Unknown'}</td><td>${a.clinic}</td><td>${d?docName(d):'Unknown'}</td><td>${statusBadge(a.status)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><p>No appointments today.</p></div>'}</div>
@@ -188,7 +190,7 @@ export function renderDashboard(){
     </div>
     ${dashboardMobileQuickLinks(role)}
     <div class="dashboard-a-main">
-      <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">${rangeLabel}</div></div><div style="display:flex;align-items:center;gap:.45rem">${dashboardChartControlHtml()}<button class="btn btn-xs" ${bindAction('click',(event,element)=>{navTo('reports')})}>Analyze</button></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Appointments')}</div></div>
+      <div class="card dashboard-trend-card"><div class="card-header"><div><h3>Patient Visits</h3><div class="text-muted">${rangeLabel}</div></div><div style="display:flex;align-items:center;gap:.45rem">${dashboardChartControlHtml()}<button class="btn btn-xs" ${bindAction('click',(event,element)=>{navTo('reports')})}>Analyze</button></div></div><div class="dashboard-trend-wrap">${dashboardTrendSvg(globalTrend,'Visits')}</div></div>
       <div class="card dashboard-attn-card"><div class="card-header"><h3>Needs Attention</h3></div><div class="dashboard-attn-list">${attention}</div></div>
     </div>
     <div class="card"><div class="card-header"><h3>Waiting for Verification</h3><button class="btn btn-xs" ${bindAction('click',()=>navTo('approvals'))}>Open queue</button></div>
