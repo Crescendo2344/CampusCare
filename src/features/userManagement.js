@@ -99,6 +99,9 @@ export async function openUserDetails(id){
       d.role==='Patient'?'Employee ID':'Verification Document'
     );
     const emailStatus=d.email_confirmed_at?'Confirmed':'Not confirmed';
+    // Person type, college and identity documents describe patients. Clinic accounts (staff, doctors,
+    // administrators) show their Employee ID and role instead; their person type only repeats the role.
+    const patientAccount=d.role==='Patient';
     const roleSchedule=d.role==='Doctor'
       ? `${Array.isArray(d.work_days)?d.work_days.join(', '):'—'} · ${String(d.start_time||'').slice(0,5)||'—'}–${String(d.end_time||'').slice(0,5)||'—'}`
       : '';
@@ -122,10 +125,10 @@ export async function openUserDetails(id){
                 ${userDetailField('Contact Number',d.contact_number)}
                 ${userDetailField('Role',d.role)}
                 ${userDetailField('Status',d.status)}
-                ${userDetailField('Person Type',d.person_type)}
-                ${userDetailField('College / Department',d.college)}
-                ${userDetailField(d.person_type==='Student'?'Student ID No.':'Employee ID No.',d.id_number)}
-                ${userDetailField('Verification Document',documentTitle)}
+                ${patientAccount?userDetailField('Person Type',d.person_type):''}
+                ${patientAccount?userDetailField('College / Department',d.college):''}
+                ${userDetailField(patientAccount&&d.person_type==='Student'?'Student ID No.':'Employee ID No.',d.id_number)}
+                ${patientAccount?userDetailField('Verification Document',documentTitle):''}
                 ${userDetailField('Account Created',formatLastLogin(d.auth_created_at||d.created_at))}
                 ${userDetailField('Last Login',formatLastLogin(d.last_sign_in_at||d.last_login_at))}
                 ${d.role==='Staff'?userDetailField('Clinic',d.clinic||'Not set'):''}
@@ -150,20 +153,20 @@ export async function openUserDetails(id){
           </div>
 
           <section class="user-detail-section">
-            <h4>Submitted Identity Documents</h4>
-            <div class="user-detail-docs">
+            <h4>${patientAccount?'Submitted Identity Documents':'Profile Photo'}</h4>
+            <div class="user-detail-docs${patientAccount?'':' single'}">
               <div class="user-detail-preview selfie">
-                <h5>Registration Selfie / Profile Photo</h5>
+                <h5>${patientAccount?'Registration Selfie / Profile Photo':'Profile Photo'}</h5>
                 <div class="user-detail-preview-body">
                   ${d.profile_signed_url
                     ?`<img src="${escapeHtml(d.profile_signed_url)}" alt="Registration selfie">`
                     :`<div class="approval-applicant-avatar" style="width:78px;height:78px">${initials}</div>`}
                 </div>
               </div>
-              <div class="user-detail-preview">
+              ${patientAccount?`<div class="user-detail-preview">
                 <h5>${escapeHtml(documentTitle)}</h5>
                 ${userVerificationPreview(detail)}
-              </div>
+              </div>`:''}
             </div>
             <div style="display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.6rem">
               ${d.profile_signed_url?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{showFilePreview((String(fullName)+" - Registration Selfie"),(String(d.profile_signed_url)))})}><i class="bi bi-arrows-fullscreen"></i> Open Selfie</button>`:''}
