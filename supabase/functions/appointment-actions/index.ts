@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import {CLINIC_SERVICES,clinicForSpecialization,doctorRendersService} from "../_shared/clinic-services.js";
+import {CLINIC_SERVICES,clinicForSpecialization,defaultStartTimeForSpecialty,doctorRendersService} from "../_shared/clinic-services.js";
 import {buildDoctorAvailability} from "../_shared/booking-availability.js";
 import {cleanTriageVitals,triageVitalErrors} from "../_shared/triage-vitals.js";
 import {EMERGENCY_MAX_DAYS_AHEAD,EMERGENCY_REASONS,emergencyBlockedTimes,emergencyReappointMessage,emergencySearchEnd,planEmergencyReappointments,prettyDeadline} from "../_shared/emergency-reappointment.js";
@@ -203,7 +203,7 @@ Deno.serve(async(req)=>{
       const working=rule?!!rule.is_working:workDays.includes(dayName(date));
       if(!working)return json({error:"The selected doctor does not work on that day."},400);
 
-      const scheduleStart=time5(rule?.start_time||doctor.start_time||"08:00");
+      const scheduleStart=time5(rule?.start_time||doctor.start_time||defaultStartTimeForSpecialty(doctor.specialty));
       const scheduleEnd=time5(rule?.end_time||doctor.end_time||"17:00");
       const slotDuration=Math.max(15,Number(rule?.slot_duration||doctor.slot_duration||60));
       const maxPatients=Math.max(1,Number(rule?.max_patients||20));

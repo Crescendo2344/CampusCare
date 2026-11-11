@@ -16,6 +16,7 @@ import {toast} from './theme.js';
 import {bindAction} from '../dependencies.js';
 import {openSlotManager} from './slotManager.js';
 import {WEEK_DAYS,WEEK_DAY_NAMES,assessWeekly,dayLimit,sameWeekly,shiftLabel,shortTime,weekDates,weeklyFromServer,weeklyFromSummary} from '../domain/doctor-coverage.js';
+import {defaultStartTimeForSpecialty} from '../../supabase/functions/_shared/clinic-services.js';
 
 const SLOT_CHOICES=[15,20,30,45,60,90,120];
 function ui(){
@@ -142,7 +143,7 @@ export async function openDoctorScheduleEditor(docId){
       <div id="dse-msg"></div>
       ${blocked?`<div class="alert alert-warning show">${escapeHtml(docName(doc))} has a schedule change request ${blocked.status==='Pending'?'waiting for review':'approved for '+escapeHtml(fmtDate(blocked.effective_date))}. Resolve it in <button type="button" class="link-btn" ${bindAction('click',()=>{closeAllModals();ui().tab='requests';renderUsers({refresh:false});})}>Requests</button> before changing the schedule here.</div>`:''}
       <section class="dse-section"><div class="dse-section-head"><h4>Weekly hours</h4><div class="dse-presets">
-        <button type="button" class="btn btn-xs" ${bindAction('click',()=>applyPreset('weekdays'))}>Mon–Fri, 8 AM – 5 PM</button>
+        <button type="button" class="btn btn-xs" ${bindAction('click',()=>applyPreset('weekdays'))}>Mon–Fri, ${doc.specialty==='Dental'?'9 AM':'8 AM'} – 5 PM</button>
         <button type="button" class="btn btn-xs" ${bindAction('click',()=>applyPreset('copy'))}>Copy first day to all</button>
         <button type="button" class="btn btn-xs" ${bindAction('click',()=>applyPreset('reset'))}>Undo changes</button></div></div>
         <div class="dse-days">${WEEK_DAYS.map(day=>`<div class="dse-day" data-day="${day}">
@@ -195,7 +196,10 @@ function readDom(){
 
 function applyPreset(kind){
   const d=draft();
-  if(kind==='weekdays')d.days=WEEK_DAYS.map(day=>({day,isWorking:!['Sat','Sun'].includes(day),startTime:'08:00',endTime:'17:00'}));
+  if(kind==='weekdays'){
+    const startTime=defaultStartTimeForSpecialty(getUserById(d.docId)?.specialty);
+    d.days=WEEK_DAYS.map(day=>({day,isWorking:!['Sat','Sun'].includes(day),startTime,endTime:'17:00'}));
+  }
   if(kind==='copy'){const first=d.days.find(x=>x.isWorking);if(!first){toast('Turn on at least one day first.','warning');return;}d.days=d.days.map(x=>x.isWorking?{...x,startTime:first.startTime,endTime:first.endTime}:x);}
   if(kind==='reset')d.days=d.original.map(x=>({...x}));
   writeDaysToDom();
