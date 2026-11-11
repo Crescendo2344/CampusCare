@@ -177,7 +177,7 @@ export function openBookApptModal(apptId=null){
 
 // A request keeps the doctor and service; only the date and time change.
 function lockRescheduleRequest(){
-  for(const id of ['b-clinic','b-service','b-doc']){const el=document.getElementById(id);if(el){el.disabled=true;el.title='A reschedule request keeps the same doctor and service';}}
+  for(const id of ['b-clinic','b-service','b-doc','b-reason']){const el=document.getElementById(id);if(el){el.disabled=true;el.title='A reschedule request keeps the same doctor, service and chief complaint';}}
 }
 
 export function chooseBookingDate(date,preferredDoctorId=null){

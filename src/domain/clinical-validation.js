@@ -65,3 +65,19 @@ export function vitalFlags(v={}){
   const spo2=read('spo2');if(spo2<95)flags.spo2={level:'low',label:'Low'};
   return flags;
 }
+
+// High / Low / Normal for every reading that has been entered, for the vital-sign inputs.
+export function vitalStatus(v={}){
+  const flags=vitalFlags(v),status={};
+  const entered={
+    bp:/^\d{2,3}\s*\/\s*\d{2,3}$/.test(String(v.bp||'').trim()),
+    temp:!blank(v.temp)&&!Number.isNaN(num(v.temp)),
+    pulse:!blank(v.pulse)&&!Number.isNaN(num(v.pulse)),
+    spo2:!blank(v.spo2)&&!Number.isNaN(num(v.spo2))
+  };
+  for(const key of Object.keys(entered)){
+    if(flags[key])status[key]={level:flags[key].level,label:flags[key].level==='high'?'High':'Low'};
+    else if(entered[key])status[key]={level:'normal',label:'Normal'};
+  }
+  return status;
+}

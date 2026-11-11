@@ -50,7 +50,7 @@ export function notificationPageFor(n,account){
 export function notificationTone(n){
   const type=String(n.type||'').toLowerCase();
   const title=String(n.title||'').toLowerCase();
-  if(type.includes('inventory')||title.includes('low stock')||title.includes('declined'))return 'warning';
+  if(type.includes('inventory')||title.includes('low stock')||title.includes('out of stock')||title.includes('declined'))return 'warning';
   if(title.includes('ready')||title.includes('issued')||title.includes('completed')||title.includes('confirmed'))return 'success';
   if(title.includes('cancelled')||title.includes('suspended'))return 'danger';
   return 'info';

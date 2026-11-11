@@ -140,7 +140,7 @@ export async function saveNewUser(){
   if(btn){btn.disabled=true;btn.textContent='Creating…';}
   try{
     const result=await adminUserAction({action:'create',...v,
-      ...(v.role==='Doctor'?{work_days:['Mon','Tue','Wed','Thu','Fri'],start_time:'08:00',end_time:'17:00',slot_duration:60,max_patients:9}:{})});
+      ...(v.role==='Doctor'?{work_days:['Mon','Tue','Wed','Thu','Fri'],...(v.specialty==='Dental'?{start_time:'09:00',slot_duration:60,max_patients:8}:{start_time:'08:00',slot_duration:30,max_patients:15}),end_time:'17:00'}:{})});
     st.created={...v,userId:result.user_id,emailStatus:result.email_status||'queued'};
     showCreatedAccount();
     if(appState.navigationRaceProtection.campusActivePageId==='users')void renderUsers();

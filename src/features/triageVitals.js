@@ -90,11 +90,11 @@ function clearTriageError(input){
 
 function updateTriageFlags(){
   const read=key=>document.getElementById('tv-'+key)?.value||'';
-  const flags=clinicalChecks.vitalFlags(Object.fromEntries(TRIAGE_VITAL_FIELDS.map(([key])=>[key,read(key)])));
+  const flags=clinicalChecks.vitalStatus(Object.fromEntries(TRIAGE_VITAL_FIELDS.map(([key])=>[key,read(key)])));
   for(const [key] of TRIAGE_VITAL_FIELDS){
     const wrap=document.querySelector(`.tv-vital[data-vital="${key}"]`),flag=wrap?.querySelector('.tv-flag');if(!flag)continue;
     const f=flags[key];flag.hidden=!f;flag.textContent=f?.label||'';flag.className='tv-flag '+(f?.level||'');
-    wrap.classList.toggle('flagged',Boolean(f));
+    wrap.classList.toggle('flagged',Boolean(f)&&f.level!=='normal');
   }
 }
 

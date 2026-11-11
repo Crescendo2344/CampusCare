@@ -363,12 +363,11 @@ export async function viewPatient(id){
           <h2>${escapeHtml(pt.lname)}, ${escapeHtml(pt.fname)}${pt.archived?' <span class="badge badge-gray">Archived</span>':''}</h2>
           <div class="pt-banner-ids">P-${patientDisplayId(pt)} · ID No. ${val(pt.idNo)}</div>
           <div class="pt-banner-facts">
+            <span>${priorityBadge(pt.personType)} ${collegeBadge(pt.college)}</span>
             <span><strong>${val(pt.age)}</strong> yrs · ${val(pt.gender)}</span>
             <span>DOB <strong>${pt.birthDate?fmtDate(pt.birthDate):'—'}</strong></span>
             <span>Blood <strong>${val(pt.blood)}</strong></span>
-            <span>${priorityBadge(pt.personType)} ${collegeBadge(pt.college)}</span>
-            ${pt.personType==='Student'?`<span>Class session <strong>${val(pt.classSession||'Not recorded')}</strong></span>`:''}
-            ${pt.personType==='Student'&&pt.course?`<span>Course <strong>${escapeHtml(pt.course)}${pt.major?` · ${escapeHtml(pt.major)}`:''}</strong></span>`:''}
+            ${pt.personType==='Student'&&pt.course?`<span class="pt-fact-wide">Course <strong>${escapeHtml(pt.course)}${pt.major?` · ${escapeHtml(pt.major)}`:''}</strong></span>`:''}
           </div>
         </div>
       </div>

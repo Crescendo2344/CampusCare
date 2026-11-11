@@ -48,9 +48,6 @@ export function openInvModal(id=null){
         <div class="form-group"><label for="im-thresh">Reorder level <span class="required">*</span></label><input id="im-thresh" type="number" inputmode="numeric" value="${it?it.threshold:''}" min="0" step="1" aria-describedby="im-thresh-hint"><small class="text-muted" id="im-thresh-hint">Staff are alerted when stock falls to this number.</small></div>
         <div class="form-group"><label for="im-expiry">Expiry date</label>${campusDateFieldHtml('im-expiry',it?it.expiryDate||'':'','Expiry date')}</div>
       </div></fieldset>
-      <fieldset class="inv-form-group"><legend>Supplier</legend><div class="form-row">
-        <div class="form-group"><label for="im-supplier">Supplier</label><input id="im-supplier" maxlength="255" list="im-supplier-list" placeholder="Pick or type a supplier" value="${it?escapeHtml(it.supplier||''):''}"><datalist id="im-supplier-list">${[...new Set(inventoryRecords().map(i=>String(i.supplier||'').trim()).filter(Boolean))].sort().map(v=>`<option value="${escapeHtml(v)}">`).join('')}</datalist></div>
-      </div></fieldset>
     </div>
     <div class="modal-footer">
       <button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Cancel</button>
@@ -105,7 +102,6 @@ export async function saveInv(id){
   const data={
     name,
     category:document.getElementById('im-cat').value,
-    supplier:document.getElementById('im-supplier').value.trim(),
     qty,
     threshold:thresh,
     unit,
@@ -125,7 +121,6 @@ export async function saveInv(id){
         item_id:existing?.dbItemId||null,
         item_name:data.name,
         category:data.category,
-        supplier:data.supplier,
         quantity:data.qty,
         threshold:data.threshold,
         unit:data.unit,
@@ -171,7 +166,7 @@ export function openUpdateQtyModal(id){
       <div id="uq-msg"></div>
       <div class="alert alert-info show" style="font-size:.8rem;display:block">On hand: <strong>${it.qty} ${escapeHtml(it.unit)}</strong> · Reorder at ${it.threshold} ${escapeHtml(it.unit)}</div>
       <div class="form-group"><label for="uq-qty">Counted / new quantity <span class="required">*</span></label><input type="number" id="uq-qty" value="${it.qty}" min="0" step="1" ${bindAction('input',(event,element)=>{const n=parseInt(element.value,10),d=Number.isNaN(n)?0:n-it.qty,el=document.getElementById('uq-change');if(el)el.textContent=d?`Change: ${d>0?'+':''}${d} ${it.unit}`:'No change';})}><p class="form-note" id="uq-change">No change</p></div>
-      <div class="form-group"><label for="uq-reason-type">Reason <span class="required">*</span></label><select id="uq-reason-type"><option value="">Select a reason</option>${['Received new stock','Physical count correction','Damaged or contaminated','Expired stock removed','Returned to supplier','Other'].map(r=>`<option>${r}</option>`).join('')}</select></div>
+      <div class="form-group"><label for="uq-reason-type">Reason <span class="required">*</span></label><select id="uq-reason-type"><option value="">Select a reason</option>${['Received new stock','Physical count correction','Damaged or contaminated','Expired stock removed','Returned to sender','Other'].map(r=>`<option>${r}</option>`).join('')}</select></div>
       <div class="form-group"><label for="uq-reason">Note <span class="text-muted">(required for Other)</span></label><input id="uq-reason" maxlength="400" placeholder="e.g. Delivery receipt no., count sheet reference"></div>
     </div>
     <div class="modal-footer">

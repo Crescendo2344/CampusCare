@@ -191,10 +191,10 @@ Deno.serve(async(req)=>{
         services_rendered:servicesRendered,
         clinic:staffClinic,
         work_days:role==="Doctor"?(body.work_days||["Mon","Tue","Wed","Thu","Fri"]):[],
-        start_time:role==="Doctor"?String(body.start_time||"08:00"):null,
+        start_time:role==="Doctor"?String(body.start_time||(specialty==="Dental"?"09:00":"08:00")):null,
         end_time:role==="Doctor"?String(body.end_time||"17:00"):null,
-        slot_duration:role==="Doctor"?Number(body.slot_duration||60):null,
-        max_patients:role==="Doctor"?Number(body.max_patients||9):null
+        slot_duration:role==="Doctor"?Number(body.slot_duration||(specialty==="Dental"?60:30)):null,
+        max_patients:role==="Doctor"?Number(body.max_patients||(specialty==="Dental"?8:15)):null
       };
       const {data:profile,error:profileErr}=await admin.from("users")
         .update(patch).eq("auth_user_id",uid).select("user_id").single();
