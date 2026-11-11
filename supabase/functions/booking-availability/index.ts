@@ -17,7 +17,7 @@ Deno.serve(async(req)=>{
     const body=await req.json(),doctorId=Number(body.doctor_id),today=new Date(Date.now()+8*3600000).toISOString().slice(0,10);
     const from=String(body.from||today),to=String(body.to||addBookingDays(today,365));
     if(!Number.isSafeInteger(doctorId)||doctorId<=0||!validBookingDate(from)||!validBookingDate(to)||from<today||to<from||to>addBookingDays(today,365))return json({error:'Choose a valid doctor and a date range within the next year.'},400);
-    const {data:doc,error:doctorError}=await admin.from('users').select('user_id,role,status,work_days,start_time,end_time,slot_duration,max_patients').eq('user_id',doctorId).maybeSingle();
+    const {data:doc,error:doctorError}=await admin.from('users').select('user_id,role,status,specialty,work_days,start_time,end_time,slot_duration,max_patients').eq('user_id',doctorId).maybeSingle();
     if(doctorError)throw doctorError;
     if(!doc||doc.role!=='Doctor'||doc.status!=='Active')return json({error:'This doctor is unavailable.'},404);
     // Only an authorized reschedule may ignore an existing reservation in the availability calculation.
@@ -52,7 +52,7 @@ Deno.serve(async(req)=>{
     ]);
     for(const result of [rules,appointments,leaves,overrides,settings])if(result.error)throw result.error;
     const now=new Date(),nowMinutes=(now.getUTCHours()*60+now.getUTCMinutes()+480)%1440;
-    const days=buildDoctorAvailability({from,to,today,nowMinutes,doctor:{workDays:Array.isArray(doc.work_days)?doc.work_days:['Mon','Tue','Wed','Thu','Fri'],startTime:doc.start_time,endTime:doc.end_time,slotDuration:doc.slot_duration,maxPatients:doc.max_patients},rules:rules.data||[],appointments:(appointments.data||[]).map(a=>({date:a.appointment_date,time:a.appointment_time,status:a.status})),leaves:(leaves.data||[]).map(l=>({date:l.leave_date})),overrides:(overrides.data||[]).map(o=>({date:o.override_date,time:o.slot_time,available:o.is_available})),settings:{lunchStart:settings.data?.lunch_start,lunchEnd:settings.data?.lunch_end}});
+    const days=buildDoctorAvailability({from,to,today,nowMinutes,doctor:{workDays:Array.isArray(doc.work_days)?doc.work_days:['Mon','Tue','Wed','Thu','Fri'],specialty:doc.specialty,startTime:doc.start_time,endTime:doc.end_time,slotDuration:doc.slot_duration,maxPatients:doc.max_patients},rules:rules.data||[],appointments:(appointments.data||[]).map(a=>({date:a.appointment_date,time:a.appointment_time,status:a.status})),leaves:(leaves.data||[]).map(l=>({date:l.leave_date})),overrides:(overrides.data||[]).map(o=>({date:o.override_date,time:o.slot_time,available:o.is_available})),settings:{lunchStart:settings.data?.lunch_start,lunchEnd:settings.data?.lunch_end}});
     return json({ok:true,doctor_id:doctorId,from,to,days});
   }catch(error){console.error('Booking availability:',error);return json({error:'Availability could not be loaded. Please retry.'},500);}
 });

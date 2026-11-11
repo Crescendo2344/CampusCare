@@ -10,6 +10,10 @@ export function clinicForSpecialization(specialization){
   return SPECIALIZATIONS[specialization]||'Medical Clinic';
 }
 
+export function defaultStartTimeForSpecialty(specialty){
+  return specialty==='Dental'?'09:00':'08:00';
+}
+
 // Keeps only real services of the doctor's clinic, in the catalog's order.
 export function cleanServicesRendered(specialization,services){
   const allowed=CLINIC_SERVICES[clinicForSpecialization(specialization)];
