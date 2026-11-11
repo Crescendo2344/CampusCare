@@ -116,8 +116,8 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
       ${dental?dentalRecordFormHtml({},pt,defaultDate):''}
 
       <section class="tv-section"><h4>Findings</h4>
-        <div class="form-group"><label for="tm-exam">Findings <span class="required">*</span></label>
-          <textarea id="tm-exam" rows="2" maxlength="2400" placeholder="${dental?'e.g. Caries on 36, gums slightly inflamed':'e.g. Throat inflamed, lungs clear'}"></textarea><p class="registration-field-error" id="tm-exam-error" aria-live="polite" hidden></p></div>
+        <div class="form-group">
+          <textarea id="tm-exam" aria-label="Findings" aria-required="true" rows="2" maxlength="2400" placeholder="${dental?'e.g. Caries on 36, gums slightly inflamed':'e.g. Throat inflamed, lungs clear'}"></textarea><p class="registration-field-error" id="tm-exam-error" aria-live="polite" hidden></p></div>
       </section>
     </div>
     <div class="modal-footer">
