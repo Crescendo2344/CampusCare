@@ -13,7 +13,7 @@ export function buildDoctorAvailability({doctor,rules=[],appointments=[],leaves=
     const rule=rules.filter(r=>r.weekday===weekday&&r.effective_from<=date&&(!r.effective_to||r.effective_to>=date)).sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0];
     const working=rule?Boolean(rule.is_working):(doctor.workDays||[]).includes(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][weekday]);
     if(date<today||!working||leaveDays.has(date)){days.push({date,openSlots:0,slots:[]});continue;}
-    const start=minutes(rule?.start_time||doctor.startTime||'08:00'),end=minutes(rule?.end_time||doctor.endTime||'17:00');
+    const defaultStart=doctor.specialty==='Dental'?'09:00':'08:00',start=minutes(rule?.start_time||doctor.startTime||defaultStart),end=minutes(rule?.end_time||doctor.endTime||'17:00');
     const duration=Math.max(15,Number(rule?.slot_duration||doctor.slotDuration||60)),capacity=Math.max(1,Number(rule?.max_patients||doctor.maxPatients||20));
     const taken=occupied.get(date)||[],dailyFull=taken.length>=capacity,dayOverrides=byDate.get(date);
     const lunchStart=minutes(settings.lunchStart||'12:00'),lunchEnd=minutes(settings.lunchEnd||'13:00'),slots=[];
@@ -39,7 +39,7 @@ export function buildDoctorAvailability({doctor,rules=[],appointments=[],leaves=
       slots.push({time,kind,label,available:kind==='available',custom:true});
     }
     slots.sort((a,b)=>a.time.localeCompare(b.time));
-    days.push({date,openSlots:Math.min(Math.max(0,capacity-taken.length),slots.filter(s=>s.available).length),slots,schedule:{workDays:[['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][weekday]],startTime:String(rule?.start_time||doctor.startTime||'08:00').slice(0,5),endTime:String(rule?.end_time||doctor.endTime||'17:00').slice(0,5),slotDuration:duration,maxPatients:capacity}});
+    days.push({date,openSlots:Math.min(Math.max(0,capacity-taken.length),slots.filter(s=>s.available).length),slots,schedule:{workDays:[['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][weekday]],startTime:String(rule?.start_time||doctor.startTime||defaultStart).slice(0,5),endTime:String(rule?.end_time||doctor.endTime||'17:00').slice(0,5),slotDuration:duration,maxPatients:capacity}});
   }
   return days;
 }

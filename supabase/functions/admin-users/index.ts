@@ -4,7 +4,7 @@ import {buildUserEditPatch} from "../_shared/admin-user-edit.js";
 import {emailValidationError,normalizePhilippineMobile} from "../_shared/contact-validation.js";
 import {contactValidationError,nameValidationError,usernameValidationError} from "../_shared/registration-validation.js";
 import {emailCredentials,generatePassword} from "../_shared/account-credentials.js";
-import {SPECIALIZATIONS,cleanServicesRendered} from "../_shared/clinic-services.js";
+import {SPECIALIZATIONS,cleanServicesRendered,defaultStartTimeForSpecialty} from "../_shared/clinic-services.js";
 
 const cors={
   "Access-Control-Allow-Origin":"*",
@@ -191,7 +191,7 @@ Deno.serve(async(req)=>{
         services_rendered:servicesRendered,
         clinic:staffClinic,
         work_days:role==="Doctor"?(body.work_days||["Mon","Tue","Wed","Thu","Fri"]):[],
-        start_time:role==="Doctor"?String(body.start_time||(specialty==="Dental"?"09:00":"08:00")):null,
+        start_time:role==="Doctor"?String(body.start_time||defaultStartTimeForSpecialty(specialty)):null,
         end_time:role==="Doctor"?String(body.end_time||"17:00"):null,
         slot_duration:role==="Doctor"?Number(body.slot_duration||(specialty==="Dental"?60:30)):null,
         max_patients:role==="Doctor"?Number(body.max_patients||(specialty==="Dental"?8:15)):null
