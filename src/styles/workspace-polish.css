@@ -253,7 +253,7 @@
 @media (max-width:1180px){.patient-records-table .col-contact{display:none}}
 @media (max-width:1024px){.patient-records-table .col-age{display:none}.patient-records-table .pt-fold-age{display:block}.patient-records-table .td-actions{flex-direction:column;align-items:stretch}}
 @media (max-width:860px){.patient-records-table .col-type,.patient-records-table .col-college{display:none}.patient-records-table .pt-fold-type,.patient-records-table .pt-fold-college{display:block}.patient-records-table .pt-identity{min-width:150px}}
-@media (max-width:640px){.patient-records-table .col-contact,.patient-records-table .col-age,.patient-records-table .col-type,.patient-records-table .col-college{display:revert}.patient-records-table .pt-fold-age,.patient-records-table .pt-fold-type,.patient-records-table .pt-fold-college{display:none}.patient-records-table .td-actions{flex-direction:row}}
+@media (max-width:640px){.patient-records-table td.col-contact,.patient-records-table td.col-age,.patient-records-table td.col-type,.patient-records-table td.col-college{display:revert}.patient-records-table .pt-fold-age,.patient-records-table .pt-fold-type,.patient-records-table .pt-fold-college{display:none}.patient-records-table .td-actions{flex-direction:row}}
 .patient-records-table .pt-identity .text-muted{font-size:.72rem;margin-top:.1rem}
 .th-sort{display:inline-flex;align-items:center;gap:.15rem;padding:0;border:0;background:none;color:inherit;font:inherit;font-weight:inherit;text-transform:inherit;letter-spacing:inherit;cursor:pointer;white-space:nowrap}
 .th-sort span{opacity:.45;font-size:.8em}
