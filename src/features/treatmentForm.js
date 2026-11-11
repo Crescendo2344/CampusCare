@@ -113,16 +113,11 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
         <div class="tv-vitals" ${bindAction('input',()=>updateVitalFlags())}>${TRIAGE_VITAL_FIELDS.map(vital).join('')}</div>
       </section>
 
-      <section class="tv-section"><h4>Chief complaint and history</h4>
-        <div class="form-group"><label for="tm-findings">Chief complaint <span class="required">*</span></label>
-          <textarea id="tm-findings" rows="2" maxlength="2500" placeholder="e.g. Headache and fever for 2 days">${escapeHtml(appt?.reason||'')}</textarea>${appt?.reason?'<p class="form-note">From the patient’s booking. Edit it to match what they tell you.</p>':''}<p class="registration-field-error" id="tm-findings-error" aria-live="polite" hidden></p></div>
-      </section>
-
       ${dental?dentalRecordFormHtml({},pt,defaultDate):''}
 
       <section class="tv-section"><h4>Findings</h4>
-        <div class="form-group"><label for="tm-exam">Findings</label>
-          <textarea id="tm-exam" rows="2" maxlength="2400" placeholder="${dental?'e.g. Caries on 36, gums slightly inflamed':'e.g. Throat inflamed, lungs clear'}"></textarea></div>
+        <div class="form-group"><label for="tm-exam">Findings <span class="required">*</span></label>
+          <textarea id="tm-exam" rows="2" maxlength="2400" placeholder="${dental?'e.g. Caries on 36, gums slightly inflamed':'e.g. Throat inflamed, lungs clear'}"></textarea><p class="registration-field-error" id="tm-exam-error" aria-live="polite" hidden></p></div>
       </section>
     </div>
     <div class="modal-footer">
@@ -155,9 +150,7 @@ function updateVitalFlags(){
 
 export async function saveTreatment(ptId,apptId){
   const ptIdVal=ptId||parseInt(document.getElementById('tm-pt')?.value||'0');
-  const complaint=document.getElementById('tm-findings').value.trim(),exam=document.getElementById('tm-exam')?.value.trim()||'';
-  // Stored as one findings text: the complaint, then the examination when recorded.
-  const findings=exam?`${complaint}\n\nExamination: ${exam}`:complaint;
+  const findings=document.getElementById('tm-exam')?.value.trim()||'';
   const diag=document.getElementById('tm-diag')?.value.trim()||'Unspecified';
   const presc=document.getElementById('tm-presc')?.value.trim()||'';
   const notes=document.getElementById('tm-notes')?.value.trim()||'';
@@ -180,7 +173,7 @@ export async function saveTreatment(ptId,apptId){
     spo2:document.getElementById('tm-spo2').value.trim()
   };
   const errors=clinicalChecks.treatmentFormErrors({patientId:ptIdVal,findings,diagnosis:diag,prescription:presc,date,followup,vitals:vitalsInput,medName,dosage,frequency,endDate},appState.clinicInformation.TODAY);
-  const fieldIds={bp:'tm-bp',temp:'tm-temp',spo2:'tm-spo2',patient:'tm-pt',findings:'tm-findings',diagnosis:'tm-diag',prescription:'tm-presc',date:'tm-date',followup:'tm-followup',dosage:'tm-dosage',frequency:'tm-frequency',endDate:'tm-enddate'};
+  const fieldIds={bp:'tm-bp',temp:'tm-temp',spo2:'tm-spo2',patient:'tm-pt',findings:'tm-exam',diagnosis:'tm-diag',prescription:'tm-presc',date:'tm-date',followup:'tm-followup',dosage:'tm-dosage',frequency:'tm-frequency',endDate:'tm-enddate'};
   for(const id of Object.values(fieldIds)){const el=document.getElementById(id+'-error');if(el){el.hidden=true;el.textContent='';}document.getElementById(id)?.removeAttribute('aria-invalid');}
   if(Object.keys(errors).length){
     for(const [key,message] of Object.entries(errors)){const id=fieldIds[key],el=document.getElementById(id+'-error');if(el){el.textContent=message;el.hidden=false;}document.getElementById(id)?.setAttribute('aria-invalid','true');}
