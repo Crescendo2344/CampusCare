@@ -25,12 +25,13 @@ test('the clinical summary and FHIR export are for the patient\'s doctor only',(
 });
 
 test('administrators cannot read medical history or allergies',()=>{
-  const sql=read('supabase/migrations/20261111091000_patient_health_fields_hidden_from_admins.sql');
+  const sql=read('supabase/migrations/20261111091100_patient_health_fields_hidden_from_admins.sql');
   assert.match(sql,/revoke select on public\.patients from authenticated/);
   const grant=sql.slice(sql.indexOf('grant select ('),sql.indexOf(') on public.patients to authenticated'));
   assert.doesNotMatch(grant,/medical_history|allergies/);
-  assert.match(sql,/has_role\(array\['Doctor','Staff'\]\)/);
-  assert.doesNotMatch(sql,/'Administrator'/);
+  const fn=read('supabase/migrations/20261111091000_patient_health_notes_function.sql');
+  assert.match(fn,/has_role\(array\['Doctor','Staff'\]\)/);
+  assert.doesNotMatch(fn,/'Administrator'/);
   for(const file of ['supabase/functions/admin-users/index.ts','supabase/functions/admin-approvals/index.ts'])
     assert.doesNotMatch(read(file).replace(/\/\/.*$/gm,''),/medical_history|allergies/,file);
   assert.doesNotMatch(read('src/features/userManagement.js'),/'Allergies'|'Medical History'/);
