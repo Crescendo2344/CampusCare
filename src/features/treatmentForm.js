@@ -429,7 +429,7 @@ export function dentalRecordDocumentHtml(t){
   const d=t.dentalRecord||{};
   const age=pt.age||'';
   const safe=v=>escapeHtml(v||'');
-  const allRows=(nums,primary=false)=>`<div class="dental-chart-row ${primary?'primary':''}">${nums.map(n=>`<div class="dental-chart-cell"><strong>${n}</strong><span>${safe(d.odontogram?.[n]||'')}</span></div>`).join('')}</div>`;
+  const allRows=(nums,primary=false)=>`<div class="dental-chart-row ${primary?'primary':''}">${nums.map(n=>`<div class="dental-chart-cell"><strong>${n}</strong><span>${safe(d.odontogram?.[n]||'')}</span>${d.odontogram?.[n+'-surfaces']?`<small>${safe(d.odontogram[n+'-surfaces'].replace(/,/g,' '))}</small>`:''}</div>`).join('')}</div>`;
   const oral=d.oralHealth||{};
   const oralLines=[
     ['Satisfactory',oral.satisfactory],['Fair',oral.fair],['Poor',oral.poor],

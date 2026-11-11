@@ -1459,8 +1459,8 @@ try{
     await page.locator('#eu-confirm-word').fill('fixture');assert(await save.isEnabled());
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/user-edit-review-${mobile?'mobile':'desktop'}.png`});
     await save.click();
-    assert.equal(requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').at(-1).body.reason,'Corrected per registrar records');
     const updated=()=>page.locator('#user-table tbody tr').filter({hasText:'Doctor, Updated'});await updated().waitFor();
+    assert.equal(requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').at(-1)?.body.reason,'Corrected per registrar records');
     assert.equal(managedUsers[1].first_name,'Updated');assert.equal(managedUsers[1].contact_number,'09987654321');assert.equal(managedUsers[1].status,'Active');
     await updated().getByRole('button',{name:'Suspend',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Reactivate',exact:true}).waitFor();
     await updated().getByRole('button',{name:'Reactivate',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Suspend',exact:true}).waitFor();
