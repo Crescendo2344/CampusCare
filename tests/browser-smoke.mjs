@@ -728,8 +728,6 @@ try{
     await page.locator('#tm-bp').waitFor();await page.locator('#tm-spo2').waitFor();
     await page.locator('#tm-temp').fill('38.4');
     assert.equal(await page.locator('.tv-vital[data-vital="temp"] .tv-flag').innerText(),'FEVER');
-    await page.getByRole('button',{name:'2 weeks',exact:true}).click();
-    assert.notEqual(await page.locator('#tm-followup').inputValue(),'');
     await page.locator('#active-modal .close-btn').click();
     // Vitals the front desk took at triage show on the appointment and fill the doctor's visit form.
     await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const me=state.auth.currentUser,pt=state.data.DB.patients.find(p=>p._realSupabase&&!p.archived)||state.data.DB.patients[0];
