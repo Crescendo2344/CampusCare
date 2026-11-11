@@ -30,7 +30,7 @@ Deno.serve(async(req)=>{
 
     if(req.method==="GET"){
       const {data,error}=await admin.from("users")
-        .select("user_id,auth_user_id,first_name,last_name,username,email,contact_number,person_type,college,id_number,status,verified,profile_image_url,id_file_url,id_back_file_url,verification_selfie_url,created_at,patients(patient_id,birth_date,sex,blood_type,address,emergency_contact_name,emergency_contact_number,medical_history,allergies)")
+        .select("user_id,auth_user_id,first_name,last_name,username,email,contact_number,person_type,college,id_number,status,verified,profile_image_url,id_file_url,id_back_file_url,verification_selfie_url,created_at,patients(patient_id,birth_date,sex,blood_type,address,emergency_contact_name,emergency_contact_number)")
         .eq("role","Patient")
         .eq("status","Pending")
         .order("created_at",{ascending:true});
@@ -72,8 +72,6 @@ Deno.serve(async(req)=>{
           address:patient?.address||null,
           emergency_contact_name:patient?.emergency_contact_name||null,
           emergency_contact_number:patient?.emergency_contact_number||null,
-          medical_history:patient?.medical_history||null,
-          allergies:patient?.allergies||null,
           verification_document_type:authMeta?.verification_document_type||(
             r.person_type==="Student"?"Student ID":"Employee ID"
           ),

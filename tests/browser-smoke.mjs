@@ -1,5 +1,5 @@
 import {buildDoctorAvailability,addBookingDays} from '../src/domain/booking-availability.js';
-import {buildStudentReport} from '../src/domain/student-report.js';
+import {buildStudentReport,scopeStudentReport} from '../src/domain/student-report.js';
 // Exercise actual Chromium UI events and API contracts using synthetic, intercepted backend responses.
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
@@ -114,7 +114,7 @@ try{
     if(body.action==='create'){assert.equal(body.appointment_date,page.__bookingDate);assert.equal(body.appointment_time,'08:00');assert.equal(body.doctor_id,2);assert(!body.appointment_id,'New bookings must not pass a truthy null string as an edit ID');}
     response={ok:true};
    }
-   else if(path.endsWith('/student-reports'))response={ok:true,report:buildStudentReport({users:[{user_id:10,first_name:'Morning',last_name:'Student',id_number:'ST10',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'},{user_id:11,first_name:'Evening',last_name:'Student',id_number:'ST11',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'}],patients:[{patient_id:10,user_id:10,class_session:'Morning'},{patient_id:11,user_id:11,class_session:'Evening'}],appointments:[{appointment_id:10,patient_id:10,clinic:'Dental Clinic',appointment_date:request.postDataJSON().from,status:'Completed'}]},request.postDataJSON())};
+   else if(path.endsWith('/student-reports'))response={ok:true,report:scopeStudentReport(buildStudentReport({users:[{user_id:10,first_name:'Morning',last_name:'Student',id_number:'ST10',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'},{user_id:11,first_name:'Evening',last_name:'Student',id_number:'ST11',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'}],patients:[{patient_id:10,user_id:10,class_session:'Morning'},{patient_id:11,user_id:11,class_session:'Evening'}],appointments:[{appointment_id:10,patient_id:10,clinic:'Dental Clinic',appointment_date:request.postDataJSON().from,status:'Completed'}]},request.postDataJSON()),profile.clinic||'')};
    else if(path.endsWith('/clinical-intelligence')){
     const body=request.postDataJSON();
     response=body.action==='copilot'
@@ -1392,13 +1392,16 @@ try{
     assert.match(await page.locator('#forecast-result').innerText(),/valid start date/);
     await page.locator('#rpt-type').selectOption('students');
     await page.locator('#student-report-filters').waitFor();
-    await page.locator('#rpt-session').selectOption('Evening');await page.locator('#rpt-dental').selectOption('not');
+    // The fixture staff member works in the Medical Clinic, so dental figures and filters are not offered.
+    assert.equal(await page.locator('#rpt-dental').count(),0);assert.equal(await page.locator('#rpt-medical').count(),1);
+    await page.locator('#rpt-session').selectOption('Evening');
     await page.getByRole('button',{name:'Generate Report',exact:true}).click();
     await page.locator('#rpt-result').getByText('Evening Student',{exact:true}).waitFor();
     assert.equal(await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).count(),0);
     assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows.length),1);
     assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['School: Class Session']),'Evening');
-    await page.locator('#rpt-session').selectOption('');await page.locator('#rpt-dental').selectOption('used');
+    assert.equal(await page.locator('#rpt-result th',{hasText:'Dental'}).count(),0);
+    await page.locator('#rpt-session').selectOption('');
     await page.getByRole('button',{name:'Generate Report',exact:true}).click();
     await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).waitFor();
     const downloaded=page.waitForEvent('download');
@@ -1406,7 +1409,8 @@ try{
     const summaryFile=await downloaded;
     assert.match(summaryFile.suggestedFilename(),/^campuscare-student-college-summary-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.csv$/);
     const summaryText=(await import('node:fs')).readFileSync(await summaryFile.path(),'utf8');
-    assert.match(summaryText,/^\ufeffCollege\/Department,Students: Registered,Dental Care: Used,/,'Readable headers in the shared CSV format');
+    assert.match(summaryText,/^\ufeffCollege\/Department,Students: Registered,Coverage: No Linked Patient Record,/,'Readable headers in the shared CSV format');
+    assert.doesNotMatch(summaryText,/Dental/,'Medical Clinic staff get no dental columns');
   }
   if(role==='Administrator'){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('settings'));

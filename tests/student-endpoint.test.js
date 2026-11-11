@@ -3,15 +3,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
-import {buildStudentReport} from '../src/domain/student-report.js';
+import {buildStudentReport,scopeStudentReport,studentReportFilterError} from '../src/domain/student-report.js';
 import {authRedirect} from '../supabase/functions/_shared/app-url.js';
 import {registrationDetailErrors} from '../supabase/functions/_shared/registration-validation.js';
 import {normalizePhilippineMobile} from '../supabase/functions/_shared/contact-validation.js';
 async function endpoint(file,client){
   let handler;
-  globalThis.__studentClient=()=>client;globalThis.__studentRules=buildStudentReport;globalThis.__authRedirect=authRedirect;globalThis.__registrationRules=registrationDetailErrors;globalThis.__phone=normalizePhilippineMobile;
+  globalThis.__studentClient=()=>client;globalThis.__studentRules={buildStudentReport,scopeStudentReport,studentReportFilterError};globalThis.__authRedirect=authRedirect;globalThis.__registrationRules=registrationDetailErrors;globalThis.__phone=normalizePhilippineMobile;
   globalThis.Deno={env:{get:()=> 'fixture'},serve:fn=>{handler=fn;}};
-  let source=readFileSync(file,'utf8').replace(/import \{\s*createClient\s*\} from [^;]+;/,'const createClient=globalThis.__studentClient;').replace(/import \{buildStudentReport\} from [^;]+;/,'const buildStudentReport=globalThis.__studentRules;').replace(/import \{authRedirect\} from [^;]+;/,'const authRedirect=globalThis.__authRedirect;').replace(/import \{registrationDetailErrors\} from [^;]+;/,'const registrationDetailErrors=globalThis.__registrationRules;').replace(/import \{normalizePhilippineMobile\} from [^;]+;/,'const normalizePhilippineMobile=globalThis.__phone;');
+  let source=readFileSync(file,'utf8').replace(/import \{\s*createClient\s*\} from [^;]+;/,'const createClient=globalThis.__studentClient;').replace(/import \{buildStudentReport[^}]*\} from [^;]+;/,'const {buildStudentReport,scopeStudentReport,studentReportFilterError}=globalThis.__studentRules;').replace(/import \{authRedirect\} from [^;]+;/,'const authRedirect=globalThis.__authRedirect;').replace(/import \{registrationDetailErrors\} from [^;]+;/,'const registrationDetailErrors=globalThis.__registrationRules;').replace(/import \{normalizePhilippineMobile\} from [^;]+;/,'const normalizePhilippineMobile=globalThis.__phone;');
   await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes(source)+'\n// '+Math.random()).toString('base64'));
   return handler;
 }
@@ -20,10 +20,27 @@ const range={from:'2026-10-01',to:'2026-10-14'};
 test('student endpoint rejects unauthenticated users and doctors; paginates beyond 1,000 accounts',async()=>{
  let role='Doctor',reads=0;
  const students=Array.from({length:1001},(_,i)=>({user_id:i+1,role:'Patient',person_type:'Student',status:'Active',college:'COE',created_at:'2026-09-01'}));
- const client={auth:{getUser:async()=>({data:{user:{id:'fixture'}}})},from(table){return {select(){return this;},eq(){return this;},maybeSingle:async()=>({data:{role,status:'Active'}}),order(){return this;},range:async(a,b)=>{reads++;return {data:table==='users'?students.slice(a,b+1):[]};}};}};
+ const client={auth:{getUser:async()=>({data:{user:{id:'fixture'}}})},from(table){return {select(){return this;},eq(){return this;},maybeSingle:async()=>({data:{role,status:'Active',clinic:'Medical Clinic'}}),order(){return this;},range:async(a,b)=>{reads++;return {data:table==='users'?students.slice(a,b+1):[]};}};}};
  const handler=await endpoint('supabase/functions/student-reports/index.ts',client);
  assert.equal((await handler(request(range,false))).status,401);assert.equal((await handler(request(range))).status,403);assert.equal(reads,0);
  role='Staff';const response=await handler(request(range));assert.equal(response.status,200);const result=await response.json();assert.equal(result.report.registered,1001);assert.equal(result.report.unknownCoverage,1001);assert(reads>=6);
+});
+test('staff get only their own clinic in the student report',async()=>{
+ let actor={role:'Staff',status:'Active',clinic:'Medical Clinic'},reads=0;
+ const data={users:[{user_id:1,role:'Patient',person_type:'Student',status:'Active',college:'COE',created_at:'2026-09-01'}],patients:[{patient_id:7,user_id:1}],
+   appointments:[{appointment_id:1,patient_id:7,clinic:'Dental Clinic',appointment_date:'2026-10-02',status:'Completed'},{appointment_id:2,patient_id:7,clinic:'Medical Clinic',appointment_date:'2026-10-03',status:'Completed'}],treatments:[],dental_records:[]};
+ const client={auth:{getUser:async()=>({data:{user:{id:'fixture'}}})},from(table){return {select(){return this;},eq(){return this;},maybeSingle:async()=>({data:actor}),order(){return this;},range:async(a)=>{reads++;return {data:a?[]:data[table]||[]};}};}};
+ const handler=await endpoint('supabase/functions/student-reports/index.ts',client);
+ let report=(await (await handler(request(range))).json()).report;
+ assert.equal(report.clinic,'Medical Clinic');assert.equal(report.rows[0].medicalVisits,1);assert.equal(report.rows[0].dentalVisits,null);assert.equal(report.dentalUsed,null);assert.equal(report.colleges[0].dentalUsed,null);
+ assert.equal((await handler(request({...range,dental:'used'}))).status,403);
+ actor={...actor,clinic:'Dental Clinic'};report=(await (await handler(request(range))).json()).report;
+ assert.equal(report.rows[0].dentalVisits,1);assert.equal(report.rows[0].medicalVisits,null);
+ assert.equal((await handler(request({...range,medical:'used'}))).status,403);
+ actor={role:'Administrator',status:'Active'};report=(await (await handler(request(range))).json()).report;
+ assert.equal(report.rows[0].dentalVisits,1);assert.equal(report.rows[0].medicalVisits,1);
+ reads=0;actor={role:'Staff',status:'Active',clinic:null};assert.equal((await handler(request(range))).status,403);assert.equal(reads,0);
+ assert.equal(studentReportFilterError({medical:'used'},'Medical Clinic'),'');assert.equal(scopeStudentReport({rows:[],colleges:[]},'').clinic,'');
 });
 test('student endpoint rejects invalid filters before roster reads and reports database errors',async()=>{
  let reads=0;

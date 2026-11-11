@@ -4,16 +4,16 @@ import assert from 'node:assert/strict';
 import * as records from '../src/domain/patient-records.js';
 import { createPatientService } from '../src/services/patients.js';
 
-function fixture({session={access_token:'test-session'},request,failureTable,photoFailure=false,currentError=false}={}){
-  const queries=[],photos=[];
+function fixture({session={access_token:'test-session'},request,failureTable,photoFailure=false,currentError=false,health=[{patient_id:4,medical_history:'Asthma',allergies:'Penicillin'}]}={}){
+  const queries=[],photos=[],rpcs=[];
   const raw={users:[{user_id:2,profile_image_url:'test-photo'},{user_id:3,profile_image_url:'other-photo'}],patients:[{patient_id:4,user_id:2}]};
   const client={auth:{getSession:async()=>({data:{session}})},from(table){
     const entry={table};queries.push(entry);
     return {select(columns){entry.columns=columns;return this;},order(column,options){entry.order={column,...options};return this;},eq(column,value){entry.eq={column,value};return this;},
       maybeSingle:async()=>currentError?{error:new Error('Current query failed')}:{data:raw.patients[0]},
       then(resolve,reject){return Promise.resolve(table===failureTable?{error:new Error('Directory query failed')}:{data:raw[table]}).then(resolve,reject);}};
-  },storage:{from(bucket){return {async createSignedUrl(path,expires){photos.push({bucket,path,expires});if(photoFailure)throw Error('Photo unavailable');return {data:{signedUrl:'https://photo.test/'+path}};}};}}};
-  return {queries,photos,raw,service:createPatientService({getClient:()=>client,request,baseUrl:'https://patients.test',publishableKey:'test-public-key'})};
+  },rpc:async(name,args)=>{rpcs.push({name,args});return {data:health};},storage:{from(bucket){return {async createSignedUrl(path,expires){photos.push({bucket,path,expires});if(photoFailure)throw Error('Photo unavailable');return {data:{signedUrl:'https://photo.test/'+path}};}};}}};
+  return {queries,photos,raw,rpcs,service:createPatientService({getClient:()=>client,request,baseUrl:'https://patients.test',publishableKey:'test-public-key'})};
 }
 
 test('profile normalization retains fields, UI offsets and signed photos',()=>{
@@ -56,9 +56,19 @@ test('clinical directory queries preserve ordering, relationships and photo sign
 });
 
 test('current patient query retains user filter and silent database-error behavior',async()=>{
-  const {service,queries}=fixture();assert.equal((await service.loadCurrentPatient(2)).patient_id,4);
-  assert.equal(queries[0].columns,'*');assert.deepEqual(queries[0].eq,{column:'user_id',value:2});
+  const {service,queries}=fixture();const current=await service.loadCurrentPatient(2);assert.equal(current.patient_id,4);
+  assert.doesNotMatch(queries[0].columns,/medical_history|allergies|\*/);assert.equal(current.allergies,'Penicillin');assert.deepEqual(queries[0].eq,{column:'user_id',value:2});
   assert.equal(await fixture({currentError:true}).service.loadCurrentPatient(2),null);
+});
+
+test('medical history and allergies come only from the health-notes function, never the table',async()=>{
+  const {service,queries,rpcs}=fixture();const rows=await service.loadClinicalDirectory();
+  assert.doesNotMatch(queries.find(q=>q.table==='patients').columns,/medical_history|allergies/);
+  assert.deepEqual(rpcs[0],{name:'patient_health_notes',args:{p_patient_ids:[4]}});
+  assert.equal(rows[0].patient.medical_history,'Asthma');assert.equal(rows[0].patient.allergies,'Penicillin');
+  // Administrators get no rows back from the function, so the fields stay blank.
+  const admin=await fixture({health:[]}).service.loadClinicalDirectory();
+  assert.equal(admin[0].patient.medical_history,'');assert.equal(admin[0].patient.allergies,'');
 });
 
 test('patient actions retain authentication, payload and backend error messages',async()=>{

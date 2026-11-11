@@ -30,7 +30,10 @@ test('the server keeps the appointment until the doctor approves',()=>{
 test('only the appointment doctor decides, and approval re-checks the slot',()=>{
   const decision=server.slice(server.indexOf('if(action==="reschedule_decision")'),server.indexOf('if(action==="withdraw_reschedule")'));
   assert.match(decision,/actor\.role!=="Doctor"\|\|appt\.doctor_id!==actor\.user_id/);
-  for(const check of ['That time has been booked since the request','You are on leave that day','That time slot is now closed','The requested time has already passed'])assert.ok(decision.includes(check),check);
+  for(const check of ['That time has been booked since the request','You are on leave that day','That time slot is now closed','The requested time has already passed',
+    'That time is outside your current schedule','You have reached your patient limit for that day','That time falls in the clinic lunch break'])assert.ok(decision.includes(check),check);
+  assert.match(decision,/doctor_schedule_rules/,'Approval reads the schedule in force on the new date');
+  assert.match(decision,/rule\?\.max_patients\|\|doctor\.max_patients/,'Approval uses the doctor daily limit');
   assert.match(decision,/title:"Reschedule approved"/);
   assert.match(decision,/title:"Reschedule declined"/);
 });
