@@ -744,7 +744,7 @@ try{
     await page.locator('#tm-bp').waitFor();
     assert.equal(await page.locator('#tm-bp').inputValue(),'150/95');assert.equal(await page.locator('#tm-temp').inputValue(),'38.2');assert.equal(await page.locator('#tm-spo2').inputValue(),'97');
     assert.match(await page.locator('.tv-note').innerText(),/From triage/);
-    assert.equal(await page.locator('.tv-vital[data-vital="temp"] .tv-flag').innerText(),'FEVER');
+    assert.equal(await page.locator('.tv-vital[data-vital="temp"] .tv-flag').innerText(),'HIGH');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/visit-record-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#active-modal .close-btn').click();
     // A dental doctor gets the dental record: quadrant tooth chart, tap-to-mark codes, procedure rows, work status.
