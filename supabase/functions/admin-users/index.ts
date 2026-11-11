@@ -229,7 +229,8 @@ Deno.serve(async(req)=>{
 
     if(action==="detail"){
       const {data:patient,error:patientErr}=await admin.from("patients")
-        .select("patient_id,birth_date,sex,blood_type,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,medical_history,allergies,archived_at,updated_at")
+        // Medical history and allergies stay with the clinic: administrators do not see them.
+        .select("patient_id,birth_date,sex,blood_type,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,archived_at,updated_at")
         .eq("user_id",targetId)
         .maybeSingle();
       if(patientErr)throw patientErr;

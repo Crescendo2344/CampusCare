@@ -221,7 +221,7 @@ export function reviewApproval(id){
             // Only what the registration actually captured: online sign-up asks for none of these,
             // clinic-assisted registration may. Empty fields are not shown as if they were missing.
             const health=[['Address',u.address,true],['Emergency contact',u.emergencyName],['Emergency number',u.emergencyContact],
-              ['Blood type',u.bloodType&&u.bloodType!=='Unknown'?u.bloodType:''],['Allergies',u.allergies],['Medical history',u.medicalHistory,true]]
+              ['Blood type',u.bloodType&&u.bloodType!=='Unknown'?u.bloodType:'']]
               .filter(([,value])=>String(value||'').trim());
             return health.length?`<section class="approval-review-section">
             <h4>Health and emergency details</h4>

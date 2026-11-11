@@ -85,3 +85,19 @@ export function buildStudentReport(data,filters={}){
   const colleges=[...collegeMap.values()].sort((a,b)=>a.college.localeCompare(b.college));
   return {rows:filtered,colleges,registered:rows.length,matched:filtered.length,dentalUsed:rows.filter(r=>r.coverageKnown&&r.dentalVisits).length,dentalNotUsed:rows.filter(r=>r.coverageKnown&&!r.dentalVisits).length,unknownCoverage:rows.filter(r=>!r.coverageKnown).length,unknownSession:rows.filter(r=>r.classSession==='Unknown').length,filters};
 }
+// Staff see only their own clinic's service use. Medical Clinic staff get no dental figures and
+// Dental Clinic staff get no medical figures; administrators (clinic '') see both.
+export function studentReportFilterError(filters,clinic){
+  if(clinic==='Medical Clinic'&&filters?.dental)return 'Dental care filters are for Dental Clinic staff.';
+  if(clinic==='Dental Clinic'&&filters?.medical)return 'Medical care filters are for Medical Clinic staff.';
+  return '';
+}
+export function scopeStudentReport(report,clinic){
+  const hideDental=clinic==='Medical Clinic',hideMedical=clinic==='Dental Clinic';
+  if(!hideDental&&!hideMedical)return {...report,clinic:''};
+  const rows=report.rows.map(r=>({...r,
+    ...(hideDental?{dentalVisits:null,lastDental:null}:{}),
+    ...(hideMedical?{medicalVisits:null}:{})}));
+  const colleges=report.colleges.map(c=>hideDental?{...c,dentalUsed:null,dentalNotUsed:null}:c);
+  return {...report,rows,colleges,clinic,...(hideDental?{dentalUsed:null,dentalNotUsed:null}:{})};
+}

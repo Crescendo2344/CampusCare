@@ -114,7 +114,7 @@ async function checkPatientAdapter(){
   const client=w.supabaseClient,user=w.currentUser,patient=w.currentPatient;
   const saved={users:w.DB.users,patients:w.DB.patients};const queries=[];
   const rows={users:[{user_id:2,auth_user_id:'test-auth',first_name:'Test',last_name:'Staff',role:'Staff',profile_image_url:'test-photo'}],patients:[{patient_id:4,user_id:2,height_cm:160}]};
-  w.supabaseClient={storage:{from(){return {createSignedUrl:async()=>({data:{signedUrl:'https://photo.test/test'}})};}},from(table){
+  w.supabaseClient={rpc:async()=>({data:[]}),storage:{from(){return {createSignedUrl:async()=>({data:{signedUrl:'https://photo.test/test'}})};}},from(table){
     queries.push(table);return {select(){return this;},order(){return this;},eq(){return this;},maybeSingle:async()=>({data:rows.patients[0]}),then(resolve,reject){return Promise.resolve({data:rows[table]}).then(resolve,reject);}};
   }};
   try{

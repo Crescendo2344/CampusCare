@@ -176,7 +176,7 @@ Deno.serve(async(req)=>{
       }
 
       const {data:doctor}=await admin.from("users")
-        .select("user_id,role,status,work_days,start_time,end_time,slot_duration,specialty,services_rendered")
+        .select("user_id,role,status,work_days,start_time,end_time,slot_duration,max_patients,specialty,services_rendered")
         .eq("user_id",doctorId).maybeSingle();
       if(!doctor||doctor.role!=="Doctor"||doctor.status!=="Active")return json({error:"Selected doctor is unavailable."},400);
       // New or changed bookings follow the current service list; an existing booking keeps what it was booked as.
@@ -206,7 +206,7 @@ Deno.serve(async(req)=>{
       const scheduleStart=time5(rule?.start_time||doctor.start_time||defaultStartTimeForSpecialty(doctor.specialty));
       const scheduleEnd=time5(rule?.end_time||doctor.end_time||"17:00");
       const slotDuration=Math.max(15,Number(rule?.slot_duration||doctor.slot_duration||60));
-      const maxPatients=Math.max(1,Number(rule?.max_patients||20));
+      const maxPatients=Math.max(1,Number(rule?.max_patients||doctor.max_patients||20));
       const start=mins(scheduleStart),end=mins(scheduleEnd),t=mins(time);
 
       const {data:override}=await admin.from("appointment_slot_overrides")
@@ -438,6 +438,34 @@ Deno.serve(async(req)=>{
       if(conflict?.length)return json({error:"That time has been booked since the request. Decline it so the patient can choose another time."},409);
       if(leave)return json({error:"You are on leave that day. Decline the request so the patient can choose another time."},409);
       if(override&&override.is_available===false)return json({error:"That time slot is now closed. Decline the request so the patient can choose another time."},409);
+      // The doctor's hours, interval, daily limit or the lunch break may also have changed since the request.
+      const closed=json({error:"That time is outside your current schedule. Decline the request so the patient can choose another time."},409);
+      const {data:doctor}=await admin.from("users").select("work_days,start_time,end_time,slot_duration,max_patients,specialty").eq("user_id",appt.doctor_id).maybeSingle();
+      if(!doctor)return closed;
+      const {data:ruleRows,error:ruleErr}=await admin.from("doctor_schedule_rules")
+        .select("is_working,start_time,end_time,slot_duration,max_patients")
+        .eq("doctor_id",appt.doctor_id).eq("weekday",new Date(date+"T00:00:00Z").getUTCDay())
+        .lte("effective_from",date).or("effective_to.is.null,effective_to.gte."+date)
+        .order("effective_from",{ascending:false}).limit(1);
+      if(ruleErr)throw ruleErr;
+      const rule=ruleRows?.[0]||null;
+      const workDays=Array.isArray(doctor.work_days)?doctor.work_days:["Mon","Tue","Wed","Thu","Fri"];
+      if(!(rule?!!rule.is_working:workDays.includes(dayName(date))))return closed;
+      const start=mins(time5(rule?.start_time||doctor.start_time||defaultStartTimeForSpecialty(doctor.specialty)));
+      const end=mins(time5(rule?.end_time||doctor.end_time||"17:00"));
+      const slotDuration=Math.max(15,Number(rule?.slot_duration||doctor.slot_duration||60));
+      const t=mins(time),openedByStaff=override?.is_available===true;
+      if(!openedByStaff&&(t<start||t+slotDuration>end||(t-start)%slotDuration!==0))return closed;
+      const [{count:dailyCount,error:dailyErr},{data:lunch}]=await Promise.all([
+        admin.from("appointments").select("appointment_id",{count:"exact",head:true})
+          .eq("doctor_id",appt.doctor_id).eq("appointment_date",date).neq("status","Cancelled").neq("appointment_id",id),
+        admin.from("system_settings").select("lunch_start,lunch_end").order("settings_id",{ascending:true}).limit(1).maybeSingle()
+      ]);
+      if(dailyErr)throw dailyErr;
+      if((dailyCount||0)>=Math.max(1,Number(rule?.max_patients||doctor.max_patients||20)))
+        return json({error:"You have reached your patient limit for that day. Decline the request so the patient can choose another time."},409);
+      if(lunch?.lunch_start&&lunch?.lunch_end&&!openedByStaff&&t<mins(lunch.lunch_end)&&t+slotDuration>mins(lunch.lunch_start))
+        return json({error:"That time falls in the clinic lunch break. Decline the request so the patient can choose another time."},409);
       const {data:saved,error}=await admin.from("appointments").update({
         appointment_date:date,appointment_time:time,...clearRescheduleRequest
       }).eq("appointment_id",id).in("status",OPEN).select("*").maybeSingle();
