@@ -22,7 +22,7 @@ export function vitalSignErrors(v={}){
 export function treatmentFormErrors(f,today){
   const errors={...vitalSignErrors(f.vitals)};
   if(!f.patientId)errors.patient='Choose the patient.';
-  if(String(f.findings||'').trim().length<3)errors.findings='Describe the chief complaint and findings.';
+  if(String(f.findings||'').trim().length<3)errors.findings='Describe the examination findings.';
   if(String(f.diagnosis||'').trim().length<3)errors.diagnosis='Enter the diagnosis or clinical impression.';
   if(!f.date)errors.date='Enter the visit date.';
   else if(f.date>today)errors.date='The visit date cannot be in the future.';

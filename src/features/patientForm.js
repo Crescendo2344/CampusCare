@@ -496,7 +496,6 @@ export function dentalRecordFormHtml(existing={},pt=null,defaultDate=appState.cl
   const odontogram=existing?.odontogram||{};
   const operations=Array.isArray(existing?.accomplishment)&&existing.accomplishment.length?existing.accomplishment:[{}];
   const key=v=>v.toLowerCase().replace(/\s+/g,'_');
-  const hasPrimary=[...appState.patientForm.DENTAL_PRIMARY_UPPER,...appState.patientForm.DENTAL_PRIMARY_LOWER].some(n=>odontogram[n]);
   activeToothCode='';
   const chip=(v,group)=>`<label class="dr-chip"><input type="checkbox" class="tm-dental-oral" value="${escapeHtml(v)}" ${oral?.[key(v)]?'checked':''} ${group?bindAction('change',(event,element)=>{if(element.checked)element.closest('.dr-chips').querySelectorAll('input').forEach(other=>{if(other!==element)other.checked=false;});}):''}><span>${escapeHtml(v)}</span></label>`;
 
@@ -513,13 +512,6 @@ export function dentalRecordFormHtml(existing={},pt=null,defaultDate=appState.cl
         ${dentalToothInputsHtml(appState.patientForm.DENTAL_PERMANENT_LOWER,odontogram)}
         <div class="dr-jaw">Lower</div>
       </div>
-      <details class="dr-primary" ${hasPrimary?'open':''}><summary>Primary teeth</summary>
-        <div class="dr-chart">
-          ${dentalToothInputsHtml(appState.patientForm.DENTAL_PRIMARY_UPPER,odontogram,true)}
-          <div class="dr-occlusal" aria-hidden="true"></div>
-          ${dentalToothInputsHtml(appState.patientForm.DENTAL_PRIMARY_LOWER,odontogram,true)}
-        </div>
-      </details>
     </div>
 
     <div class="dr-block"><h5>Oral health</h5>
