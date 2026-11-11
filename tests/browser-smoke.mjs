@@ -725,9 +725,9 @@ try{
     assert.match(await page.locator('.tv-meta').innerText(),/Medical Clinic/);
     // Visit records keep blood pressure, temperature and SpO₂ only: no pulse (bpm), weight, height or BMI.
     for(const id of ['#tm-pulse','#tm-weight','#tm-height','#tm-bmi'])assert.equal(await page.locator(id).count(),0,id);
-    await page.locator('#tm-bp').waitFor();await page.locator('#tm-spo2').waitFor();
-    await page.locator('#tm-temp').fill('38.4');
-    assert.equal(await page.locator('.tv-vital[data-vital="temp"] .tv-flag').innerText(),'FEVER');
+    // Vitals are read-only and come from triage: with no triage reading the section says "No record" and offers no inputs.
+    assert.match(await page.locator('#tm-vitals').innerText(),/No record/);
+    for(const id of ['#tm-bp','#tm-temp','#tm-spo2'])assert.equal(await page.locator(id).count(),0,id);
     await page.locator('#active-modal .close-btn').click();
     // Vitals the front desk took at triage show on the appointment and fill the doctor's visit form.
     await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const me=state.auth.currentUser,pt=state.data.DB.patients.find(p=>p._realSupabase&&!p.archived)||state.data.DB.patients[0];
