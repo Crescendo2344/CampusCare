@@ -1,4 +1,5 @@
 // bookingForm: imported feature APIs; state belongs to explicit application namespaces.
+import {RESCHEDULE_CUTOFF_HOURS,patientRescheduleState} from '../domain/reschedule-requests.js';
 import {CLINICS,staffClinicOf} from '../domain/clinic-scope.js';
 import {queueLabel} from './reappointment.js';
 import {CLINIC_SERVICES,doctorRendersService} from '../../supabase/functions/_shared/clinic-services.js';
@@ -166,7 +167,17 @@ export function openBookApptModal(apptId=null){
   </div>`);
 
   // Populate the clinician selector before fetching the calendar for an existing reschedule.
-  void onClinicChange(editing?.doctorId||null,editing);
+  const requestOnly=isPt&&editing&&editing.patientResponse!=='Awaiting';
+  void Promise.resolve(onClinicChange(editing?.doctorId||null,editing)).then(()=>{if(requestOnly)lockRescheduleRequest();});
+  if(requestOnly){
+    const confirm=document.getElementById('b-confirm');if(confirm)confirm.textContent='Request reschedule';
+    document.querySelector('.booking-steps').textContent='Pick a new date and time. Your doctor approves the change; until then your current appointment stays.';
+  }
+}
+
+// A request keeps the doctor and service; only the date and time change.
+function lockRescheduleRequest(){
+  for(const id of ['b-clinic','b-service','b-doc','b-reason']){const el=document.getElementById(id);if(el){el.disabled=true;el.title='A reschedule request keeps the same doctor, service and chief complaint';}}
 }
 
 export function chooseBookingDate(date,preferredDoctorId=null){
@@ -333,9 +344,11 @@ export async function saveAppt(editId){
   const existing=editId?appointmentRecords().find(a=>a.id===Number(editId)):null;
   if(editId&&(!existing||existing.status!=='Scheduled'||(appState.auth.currentUser.role==='Patient'&&existing.patientId!==appState.auth.currentPatient?.id))){showAlert(msg,'Only an existing scheduled appointment you can access may be rescheduled.');return;}
 
+  const requestOnly=Boolean(existing)&&appState.auth.currentUser.role==='Patient'&&existing.patientResponse!=='Awaiting';
+  if(requestOnly&&patientRescheduleState(existing)==='closed'){showAlert(msg,`Reschedule requests close ${RESCHEDULE_CUTOFF_HOURS} hours before your appointment. Please contact the clinic.`);return;}
   const btn=document.querySelector('.modal-footer .btn-primary');
   const oldText=btn?.textContent;
-  if(btn){btn.disabled=true;btn.textContent=existing?'Rescheduling…':'Booking…';}
+  if(btn){btn.disabled=true;btn.textContent=requestOnly?'Sending request…':existing?'Rescheduling…':'Booking…';}
 
   try{
     if(appState.auth.currentUser?._realSupabase){
@@ -368,6 +381,11 @@ export async function saveAppt(editId){
     void refreshTaskBadges(true);
     closeAllModals();
     const forSelf=appState.auth.currentUser.role==='Patient';
+    if(requestOnly){
+      await renderMyAppointments();
+      showRescheduleRequested({appt:existing,doctor:doc,date,time});
+      return;
+    }
     if(forSelf)await renderMyAppointments();
     else await renderAppointments();
     // Patients get a confirmation that spells out what to bring; staff get a reminder to pass on.
@@ -429,7 +447,30 @@ export function showBookingConfirmation({rescheduled,clinic,service,doctor,date,
 }
 
 export function openRescheduleModal(id){
+  const appt=appointmentRecords().find(a=>a.id===Number(id));
+  if(appState.auth.currentUser.role==='Patient'&&appt){
+    const state=patientRescheduleState(appt);
+    if(state==='closed'){toast(`Reschedule requests close ${RESCHEDULE_CUTOFF_HOURS} hours before your appointment. Please contact the clinic if you can't make it.`,'warning',7000);return;}
+    if(state==='pending'){toast('You already asked to reschedule this appointment. Withdraw that request first to ask for a different time.','info',6000);return;}
+  }
   openBookApptModal(id);
+}
+
+export function showRescheduleRequested({appt,doctor,date,time}){
+  clearToasts();
+  openModal(`<div class="modal booking-done" role="dialog" aria-labelledby="booking-done-title">
+    <div class="modal-body">
+      <div class="booking-done-head"><span class="booking-done-icon pending" aria-hidden="true"><i class="bi bi-hourglass-split"></i></span>
+        <h3 id="booking-done-title">Reschedule request sent</h3>
+        <p>${doctor?escapeHtml(docName(doctor)):'Your doctor'} will review it. We'll notify you once it's approved or declined.</p></div>
+      <dl class="booking-done-summary">
+        <div><dt>Requested</dt><dd>${escapeHtml(dayOfWeek(date))}, ${escapeHtml(fmtDate(date))} · ${escapeHtml(fmtTime(time))}</dd></div>
+        <div><dt>Current</dt><dd>${escapeHtml(dayOfWeek(appt.date))}, ${escapeHtml(fmtDate(appt.date))} · ${escapeHtml(fmtTime(appt.time))} <span class="text-muted">(stays until approved)</span></dd></div>
+        <div><dt>Where</dt><dd>${escapeHtml(appt.clinic)}${appt.service?' · '+escapeHtml(appt.service):''}</dd></div>
+      </dl>
+    </div>
+    <div class="modal-footer booking-done-actions"><button type="button" class="btn btn-primary" ${bindAction('click',()=>closeAllModals())}>Got it</button></div>
+  </div>`);
 }
 
 // Run side effects only after every feature's function exports are available.

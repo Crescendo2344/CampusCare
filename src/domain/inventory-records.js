@@ -31,7 +31,6 @@ export function realInventoryToUi(i){
     threshold:Number(i.threshold||0),
     unit:i.unit||'pcs',
     expiryDate:i.expiry_date||'',
-    supplier:i.supplier||'',
     disbursementDate:i.target_disbursement_date||'',
     photo:i.photo_data||'',
     archived:Boolean(i.archived),

@@ -5,7 +5,7 @@ import {closeAllModals,openModal,showFilePreview} from './modals.js';
 import {fmtTime,sanitizeInput,statusBadge} from './inputValidation.js';
 import {openCamera} from '../app/optional-features.js';
 import {changeAccountPassword,changeProfilePhoto,checkPasswordConfirmation,hideAccountPasswordChecklist,openNameChangeRequest,renderPasswordCooldownNotice,setPasswordFieldError,showAccountPasswordChecklist,updateAccountPasswordStrength} from './nameChangeRequests.js';
-import {saveAccount} from './workflowRequests.js';
+import {openChangeEmailModal,saveAccount} from './workflowRequests.js';
 import {openPrivacyNotice} from './loginLockout.js';
 import {openPrivacyRequestModal} from './privacy.js';
 import {openCookiePolicy,openTermsOfService} from './legalPages.js';
@@ -81,7 +81,6 @@ export async function copyProfileValue(value,label){
 function setAccountEditing(editing,reset=false){
   if(reset){
     const u=appState.auth.currentUser;
-    document.getElementById('acc-email').value=u.email||'';
     document.getElementById('acc-contact').value=u.contact||'';
     const pt=appState.auth.currentPatient;
     if(document.getElementById('hd-course')){
@@ -92,7 +91,7 @@ function setAccountEditing(editing,reset=false){
   }
   document.getElementById('acc-view-fields').hidden=editing;
   document.getElementById('acc-edit-fields').hidden=!editing;
-  if(editing)document.getElementById('acc-email')?.focus();
+  if(editing)document.getElementById('acc-contact')?.focus();
 }
 
 function setPasswordEditing(editing,reset=false){
@@ -150,7 +149,7 @@ export function renderMyAccount(){
           </div>
           <div id="acc-edit-fields" hidden>
             <div class="form-row">
-              <div class="form-group"><label>Email</label><input id="acc-email" value="${escapeHtml(u.email||'')}" type="email" autocomplete="email" ${bindAction('input',(event,element)=>{sanitizeInput(element,'email')})}></div>
+              <div class="form-group"><label for="acc-email">Email</label><div class="acc-email-row"><input id="acc-email" value="${escapeHtml(u.email||'')}" type="email" readonly aria-readonly="true" aria-describedby="acc-email-note"><button type="button" class="btn btn-sm" id="acc-change-email" ${bindAction('click',()=>openChangeEmailModal())}><i class="bi bi-pencil-square" aria-hidden="true"></i> Change email</button></div><p class="form-note" id="acc-email-note">Your sign-in email. Changing it needs a code sent to this address.</p></div>
               <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${escapeHtml(u.contact||'')}" autocomplete="tel" type="tel" inputmode="tel" maxlength="24" placeholder="09XXXXXXXXX or +639XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
               ${programEditFields(pt)}
             </div>

@@ -85,8 +85,7 @@ export async function openUserDetails(id){
         },
         patient:pt?{
           birth_date:pt.birthDate||'',sex:pt.gender||'',blood_type:pt.blood||'',address:pt.address||'',
-          emergency_contact_name:pt.emergencyName||'',emergency_contact_number:pt.emergencyContact||'',
-          medical_history:pt.medHistory||'',allergies:pt.allergies||''
+          emergency_contact_name:pt.emergencyName||'',emergency_contact_number:pt.emergencyContact||''
         }:null
       };
     }
@@ -138,7 +137,7 @@ export async function openUserDetails(id){
             </section>
 
             ${p&&Object.keys(p).length?`<section class="user-detail-section">
-              <h4>Patient / Health Profile</h4>
+              <h4>Patient Profile</h4>
               <div class="user-detail-fields">
                 ${userDetailField('Date of Birth',p.birth_date)}
                 ${userDetailField('Sex',p.sex)}
@@ -146,8 +145,6 @@ export async function openUserDetails(id){
                 ${userDetailField('Address',p.address,true)}
                 ${userDetailField('Emergency Contact Name',p.emergency_contact_name)}
                 ${userDetailField('Emergency Contact Number',p.emergency_contact_number)}
-                ${userDetailField('Allergies',p.allergies)}
-                ${userDetailField('Medical History',p.medical_history,true)}
               </div>
             </section>`:''}
           </div>

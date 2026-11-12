@@ -37,7 +37,6 @@ export function inventoryCsv(items,today){
     csvColumn('','Item No.',i=>i.displayId??i.id),
     csvColumn('Item','Name',i=>i.name),
     csvColumn('Item','Category',i=>i.category),
-    csvColumn('Item','Supplier',i=>i.supplier||''),
     csvColumn('Stock','On Hand',i=>i.qty),
     csvColumn('Stock','Unit',i=>i.unit),
     csvColumn('Stock','Reorder Level',i=>i.threshold),

@@ -53,6 +53,8 @@ export function realAppointmentToUi(a,db,vitalsRow=null){
     reappointedAt:a.reappointed_at||'',
     // Emergency reappointments must be confirmed by this time, or the reserved slot is released.
     reappointDeadline:a.reappoint_deadline||'',
+    // A patient's reschedule waiting for the doctor: the appointment keeps its current date and time.
+    rescheduleRequest:a.reschedule_request_date?{date:a.reschedule_request_date,time:String(a.reschedule_request_time||'').slice(0,5),requestedAt:a.reschedule_requested_at||''}:null,
     triageVitals:realTriageVitalsToUi(vitalsRow),
     _realSupabase:true
   };

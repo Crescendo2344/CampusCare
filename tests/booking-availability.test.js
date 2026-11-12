@@ -22,6 +22,14 @@ test('effective schedule changes and daily limits match each calendar day',()=>{
  assert.deepEqual(days[1].slots.map(s=>s.time),['10:00','10:30','11:00','11:30']);
  assert.equal(days[1].schedule.slotDuration,30);
 });
+test('missing schedule defaults dental appointments to 9 AM and medical appointments to 8 AM',()=>{
+ const dental=build({doctor:{specialty:'Dental',workDays:['Wed'],endTime:'17:00',slotDuration:60,maxPatients:20}});
+ const medical=build({doctor:{specialty:'General Medicine',workDays:['Wed'],endTime:'17:00',slotDuration:60,maxPatients:20}});
+ assert.equal(dental[0].schedule.startTime,'09:00');
+ assert.equal(dental[0].slots[0].time,'09:00');
+ assert.equal(medical[0].schedule.startTime,'08:00');
+ assert.equal(medical[0].slots[0].time,'08:00');
+});
 test('long lunch-overlapping appointments and invalid ranges are blocked',()=>{
  const days=build({doctor:{...doctor,startTime:'11:30',endTime:'14:30',slotDuration:90}});
  assert.equal(days[0].slots[0].kind,'lunch');assert.equal(days[0].slots[1].available,true);

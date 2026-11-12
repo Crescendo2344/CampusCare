@@ -7,7 +7,7 @@ export function buildStudentReport(data,filters={}){
   for(const [key,values] of Object.entries({history:['','range','all'],registration:['','snapshot','range'],archive:['','current','all','archived'],dental:['','used','not','unknown'],medical:['','used','not'],verified:['','yes','no'],sex:['','Male','Female','Other','Unknown'],status:['','Active','Pending','Suspended','Archived']})){
     if(!values.includes(filters[key]||''))throw new Error('Invalid '+key+' filter.');
   }
-  const valid=['','Morning','Evening','Mixed','Unknown'];
+  const valid=['','Morning','Evening','Unknown'];
   if(!valid.includes(filters.classSession||''))throw new Error('Invalid class session.');
   const min=filters.minAge===''||filters.minAge==null?null:Number(filters.minAge);
   const max=filters.maxAge===''||filters.maxAge==null?null:Number(filters.maxAge);
@@ -67,11 +67,11 @@ export function buildStudentReport(data,filters={}){
     rows.push({userId:Number(u.user_id),patientId:p?.patient_id||null,name,idNumber:u.id_number||'',college,classSession,sex,age,status:u.status,verified:!!u.verified,registered,archived,dentalVisits:care.dental.size,medicalVisits:care.medical.size,lastDental:care.lastDental,coverageKnown:!!p});
   }
   // Registration denominators use demographic filters, before dental/medical-use filters.
-  const collegeMap=new Map((filters.college?[filters.college]:['CCICT','COE','COED','CME','CAS','COT']).map(college=>[college,{college,registered:0,dentalUsed:0,dentalNotUsed:0,unknownCoverage:0,morning:0,evening:0,mixed:0,unknownSession:0}]));
+  const collegeMap=new Map((filters.college?[filters.college]:['CCICT','COE','COED','CME','CAS','COT']).map(college=>[college,{college,registered:0,dentalUsed:0,dentalNotUsed:0,unknownCoverage:0,morning:0,evening:0,unknownSession:0}]));
   for(const row of rows){
-    const c=collegeMap.get(row.college)||{college:row.college,registered:0,dentalUsed:0,dentalNotUsed:0,unknownCoverage:0,morning:0,evening:0,mixed:0,unknownSession:0};
+    const c=collegeMap.get(row.college)||{college:row.college,registered:0,dentalUsed:0,dentalNotUsed:0,unknownCoverage:0,morning:0,evening:0,unknownSession:0};
     c.registered++;if(!row.coverageKnown)c.unknownCoverage++;else if(row.dentalVisits)c.dentalUsed++;else c.dentalNotUsed++;
-    c[{Morning:'morning',Evening:'evening',Mixed:'mixed',Unknown:'unknownSession'}[row.classSession]]++;
+    c[{Morning:'morning',Evening:'evening',Unknown:'unknownSession'}[row.classSession]]++;
     collegeMap.set(row.college,c);
   }
   const filtered=rows.filter(row=>{
@@ -84,4 +84,20 @@ export function buildStudentReport(data,filters={}){
   }).sort((a,b)=>a.college.localeCompare(b.college)||a.name.localeCompare(b.name)||a.userId-b.userId);
   const colleges=[...collegeMap.values()].sort((a,b)=>a.college.localeCompare(b.college));
   return {rows:filtered,colleges,registered:rows.length,matched:filtered.length,dentalUsed:rows.filter(r=>r.coverageKnown&&r.dentalVisits).length,dentalNotUsed:rows.filter(r=>r.coverageKnown&&!r.dentalVisits).length,unknownCoverage:rows.filter(r=>!r.coverageKnown).length,unknownSession:rows.filter(r=>r.classSession==='Unknown').length,filters};
+}
+// Staff see only their own clinic's service use. Medical Clinic staff get no dental figures and
+// Dental Clinic staff get no medical figures; administrators (clinic '') see both.
+export function studentReportFilterError(filters,clinic){
+  if(clinic==='Medical Clinic'&&filters?.dental)return 'Dental care filters are for Dental Clinic staff.';
+  if(clinic==='Dental Clinic'&&filters?.medical)return 'Medical care filters are for Medical Clinic staff.';
+  return '';
+}
+export function scopeStudentReport(report,clinic){
+  const hideDental=clinic==='Medical Clinic',hideMedical=clinic==='Dental Clinic';
+  if(!hideDental&&!hideMedical)return {...report,clinic:''};
+  const rows=report.rows.map(r=>({...r,
+    ...(hideDental?{dentalVisits:null,lastDental:null}:{}),
+    ...(hideMedical?{medicalVisits:null}:{})}));
+  const colleges=report.colleges.map(c=>hideDental?{...c,dentalUsed:null,dentalNotUsed:null}:c);
+  return {...report,rows,colleges,clinic,...(hideDental?{dentalUsed:null,dentalNotUsed:null}:{})};
 }

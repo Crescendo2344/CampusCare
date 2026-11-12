@@ -22,7 +22,7 @@ export function vitalSignErrors(v={}){
 export function treatmentFormErrors(f,today){
   const errors={...vitalSignErrors(f.vitals)};
   if(!f.patientId)errors.patient='Choose the patient.';
-  if(String(f.findings||'').trim().length<3)errors.findings='Describe the chief complaint and findings.';
+  if(String(f.findings||'').trim().length<3)errors.findings='Describe the examination findings.';
   if(String(f.diagnosis||'').trim().length<3)errors.diagnosis='Enter the diagnosis or clinical impression.';
   if(!f.date)errors.date='Enter the visit date.';
   else if(f.date>today)errors.date='The visit date cannot be in the future.';
@@ -64,4 +64,20 @@ export function vitalFlags(v={}){
   const pulse=read('pulse');if(pulse>100)flags.pulse={level:'high',label:'High'};else if(pulse<60)flags.pulse={level:'low',label:'Low'};
   const spo2=read('spo2');if(spo2<95)flags.spo2={level:'low',label:'Low'};
   return flags;
+}
+
+// High / Low / Normal for every reading that has been entered, for the vital-sign inputs.
+export function vitalStatus(v={}){
+  const flags=vitalFlags(v),status={};
+  const entered={
+    bp:/^\d{2,3}\s*\/\s*\d{2,3}$/.test(String(v.bp||'').trim()),
+    temp:!blank(v.temp)&&!Number.isNaN(num(v.temp)),
+    pulse:!blank(v.pulse)&&!Number.isNaN(num(v.pulse)),
+    spo2:!blank(v.spo2)&&!Number.isNaN(num(v.spo2))
+  };
+  for(const key of Object.keys(entered)){
+    if(flags[key])status[key]={level:flags[key].level,label:flags[key].level==='high'?'High':'Low'};
+    else if(entered[key])status[key]={level:'normal',label:'Normal'};
+  }
+  return status;
 }

@@ -15,7 +15,7 @@ import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {getUserById} from './documentScanner.js';
 import {syncAdminDirectoryFromSupabase} from './patientService.js';
 import {programChanged,readProgramFields,savePatientProgram} from './profileDetails.js';
-import {adminUserAction,renderUsers} from './userManagement.js';
+import {renderUsers} from './userManagement.js';
 import {renderMyAccount} from './accountSettings.js';
 import {initializeSupabaseClient} from './supabaseClient.js';
 import {escapeHtml} from './issueReports.js';
@@ -293,81 +293,31 @@ export async function saveAccount(){
   const msg=document.getElementById('acc-msg');
   hideAlert(msg);
 
-  const email=document.getElementById('acc-email').value.trim().toLowerCase();
   const contactRaw=document.getElementById('acc-contact').value.trim();
   const contact=normalizePhilippineMobile(contactRaw);
 
   // Apply the registration rules to profile edits without truncating an international number.
-  if(emailValidationError(email)){
-    showAlert(msg,emailValidationError(email));
-    return;
-  }
   if(contactRaw&&!contact){
     showAlert(msg,'Use a Philippine mobile number starting with 09 or +639.');
     return;
   }
 
-  const emailChanged=email!==String(u.email||'').toLowerCase();
   const contactChanged=contact!==String(u.contact||'');
   const program=readProgramFields();
   const programEdited=programChanged(program);
-  if(!emailChanged&&!contactChanged&&!programEdited){
+  if(!contactChanged&&!programEdited){
     showAlert(msg,'No changes to save.','info');
     return;
   }
 
-  // Administrators are explicitly exempt from verification.
-  if(u.role==='Administrator'){
-    const btn=document.getElementById('account-save-button');
-    const oldText=btn?.textContent;
-    if(btn){btn.disabled=true;btn.textContent='Saving…';}
-
-    try{
-      if(u._realSupabase){
-        await adminUserAction({
-          action:'update',
-          user_id:u.dbUserId,
-          email,
-          contact_number:contact
-        });
-        await syncAdminDirectoryFromSupabase();
-        const fresh=appState.data.DB.users.find(x=>x._realSupabase&&x.dbUserId===u.dbUserId);
-        if(fresh){
-          appState.auth.currentUser.email=fresh.email;
-          appState.auth.currentUser.contact=fresh.contact||fresh.contactNo||contact;
-          appState.auth.currentUser.contactNo=appState.auth.currentUser.contact;
-        }else{
-          appState.auth.currentUser.email=email;
-          appState.auth.currentUser.contact=contact;
-          appState.auth.currentUser.contactNo=contact;
-        }
-      }else{
-        u.email=email;
-        u.contact=contact;
-        persistDB();
-      }
-
-      showAlert(msg,'Profile updated successfully.','success');
-      toast('Contact information updated.','success');
-      renderMyAccount();
-    }catch(e){
-      showAlert(msg,e?.message||'Unable to update your profile.');
-    }finally{
-      if(btn){btn.disabled=false;btn.textContent=oldText||'Save Changes';}
-    }
-    return;
-  }
-
-  // Signed-in people edit their own details without an extra code. The contact number is saved at once.
-  // A new email is the sign-in address, so it only switches after the link sent to it is opened: a typo
-  // can never lock anyone out.
+  // Everyone, administrators included, saves their own contact number and program here. The sign-in
+  // email has its own "Change email" step, confirmed by a code sent to the current address.
   const btn=document.getElementById('account-save-button');
   const oldText=btn?.textContent;
   if(btn){btn.disabled=true;btn.textContent='Saving…';}
   try{
     if(!u._realSupabase){
       if(contactChanged){u.contact=contact;u.contactNo=contact;}
-      if(emailChanged)u.email=email;
       if(programEdited&&appState.auth.currentPatient)Object.assign(appState.auth.currentPatient,program);
       persistDB();
       toast('Profile updated.','success');
@@ -376,33 +326,183 @@ export async function saveAccount(){
     }
     if(!initializeSupabaseClient())throw new Error('Unable to connect to CampusCare.');
     if(programEdited)await savePatientProgram(program);
-    if(contactChanged){
-      const {data:{session}}=await appState.supabaseClient.supabaseClient.auth.getSession();
-      if(!session)throw new Error('Your session has expired. Please log in again.');
-      const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/profile-actions`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json',apikey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY,Authorization:`Bearer ${session.access_token}`},
-        body:JSON.stringify({action:'update_contact',contact_number:contact})
-      });
-      const result=await response.json().catch(()=>({}));
-      if(!response.ok||!result.ok)throw new Error(result.error||'Your contact number could not be saved.');
-    }
-    if(emailChanged){
-      const {error}=await appState.supabaseClient.supabaseClient.auth.updateUser({email});
-      if(error)throw error;
-    }
+    if(contactChanged)await profileAction({action:'update_contact',contact_number:contact});
     await refreshCurrentProfileContact();
     renderMyAccount();
-    if(emailChanged){
-      toast(`${contactChanged||programEdited?'Your changes were saved. ':''}Open the link sent to ${email} to switch your email. Until then you sign in with your current email.`,'success',8000);
-    }else{
-      toast(contactChanged&&!programEdited?'Contact number updated.':'Profile updated.','success');
-    }
+    toast(contactChanged&&!programEdited?'Contact number updated.':'Profile updated.','success');
   }catch(e){
     showAlert(document.getElementById('acc-msg')||msg,e?.message||'Unable to update your profile.');
   }finally{
     if(btn&&document.body.contains(btn)){btn.disabled=false;btn.textContent=oldText||'Save Changes';}
   }
+}
+
+async function profileAction(payload){
+  const {data:{session}}=await appState.supabaseClient.supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your session has expired. Please log in again.');
+  const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/profile-actions`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json',apikey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY,Authorization:`Bearer ${session.access_token}`},
+    body:JSON.stringify(payload)
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw Object.assign(new Error(result.error||'Your profile could not be saved.'),{retryAfter:Number(result.retry_after||0)});
+  return result;
+}
+
+// Step 1 of changing the sign-in email: type the new address twice, then request a code. The code goes to
+// the current address, so only the account owner can move the sign-in email.
+export function openChangeEmailModal(prefill=''){
+  const current=String(appState.auth.currentUser?.email||'');
+  openModal(`<div class="modal otp-modal" role="dialog" aria-labelledby="otp-title" aria-describedby="otp-desc">
+    <button class="close-btn otp-close" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button>
+    <div class="otp-icon" aria-hidden="true"><i class="bi bi-envelope-at"></i></div>
+    <h3 id="otp-title">Change sign-in email</h3>
+    <p id="otp-desc" class="otp-desc">Your current email is<br><strong>${escapeHtml(current)}</strong><br>We'll send a code there to confirm it's you.</p>
+    <div class="otp-fields">
+      <div class="form-group"><label for="ce-new">New email</label><input id="ce-new" type="email" autocomplete="email" maxlength="150" value="${escapeHtml(prefill)}"></div>
+      <div class="form-group"><label for="ce-confirm">Confirm new email</label><input id="ce-confirm" type="email" autocomplete="off" maxlength="150" value="${escapeHtml(prefill)}"></div>
+    </div>
+    <p class="otp-status" id="otp-status" role="alert" aria-live="assertive"></p>
+    <button class="btn btn-primary otp-verify" id="ce-request" ${bindAction('click',()=>requestEmailChangeCode())}>Request code</button>
+  </div>`);
+  for(const id of ['ce-new','ce-confirm'])document.getElementById(id)?.addEventListener('keydown',event=>{if(event.key==='Enter')requestEmailChangeCode();});
+  for(const id of ['ce-new','ce-confirm'])document.getElementById(id)?.addEventListener('input',()=>setCodeStatus(''));
+  setTimeout(()=>document.getElementById('ce-new')?.focus(),50);
+}
+
+async function requestEmailChangeCode(){
+  const email=String(document.getElementById('ce-new')?.value||'').trim().toLowerCase();
+  const again=String(document.getElementById('ce-confirm')?.value||'').trim().toLowerCase();
+  const current=String(appState.auth.currentUser?.email||'').toLowerCase();
+  const problem=!email?'Enter your new email.':emailValidationError(email)||(email===current?'That is already your sign-in email.':email!==again?'The two emails do not match.':'');
+  if(problem){setCodeStatus(problem,'error');return;}
+  const button=document.getElementById('ce-request');
+  if(button){button.disabled=true;button.textContent='Sending…';}
+  try{
+    const result=await profileAction({action:'request_email_change',email});
+    openEmailCodeModal(email,result.sent_to||appState.auth.currentUser?.email||'');
+  }catch(e){
+    setCodeStatus(e.message,'error');
+    if(button){button.disabled=false;button.textContent='Request code';}
+  }
+}
+
+// Step 2: six boxes like most sign-in screens. Typing moves on, paste fills them all, Backspace steps
+// back, and the code is checked as soon as the sixth digit is in.
+export function openEmailCodeModal(email,sentTo){
+  openModal(`<div class="modal otp-modal" role="dialog" aria-labelledby="otp-title" aria-describedby="otp-desc">
+    <button class="close-btn otp-close" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button>
+    <div class="otp-icon" aria-hidden="true"><i class="bi bi-envelope-check"></i></div>
+    <h3 id="otp-title">Check your email</h3>
+    <p id="otp-desc" class="otp-desc">Enter the 6-digit code we sent to your current email<br><strong>${escapeHtml(sentTo)}</strong><br>Your sign-in email will change to <strong>${escapeHtml(email)}</strong>.</p>
+    <div class="otp-boxes" id="otp-boxes" role="group" aria-label="6-digit verification code">
+      ${Array.from({length:6},(_,i)=>`<input class="otp-box" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit ${i+1} of 6" ${i===0?'autocomplete="one-time-code"':'autocomplete="off"'}>`).join('')}
+    </div>
+    <p class="otp-status" id="otp-status" role="alert" aria-live="assertive"></p>
+    <button class="btn btn-primary otp-verify" id="otp-verify" disabled ${bindAction('click',()=>confirmEmailCode(email))}>Verify</button>
+    <p class="otp-resend">Didn't get it? <button type="button" class="link-btn" id="otp-resend" disabled ${bindAction('click',()=>resendEmailCode(email,sentTo))}>Resend code</button></p>
+    <button type="button" class="link-btn otp-change" ${bindAction('click',()=>openChangeEmailModal(email))}>Use a different new email</button>
+    <p class="otp-note">The code expires in 10 minutes. Check Spam or Promotions if it isn't in your inbox.</p>
+  </div>`);
+  wireCodeBoxes(()=>confirmEmailCode(email));
+  startResendCountdown(60);
+}
+
+function codeBoxes(){return [...document.querySelectorAll('#otp-boxes .otp-box')];}
+function enteredCode(){return codeBoxes().map(box=>box.value).join('');}
+function setCodeStatus(text,kind=''){
+  const status=document.getElementById('otp-status'),boxes=document.getElementById('otp-boxes');
+  if(status){status.textContent=text;status.className=`otp-status ${kind}`;}
+  boxes?.classList.toggle('error',kind==='error');
+  if(kind==='error'){boxes?.classList.remove('shake');void boxes?.offsetWidth;boxes?.classList.add('shake');}
+}
+
+function wireCodeBoxes(onComplete){
+  const boxes=codeBoxes();
+  const refresh=()=>{
+    const code=enteredCode();
+    boxes.forEach(box=>box.classList.toggle('filled',Boolean(box.value)));
+    const verify=document.getElementById('otp-verify');if(verify)verify.disabled=code.length!==6;
+    if(code.length===6)onComplete();
+  };
+  const fill=(start,digits)=>{
+    digits.slice(0,6-start).split('').forEach((d,i)=>{boxes[start+i].value=d;});
+    boxes[Math.min(start+digits.length,5)].focus();
+  };
+  boxes.forEach((box,i)=>{
+    box.addEventListener('input',()=>{
+      const digits=box.value.replace(/\D/g,'');
+      if(document.getElementById('otp-status')?.textContent)setCodeStatus('');
+      if(digits.length>1)fill(i,digits);           // autofill or a phone keyboard suggestion
+      else{box.value=digits;if(digits&&i<5)boxes[i+1].focus();}
+      refresh();
+    });
+    box.addEventListener('keydown',event=>{
+      if(event.key==='Backspace'&&!box.value&&i>0){boxes[i-1].value='';boxes[i-1].focus();refresh();event.preventDefault();}
+      else if(event.key==='ArrowLeft'&&i>0){boxes[i-1].focus();event.preventDefault();}
+      else if(event.key==='ArrowRight'&&i<5){boxes[i+1].focus();event.preventDefault();}
+      else if(event.key==='Enter'&&enteredCode().length===6)onComplete();
+    });
+    box.addEventListener('focus',()=>box.select());
+    box.addEventListener('paste',event=>{
+      const digits=(event.clipboardData?.getData('text')||'').replace(/\D/g,'');
+      if(!digits)return;
+      event.preventDefault();fill(digits.length>=6?0:i,digits);refresh();
+    });
+  });
+  setTimeout(()=>boxes[0]?.focus(),50);
+}
+
+function startResendCountdown(seconds){
+  const button=document.getElementById('otp-resend');if(!button)return;
+  clearTimeout(button._timer);
+  let left=Math.max(0,Math.ceil(seconds));
+  const tick=()=>{
+    if(!document.body.contains(button))return;
+    button.disabled=left>0;
+    button.textContent=left>0?`Resend code in 0:${String(left).padStart(2,'0')}`:'Resend code';
+    if(left-->0)button._timer=setTimeout(tick,1000);
+  };
+  tick();
+}
+
+async function resendEmailCode(email,sentTo){
+  const button=document.getElementById('otp-resend');if(button)button.disabled=true;
+  try{
+    await profileAction({action:'request_email_change',email});
+    codeBoxes().forEach(box=>{box.value='';box.classList.remove('filled');});
+    setCodeStatus(`A new code was sent to ${sentTo}.`,'success');
+    codeBoxes()[0]?.focus();
+    startResendCountdown(60);
+  }catch(e){
+    setCodeStatus(e.message,'error');
+    startResendCountdown(e.retryAfter||0);
+  }
+}
+
+let checkingCode=false;
+async function confirmEmailCode(email){
+  if(checkingCode||enteredCode().length!==6)return;
+  checkingCode=true;
+  const button=document.getElementById('otp-verify');
+  if(button){button.disabled=true;button.textContent='Verifying…';}
+  codeBoxes().forEach(box=>{box.disabled=true;});
+  try{
+    await profileAction({action:'confirm_email_change',code:enteredCode()});
+    document.getElementById('otp-boxes')?.classList.add('success');
+    setCodeStatus('Verified','success');
+    await new Promise(resolve=>setTimeout(resolve,600));
+    closeAllModals();
+    await refreshCurrentProfileContact();
+    renderMyAccount();
+    toast(`Your sign-in email is now ${email}.`,'success');
+  }catch(e){
+    codeBoxes().forEach(box=>{box.disabled=false;box.value='';box.classList.remove('filled');});
+    setCodeStatus(e.message,'error');
+    codeBoxes()[0]?.focus();
+    if(button){button.textContent='Verify';button.disabled=true;}
+  }finally{checkingCode=false;}
 }
 
 export function cancelAccountUpdate(){

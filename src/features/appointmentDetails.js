@@ -54,6 +54,7 @@ export function viewAppt(id){
       </div>
       ${overdue?'<div class="alert alert-warning show" style="display:block">This appointment date has passed but it is still marked Scheduled. Record the outcome: the doctor adds visit notes, mark it as a no-show, or return it for reappointment.</div>':''}
       ${role==='Patient'?reappointmentNoticeHtml(a,{onPickAnother:id=>{closeAllModals();openRescheduleModal(id);}}):''}
+      ${a.rescheduleRequest&&['Scheduled','Confirmed'].includes(a.status)?`<div class="alert alert-warning show"><i class="bi bi-hourglass-split" aria-hidden="true"></i> Reschedule requested to <strong>${escapeHtml(fmtDate(a.rescheduleRequest.date))} · ${escapeHtml(fmtTime(a.rescheduleRequest.time))}</strong>. ${role==='Doctor'?'Approve or decline it in My Schedule.':'The current time stays until the doctor approves.'}</div>`:''}
       ${row('Clinic',escapeHtml(a.clinic||'—'))}
       ${row('Service',escapeHtml(a.service||'—'))}
       ${row('Doctor',doc?`Dr. ${escapeHtml(doc.fname+' '+doc.lname)}${doc.specialty?` · ${escapeHtml(doc.specialty)}`:''}`:'Unassigned')}

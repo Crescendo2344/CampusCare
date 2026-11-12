@@ -1,6 +1,6 @@
 // This endpoint returns campus student coverage only to active clinic administrators/staff.
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.117.3';
-import {buildStudentReport} from './student-report.js';
+import {buildStudentReport,scopeStudentReport,studentReportFilterError} from './student-report.js';
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS'};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json','Cache-Control':'no-store'}});
 Deno.serve(async req=>{
@@ -12,10 +12,15 @@ Deno.serve(async req=>{
     if(!token)return json({error:'Authentication required.'},401);
     const {data:{user},error}=await client.auth.getUser(token);
     if(error||!user)return json({error:'Invalid session.'},401);
-    const {data:actor,error:actorError}=await client.from('users').select('role,status').eq('auth_user_id',user.id).maybeSingle();
+    const {data:actor,error:actorError}=await client.from('users').select('role,status,clinic').eq('auth_user_id',user.id).maybeSingle();
     if(actorError)throw actorError;
     if(actor?.status!=='Active'||!['Administrator','Staff'].includes(actor.role))return json({error:'Administrator or staff reports access required.'},403);
+    // Staff are limited to their own clinic; a staff account without one gets no report.
+    const clinic=actor.role==='Staff'?(['Medical Clinic','Dental Clinic'].includes(actor.clinic)?actor.clinic:null):'';
+    if(clinic===null)return json({error:'Your staff account has no clinic assigned. Ask the administrator.'},403);
     const filters=await req.json();
+    const filterError=studentReportFilterError(filters,clinic);
+    if(filterError)return json({error:filterError},403);
     // Validate filters before any roster queries, then paginate to avoid the 1,000-row default.
     buildStudentReport({},filters);
     async function all(table:string,columns:string,key:string){
@@ -35,6 +40,6 @@ Deno.serve(async req=>{
       all('treatments','treatment_id,patient_id,appointment_id,treatment_date,status,archived_at','treatment_id'),
       all('dental_records','dental_record_id,treatment_id,patient_id,record_date','dental_record_id')
     ]);
-    return json({ok:true,report:buildStudentReport({users,patients,appointments,treatments,dentalRecords},filters)});
+    return json({ok:true,report:scopeStudentReport(buildStudentReport({users,patients,appointments,treatments,dentalRecords},filters),clinic)});
   }catch(error){return json({error:error instanceof Error?error.message:'Unable to generate student report.'},400);}
 });

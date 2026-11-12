@@ -60,9 +60,11 @@ function treatmentPatientCardHtml(pt){
     ${patientAvatarHtml(pt,44)}
     <div class="tv-patient-main"><strong>${escapeHtml(pt.fname+' '+pt.lname)}</strong><span>${facts.map(escapeHtml).join(' · ')}</span>
       ${last?`<span class="tv-last">Last visit ${escapeHtml(fmtDate(last.date))} · ${escapeHtml(last.diagnosis||'')}</span>`:''}</div>
-    ${patientData.hasAllergyAlert(pt.allergies)
-      ?`<span class="tv-allergy" role="alert"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> Allergies: ${escapeHtml(pt.allergies)}</span>`
-      :'<span class="tv-no-allergy"><i class="bi bi-shield-check" aria-hidden="true"></i> No known allergies</span>'}
+    ${{
+      alert:`<span class="tv-allergy" role="alert"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> Allergies: ${escapeHtml(pt.allergies)}</span>`,
+      none:'<span class="tv-no-allergy"><i class="bi bi-shield-check" aria-hidden="true"></i> No known allergies</span>',
+      unrecorded:'<span class="tv-allergy-unknown" title="The patient has not filled in allergies. Ask before prescribing."><i class="bi bi-question-circle" aria-hidden="true"></i> Allergies not recorded · ask the patient</span>'
+    }[patientData.allergyStatus(pt.allergies)]}
   </div>`;
 }
 
@@ -90,9 +92,8 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
   const clinic=treatmentClinicFor(appState.auth.currentUser,appt);
   const dental=clinic==='Dental Clinic';
   const diagnoses=[...new Set(treatmentRecords().filter(t=>t.doctorId===appState.auth.currentUser.id).map(t=>String(t.diagnosis||'').trim()).filter(Boolean))].slice(0,40);
-  // Readings the front desk took at triage are filled in; the doctor may correct them here.
-  const triage=hasTriageVitals(appt?.triageVitals)?appt.triageVitals:null;
-  const vital=([key,label,unit,placeholder,mode])=>`<div class="form-group tv-vital" data-vital="${key}"><label for="tm-${key}">${label} <span class="tv-unit">${unit}</span><span class="tv-flag" hidden></span></label><input id="tm-${key}" ${mode?`inputmode="${mode}"`:''} placeholder="${placeholder}" autocomplete="off" value="${escapeHtml(triage?.[key]||'')}"><p class="registration-field-error" id="tm-${key}-error" aria-live="polite" hidden></p></div>`;
+  // Readings the front desk took at triage are shown read-only; with none, the section says there is no record.
+  const triage=appt?(hasTriageVitals(appt.triageVitals)?appt.triageVitals:null):triageVitalsForPatient(pt?.id);
 
   openModal(`<div class="modal modal-lg tv-modal">
     <div class="modal-header"><div><h3>${appt?`Complete appointment #${appointmentDisplayId(appt)}`:'Record visit'}</h3>
@@ -103,24 +104,27 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
       <div id="trm-msg"></div>
       <input type="hidden" id="tm-record-type" value="${clinic}">
       ${pt?treatmentPatientCardHtml(pt):`<div class="form-group"><label for="tm-pt">Patient <span class="required">*</span></label>
-        <select id="tm-pt" ${bindAction('change',(event,element)=>{const host=document.getElementById('tm-patient-card'),p=getPatientById(Number(element.value));if(host)host.innerHTML=p?treatmentPatientCardHtml(p):'';})}><option value="">Choose a patient</option>${patientSource.map(p=>`<option value="${p.id}">${escapeHtml(p.lname+', '+p.fname)}${p.idNo?' · '+escapeHtml(p.idNo):''}</option>`).join('')}</select>
+        <select id="tm-pt" ${bindAction('change',(event,element)=>{const host=document.getElementById('tm-patient-card'),p=getPatientById(Number(element.value));if(host)host.innerHTML=p?treatmentPatientCardHtml(p):'';fillTriageVitals(p?triageVitalsForPatient(p.id):null);const c=document.getElementById('tm-complaint');if(c){const r=complaintForPatient(p?.id);c.innerHTML=complaintHtml(r);c.classList.toggle('empty',!r);}})}><option value="">Choose a patient</option>${patientSource.map(p=>`<option value="${p.id}">${escapeHtml(p.lname+', '+p.fname)}${p.idNo?' · '+escapeHtml(p.idNo):''}</option>`).join('')}</select>
         <p class="registration-field-error" id="tm-pt-error" aria-live="polite" hidden></p></div><div id="tm-patient-card"></div>`}
 
       <section class="tv-section"><h4>Vital signs</h4>
-        <p class="form-note tv-note">${triage?`<i class="bi bi-check2-circle" aria-hidden="true"></i> From triage${escapeHtml(triageVitalsTakenBy(triage))}. Correct them here if needed.`:'Taken first, when the patient arrives.'}</p>
-        <div class="tv-vitals" ${bindAction('input',()=>updateVitalFlags())}>${TRIAGE_VITAL_FIELDS.map(vital).join('')}</div>
+        <div id="tm-vitals">${vitalsHtml(triage)}</div>
       </section>
 
-      <section class="tv-section"><h4>Chief complaint and history</h4>
-        <div class="form-group"><label for="tm-findings">Chief complaint <span class="required">*</span></label>
-          <textarea id="tm-findings" rows="2" maxlength="2500" placeholder="e.g. Headache and fever for 2 days">${escapeHtml(appt?.reason||'')}</textarea>${appt?.reason?'<p class="form-note">From the patient’s booking. Edit it to match what they tell you.</p>':''}<p class="registration-field-error" id="tm-findings-error" aria-live="polite" hidden></p></div>
+      <section class="tv-section"><h4>Chief complaint</h4>
+        <p class="tv-complaint${(appt?appt.reason:complaintForPatient(pt?.id))?'':' empty'}" id="tm-complaint">${complaintHtml(appt?appt.reason:complaintForPatient(pt?.id))}</p>
       </section>
 
       ${dental?dentalRecordFormHtml({},pt,defaultDate):''}
 
       <section class="tv-section"><h4>Findings</h4>
-        <div class="form-group"><label for="tm-exam">Findings</label>
-          <textarea id="tm-exam" rows="2" maxlength="2400" placeholder="${dental?'e.g. Caries on 36, gums slightly inflamed':'e.g. Throat inflamed, lungs clear'}"></textarea></div>
+        <div class="form-group">
+          <textarea id="tm-exam" aria-label="Findings" aria-required="true" rows="2" maxlength="2400" placeholder="${dental?'e.g. Caries on 36, gums slightly inflamed':'e.g. Throat inflamed, lungs clear'}"></textarea><p class="registration-field-error" id="tm-exam-error" aria-live="polite" hidden></p></div>
+      </section>
+
+      <section class="tv-section"><h4>Recommendation</h4>
+        <div class="form-group">
+          <textarea id="tm-notes" aria-label="Recommendation" rows="2" maxlength="2400" placeholder="${dental?'e.g. Oral prophylaxis in 6 months, avoid sugary drinks':'e.g. Rest, drink plenty of fluids, return if fever persists'}"></textarea></div>
       </section>
     </div>
     <div class="modal-footer">
@@ -130,6 +134,39 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
   if(triage)updateVitalFlags();
 }
 
+// Without a linked appointment, use the readings taken at triage for the patient's nearest open appointment.
+function triageVitalsForPatient(patientId){
+  return patientAppointments(patientId).find(x=>hasTriageVitals(x.triageVitals))?.triageVitals||null;
+}
+// The chief complaint is the reason the patient gave when booking: today's appointment first, otherwise the nearest one.
+function complaintForPatient(patientId){
+  return patientAppointments(patientId).find(x=>String(x.reason||'').trim())?.reason||'';
+}
+// The patient's open appointments visible to this doctor: today first, then upcoming (soonest first), then past (latest first).
+function patientAppointments(patientId){
+  const pt=patientId?getPatientById(patientId):null;
+  if(!pt)return [];
+  const today=appState.clinicInformation.TODAY;
+  const open=x=>!['Completed','Cancelled','No-show','Rejected'].includes(x.status);
+  const mine=appointmentRecords().filter(x=>(x.patientId===pt.id||(pt.dbPatientId!=null&&x.dbPatientId===Number(pt.dbPatientId)))&&open(x));
+  const rank=x=>x.date===today?0:x.date>today?1:2;
+  return mine.sort((a,b)=>rank(a)-rank(b)||(rank(a)===2?String(b.date).localeCompare(String(a.date)):String(a.date).localeCompare(String(b.date))));
+}
+function complaintHtml(reason){
+  return reason?escapeHtml(reason):'No chief complaint on record.';
+}
+// Triage readings are display-only: the doctor can't change what the front desk recorded.
+function vitalsHtml(triage){
+  if(!triage)return '<p class="tv-complaint empty">No record</p>';
+  const vital=([key,label,unit])=>`<div class="form-group tv-vital" data-vital="${key}"><label for="tm-${key}">${label} <span class="tv-unit">${unit}</span><span class="tv-flag" hidden></span></label><input id="tm-${key}" readonly tabindex="-1" autocomplete="off" value="${escapeHtml(triage[key]||'')}"></div>`;
+  return `<p class="form-note tv-note"><i class="bi bi-check2-circle" aria-hidden="true"></i> From triage${escapeHtml(triageVitalsTakenBy(triage))}.</p>
+    <div class="tv-vitals">${TRIAGE_VITAL_FIELDS.map(vital).join('')}</div>`;
+}
+function fillTriageVitals(triage){
+  const host=document.getElementById('tm-vitals');
+  if(host)host.innerHTML=vitalsHtml(triage);
+  updateVitalFlags();
+}
 function isoAfter(date,days){return new Date(Date.parse(date+'T12:00:00Z')+days*86400000).toISOString().slice(0,10);}
 function setFollowUp(days){
   const input=document.getElementById('tm-followup'),date=document.getElementById('tm-date')?.value||appState.clinicInformation.TODAY;
@@ -143,19 +180,17 @@ function setFollowUp(days){
 function updateVitalFlags(){
   const read=key=>document.getElementById('tm-'+key)?.value||'';
   const vitals=Object.fromEntries(TRIAGE_VITAL_FIELDS.map(([key])=>[key,read(key)]));
-  const flags=clinicalChecks.vitalFlags(vitals);
+  const flags=clinicalChecks.vitalStatus(vitals);
   for(const [key] of TRIAGE_VITAL_FIELDS){
     const wrap=document.querySelector(`.tv-vital[data-vital="${key}"]`),flag=wrap?.querySelector('.tv-flag');if(!flag)continue;
     const f=flags[key];flag.hidden=!f;flag.textContent=f?.label||'';flag.className='tv-flag '+(f?.level||'');
-    wrap.classList.toggle('flagged',Boolean(f));
+    wrap.classList.toggle('flagged',Boolean(f)&&f.level!=='normal');
   }
 }
 
 export async function saveTreatment(ptId,apptId){
   const ptIdVal=ptId||parseInt(document.getElementById('tm-pt')?.value||'0');
-  const complaint=document.getElementById('tm-findings').value.trim(),exam=document.getElementById('tm-exam')?.value.trim()||'';
-  // Stored as one findings text: the complaint, then the examination when recorded.
-  const findings=exam?`${complaint}\n\nExamination: ${exam}`:complaint;
+  const findings=document.getElementById('tm-exam')?.value.trim()||'';
   const diag=document.getElementById('tm-diag')?.value.trim()||'Unspecified';
   const presc=document.getElementById('tm-presc')?.value.trim()||'';
   const notes=document.getElementById('tm-notes')?.value.trim()||'';
@@ -173,12 +208,12 @@ export async function saveTreatment(ptId,apptId){
   hideAlert(msg);
 
   const vitalsInput={
-    bp:document.getElementById('tm-bp').value.trim(),
-    temp:document.getElementById('tm-temp').value.trim(),
-    spo2:document.getElementById('tm-spo2').value.trim()
+    bp:document.getElementById('tm-bp')?.value.trim()||'',
+    temp:document.getElementById('tm-temp')?.value.trim()||'',
+    spo2:document.getElementById('tm-spo2')?.value.trim()||''
   };
   const errors=clinicalChecks.treatmentFormErrors({patientId:ptIdVal,findings,diagnosis:diag,prescription:presc,date,followup,vitals:vitalsInput,medName,dosage,frequency,endDate},appState.clinicInformation.TODAY);
-  const fieldIds={bp:'tm-bp',temp:'tm-temp',spo2:'tm-spo2',patient:'tm-pt',findings:'tm-findings',diagnosis:'tm-diag',prescription:'tm-presc',date:'tm-date',followup:'tm-followup',dosage:'tm-dosage',frequency:'tm-frequency',endDate:'tm-enddate'};
+  const fieldIds={bp:'tm-bp',temp:'tm-temp',spo2:'tm-spo2',patient:'tm-pt',findings:'tm-exam',diagnosis:'tm-diag',prescription:'tm-presc',date:'tm-date',followup:'tm-followup',dosage:'tm-dosage',frequency:'tm-frequency',endDate:'tm-enddate'};
   for(const id of Object.values(fieldIds)){const el=document.getElementById(id+'-error');if(el){el.hidden=true;el.textContent='';}document.getElementById(id)?.removeAttribute('aria-invalid');}
   if(Object.keys(errors).length){
     for(const [key,message] of Object.entries(errors)){const id=fieldIds[key],el=document.getElementById(id+'-error');if(el){el.textContent=message;el.hidden=false;}document.getElementById(id)?.setAttribute('aria-invalid','true');}
@@ -323,7 +358,7 @@ export function treatmentDocumentHtml(t){
     <div class="treatment-doc-section"><h4>Examination Findings</h4><p>${safe(t.findings)}</p></div>
     <div class="treatment-doc-section"><h4>Diagnosis / Clinical Impression</h4><p><strong>${safe(t.diagnosis)}</strong></p></div>
     <div class="treatment-doc-section"><h4>Prescription / Treatment Given</h4><p>${safe(t.prescription)}</p></div>
-    <div class="treatment-doc-section"><h4>Clinical Notes / Instructions</h4><p>${safe(t.notes)}</p></div>
+    <div class="treatment-doc-section"><h4>Recommendation</h4><p>${safe(t.notes)}</p></div>
     ${(t.amendments||[]).length?`<div class="treatment-doc-section treatment-doc-amend"><h4>Clarifications</h4>${t.amendments.map(m=>`<p><strong>${escapeHtml(new Date(m.at).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}))} · ${escapeHtml(m.by_name||'Attending doctor')}:</strong> ${escapeHtml(m.note)}</p>`).join('')}<p style="font-size:.7rem;color:#6b7680">Added after the visit. The original entries above are unchanged.</p></div>`:''}
     <div class="treatment-doc-sign"><div><div class="line">${safe(doc.fname?docName(doc):'Attending Doctor')}</div><span>Attending Clinician</span></div></div>
     <div style="margin-top:25px;padding-top:10px;border-top:1px solid #edf0f2;font-size:.6rem;color:#7a858d;text-align:center">Generated by CampusCare · CTU Main Campus · ${new Date().toLocaleString('en-PH')}</div>
@@ -394,7 +429,7 @@ export function dentalRecordDocumentHtml(t){
   const d=t.dentalRecord||{};
   const age=pt.age||'';
   const safe=v=>escapeHtml(v||'');
-  const allRows=(nums,primary=false)=>`<div class="dental-chart-row ${primary?'primary':''}">${nums.map(n=>`<div class="dental-chart-cell"><strong>${n}</strong><span>${safe(d.odontogram?.[n]||'')}</span></div>`).join('')}</div>`;
+  const allRows=(nums,primary=false)=>`<div class="dental-chart-row ${primary?'primary':''}">${nums.map(n=>`<div class="dental-chart-cell"><strong>${n}</strong><span>${safe(d.odontogram?.[n]||'')}</span>${d.odontogram?.[n+'-surfaces']?`<small>${safe(d.odontogram[n+'-surfaces'].replace(/,/g,' '))}</small>`:''}</div>`).join('')}</div>`;
   const oral=d.oralHealth||{};
   const oralLines=[
     ['Satisfactory',oral.satisfactory],['Fair',oral.fair],['Poor',oral.poor],

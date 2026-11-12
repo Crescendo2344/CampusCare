@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import {CLINIC_SERVICES,clinicForSpecialization,doctorRendersService} from "../_shared/clinic-services.js";
+import {CLINIC_SERVICES,clinicForSpecialization,defaultStartTimeForSpecialty,doctorRendersService} from "../_shared/clinic-services.js";
 import {buildDoctorAvailability} from "../_shared/booking-availability.js";
 import {cleanTriageVitals,triageVitalErrors} from "../_shared/triage-vitals.js";
 import {EMERGENCY_MAX_DAYS_AHEAD,EMERGENCY_REASONS,emergencyBlockedTimes,emergencyReappointMessage,emergencySearchEnd,planEmergencyReappointments,prettyDeadline} from "../_shared/emergency-reappointment.js";
@@ -31,6 +31,8 @@ const semesterLabel=(day:string,s:any)=>{
   return m>=7?`1st Semester, SY ${y}–${y+1}`:`2nd Semester, SY ${y-1}–${y}`;
 };
 const PERSONNEL=["Teaching Personnel","Non-Teaching Personnel"];
+const RESCHEDULE_CUTOFF_HOURS=24;
+const clearRescheduleRequest={reschedule_request_date:null,reschedule_request_time:null,reschedule_requested_at:null};
 // An emergency reappointment must be confirmed by its deadline; after that the patient books anew.
 const deadlinePassed=(appt:any)=>appt?.patient_response==="Awaiting"&&!!appt?.reappoint_deadline&&Date.parse(appt.reappoint_deadline)<=Date.now();
 const hasStarted=(appt:any)=>{
@@ -95,6 +97,9 @@ Deno.serve(async(req)=>{
       if(action!=="create"&&!existing)return json({error:"Appointment not found."},404);
       if(action!=="create"&&!OPEN.includes(existing.status))return json({error:"Only scheduled appointments can be moved."},409);
       const reappoint=action==="reappoint";
+      // A patient's own reschedule is a request the doctor approves; picking another time after a clinic
+      // reappointment (patient_response "Awaiting") still applies at once.
+      const rescheduleRequest=action==="reschedule"&&actor.role==="Patient"&&existing?.patient_response!=="Awaiting";
       if(reappoint&&!(ownsClinic(existing.clinic)||(actor.role==="Doctor"&&existing.doctor_id===actor.user_id)))
         return canManageAll?otherClinic():json({error:"Only the doctor of this appointment or the front desk can propose a new time."},403);
       if(canManageAll&&!reappoint&&existing&&!ownsClinic(existing.clinic))return otherClinic();
@@ -107,6 +112,8 @@ Deno.serve(async(req)=>{
         if(!own)return json({error:"Patient record not found."},400);
         if(action==="reschedule"&&existing?.patient_id!==own)return json({error:"You may only reschedule your own appointment."},403);
         if(action==="reschedule"&&deadlinePassed(existing))return json({error:"The time to confirm this rebooking has passed. Please book a new appointment."},409);
+        if(rescheduleRequest&&Date.parse(`${existing.appointment_date}T${time5(existing.appointment_time)}:00+08:00`)-Date.now()<RESCHEDULE_CUTOFF_HOURS*3600*1000)
+          return json({error:`Reschedule requests close ${RESCHEDULE_CUTOFF_HOURS} hours before your appointment. Please contact the clinic if you can't make it.`},409);
         patientId=own;
       }else if(!canManageAll){
         return json({error:"Only patients and clinic staff may book or reschedule appointments."},403);
@@ -125,6 +132,9 @@ Deno.serve(async(req)=>{
       const apology=String(body.reappoint_reason||"").trim().slice(0,500);
 
       if(!patientId||!doctorId||!serviceName||!date||!time)return json({error:"Patient, doctor, service, date, and time are required."},400);
+      if(rescheduleRequest&&(doctorId!==existing.doctor_id||serviceName!==existing.service))
+        return json({error:"A reschedule request keeps the same doctor and service. To change them, cancel this appointment and book a new one."},400);
+      if(rescheduleRequest&&date===existing.appointment_date&&time5(existing.appointment_time)===time)return json({error:"Choose a different date or time."},400);
       if(reason.length<3)return json({error:"Describe the complaint or reason for the visit.",field_errors:{reason:"Describe the complaint or reason for the visit."}},400);
       if(reappoint&&apology.length<3)return json({error:"Tell the patient briefly why the visit cannot push through."},400);
       if(reappoint&&date===existing.appointment_date&&time5(existing.appointment_time)===time)return json({error:"Choose a different date or time."},400);
@@ -166,7 +176,7 @@ Deno.serve(async(req)=>{
       }
 
       const {data:doctor}=await admin.from("users")
-        .select("user_id,role,status,work_days,start_time,end_time,slot_duration,specialty,services_rendered")
+        .select("user_id,role,status,work_days,start_time,end_time,slot_duration,max_patients,specialty,services_rendered")
         .eq("user_id",doctorId).maybeSingle();
       if(!doctor||doctor.role!=="Doctor"||doctor.status!=="Active")return json({error:"Selected doctor is unavailable."},400);
       // New or changed bookings follow the current service list; an existing booking keeps what it was booked as.
@@ -193,10 +203,10 @@ Deno.serve(async(req)=>{
       const working=rule?!!rule.is_working:workDays.includes(dayName(date));
       if(!working)return json({error:"The selected doctor does not work on that day."},400);
 
-      const scheduleStart=time5(rule?.start_time||doctor.start_time||"08:00");
+      const scheduleStart=time5(rule?.start_time||doctor.start_time||defaultStartTimeForSpecialty(doctor.specialty));
       const scheduleEnd=time5(rule?.end_time||doctor.end_time||"17:00");
       const slotDuration=Math.max(15,Number(rule?.slot_duration||doctor.slot_duration||60));
-      const maxPatients=Math.max(1,Number(rule?.max_patients||20));
+      const maxPatients=Math.max(1,Number(rule?.max_patients||doctor.max_patients||20));
       const start=mins(scheduleStart),end=mins(scheduleEnd),t=mins(time);
 
       const {data:override}=await admin.from("appointment_slot_overrides")
@@ -240,6 +250,23 @@ Deno.serve(async(req)=>{
         .maybeSingle();
       if(conflict&&conflict.appointment_id!==appointmentId)return json({error:"That time slot is already booked."},409);
 
+      // The appointment keeps its time; the doctor is asked to approve the new one.
+      if(rescheduleRequest){
+        const {data:saved,error}=await admin.from("appointments").update({
+          reschedule_request_date:date,reschedule_request_time:time,reschedule_requested_at:new Date().toISOString(),reason:reason||null
+        }).eq("appointment_id",appointmentId).in("status",OPEN).select("*").maybeSingle();
+        if(error)throw error;
+        if(!saved)return json({error:"This appointment can no longer be rescheduled."},409);
+        await admin.from("audit_logs").insert({user_id:actor.user_id,action:"APPOINTMENT_RESCHEDULE_REQUESTED",entity_type:"appointments",entity_id:appointmentId,
+          details:{from_date:existing.appointment_date,from_time:time5(existing.appointment_time),date,time}});
+        await admin.from("notifications").insert({
+          user_id:existing.doctor_id,title:"Reschedule request",
+          message:`A patient asked to move ${visitLine(existing.clinic,existing.appointment_date,existing.appointment_time)} to ${prettyDate(date)} at ${prettyTime(time)}. Approve or decline it in My Schedule.`,
+          type:"Appointment",channel:"In-app",delivery_status:"Created",reference_type:"appointments",reference_id:appointmentId,action_page:"schedule"
+        });
+        return json({ok:true,requested:true,appointment:saved});
+      }
+
       const payload:any={
         patient_id:patientId,doctor_id:doctorId,clinic,service:serviceName,
         appointment_date:date,appointment_time:time,status:"Scheduled",
@@ -252,7 +279,9 @@ Deno.serve(async(req)=>{
           reappoint_from_time:existing.patient_response==="Awaiting"&&existing.reappoint_from_time?existing.reappoint_from_time:existing.appointment_time,
           reappoint_reason:apology,reappointed_by:actor.user_id,reappointed_at:new Date().toISOString(),
           reappoint_deadline:null
-        }:{patient_response:existing?.patient_response?null:undefined,reappoint_deadline:existing?.reappoint_deadline?null:undefined})
+        }:{patient_response:existing?.patient_response?null:undefined,reappoint_deadline:existing?.reappoint_deadline?null:undefined}),
+        // Any direct move settles a reschedule request that was still waiting.
+        ...(existing?.reschedule_request_date?{reschedule_request_date:null,reschedule_request_time:null,reschedule_requested_at:null}:{})
       };
       if(payload.patient_response===undefined)delete payload.patient_response;
       if(payload.reappoint_deadline===undefined)delete payload.reappoint_deadline;
@@ -371,6 +400,97 @@ Deno.serve(async(req)=>{
         message:`The patient accepted ${visitLine(appt.clinic,appt.appointment_date,appt.appointment_time)}.`,
         type:"Appointment",channel:"In-app",delivery_status:"Created",reference_type:"appointments",reference_id:id,action_page:"appointments"
       });
+      return json({ok:true});
+    }
+
+    // The doctor approves or declines a patient's reschedule request.
+    if(action==="reschedule_decision"){
+      const id=Number(body.appointment_id||0);
+      const decision=String(body.decision||"");
+      const note=String(body.note||"").trim().slice(0,300);
+      if(!["approve","decline"].includes(decision))return json({error:"Choose approve or decline."},400);
+      const appt=await loadAppointment(id);
+      if(!appt)return json({error:"Appointment not found."},404);
+      if(actor.role!=="Doctor"||appt.doctor_id!==actor.user_id)return json({error:"Only the appointment's doctor can decide on this request."},403);
+      if(!appt.reschedule_request_date)return json({error:"There is no reschedule request waiting."},409);
+      if(!OPEN.includes(appt.status))return json({error:`This appointment is already ${String(appt.status).toLowerCase()}.`},409);
+      const date=String(appt.reschedule_request_date),time=time5(appt.reschedule_request_time);
+      const account=await patientAccount(appt.patient_id);
+      if(decision==="decline"){
+        const {error}=await admin.from("appointments").update(clearRescheduleRequest).eq("appointment_id",id);
+        if(error)throw error;
+        await admin.from("audit_logs").insert({user_id:actor.user_id,action:"APPOINTMENT_RESCHEDULE_DECLINED",entity_type:"appointments",entity_id:id,details:{date,time,note:note||null}});
+        if(account)await admin.from("notifications").insert({
+          user_id:account.user_id,title:"Reschedule declined",
+          message:`Your request to move to ${prettyDate(date)} at ${prettyTime(time)} was declined${note?`: ${note.replace(/[.\s]*$/,"")}`:""}. Your appointment stays at ${visitLine(appt.clinic,appt.appointment_date,appt.appointment_time)}.`,
+          type:"Appointment",channel:"In-app",delivery_status:"Created",reference_type:"appointments",reference_id:id,action_page:"my-appointments"
+        });
+        return json({ok:true,decision});
+      }
+      // Approval checks the requested time again: it may have been taken or closed since the request.
+      const now=manilaNow();
+      if(date<now.date||(date===now.date&&mins(time)<=now.minutes))return json({error:"The requested time has already passed. Decline the request so the patient can ask again."},409);
+      const [{data:conflict},{data:leave},{data:override}]=await Promise.all([
+        admin.from("appointments").select("appointment_id").eq("doctor_id",appt.doctor_id).eq("appointment_date",date).eq("appointment_time",time).neq("status","Cancelled").neq("appointment_id",id).limit(1),
+        admin.from("doctor_leaves").select("leave_id").eq("doctor_id",appt.doctor_id).eq("leave_date",date).maybeSingle(),
+        admin.from("appointment_slot_overrides").select("is_available").eq("doctor_id",appt.doctor_id).eq("override_date",date).eq("slot_time",time).maybeSingle()
+      ]);
+      if(conflict?.length)return json({error:"That time has been booked since the request. Decline it so the patient can choose another time."},409);
+      if(leave)return json({error:"You are on leave that day. Decline the request so the patient can choose another time."},409);
+      if(override&&override.is_available===false)return json({error:"That time slot is now closed. Decline the request so the patient can choose another time."},409);
+      // The doctor's hours, interval, daily limit or the lunch break may also have changed since the request.
+      const closed=json({error:"That time is outside your current schedule. Decline the request so the patient can choose another time."},409);
+      const {data:doctor}=await admin.from("users").select("work_days,start_time,end_time,slot_duration,max_patients,specialty").eq("user_id",appt.doctor_id).maybeSingle();
+      if(!doctor)return closed;
+      const {data:ruleRows,error:ruleErr}=await admin.from("doctor_schedule_rules")
+        .select("is_working,start_time,end_time,slot_duration,max_patients")
+        .eq("doctor_id",appt.doctor_id).eq("weekday",new Date(date+"T00:00:00Z").getUTCDay())
+        .lte("effective_from",date).or("effective_to.is.null,effective_to.gte."+date)
+        .order("effective_from",{ascending:false}).limit(1);
+      if(ruleErr)throw ruleErr;
+      const rule=ruleRows?.[0]||null;
+      const workDays=Array.isArray(doctor.work_days)?doctor.work_days:["Mon","Tue","Wed","Thu","Fri"];
+      if(!(rule?!!rule.is_working:workDays.includes(dayName(date))))return closed;
+      const start=mins(time5(rule?.start_time||doctor.start_time||defaultStartTimeForSpecialty(doctor.specialty)));
+      const end=mins(time5(rule?.end_time||doctor.end_time||"17:00"));
+      const slotDuration=Math.max(15,Number(rule?.slot_duration||doctor.slot_duration||60));
+      const t=mins(time),openedByStaff=override?.is_available===true;
+      if(!openedByStaff&&(t<start||t+slotDuration>end||(t-start)%slotDuration!==0))return closed;
+      const [{count:dailyCount,error:dailyErr},{data:lunch}]=await Promise.all([
+        admin.from("appointments").select("appointment_id",{count:"exact",head:true})
+          .eq("doctor_id",appt.doctor_id).eq("appointment_date",date).neq("status","Cancelled").neq("appointment_id",id),
+        admin.from("system_settings").select("lunch_start,lunch_end").order("settings_id",{ascending:true}).limit(1).maybeSingle()
+      ]);
+      if(dailyErr)throw dailyErr;
+      if((dailyCount||0)>=Math.max(1,Number(rule?.max_patients||doctor.max_patients||20)))
+        return json({error:"You have reached your patient limit for that day. Decline the request so the patient can choose another time."},409);
+      if(lunch?.lunch_start&&lunch?.lunch_end&&!openedByStaff&&t<mins(lunch.lunch_end)&&t+slotDuration>mins(lunch.lunch_start))
+        return json({error:"That time falls in the clinic lunch break. Decline the request so the patient can choose another time."},409);
+      const {data:saved,error}=await admin.from("appointments").update({
+        appointment_date:date,appointment_time:time,...clearRescheduleRequest
+      }).eq("appointment_id",id).in("status",OPEN).select("*").maybeSingle();
+      if(error)return json({error:error.code==="23505"?"That time has been booked since the request.":error.message},409);
+      if(!saved)return json({error:"This appointment changed meanwhile. Reload and try again."},409);
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"APPOINTMENT_RESCHEDULE_APPROVED",entity_type:"appointments",entity_id:id,
+        details:{from_date:appt.appointment_date,from_time:time5(appt.appointment_time),date,time}});
+      if(account)await admin.from("notifications").insert({
+        user_id:account.user_id,title:"Reschedule approved",
+        message:`${visitLine(appt.clinic,date,time)}. ${await bringLine(account.person_type,date)}`,
+        type:"Appointment",channel:"In-app",delivery_status:"Created",reference_type:"appointments",reference_id:id,action_page:"my-appointments"
+      });
+      return json({ok:true,decision,appointment:saved});
+    }
+
+    // The patient takes back a reschedule request that is still waiting.
+    if(action==="withdraw_reschedule"){
+      const id=Number(body.appointment_id||0);
+      const appt=await loadAppointment(id);
+      if(!appt)return json({error:"Appointment not found."},404);
+      if(actor.role!=="Patient"||appt.patient_id!==await actorPatientId())return json({error:"You cannot change this appointment."},403);
+      if(!appt.reschedule_request_date)return json({error:"There is no reschedule request waiting."},409);
+      const {error}=await admin.from("appointments").update(clearRescheduleRequest).eq("appointment_id",id);
+      if(error)throw error;
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"APPOINTMENT_RESCHEDULE_WITHDRAWN",entity_type:"appointments",entity_id:id,details:{}});
       return json({ok:true});
     }
 

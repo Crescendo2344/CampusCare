@@ -15,8 +15,17 @@ const monthDays=(d:Date)=>new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1
 // A stock change can be undone by the person who recorded it for a short while afterwards.
 const UNDO_WINDOW_MS=15*60*1000;
 
-async function notifyLowStock(admin:any,item:any){
-  if(Number(item.quantity)>Number(item.threshold))return;
+// Alerts fire only when stock drops into the low range or hits zero, so repeat
+// adjustments on an already-low item don't flood the bell.
+async function notifyLowStock(admin:any,item:any,previousQty:number|null=null){
+  const qty=Number(item.quantity),threshold=Number(item.threshold);
+  if(qty>threshold)return;
+  if(previousQty!==null){
+    if(qty>=previousQty)return;
+    const wasLow=previousQty<=threshold;
+    if(wasLow&&!(qty===0&&previousQty>0))return;
+  }
+  const out=qty===0;
   // Only the staff of the item's own clinic are told.
   let clinic=item.clinic;
   if(!clinic){const {data}=await admin.from("inventory_items").select("clinic").eq("item_id",item.item_id).maybeSingle();clinic=data?.clinic;}
@@ -26,8 +35,10 @@ async function notifyLowStock(admin:any,item:any){
 
   const rows=(recipients||[]).map((u:any)=>({
     user_id:u.user_id,
-    title:"Low Stock Alert",
-    message:`${item.item_name} is at ${item.quantity} ${item.unit}, at or below its threshold of ${item.threshold}.`,
+    title:out?"Out of Stock Alert":"Low Stock Alert",
+    message:out
+      ?`${item.item_name} is out of stock. Reorder level is ${item.threshold} ${item.unit}.`
+      :`${item.item_name} is down to ${item.quantity} ${item.unit}, at or below its reorder level of ${item.threshold}.`,
     type:"Inventory",
     channel:"In-app",
     delivery_status:"Created"
@@ -197,7 +208,7 @@ Deno.serve(async(req)=>{
       const neededBy=body.needed_by?String(body.needed_by).slice(0,10):null;
       if(neededBy&&!/^\d{4}-\d{2}-\d{2}$/.test(neededBy))return json({error:"Needed-by date is not valid."},400);
       const {data:po,error}=await admin.from("purchase_orders").insert({
-        supplier:clean(body.supplier,255)||null,notes:clean(body.notes,800)||null,needed_by:neededBy,created_by:actor.user_id,clinic:staffClinic
+        notes:clean(body.notes,800)||null,needed_by:neededBy,created_by:actor.user_id,clinic:staffClinic
       }).select("*").single();
       if(error)return json({error:error.message},400);
       const year=new Date().getUTCFullYear();
@@ -261,7 +272,6 @@ Deno.serve(async(req)=>{
       const threshold=Number(body.threshold);
       const unit=clean(body.unit,80);
       const expiryDate=body.expiry_date?String(body.expiry_date):null;
-      const supplier=clean(body.supplier,255);
       const targetDate=body.target_disbursement_date?String(body.target_disbursement_date):null;
       const photoData=clean(body.photo_data,350000);
 
@@ -269,11 +279,12 @@ Deno.serve(async(req)=>{
         return json({error:"Name, category, quantity, threshold, and unit are required."},400);
 
       let saved:any=null;
+      let previousQty:number|null=null;
 
       if(action==="create"){
         const {data,error}=await admin.from("inventory_items").insert({
           item_name:itemName,category,quantity,threshold,unit,
-          expiry_date:expiryDate,supplier:supplier||null,
+          expiry_date:expiryDate,
           target_disbursement_date:targetDate,photo_data:photoData||null,
           archived:false,clinic:staffClinic
         }).select("*").single();
@@ -301,10 +312,11 @@ Deno.serve(async(req)=>{
           .select("*").eq("item_id",itemId).maybeSingle();
         if(!existing)return json({error:"Inventory item not found."},404);
         if(existing.archived)return json({error:"Restore this item before editing it."},400);
+        previousQty=Number(existing.quantity);
 
         const {data,error}=await admin.from("inventory_items").update({
           item_name:itemName,category,quantity,threshold,unit,
-          expiry_date:expiryDate,supplier:supplier||null,
+          expiry_date:expiryDate,
           target_disbursement_date:targetDate,photo_data:photoData||null,
           updated_at:new Date().toISOString()
         }).eq("item_id",itemId).select("*").single();
@@ -329,7 +341,7 @@ Deno.serve(async(req)=>{
         });
       }
 
-      await notifyLowStock(admin,saved);
+      await notifyLowStock(admin,saved,previousQty);
       await regenerateForecasts(admin,[saved.item_id]);
       return json({ok:true,item:saved});
     }
@@ -376,7 +388,7 @@ Deno.serve(async(req)=>{
         details:{previous_quantity:existing.quantity,new_quantity:newQuantity,reason:reason||null,movement}
       });
 
-      await notifyLowStock(admin,saved);
+      await notifyLowStock(admin,saved,Number(existing.quantity));
       await regenerateForecasts(admin,[itemId]);
       return json({ok:true,item:saved,transaction_id:transactionId});
     }
@@ -417,7 +429,10 @@ Deno.serve(async(req)=>{
         details:{quantity,transaction_date:txDate.toISOString(),notes:notes||null}
       });
 
-      if(item)await notifyLowStock(admin,item);
+      if(item){
+        const after=Number(item.quantity);
+        await notifyLowStock(admin,item,action==="stock_in"?after-quantity:after+quantity);
+      }
       await regenerateForecasts(admin,[itemId]);
       return json({ok:true,item,transaction_id:tx?.transaction_id||null});
     }

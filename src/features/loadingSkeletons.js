@@ -1,4 +1,5 @@
 // loadingSkeletons: imported feature APIs; state belongs to explicit application namespaces.
+import {isStaleBuildError,reloadForNewBuild} from '../app/stale-build.js';
 import {beginCampusNavigation,isCampusPageCurrent,renderHealthEducation} from './navigationRaceProtection.js';
 import {renderDashboard} from './dashboard.js';
 import {renderMyAppointments} from './patientAppointments.js';
@@ -174,9 +175,12 @@ export function renderPage(id){
 
         // Ignore errors from a page the user has already left.
         if(!isCampusPageCurrent(id,renderToken))return;
+        // A newer version was deployed since this tab opened: load it instead of showing an error.
+        const stale=isStaleBuildError(err);
+        if(stale&&reloadForNewBuild())return;
 
         c.innerHTML=`<div class="card">
-          <div class="alert alert-danger show">This page could not finish loading.</div>
+          <div class="alert alert-danger show">${stale?'CampusCare was updated. Reload the page to continue.':'This page could not finish loading.'}</div>
           <button class="btn btn-sm" ${bindAction('click',(event,element)=>{renderPage((String(id)))})}>Retry</button>
         </div>`;
       });

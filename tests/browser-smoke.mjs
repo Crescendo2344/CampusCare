@@ -1,5 +1,5 @@
 import {buildDoctorAvailability,addBookingDays} from '../src/domain/booking-availability.js';
-import {buildStudentReport} from '../src/domain/student-report.js';
+import {buildStudentReport,scopeStudentReport} from '../src/domain/student-report.js';
 // Exercise actual Chromium UI events and API contracts using synthetic, intercepted backend responses.
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
@@ -114,7 +114,7 @@ try{
     if(body.action==='create'){assert.equal(body.appointment_date,page.__bookingDate);assert.equal(body.appointment_time,'08:00');assert.equal(body.doctor_id,2);assert(!body.appointment_id,'New bookings must not pass a truthy null string as an edit ID');}
     response={ok:true};
    }
-   else if(path.endsWith('/student-reports'))response={ok:true,report:buildStudentReport({users:[{user_id:10,first_name:'Morning',last_name:'Student',id_number:'ST10',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'},{user_id:11,first_name:'Evening',last_name:'Student',id_number:'ST11',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'}],patients:[{patient_id:10,user_id:10,class_session:'Morning'},{patient_id:11,user_id:11,class_session:'Evening'}],appointments:[{appointment_id:10,patient_id:10,clinic:'Dental Clinic',appointment_date:request.postDataJSON().from,status:'Completed'}]},request.postDataJSON())};
+   else if(path.endsWith('/student-reports'))response={ok:true,report:scopeStudentReport(buildStudentReport({users:[{user_id:10,first_name:'Morning',last_name:'Student',id_number:'ST10',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'},{user_id:11,first_name:'Evening',last_name:'Student',id_number:'ST11',role:'Patient',person_type:'Student',college:'CCICT',status:'Active',verified:true,created_at:'2026-01-01'}],patients:[{patient_id:10,user_id:10,class_session:'Morning'},{patient_id:11,user_id:11,class_session:'Evening'}],appointments:[{appointment_id:10,patient_id:10,clinic:'Dental Clinic',appointment_date:request.postDataJSON().from,status:'Completed'}]},request.postDataJSON()),profile.clinic||'')};
    else if(path.endsWith('/clinical-intelligence')){
     const body=request.postDataJSON();
     response=body.action==='copilot'
@@ -725,11 +725,9 @@ try{
     assert.match(await page.locator('.tv-meta').innerText(),/Medical Clinic/);
     // Visit records keep blood pressure, temperature and SpO₂ only: no pulse (bpm), weight, height or BMI.
     for(const id of ['#tm-pulse','#tm-weight','#tm-height','#tm-bmi'])assert.equal(await page.locator(id).count(),0,id);
-    await page.locator('#tm-bp').waitFor();await page.locator('#tm-spo2').waitFor();
-    await page.locator('#tm-temp').fill('38.4');
-    assert.equal(await page.locator('.tv-vital[data-vital="temp"] .tv-flag').innerText(),'FEVER');
-    await page.getByRole('button',{name:'2 weeks',exact:true}).click();
-    assert.notEqual(await page.locator('#tm-followup').inputValue(),'');
+    // Vitals are read-only and come from triage: with no triage reading the section says "No record" and offers no inputs.
+    assert.match(await page.locator('#tm-vitals').innerText(),/No record/);
+    for(const id of ['#tm-bp','#tm-temp','#tm-spo2'])assert.equal(await page.locator(id).count(),0,id);
     await page.locator('#active-modal .close-btn').click();
     // Vitals the front desk took at triage show on the appointment and fill the doctor's visit form.
     await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const me=state.auth.currentUser,pt=state.data.DB.patients.find(p=>p._realSupabase&&!p.archived)||state.data.DB.patients[0];
@@ -746,7 +744,7 @@ try{
     await page.locator('#tm-bp').waitFor();
     assert.equal(await page.locator('#tm-bp').inputValue(),'150/95');assert.equal(await page.locator('#tm-temp').inputValue(),'38.2');assert.equal(await page.locator('#tm-spo2').inputValue(),'97');
     assert.match(await page.locator('.tv-note').innerText(),/From triage/);
-    assert.equal(await page.locator('.tv-vital[data-vital="temp"] .tv-flag').innerText(),'FEVER');
+    assert.equal(await page.locator('.tv-vital[data-vital="temp"] .tv-flag').innerText(),'HIGH');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/visit-record-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#active-modal .close-btn').click();
     // A dental doctor gets the dental record: quadrant tooth chart, tap-to-mark codes, procedure rows, work status.
@@ -760,10 +758,9 @@ try{
     await page.locator('.dr-chip',{hasText:'Fair'}).click();await page.locator('.dr-chip',{hasText:'Poor'}).click();
     await page.getByRole('button',{name:'Add procedure'}).click();
     await page.locator('.dr-op').nth(0).locator('.tm-dental-op-tooth').fill('36');await page.locator('.dr-op').nth(0).locator('.tm-dental-op-nature').fill('Tooth filling (restoration)');
-    await page.locator('.dr-status label',{hasText:'Completed'}).click();
     const dentalData=await page.evaluate(()=>window.__fixtureApp.features.patientForm.collectDentalRecordForm());
     assert.equal(dentalData.odontogram['36'],'D');assert.equal(dentalData.oral_health.poor,true);assert.equal(dentalData.oral_health.fair,false,'Condition is one choice');
-    assert.deepEqual(dentalData.accomplishment,[{tooth_no:'36',nature:'Tooth filling (restoration)'}]);assert.equal(dentalData.work_status,'Completed');
+    assert.deepEqual(dentalData.accomplishment,[{tooth_no:'36',nature:'Tooth filling (restoration)'}]);
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#tm-dental-section').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/dental-record-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#active-modal .close-btn').click();
     await page.evaluate(()=>{window.__fixtureApp.state.auth.currentUser.specialty='General Medicine';});
@@ -1395,13 +1392,16 @@ try{
     assert.match(await page.locator('#forecast-result').innerText(),/valid start date/);
     await page.locator('#rpt-type').selectOption('students');
     await page.locator('#student-report-filters').waitFor();
-    await page.locator('#rpt-session').selectOption('Evening');await page.locator('#rpt-dental').selectOption('not');
+    // The fixture staff member works in the Medical Clinic, so dental figures and filters are not offered.
+    assert.equal(await page.locator('#rpt-dental').count(),0);assert.equal(await page.locator('#rpt-medical').count(),1);
+    await page.locator('#rpt-session').selectOption('Evening');
     await page.getByRole('button',{name:'Generate Report',exact:true}).click();
     await page.locator('#rpt-result').getByText('Evening Student',{exact:true}).waitFor();
     assert.equal(await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).count(),0);
     assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows.length),1);
     assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['School: Class Session']),'Evening');
-    await page.locator('#rpt-session').selectOption('');await page.locator('#rpt-dental').selectOption('used');
+    assert.equal(await page.locator('#rpt-result th',{hasText:'Dental'}).count(),0);
+    await page.locator('#rpt-session').selectOption('');
     await page.getByRole('button',{name:'Generate Report',exact:true}).click();
     await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).waitFor();
     const downloaded=page.waitForEvent('download');
@@ -1409,7 +1409,8 @@ try{
     const summaryFile=await downloaded;
     assert.match(summaryFile.suggestedFilename(),/^campuscare-student-college-summary-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.csv$/);
     const summaryText=(await import('node:fs')).readFileSync(await summaryFile.path(),'utf8');
-    assert.match(summaryText,/^\ufeffCollege\/Department,Students: Registered,Dental Care: Used,/,'Readable headers in the shared CSV format');
+    assert.match(summaryText,/^\ufeffCollege\/Department,Students: Registered,Coverage: No Linked Patient Record,/,'Readable headers in the shared CSV format');
+    assert.doesNotMatch(summaryText,/Dental/,'Medical Clinic staff get no dental columns');
   }
   if(role==='Administrator'){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('settings'));
@@ -1462,8 +1463,8 @@ try{
     await page.locator('#eu-confirm-word').fill('fixture');assert(await save.isEnabled());
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/user-edit-review-${mobile?'mobile':'desktop'}.png`});
     await save.click();
-    assert.equal(requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').at(-1).body.reason,'Corrected per registrar records');
     const updated=()=>page.locator('#user-table tbody tr').filter({hasText:'Doctor, Updated'});await updated().waitFor();
+    assert.equal(requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').at(-1)?.body.reason,'Corrected per registrar records');
     assert.equal(managedUsers[1].first_name,'Updated');assert.equal(managedUsers[1].contact_number,'09987654321');assert.equal(managedUsers[1].status,'Active');
     await updated().getByRole('button',{name:'Suspend',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Reactivate',exact:true}).waitFor();
     await updated().getByRole('button',{name:'Reactivate',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Suspend',exact:true}).waitFor();

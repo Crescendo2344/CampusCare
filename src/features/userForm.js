@@ -10,7 +10,7 @@ import {normalizePhilippineMobile} from '../../supabase/functions/_shared/contac
 import {adminUserAction,renderUsers,userAvatarHtml} from './userManagement.js';
 import {bindAction} from '../dependencies.js';
 import {openDoctorScheduleEditor} from './doctorSchedules.js';
-import {CLINIC_SERVICES,SPECIALIZATIONS,clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
+import {CLINIC_SERVICES,SPECIALIZATIONS,clinicForSpecialization,defaultStartTimeForSpecialty} from '../../supabase/functions/_shared/clinic-services.js';
 // ── Add User Modal ──
 // Staff accounts follow the same field rules as public registration; patients register themselves
 // or are added through Patient Records, where identity verification happens.
@@ -48,7 +48,7 @@ export function openAddUserModal(){
           <div id="au-doctor" class="au-doctor">
             <div class="form-row">${field('au-spec','Specialization',`<select id="au-spec" ${bindAction('change',()=>renderServicesRendered())}>${specialties().map(x=>`<option>${x}</option>`).join('')}</select>`,{hint:'Field of expertise.'})}</div>
             <fieldset class="au-services" id="au-services" aria-describedby="au-services-error"><legend>Services rendered <span class="required">*</span></legend><div id="au-services-list"></div><p class="registration-field-error" id="au-services-error" aria-live="polite" hidden></p></fieldset>
-            <p class="form-note au-note"><i class="bi bi-calendar-week" aria-hidden="true"></i> Starts with Mon–Fri, 8 AM – 5 PM, 60-minute appointments (up to 9 a day). You can change it after creating the account.</p>
+            <p class="form-note au-note"><i class="bi bi-calendar-week" aria-hidden="true"></i> Medical schedules start at 8 AM; dental schedules start at 9 AM for instrument sterilization. You can change the hours after creating the account.</p>
           </div>
         </section>
         <section class="au-section"><h4><span class="au-step">2</span> Personal details</h4>
@@ -140,7 +140,7 @@ export async function saveNewUser(){
   if(btn){btn.disabled=true;btn.textContent='Creating…';}
   try{
     const result=await adminUserAction({action:'create',...v,
-      ...(v.role==='Doctor'?{work_days:['Mon','Tue','Wed','Thu','Fri'],start_time:'08:00',end_time:'17:00',slot_duration:60,max_patients:9}:{})});
+      ...(v.role==='Doctor'?{work_days:['Mon','Tue','Wed','Thu','Fri'],start_time:defaultStartTimeForSpecialty(v.specialty),end_time:'17:00',...(v.specialty==='Dental'?{slot_duration:60,max_patients:8}:{slot_duration:30,max_patients:15})}:{})});
     st.created={...v,userId:result.user_id,emailStatus:result.email_status||'queued'};
     showCreatedAccount();
     if(appState.navigationRaceProtection.campusActivePageId==='users')void renderUsers();

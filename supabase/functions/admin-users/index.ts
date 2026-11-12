@@ -4,7 +4,7 @@ import {buildUserEditPatch} from "../_shared/admin-user-edit.js";
 import {emailValidationError,normalizePhilippineMobile} from "../_shared/contact-validation.js";
 import {contactValidationError,nameValidationError,usernameValidationError} from "../_shared/registration-validation.js";
 import {emailCredentials,generatePassword} from "../_shared/account-credentials.js";
-import {SPECIALIZATIONS,cleanServicesRendered} from "../_shared/clinic-services.js";
+import {SPECIALIZATIONS,cleanServicesRendered,defaultStartTimeForSpecialty} from "../_shared/clinic-services.js";
 
 const cors={
   "Access-Control-Allow-Origin":"*",
@@ -169,11 +169,18 @@ Deno.serve(async(req)=>{
         contact_number:contactNumber,
         person_type:role==="Doctor"?"Clinic Personnel":"Staff"
       };
+      // The sign-up trigger accepts an internal account only if this server asked for it just now.
+      const {error:requestErr}=await admin.from("internal_account_requests")
+        .upsert({email:email.toLowerCase(),requested_by:actor.user_id,created_at:new Date().toISOString()},{onConflict:"email"});
+      if(requestErr)throw requestErr;
       const {data:created,error:createErr}=await admin.auth.admin.createUser({
         email,password,email_confirm:true,user_metadata:metadata,
         app_metadata:{must_change_password:true}
       });
-      if(createErr||!created.user) return json({error:createErr?.message||"Unable to create account."},400);
+      if(createErr||!created.user){
+        await admin.from("internal_account_requests").delete().eq("email",email.toLowerCase());
+        return json({error:createErr?.message||"Unable to create account."},400);
+      }
 
       const uid=created.user.id;
       const patch:any={
@@ -184,10 +191,10 @@ Deno.serve(async(req)=>{
         services_rendered:servicesRendered,
         clinic:staffClinic,
         work_days:role==="Doctor"?(body.work_days||["Mon","Tue","Wed","Thu","Fri"]):[],
-        start_time:role==="Doctor"?String(body.start_time||"08:00"):null,
+        start_time:role==="Doctor"?String(body.start_time||defaultStartTimeForSpecialty(specialty)):null,
         end_time:role==="Doctor"?String(body.end_time||"17:00"):null,
-        slot_duration:role==="Doctor"?Number(body.slot_duration||60):null,
-        max_patients:role==="Doctor"?Number(body.max_patients||9):null
+        slot_duration:role==="Doctor"?Number(body.slot_duration||(specialty==="Dental"?60:30)):null,
+        max_patients:role==="Doctor"?Number(body.max_patients||(specialty==="Dental"?8:15)):null
       };
       const {data:profile,error:profileErr}=await admin.from("users")
         .update(patch).eq("auth_user_id",uid).select("user_id").single();
@@ -222,7 +229,8 @@ Deno.serve(async(req)=>{
 
     if(action==="detail"){
       const {data:patient,error:patientErr}=await admin.from("patients")
-        .select("patient_id,birth_date,sex,blood_type,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,medical_history,allergies,archived_at,updated_at")
+        // Medical history and allergies stay with the clinic: administrators do not see them.
+        .select("patient_id,birth_date,sex,blood_type,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,archived_at,updated_at")
         .eq("user_id",targetId)
         .maybeSingle();
       if(patientErr)throw patientErr;

@@ -38,8 +38,8 @@ export async function doLogin(){
     return;
   }
 
-  // Supabase Auth signs in with email. For username login, the public Edge
-  // Function resolves the CampusCare username to its associated email first.
+  // Supabase Auth signs in with email. A username is signed in by the resolve-login function, which
+  // returns only the session, so no one can look up which email belongs to a username.
   const identifier=document.getElementById('li-user').value.trim();
   const password=document.getElementById('li-pass').value;
   if(!identifier||!password){toast('Enter your username/email and password.','error');document.getElementById(identifier?'li-pass':'li-user')?.focus();return;}
@@ -49,20 +49,22 @@ export async function doLogin(){
   if(loginBtn){loginBtn.disabled=true;loginBtn.textContent='Signing in…';}
 
   try{
-    let email=identifier;
-    if(!identifier.includes('@')){
+    const notConfirmed='Verify your email before logging in. Check your inbox and spam folder, or use Resend verification email.';
+    let data,error;
+    if(identifier.includes('@')){
+      ({data,error}=await appState.supabaseClient.supabaseClient.auth.signInWithPassword({email:identifier,password}));
+    }else{
       const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/resolve-login`,{
         method:'POST',
         headers:{'Content-Type':'application/json','apikey':appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY},
-        body:JSON.stringify({identifier})
+        body:JSON.stringify({identifier,password})
       });
-      const resolved=await response.json().catch(()=>({}));
-      if(!response.ok||!resolved.email) throw new Error('Invalid username/email or password.');
-      email=resolved.email;
+      const result=await response.json().catch(()=>({}));
+      if(result.code==='email_not_confirmed')throw new Error(notConfirmed);
+      if(!response.ok||!result.session)throw new Error(result.error||'Invalid username/email or password.');
+      ({data,error}=await appState.supabaseClient.supabaseClient.auth.setSession(result.session));
     }
-
-    const {data,error}=await appState.supabaseClient.supabaseClient.auth.signInWithPassword({email,password});
-    if(error){if(error.code==='email_not_confirmed'||/email not confirmed/i.test(error.message||''))throw new Error('Verify your email before logging in. Check your inbox and spam folder, or use Resend verification email.');throw error;}
+    if(error){if(error.code==='email_not_confirmed'||/email not confirmed/i.test(error.message||''))throw new Error(notConfirmed);throw error;}
 
     // Also protect the UI if an Auth configuration is accidentally changed to allow unconfirmed sessions.
     if(!data.user?.email_confirmed_at){await appState.supabaseClient.supabaseClient.auth.signOut();throw new Error('Verify your email before logging in. Use Resend verification email if your link has expired.');}

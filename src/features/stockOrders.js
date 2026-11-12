@@ -8,7 +8,7 @@ import {getUserById} from './documentScanner.js';
 import {closeAllModals,openModal} from './modals.js';
 import {showConfirmDialog,toast} from './theme.js';
 import {campusDateFieldHtml} from './datePicker.js';
-import {inventoryAction,inventoryRecords,getInventoryForecast,syncRealInventory} from './inventoryService.js';
+import {inventoryAction,inventoryDisplayId,inventoryRecords,getInventoryForecast,syncRealInventory} from './inventoryService.js';
 import {bindAction} from '../dependencies.js';
 
 const ORDER_WINDOW_DAYS=30;
@@ -27,9 +27,9 @@ export async function loadStockOrders(){
   if(!appState.auth.currentUser?._realSupabase){s.orders??=[];s.items??=[];return s;}
   const jobs=[
     r!=='Staff'?Promise.resolve({data:[]}):client().from('purchase_orders')
-      .select('po_id,po_no,status,supplier,notes,needed_by,created_by,sent_by,sent_at,cancel_reason,cancelled_at,received_by,received_at,created_at,receive_note,purchase_order_items(po_item_id,item_id,quantity,received_quantity)')
+      .select('po_id,po_no,status,notes,needed_by,created_by,sent_by,sent_at,cancel_reason,cancelled_at,received_by,received_at,created_at,receive_note,purchase_order_items(po_item_id,item_id,quantity,received_quantity)')
       .order('created_at',{ascending:false}).limit(200),
-    client().from('inventory_items').select('item_id,item_name,category,quantity,threshold,unit,expiry_date,supplier').eq('archived',false).order('item_name')
+    client().from('inventory_items').select('item_id,item_name,category,quantity,threshold,unit,expiry_date').eq('archived',false).order('item_name')
   ];
   const [po,items]=await Promise.all(jobs);
   for(const res of [po,items])if(res.error)throw res.error;
@@ -81,7 +81,18 @@ export function renderOrdersTable(){
   const box=document.getElementById('so-reorder');
   if(box){
     const due=itemsToOrder();
-    box.innerHTML=due.length?`<div class="so-due" role="status"><i class="bi bi-cart-plus" aria-hidden="true"></i><div><strong>${due.length} item${due.length===1?'':'s'} should be ordered now</strong><span>${due.slice(0,4).map(d=>escapeHtml(d.item.name)+(d.runsOut?` (about ${Math.max(0,Math.floor(d.forecast.daysRemaining))} days left)`:' (at reorder level)')).join(', ')}${due.length>4?'…':''}</span></div><button class="btn btn-sm btn-primary" ${bindAction('click',()=>openPurchaseOrderModal(due.map(d=>({item_id:d.item.dbItemId,quantity:d.suggested}))))}>Order these</button></div>`:'';
+    const row=d=>{
+      const i=d.item,out=Number(i.qty)<=0,pct=Math.min(100,Math.round(i.qty/Math.max(i.threshold*2,1)*100));
+      return `<tr>
+        <td data-label="Item"><strong>${escapeHtml(i.name)}</strong><div class="text-muted">#${inventoryDisplayId(i)}</div></td>
+        <td data-label="Category"><span class="badge badge-gray">${escapeHtml(i.category)}</span></td>
+        <td data-label="Stock"><div class="inv-stock-line"><strong>${i.qty}</strong> ${escapeHtml(i.unit)} <span class="badge ${out||d.atLevel?'badge-danger':'badge-warning'}">${out?'Out of stock':d.atLevel?'Reorder':'Running low'}</span></div><div class="progress-bar" title="Reorder level ${i.threshold} ${escapeHtml(i.unit)}"><div class="progress-fill" style="width:${pct}%;background:${out||d.atLevel?'var(--danger)':'var(--warning)'}"></div></div><div class="text-muted">Reorder at ${i.threshold} ${escapeHtml(i.unit)}</div></td>
+        <td data-label="Actions"><div class="td-actions"><button class="btn btn-xs btn-primary" ${bindAction('click',()=>openPurchaseOrderModal([{item_id:i.dbItemId,quantity:d.suggested}]))}>Order now</button></div></td>
+      </tr>`;
+    };
+    box.innerHTML=due.length?`<div class="so-due" role="status"><div class="so-due-head"><i class="bi bi-cart-plus" aria-hidden="true"></i><strong>${due.length} item${due.length===1?'':'s'} should be ordered now</strong></div><div class="table-wrap"><table class="treat-table inv-table"><thead><tr><th scope="col">Item</th><th scope="col">Category</th><th scope="col">Stock</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${due.map(row).join('')}</tbody></table></div></div>`:'';
+    const tabCount=document.querySelector('#inv-tab-orders .badge');
+    if(tabCount){tabCount.textContent=due.length;tabCount.hidden=!due.length;}
   }
   const el=document.getElementById('so-orders');if(!el)return;
   const rows=st().orders||[];
@@ -89,13 +100,12 @@ export function renderOrdersTable(){
   el.innerHTML=ordersTableHtml(rows);
 }
 function ordersTableHtml(rows){
-  return `<div class="table-wrap"><table class="treat-table"><thead><tr><th scope="col">Order</th><th scope="col">Items</th><th scope="col">Supplier</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+  return `<div class="table-wrap"><table class="treat-table"><thead><tr><th scope="col">Order</th><th scope="col">Items</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>${rows.map(po=>{
     const lines=po.purchase_order_items||[];
     return `<tr>
       <td data-label="Order"><strong>${escapeHtml(po.po_no||`PO #${po.po_id}`)}</strong><div class="text-muted">${fmtDate(manilaDate(po.created_at))} · ${escapeHtml(personName(po.created_by))}</div>${po.needed_by?`<div class="text-muted">Needed by ${fmtDate(po.needed_by)}</div>`:''}</td>
       <td data-label="Items">${lines.map(l=>`<div>${escapeHtml(itemLabel(l.item_id))} × ${l.quantity} ${escapeHtml(itemById(l.item_id)?.unit||'')}</div>`).join('')}${po.notes?`<div class="text-muted">${escapeHtml(po.notes)}</div>`:''}</td>
-      <td data-label="Supplier">${escapeHtml(po.supplier||'—')}</td>
       <td data-label="Status"><span class="badge ${PO_BADGE[po.status]||'badge-gray'}">${escapeHtml(PO_LABEL[po.status]||po.status)}</span>${po.status==='Sent'&&po.sent_at?`<div class="text-muted">${fmtDate(manilaDate(po.sent_at))}</div>`:''}${po.status==='Cancelled'&&po.cancel_reason?`<div class="text-muted">${escapeHtml(po.cancel_reason)}</div>`:''}${po.status==='Received'?(()=>{const short=(po.purchase_order_items||[]).reduce((n,l)=>n+(l.received_quantity==null?0:Number(l.quantity)-Number(l.received_quantity)),0);return `<div class="text-muted">${po.received_at?fmtDate(manilaDate(po.received_at)):''}${short?` · <span class="text-danger">${short} short</span>`:''}</div>${po.receive_note?`<div class="text-muted">${escapeHtml(po.receive_note)}</div>`:''}`;})():''}</td>
       <td data-label="Actions"><div class="td-actions">
         <button class="btn btn-xs" ${bindAction('click',()=>printPurchaseOrder(po.po_id))}><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
@@ -108,17 +118,14 @@ function ordersTableHtml(rows){
 export function openPurchaseOrderModal(prefill=[]){
   const items=inventoryRecords().filter(i=>!i.archived);
   const s=st();s.draft=prefill.length?prefill.map(l=>({...l})):[{item_id:'',quantity:''}];
-  const suppliers=[...new Set(items.map(i=>String(i.supplier||'').trim()).filter(Boolean))].sort();
-  const firstSupplier=prefill.length?items.find(i=>i.dbItemId===Number(prefill[0].item_id))?.supplier||'':'';
   openModal(`<div class="modal so-po-modal" role="dialog" aria-labelledby="so-po-title">
-    <div class="modal-header"><h3 id="so-po-title">New purchase order</h3><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-header"><h3 id="so-po-title">${prefill.length?'Re-order':'New purchase order'}</h3><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body"><div id="so-po-msg"></div>
       <div class="form-row">
-        <div class="form-group"><label for="so-po-supplier">Supplier</label><input id="so-po-supplier" maxlength="255" list="so-po-suppliers" value="${escapeHtml(firstSupplier)}"><datalist id="so-po-suppliers">${suppliers.map(v=>`<option value="${escapeHtml(v)}">`).join('')}</datalist></div>
         <div class="form-group"><label for="so-po-needed">Needed by</label>${campusDateFieldHtml('so-po-needed','','Needed by',appState.clinicInformation.TODAY)}</div>
       </div>
       <div id="so-po-lines"></div>
-      <button type="button" class="btn btn-sm" ${bindAction('click',()=>{st().draft.push({item_id:'',quantity:''});renderDraftLines();})}>+ Add another item</button>
+      ${prefill.length?'':`<button type="button" class="btn btn-sm" ${bindAction('click',()=>{st().draft.push({item_id:'',quantity:''});renderDraftLines();})}>+ Add another item</button>`}
       <div class="form-group"><label for="so-po-notes">Notes</label><textarea id="so-po-notes" rows="2" maxlength="800"></textarea></div>
     </div>
     <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button class="btn btn-primary" id="so-po-send" ${bindAction('click',()=>submitPurchaseOrder())}>Prepare order</button></div>
@@ -144,7 +151,7 @@ async function submitPurchaseOrder(){
   if(new Set(lines.map(l=>l.item_id)).size!==lines.length)return fail('Each item can appear once per order.');
   btn.disabled=true;btn.textContent='Sending…';
   try{
-    const res=await inventoryAction({action:'create_po',items:lines,supplier:document.getElementById('so-po-supplier').value.trim(),needed_by:document.getElementById('so-po-needed').value||null,notes:document.getElementById('so-po-notes').value.trim()});
+    const res=await inventoryAction({action:'create_po',items:lines,needed_by:document.getElementById('so-po-needed').value||null,notes:document.getElementById('so-po-notes').value.trim()});
     closeAllModals();
     toast(`${res.purchase_order?.po_no||'Purchase order'} is ready. Print it for the person who buys.`,'success');
     await refreshInventoryAfterOrderChange();
@@ -160,7 +167,7 @@ function receiveOrder(po){
     <div class="modal-body"><div id="so-rc-msg"></div>
       <div class="table-wrap"><table class="treat-table so-rc-table"><thead><tr><th scope="col">Item</th><th scope="col">Ordered</th><th scope="col">Received in good condition</th></tr></thead>
       <tbody>${lines.map(l=>{const it=itemById(l.item_id);return `<tr><td data-label="Item">${escapeHtml(itemLabel(l.item_id))}</td><td data-label="Ordered">${l.quantity} ${escapeHtml(it?.unit||'')}</td><td data-label="Received"><input type="number" class="so-rc-qty" data-item="${l.item_id}" data-ordered="${l.quantity}" min="0" max="${l.quantity}" step="1" inputmode="numeric" value="${l.quantity}" aria-label="Received ${escapeHtml(itemLabel(l.item_id))}"></td></tr>`;}).join('')}</tbody></table></div>
-      <div class="form-group" id="so-rc-note-wrap" hidden><label for="so-rc-note">What was short or damaged? <span class="required">*</span></label><textarea id="so-rc-note" rows="2" maxlength="500" placeholder="e.g. 10 capsules damaged, returned to supplier"></textarea></div>
+      <div class="form-group" id="so-rc-note-wrap" hidden><label for="so-rc-note">What was short or damaged? <span class="required">*</span></label><textarea id="so-rc-note" rows="2" maxlength="500" placeholder="e.g. 10 capsules damaged, returned to sender"></textarea></div>
     </div>
     <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button class="btn btn-success" id="so-rc-save" ${bindAction('click',()=>saveDelivery(po))}>Save delivery</button></div>
   </div>`);
@@ -220,8 +227,7 @@ export function printPurchaseOrder(poId){
     .note{margin-top:12px;white-space:pre-wrap}
   </style></head><body>
     <div class="head"><div><h1>Purchase Order</h1><h2>CTU Main Medical &amp; Dental Clinic</h2></div><div style="text-align:right"><strong style="font-size:15px">${escapeHtml(po.po_no||'')}</strong><div>Date: ${escapeHtml(fmtDate(manilaDate(po.created_at)))}</div></div></div>
-    <table class="meta"><tr><td>Supplier</td><td>${escapeHtml(po.supplier||'To be chosen by purchasing')}</td></tr>
-      <tr><td>Needed by</td><td>${po.needed_by?escapeHtml(fmtDate(po.needed_by)):'As soon as possible'}</td></tr>
+    <table class="meta"><tr><td>Needed by</td><td>${po.needed_by?escapeHtml(fmtDate(po.needed_by)):'As soon as possible'}</td></tr>
       <tr><td>Prepared by</td><td>${escapeHtml(personName(po.created_by))}</td></tr></table>
     <table class="items"><thead><tr><th>#</th><th>Item</th><th>Category</th><th class="n">Qty</th><th>Unit</th></tr></thead>
       <tbody>${rows}</tbody></table>
