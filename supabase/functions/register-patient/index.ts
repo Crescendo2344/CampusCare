@@ -4,7 +4,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.117.3";
 import {emailValidationError,normalizePhilippineMobile} from '../_shared/contact-validation.js';
 import {createMailDomainValidator} from '../_shared/mail-domain.js';
 import {authRedirect} from '../_shared/app-url.js';
-import {registrationDetailErrors} from '../_shared/registration-validation.js';
+import {registrationDetailErrors,registrationHealthErrors} from '../_shared/registration-validation.js';
 const checkMailDomain=createMailDomainValidator();
 
 const corsHeaders = {
@@ -174,8 +174,21 @@ Deno.serve(async(req:Request)=>{
     for(const key of ["first_name","last_name","username","college","sex"])metadata[key]=String(metadata[key]??"").trim();
     const manilaToday=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
     const fieldErrors=registrationDetailErrors({...metadata,email,password,contact_number:contactRaw,id_number:schoolId,birth_date:String(metadata.birth_date||"")},manilaToday);
+    for(const key of ["blood_type","allergies","emergency_contact_name","emergency_contact_number"])metadata[key]=String(metadata[key]??"").trim();
+    const healthErrors=registrationHealthErrors({...metadata,contact_number:contactRaw});
+    Object.assign(fieldErrors,healthErrors);
     if(Object.keys(fieldErrors).length)return json({error:Object.values(fieldErrors)[0],field_errors:fieldErrors},400);
     if(contactRaw){metadata.contact_number=normalizePhilippineMobile(contactRaw);metadata.contact_no=metadata.contact_number;}
+    // Stored in the patient record below; the sign-up trigger also reads the emergency contact and allergies.
+    const health={
+      blood_type:String(metadata.blood_type),
+      height_cm:Math.round(Number(metadata.height_cm)*100)/100,
+      weight_kg:Math.round(Number(metadata.weight_kg)*100)/100,
+      allergies:String(metadata.allergies),
+      emergency_contact_name:String(metadata.emergency_contact_name),
+      emergency_contact_number:normalizePhilippineMobile(String(metadata.emergency_contact_number))
+    };
+    Object.assign(metadata,health);
     const captchaError=await validateCaptcha(captcha,form.get("captcha_token"));if(captchaError)return captchaError;
     for(const [scope,value] of [["email",email],["id",schoolId]]){const denied=await registrationLimit(adminClient,scope,value,serviceKey);if(denied)return denied;}
     // Validate arbitrary school and company domains without requiring a provider allowlist.
@@ -225,6 +238,8 @@ Deno.serve(async(req:Request)=>{
       .select("user_id")
       .maybeSingle();
     if(profileError||!profileRow)throw new Error("Registration files could not be linked. Please try again.");
+    const {error:healthError}=await adminClient.from("patients").update(health).eq("user_id",profileRow.user_id);
+    if(healthError)throw new Error("Your health details could not be saved. Please try again.");
 
     // Record the privacy acknowledgement separately from Auth metadata so
     // CampusCare has an auditable consent history for each privacy version.

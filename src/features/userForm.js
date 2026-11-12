@@ -182,11 +182,11 @@ async function openCreatedDoctorSchedule(){
 // Editing an account is two deliberate steps, as in admin consoles such as Google Workspace and Okta:
 // edit the details (changed fields are marked), then review every change with a reason and confirm by
 // typing the account's username before anything is saved.
-const EDIT_LABELS={first_name:'First name',last_name:'Last name',email:'Email',contact_number:'Mobile number',specialty:'Specialization',services_rendered:'Services rendered',clinic:'Clinic'};
+const EDIT_LABELS={first_name:'First name',last_name:'Last name',email:'Email',contact_number:'Mobile number',specialty:'Specialization',services_rendered:'Services rendered',clinic:'Clinic',id_number:'Employee No.'};
 function editState(){return appState.userManagement.editUser??={};}
-function editOriginal(u){return {...u,first_name:u.fname,last_name:u.lname,contact_number:u.contact||'',services_rendered:u.servicesRendered||[]};}
+function editOriginal(u){return {...u,first_name:u.fname,last_name:u.lname,contact_number:u.contact||'',services_rendered:u.servicesRendered||[],id_number:u.idNo||''};}
 function editInputs(u){
-  return {first_name:document.getElementById('eu-fname').value,last_name:document.getElementById('eu-lname').value,email:document.getElementById('eu-email').value,contact_number:document.getElementById('eu-contact').value,...(u.role==='Doctor'?{specialty:document.getElementById('eu-spec').value,services_rendered:[...document.querySelectorAll('#eu-services input:checked')].map(i=>i.value)}:{}),...(u.role==='Staff'?{clinic:document.getElementById('eu-clinic').value}:{})};
+  return {first_name:document.getElementById('eu-fname').value,last_name:document.getElementById('eu-lname').value,email:document.getElementById('eu-email').value,contact_number:document.getElementById('eu-contact').value,...(u.role==='Doctor'?{specialty:document.getElementById('eu-spec').value,services_rendered:[...document.querySelectorAll('#eu-services input:checked')].map(i=>i.value)}:{}),...(u.role==='Staff'?{clinic:document.getElementById('eu-clinic').value}:{}),...(['Staff','Doctor'].includes(u.role)?{id_number:document.getElementById('eu-empno').value}:{})};
 }
 // A doctor's services come from their clinic's list; an empty saved list means every service.
 function editServicesHtml(specialization,current=[]){
@@ -220,6 +220,7 @@ export function openEditUserModal(id){
           ${field('eu-email','email','Email',`<input id="eu-email" type="email" maxlength="150" autocomplete="off" value="${escapeHtml(u.email)}">`)}
           ${field('eu-contact','contact_number','Mobile number',`<input id="eu-contact" type="tel" placeholder="09XXXXXXXXX" autocomplete="off" value="${escapeHtml(u.contact||'')}">`)}
         </div></section>
+        ${['Staff','Doctor'].includes(u.role)?`<section class="eu-section"><h4>Employee</h4><div class="form-row">${field('eu-empno','id_number','Employee No.',`<input id="eu-empno" inputmode="numeric" maxlength="5" pattern="\\d{5}" placeholder="5 digits" autocomplete="off" value="${escapeHtml(u.idNo||'')}">`)}</div></section>`:''}
         ${u.role==='Staff'?`<section class="eu-section"><h4>Clinic</h4><div class="form-row">${field('eu-clinic','clinic','Clinic',`<select id="eu-clinic">${['Medical Clinic','Dental Clinic'].map(value=>`<option ${u.clinic===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div></section>`:''}
         ${u.role==='Doctor'?`<section class="eu-section"><h4>Professional</h4><div class="form-row">${field('eu-spec','specialty','Specialization',`<select id="eu-spec" ${bindAction('change',()=>renderEditServices(u))}>${specialties().map(value=>`<option ${u.specialty===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div>
           <fieldset class="au-services"><legend>Services rendered</legend><div id="eu-services">${editServicesHtml(u.specialty,u.servicesRendered)}</div></fieldset></section>`:''}
@@ -287,7 +288,7 @@ export async function saveEditUser(id){
       const result=await adminUserAction({action:'update',user_id:u.dbUserId,...patch,confirmed:true,reason,notify});
       const saved=result.user;
       if(!saved)throw new Error('The update could not be verified. Reload the account before retrying.');
-      Object.assign(u,{fname:saved.first_name,lname:saved.last_name,email:saved.email,contact:saved.contact_number||'',contactNo:saved.contact_number||'',specialty:saved.specialty||'',servicesRendered:saved.services_rendered||u.servicesRendered||[],clinic:saved.clinic??u.clinic});
+      Object.assign(u,{fname:saved.first_name,lname:saved.last_name,email:saved.email,contact:saved.contact_number||'',contactNo:saved.contact_number||'',specialty:saved.specialty||'',servicesRendered:saved.services_rendered||u.servicesRendered||[],clinic:saved.clinic??u.clinic,idNo:saved.id_number??u.idNo});
       if(modal.isConnected)closeAllModals();toast(`${saved.first_name} ${saved.last_name}'s account updated.`,'success');
       if(appState.navigationRaceProtection.campusActivePageId==='users')await renderUsers();
     }catch(error){if(modal.isConnected)showAlert(msg,error?.message||'Unable to update user.');else toast(error?.message||'Unable to update user.','error');}

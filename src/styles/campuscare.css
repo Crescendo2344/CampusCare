@@ -1224,6 +1224,8 @@ tbody tr:hover td{background:var(--overlay)}
   display:block;color:var(--ink);font-size:.68rem;line-height:1.42;overflow-wrap:anywhere
 }
 .user-detail-docs{display:grid;grid-template-columns:.72fr 1.28fr;gap:.6rem}
+/* Clinic accounts show a profile photo only. */
+.user-detail-docs.single{grid-template-columns:minmax(0,260px)}
 .user-detail-preview{
   overflow:hidden;border:1px solid var(--glass-border-soft);
   border-radius:12px;background:var(--overlay)

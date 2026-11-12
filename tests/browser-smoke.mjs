@@ -100,6 +100,8 @@ try{
     if(request.method()==='GET')response={captcha_required:!mobile,site_key:mobile?null:'0x4-fixture-key'};
     else{
       if(!mobile){assert(request.postDataBuffer().toString().includes('fixture-captcha-'),'The CAPTCHA token must reach the API');if(!page.__fixtureLimited){page.__fixtureLimited=true;return route.fulfill({status:429,contentType:'application/json',headers:{'Retry-After':'120'},body:JSON.stringify({error:'Too many registration attempts. Please wait 2 minutes before trying again.',retry_after:120})});}}
+      const sent=request.postDataBuffer().toString();
+      for(const part of ['"blood_type":"O+"','"height_cm":168','"weight_kg":61.5','"allergies":"None"','"emergency_contact_name":"Maria Student"','"emergency_contact_number":"09181234567"'])assert(sent.includes(part),`Registration must send ${part}`);
       response={ok:true,email_confirmation_required:false};
     }
    }
@@ -322,9 +324,9 @@ try{
     await page.locator('#r-ptype').selectOption('Student');
     await page.waitForFunction(()=>document.getElementById('r-verification-label').textContent.includes('Student ID — Front and Back'));
     // Populate a valid registration and an OCR name mismatch at the requested 25% boundary.
-    const fields={'r-fname':'Fixture','r-lname':'Student','r-user':'fixture.student','r-email':'fixture@example.test','r-pass':'Clinic-only-Pass1!','r-pass2':'Clinic-only-Pass1!','r-idno':'1234567'};
+    const fields={'r-fname':'Fixture','r-lname':'Student','r-user':'fixture.student','r-email':'fixture@example.test','r-pass':'Clinic-only-Pass1!','r-pass2':'Clinic-only-Pass1!','r-idno':'1234567','r-height':'168','r-weight':'61.5','r-allergies':'None','r-ename':'Maria Student','r-econtact':'09181234567'};
     for(const [id,value]of Object.entries(fields))await page.locator('#'+id).fill(value);
-    await page.locator('#r-college').selectOption({index:0});await page.locator('#r-sex').selectOption('Male');
+    await page.locator('#r-college').selectOption({index:0});await page.locator('#r-sex').selectOption('Male');await page.locator('#r-blood').selectOption('O+');
     await page.evaluate(()=>{
       // The date picker stores its chosen date in a hidden field.
       document.getElementById('r-dob').value='2000-01-01';
