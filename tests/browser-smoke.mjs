@@ -752,9 +752,14 @@ try{
     await page.locator('#tm-dental-section').waitFor();
     assert.equal(await page.locator('#tm-record-type').inputValue(),'Dental Clinic');
     assert.equal(await page.locator('.dr-arch:not(.primary) .tm-dental-tooth').count(),32);
-    await page.locator('.dr-code',{hasText:'Decayed'}).click();
-    await page.locator('.tm-dental-tooth[data-tooth="36"]').click();
+    await page.locator('.tm-dental-tooth[data-tooth="36"]').fill('d');
     assert.equal(await page.locator('.tm-dental-tooth[data-tooth="36"]').inputValue(),'D');
+    await page.locator('.tm-dental-tooth[data-tooth="37"]').pressSequentially('ciiz1');
+    assert.equal(await page.locator('.tm-dental-tooth[data-tooth="37"]').inputValue(),'CII');
+    await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(()=>document.activeElement?.dataset.tooth),'38');
+    await page.locator('.tm-dental-tooth[data-tooth="36"]').focus();await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(()=>document.activeElement?.dataset.tooth),'37');
     await page.locator('.dr-chip',{hasText:'Fair'}).click();await page.locator('.dr-chip',{hasText:'Poor'}).click();
     await page.getByRole('button',{name:'Add procedure'}).click();
     await page.locator('.dr-op').nth(0).locator('.tm-dental-op-tooth').fill('36');await page.locator('.dr-op').nth(0).locator('.tm-dental-op-nature').fill('Tooth filling (restoration)');

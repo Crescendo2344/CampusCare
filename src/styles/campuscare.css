@@ -1260,7 +1260,7 @@ tbody tr:hover td{background:var(--overlay)}
 
 /* ===MEDICAL CERTIFICATE DOCUMENT EDITOR=== */
 /* A responsive A4-style editor that behaves like a lightweight word processor. */
-.cert-editor-shell{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:1rem;align-items:start}
+.cert-editor-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;align-items:start}
 .cert-word-toolbar{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;padding:.55rem;background:var(--glass-surface-soft);border:1px solid var(--glass-border-soft);border-radius:12px;margin-bottom:.75rem;position:sticky;top:0;z-index:5;backdrop-filter:blur(16px)}
 .cert-word-toolbar button,.cert-word-toolbar select{height:32px;min-width:32px;border:1px solid var(--line);border-radius:8px;background:var(--overlay);color:var(--ink);cursor:pointer;padding:.25rem .55rem;font:inherit}
 .cert-word-toolbar button:hover,.cert-word-toolbar select:hover{background:var(--overlay-strong)}
@@ -1272,6 +1272,20 @@ tbody tr:hover td{background:var(--overlay)}
 .cert-paper .cert-meta{display:flex;justify-content:space-between;gap:1rem;font-size:14px;margin-bottom:28px}.cert-paper p{margin:0 0 18px}
 .cert-paper .cert-signature-area{width:280px;margin:46px 0 0 auto;text-align:center}.cert-paper .cert-signature-area img{display:block;max-width:210px;max-height:80px;object-fit:contain;margin:0 auto -6px}.cert-paper .cert-sign-line{border-top:1px solid #111;padding-top:5px}
 .cert-paper [data-cert-field]{padding:1px 2px;border-radius:3px;display:inline-block;min-width:170px;min-height:1em;white-space:pre-wrap;vertical-align:baseline}.cert-paper [data-cert-field]:hover{background:#fff8d9}
+.cert-paper:has(.dc-doc){padding:28px 56px;min-height:1122px;line-height:1.3}
+.cert-paper .dc-doc{font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.35;display:flex;flex-direction:column;min-height:1066px}
+.cert-paper .dc-head{overflow:hidden;aspect-ratio:797/168;width:74%;margin:0 auto 2px}.cert-paper .dc-head img{display:block;width:100%}
+.cert-paper .dc-title{text-align:center;font-weight:700;font-size:14px;margin:4px 0 6px}
+.cert-paper .dc-info{font-size:11.5px;line-height:1.15;margin-bottom:14px}.cert-paper .dc-info>div{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 4px}.cert-paper .dc-fill{min-height:1.1em;border-bottom:1px solid #111;padding:0 2px;white-space:nowrap;flex:0 0 auto}
+.cert-paper .dc-chart{width:672px;border-collapse:collapse;table-layout:fixed;margin:0 auto 34px}.cert-paper .dc-chart td{padding:0;text-align:center;font-size:8px}
+.cert-paper .dc-chart .dc-code,.cert-paper .dc-chart .dc-num{border:1px solid #111}.cert-paper .dc-chart .dc-code{height:24px;font-weight:700;font-size:11px;color:#b00020}.cert-paper .dc-chart .dc-num{height:24px}
+.cert-paper .dc-chart .dc-icon{padding:1px 0}.cert-paper .dc-chart .dc-pics td:first-child{border-left:1px solid #111}.cert-paper .dc-chart .dc-pics td:last-child{border-right:1px solid #111}.cert-paper .dc-chart.dc-primary{width:420px}.cert-paper .dc-chart .dc-icon svg{display:block;margin:0 auto}
+.cert-paper .dc-sides td{font-weight:700;font-size:12px;padding:4px 40px;border:0}.cert-paper .dc-primary .dc-sides td{font-weight:400;font-size:8px;padding:6px 0}
+.cert-paper .dc-bottom{display:grid;grid-template-columns:1fr 1.15fr;gap:24px;margin-top:6px;font-size:10px;line-height:1.15}.cert-paper .dc-label{font-size:10px}.cert-paper .dc-reco{font-weight:700;font-size:10px;margin-top:14px}
+.cert-paper .dc-gapline{margin:8px 0 8px}.cert-paper .dc-circles{line-height:1.2}.cert-paper .dc-circles .dc-check{font-size:20px;line-height:.8;font-weight:700}.cert-paper .dc-circle-item{margin-right:18px;white-space:nowrap}.cert-paper .dc-others{display:flex;gap:6px;margin-top:8px}.cert-paper .dc-others .dc-fill{flex:1}
+.cert-paper .dc-status{margin-top:12px;padding-left:26px}.cert-paper .dc-check-line{line-height:1.8}.cert-paper .dc-check-line .dc-check{font-size:13px}.cert-paper .dc-check{cursor:pointer;user-select:none}
+.cert-paper .dc-ruled{font-size:10px;line-height:14px;min-height:28px;background:repeating-linear-gradient(transparent 0 13px,#111 13px 14px)}.cert-paper .dc-ruled [data-cert-field]{display:block;min-width:0;width:100%}.cert-paper .dc-reco+.dc-ruled{min-height:42px;margin-top:6px;position:relative}.cert-paper .dc-reco+.dc-ruled::after{content:"";position:absolute;right:0;bottom:0;width:36%;height:2px;background:#fff}
+.cert-paper .dc-doc .cert-signature-area{margin-top:44px;font-size:10px}.cert-paper .dc-foot{margin:auto 0 0;padding-top:8px}.cert-paper .dc-foot img{display:block;width:100%}
 #cert-editor [data-cert-field="findings"]:empty::before{content:"Click here to enter findings / diagnosis";color:#999;font-style:italic}
 #cert-editor [data-cert-field="remarks"]:empty::before{content:"Click here to enter remarks / recommendations";color:#999;font-style:italic}
 .cert-side-panel{display:flex;flex-direction:column;gap:.75rem}.cert-sign-pad{border:1px dashed var(--line);border-radius:12px;background:#fff;overflow:hidden;touch-action:none}.cert-sign-pad canvas{display:block;width:100%;height:140px;cursor:crosshair;touch-action:none}
