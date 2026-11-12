@@ -89,3 +89,54 @@ export function registrationDetailErrors(details,today){
   if('password' in details)errors.password=passwordValidationError(details.password,details);
   return Object.fromEntries(Object.entries(errors).filter(([,message])=>message));
 }
+
+// Health details and the person to notify in an emergency, asked once at registration.
+export const BLOOD_TYPES=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
+export const HEIGHT_RANGE_CM=[50,250];
+export const WEIGHT_RANGE_KG=[20,300];
+
+export function bloodTypeValidationError(value){
+  return BLOOD_TYPES.includes(String(value||''))?'':'Select your blood type, or "I don\'t know".';
+}
+
+function measurementError(value,[min,max],label,unit){
+  const raw=String(value??'').trim();
+  if(!raw)return `Enter your ${label.toLowerCase()} in ${unit}.`;
+  const number=Number(raw);
+  if(!Number.isFinite(number))return `Enter your ${label.toLowerCase()} as a number.`;
+  return number>=min&&number<=max?'':`${label} must be between ${min} and ${max} ${unit}.`;
+}
+export const heightValidationError=value=>measurementError(value,HEIGHT_RANGE_CM,'Height','cm');
+export const weightValidationError=value=>measurementError(value,WEIGHT_RANGE_KG,'Weight','kg');
+
+export function allergiesValidationError(value){
+  const text=String(value||'').trim();
+  if(!text)return 'List your allergies, or type None.';
+  return text.length>300?'Allergies must not exceed 300 characters.':'';
+}
+
+export function emergencyContactNameError(value){
+  return String(value||'').trim()?nameValidationError(value,'Name'):'Enter the name of the person to notify.';
+}
+
+export function emergencyContactNumberError(value,ownContact=''){
+  const contact=String(value||'').trim();
+  if(!contact)return 'Enter the contact number of the person to notify.';
+  const normalized=normalizePhilippineMobile(contact);
+  if(!normalized)return 'Use 09 followed by 9 digits, or +63 followed by 10 digits starting with 9.';
+  if(ownContact&&normalized===normalizePhilippineMobile(ownContact))return 'Use the number of someone else, not your own.';
+  return '';
+}
+
+// Field messages for the health and emergency details, keyed like registrationDetailErrors.
+export function registrationHealthErrors(details){
+  const errors={
+    blood_type:bloodTypeValidationError(details.blood_type),
+    height_cm:heightValidationError(details.height_cm),
+    weight_kg:weightValidationError(details.weight_kg),
+    allergies:allergiesValidationError(details.allergies),
+    emergency_contact_name:emergencyContactNameError(details.emergency_contact_name),
+    emergency_contact_number:emergencyContactNumberError(details.emergency_contact_number,details.contact_number)
+  };
+  return Object.fromEntries(Object.entries(errors).filter(([,message])=>message));
+}

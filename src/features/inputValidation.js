@@ -1,6 +1,6 @@
 // inputValidation: imported feature APIs; state belongs to explicit application namespaces.
 import {emailValidationError} from '../../supabase/functions/_shared/contact-validation.js';
-import {birthDateValidationError,confirmPasswordValidationError,contactValidationError,nameValidationError,passwordValidationError,schoolIdValidationError,usernameValidationError} from '../../supabase/functions/_shared/registration-validation.js';
+import {allergiesValidationError,bloodTypeValidationError,emergencyContactNameError,emergencyContactNumberError,heightValidationError,weightValidationError,birthDateValidationError,confirmPasswordValidationError,contactValidationError,nameValidationError,passwordValidationError,schoolIdValidationError,usernameValidationError} from '../../supabase/functions/_shared/registration-validation.js';
 import {state as appState} from '../app/state.js';
 import {displayMarkup,formatters,sanitizeValue,scheduleRules} from '../dependencies.js';
 // ================================================================
@@ -65,10 +65,16 @@ const registrationFieldRules={
   'r-pass':()=>passwordValidationError(value('r-pass'),{username:value('r-user'),email:value('r-email')}),
   'r-pass2':()=>confirmPasswordValidationError(value('r-pass'),value('r-pass2')),
   'r-contact':()=>contactValidationError(value('r-contact')),
+  'r-ename':()=>emergencyContactNameError(value('r-ename')),
+  'r-econtact':()=>emergencyContactNumberError(value('r-econtact'),value('r-contact')),
   'r-college':()=>value('r-college')?'':'Select your college or department.',
   'r-idno':()=>schoolIdValidationError(value('r-idno').trim(),value('r-ptype')||'Student'),
   'r-dob':()=>birthDateValidationError(value('r-dob'),appState.clinicInformation.TODAY),
   'r-sex':()=>value('r-sex')?'':'Select your sex.',
+  'r-blood':()=>bloodTypeValidationError(value('r-blood')),
+  'r-allergies':()=>allergiesValidationError(value('r-allergies')),
+  'r-height':()=>heightValidationError(value('r-height')),
+  'r-weight':()=>weightValidationError(value('r-weight')),
   'r-selfie':()=>appState.camera.capturedSelfieDataUrl?'':'Use the camera to take a verification selfie while holding the ID you will upload.',
   'r-id':()=>{
     const sides=appState.camera.registrationIds||{};
