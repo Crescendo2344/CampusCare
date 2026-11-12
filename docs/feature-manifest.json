@@ -55,6 +55,7 @@
     ],
     "state": [],
     "imports": [
+      "../domain/clinic-scope.js",
       "../app/state.js",
       "./workflowRequests.js",
       "./sessionSecurity.js",
@@ -129,6 +130,7 @@
     ],
     "state": [],
     "imports": [
+      "../domain/clinic-scope.js",
       "../app/state.js",
       "./navigationRaceProtection.js",
       "./loadingSkeletons.js",
@@ -377,6 +379,7 @@
       }
     ],
     "imports": [
+      "../domain/clinic-scope.js",
       "./reappointment.js",
       "../../supabase/functions/_shared/clinic-services.js",
       "../app/state.js",
@@ -1508,6 +1511,7 @@
     ],
     "imports": [
       "../services/feature-sync.js",
+      "../domain/clinic-scope.js",
       "../app/state.js",
       "./topbarAndNavigation.js",
       "./loadingSkeletons.js",
@@ -1847,6 +1851,7 @@
     ],
     "state": [],
     "imports": [
+      "../domain/clinic-scope.js",
       "../app/state.js",
       "./issueReports.js",
       "./modals.js",
@@ -2155,6 +2160,7 @@
     ],
     "state": [],
     "imports": [
+      "../domain/clinic-scope.js",
       "../app/state.js",
       "./issueReports.js",
       "./modals.js",
@@ -2368,6 +2374,7 @@
       }
     ],
     "imports": [
+      "../domain/clinic-scope.js",
       "../app/state.js",
       "./issueReports.js",
       "./navigationRaceProtection.js",

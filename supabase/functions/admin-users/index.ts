@@ -283,6 +283,11 @@ Deno.serve(async(req)=>{
       if(!Object.keys(patch).length)return json({error:"No changes to save."},400);
       const reason=String(body.reason||"").trim().slice(0,300);
       if(reason.length<5)return json({error:"Give a short reason for this change."},400);
+      if(patch.id_number){
+        const {data:idHit,error:idError}=await admin.from("users").select("user_id").eq("id_number",patch.id_number).neq("user_id",targetId).limit(1);
+        if(idError)throw idError;
+        if(idHit?.length)return json({error:"This employee number belongs to another account.",field_errors:{id_number:"This employee number belongs to another account."}},409);
+      }
       let changedAuthEmail=false;
       if(patch.email){
         const {data:hit,error:lookupError}=await admin.from("users").select("user_id").eq("email",patch.email).neq("user_id",targetId).limit(1);
@@ -295,7 +300,7 @@ Deno.serve(async(req)=>{
       }
       // Read the updated row back and condition on its approved status: never report a zero-row write as success.
       const {data:saved,error}=await admin.from("users").update(patch).eq("user_id",targetId).eq("status",target.status)
-        .select("user_id,first_name,last_name,email,contact_number,specialty,services_rendered,clinic,status").maybeSingle();
+        .select("user_id,first_name,last_name,email,contact_number,specialty,services_rendered,clinic,id_number,status").maybeSingle();
       if(error||!saved){
         if(changedAuthEmail){
           const {error:rollbackError}=await admin.auth.admin.updateUserById(target.auth_user_id,{email:target.email});
@@ -308,7 +313,7 @@ Deno.serve(async(req)=>{
       for(const key of Object.keys(patch)){changes["previous_"+key]=(target as any)[key]??null;changes["new_"+key]=patch[key];}
       await admin.from("audit_logs").insert({user_id:actor.user_id,action:"USER_UPDATED",entity_type:"users",entity_id:targetId,details:{...changes,reason}});
       if(body.notify!==false){
-        const labels:Record<string,string>={first_name:"first name",last_name:"last name",email:"email",contact_number:"mobile number",specialty:"specialization",services_rendered:"services rendered",clinic:"clinic"};
+        const labels:Record<string,string>={first_name:"first name",last_name:"last name",email:"email",contact_number:"mobile number",specialty:"specialization",services_rendered:"services rendered",clinic:"clinic",id_number:"employee number"};
         await admin.from("notifications").insert({
           user_id:targetId,title:"Account details updated",
           message:`An administrator updated your ${Object.keys(patch).map(k=>labels[k]||k).join(", ")}. Reason: ${reason}`,

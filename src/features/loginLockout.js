@@ -265,7 +265,7 @@ export function dataUrlToRegistrationFile(dataUrl, filename='capture.jpg'){
   return new File([bytes],filename,{type:mime});
 }
 
-const REGISTRATION_SERVER_FIELDS={first_name:'r-fname',last_name:'r-lname',username:'r-user',email:'r-email',password:'r-pass',contact_number:'r-contact',college:'r-college',id_number:'r-idno',birth_date:'r-dob',sex:'r-sex'};
+const REGISTRATION_SERVER_FIELDS={first_name:'r-fname',last_name:'r-lname',username:'r-user',email:'r-email',password:'r-pass',contact_number:'r-contact',college:'r-college',id_number:'r-idno',birth_date:'r-dob',sex:'r-sex',blood_type:'r-blood',height_cm:'r-height',weight_kg:'r-weight',allergies:'r-allergies',emergency_contact_name:'r-ename',emergency_contact_number:'r-econtact'};
 
 export async function doRegister() {
   if(!initializeSupabaseClient()){
@@ -288,6 +288,12 @@ export async function doRegister() {
   const idNo=document.getElementById('r-idno').value.trim();
   const dob=document.getElementById('r-dob').value;
   const sex=document.getElementById('r-sex').value;
+  const bloodType=document.getElementById('r-blood').value;
+  const heightCm=Number(document.getElementById('r-height').value);
+  const weightKg=Number(document.getElementById('r-weight').value);
+  const allergies=document.getElementById('r-allergies').value.trim();
+  const emergencyName=document.getElementById('r-ename').value.trim();
+  const emergencyNumber=normalizePhilippineMobile(document.getElementById('r-econtact').value.trim());
   const idSides=registrationIdSides();
 
   // Show every problem beside its field, like a standard sign-up form, then move to the first one.
@@ -325,6 +331,12 @@ export async function doRegister() {
     verification_document_type:ptype==='Student'?'Student ID':'Employee ID',
     date_of_birth:dob,
     sex,
+    blood_type:bloodType,
+    height_cm:heightCm,
+    weight_kg:weightKg,
+    allergies,
+    emergency_contact_name:emergencyName,
+    emergency_contact_number:emergencyNumber,
     privacy_consent:true,
     privacy_policy_version:appState.data.DB.settings?.privacyPolicyVersion||'1.0',
     privacy_consent_at:new Date().toISOString()
@@ -363,7 +375,7 @@ export async function doRegister() {
       dob,sex,status:'Pending'
     });
 
-    ['r-fname','r-lname','r-user','r-email','r-pass','r-pass2','r-contact','r-idno','r-dob','r-sex']
+    ['r-fname','r-lname','r-user','r-email','r-pass','r-pass2','r-contact','r-idno','r-dob','r-sex','r-blood','r-height','r-weight','r-allergies','r-ename','r-econtact']
       .forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     const dobLabel=document.getElementById('r-dob-label');if(dobLabel)dobLabel.textContent='Select date';
     resetRegistrationIds();

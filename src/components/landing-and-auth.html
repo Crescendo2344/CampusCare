@@ -375,6 +375,24 @@
             <p class="registration-field-error" id="r-sex-error" aria-live="polite" hidden></p>
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group"><label for="r-blood">Blood Type <span class="required">*</span></label>
+            <select id="r-blood" data-action-change="registration-field-blur" aria-describedby="r-blood-error">
+              <option value="">Select</option>
+              <option value="A+">A+</option><option value="A-">A-</option>
+              <option value="B+">B+</option><option value="B-">B-</option>
+              <option value="AB+">AB+</option><option value="AB-">AB-</option>
+              <option value="O+">O+</option><option value="O-">O-</option>
+              <option value="Unknown">I don't know</option>
+            </select>
+            <p class="registration-field-error" id="r-blood-error" aria-live="polite" hidden></p>
+          </div>
+          <div class="form-group"><label for="r-allergies">Allergies <span class="required">*</span></label><input id="r-allergies" type="text" maxlength="300" placeholder="e.g. Penicillin, peanuts, or None" data-action-blur="registration-field-blur" aria-describedby="r-allergies-help r-allergies-error"><p class="form-note field-hint" id="r-allergies-help">Include medicine, food and other allergies. Type None if you have none.</p><p class="registration-field-error" id="r-allergies-error" aria-live="polite" hidden></p></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="r-height">Height (cm) <span class="required">*</span></label><input id="r-height" type="number" inputmode="decimal" min="50" max="250" step="0.1" placeholder="e.g. 160" data-action-blur="registration-field-blur" aria-describedby="r-height-error"><p class="registration-field-error" id="r-height-error" aria-live="polite" hidden></p></div>
+          <div class="form-group"><label for="r-weight">Weight (kg) <span class="required">*</span></label><input id="r-weight" type="number" inputmode="decimal" min="20" max="300" step="0.1" placeholder="e.g. 55" data-action-blur="registration-field-blur" aria-describedby="r-weight-error"><p class="registration-field-error" id="r-weight-error" aria-live="polite" hidden></p></div>
+        </div>
       </fieldset>
 
       <fieldset class="registration-group">
@@ -397,6 +415,15 @@
           <div class="password-check" data-check="special"><span class="pw-check-icon"></span><span>Special character <span class="text-muted">(recommended)</span></span></div>
         </div>
         <div class="form-group"><label for="r-contact">Contact No. <span class="text-muted registration-optional">(optional)</span></label><input id="r-contact" type="tel" inputmode="tel" maxlength="24" autocomplete="tel" placeholder="09… or +63…" data-action-input="shell-25" data-action-blur="registration-contact-blur" aria-describedby="r-contact-help r-contact-error"><p class="form-note field-hint" id="r-contact-help">Use 09XXXXXXXXX or +639XXXXXXXXX.</p><p class="registration-field-error" id="r-contact-error" aria-live="polite" hidden></p></div>
+      </fieldset>
+
+      <fieldset class="registration-group">
+        <legend>Emergency contact</legend>
+        <p class="form-note registration-group-note">In case of emergency, please notify:</p>
+        <div class="form-row">
+          <div class="form-group"><label for="r-ename">Name <span class="required">*</span></label><input id="r-ename" type="text" maxlength="100" autocomplete="off" placeholder="e.g. Maria Dela Cruz" data-action-blur="registration-field-blur" aria-describedby="r-ename-error"><p class="registration-field-error" id="r-ename-error" aria-live="polite" hidden></p></div>
+          <div class="form-group"><label for="r-econtact">Contact No. <span class="required">*</span></label><input id="r-econtact" type="tel" inputmode="tel" maxlength="24" autocomplete="off" placeholder="09… or +63…" data-action-blur="registration-field-blur" aria-describedby="r-econtact-help r-econtact-error"><p class="form-note field-hint" id="r-econtact-help">Use 09XXXXXXXXX or +639XXXXXXXXX.</p><p class="registration-field-error" id="r-econtact-error" aria-live="polite" hidden></p></div>
+        </div>
       </fieldset>
 
       <fieldset class="registration-group">
