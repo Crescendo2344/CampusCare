@@ -81,7 +81,7 @@ export async function generateStudentReport(exportToolbar,download){
   const collegeColumns=[['college','College/Department','College'],['registered','Students: Registered','Registered'],
     ...(showDental?[['dentalUsed','Dental Care: Used','Dental used'],['dentalNotUsed','Dental Care: Not Recorded','No dental recorded']]:[]),
     ['unknownCoverage','Coverage: No Linked Patient Record','Coverage unknown'],['morning','Class Session: Morning','Morning'],['evening','Class Session: Evening','Evening'],['unknownSession','Class Session: Not Recorded','Session unknown']];
-  // The college summary downloads as CSV, Excel, Word or PDF.
+  // The college summary downloads as Excel, Word or PDF.
   const summarySource=()=>({title:`Student college summary ${filters.from} to ${filters.to}`,
     rows:report.colleges.map(c=>Object.fromEntries(collegeColumns.map(([k,label])=>[label,c[k]]))),
     csv:()=>toCsv([collegeColumns.map(([,label])=>label),...report.colleges.map(c=>collegeColumns.map(([k])=>c[k]))]),

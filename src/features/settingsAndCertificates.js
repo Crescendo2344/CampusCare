@@ -40,7 +40,8 @@ export async function renderSettings(){
         syncRealSystemSettings(),
         syncRealBackupStatus(),
         syncEmailDeliveryStatus(),
-        syncPrivacyAdminSummary(),
+        // Privacy figures are secondary: if they cannot load, the rest of the settings still open.
+        syncPrivacyAdminSummary().catch(e=>{console.error('Privacy summary:',e);}),
         syncPrivacyRequests()
       ]);
     }
@@ -269,7 +270,7 @@ function privacyPanelHtml(s){
           <td data-label="Status">${r.resolved_at?`<span class="badge badge-success">Resolved</span><div class="text-muted">${escapeHtml(fmtDate(String(r.resolved_at).slice(0,10)))}${r.resolved_by_name?` · ${escapeHtml(r.resolved_by_name)}`:''}</div>`:'<span class="badge badge-warning">Open</span>'}</td>
           <td data-label="Actions">${r.resolved_at?'':`<button type="button" class="btn btn-xs btn-primary" ${bindAction('click',()=>openResolvePrivacyRequest(r))}>Resolve</button>`}</td>
         </tr>`).join('')}</tbody></table></div>`
-      :'<div class="empty-state"><p>No privacy requests yet.</p></div>'}
+      :`<div class="empty-state"><p>${escapeHtml(appState.data.DB.privacyRequestsError||'No privacy requests yet.')}</p></div>`}
     </div>`;
 }
 function setPrivacyVersionEditing(on){
@@ -294,8 +295,15 @@ function openResolvePrivacyRequest(r){
 }
 export async function syncPrivacyRequests(){
   if(!appState.auth.currentUser?._realSupabase||appState.auth.currentUser.role!=='Administrator')return [];
-  const result=await privacyAction({action:'list_requests'});
-  appState.data.DB.privacyRequests=result.requests||[];
+  try{
+    const result=await privacyAction({action:'list_requests'});
+    appState.data.DB.privacyRequests=result.requests||[];
+    appState.data.DB.privacyRequestsError='';
+  }catch(e){
+    console.error('Privacy requests:',e);
+    appState.data.DB.privacyRequests=[];
+    appState.data.DB.privacyRequestsError='Privacy requests could not be loaded right now.';
+  }
   return appState.data.DB.privacyRequests;
 }
 

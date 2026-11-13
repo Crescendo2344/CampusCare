@@ -415,16 +415,15 @@ const USER_PAGE_SIZE=10;
 
 // Status changes share one flow: confirm, save, then offer Undo back to the previous status.
 const STATUS_CHANGES={
-  Suspended:{title:'Suspend Account',verb:'suspend',done:'suspended',danger:true},
   Reactivate:{title:'Reactivate Account',verb:'reactivate',done:'reactivated',status:'Active'},
   Archived:{title:'Archive Account',verb:'archive',done:'archived',danger:true},
   Restore:{title:'Restore Account',verb:'restore',done:'restored',status:'Active'}
 };
-async function saveUserStatus(u,status){
+async function saveUserStatus(u,status,extra={}){
   if(u._realSupabase){
-    await adminUserAction({action:'status',user_id:u.dbUserId,status});
+    const result=await adminUserAction({action:'status',user_id:u.dbUserId,status,...extra});
     await renderUsers();
-    return;
+    return result;
   }
   u.status=status;
   u.archived=status==='Archived';
@@ -448,9 +447,33 @@ function changeUserStatus(id,change){
   });
 }
 
+// Same choices as the server; the person is emailed the reason, so a suspension is not undone silently.
+const SUSPENSION_REASONS=['Policy violation','Misuse of appointments','Suspicious or unauthorized activity','Identity or record verification','No longer enrolled or employed','Other'];
 export function suspendUser(id){
-  if(appState.data.DB.users.find(x=>x.id===id)?.status!=='Active')return;
-  changeUserStatus(id,'Suspended');
+  const u=appState.data.DB.users.find(x=>x.id===id);
+  if(u?.status!=='Active')return;
+  if(appState.auth.currentUser?.id===id){toast('You cannot suspend or archive your own administrator account.','warning');return;}
+  openModal(`<div class="modal modal-sm" role="dialog" aria-labelledby="su-title">
+    <div class="modal-header"><div><h3 id="su-title">Suspend account</h3><div class="text-muted">${escapeHtml(`${u.fname} ${u.lname}`)}${u.email?` · ${escapeHtml(u.email)}`:''}</div></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label for="su-category">Reason <span class="required">*</span></label><select id="su-category"><option value="">Choose a reason</option>${SUSPENSION_REASONS.map(r=>`<option>${r}</option>`).join('')}</select></div>
+      <div class="form-group"><label for="su-reason">Details for the user <span class="required">*</span></label><textarea id="su-reason" rows="4" maxlength="600"></textarea></div>
+      <p class="registration-field-error" id="su-error" hidden></p>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button>
+      <button type="button" class="btn btn-danger" ${bindAction('click',async(event,element)=>{
+        const category=document.getElementById('su-category').value,reason=document.getElementById('su-reason').value.trim(),err=document.getElementById('su-error');
+        const fail=message=>{err.textContent=message;err.hidden=false;};
+        if(!category)return fail('Choose a reason.');
+        if(reason.length<10)return fail('Explain the reason to the user (at least 10 characters).');
+        element.disabled=true;
+        try{
+          const result=await saveUserStatus(u,'Suspended',{reason_category:category,reason});
+          closeAllModals();
+          toast(`${u.fname} ${u.lname} suspended.${result?.email_queued===false?' The email could not be queued.':u.email?` An email was sent to ${u.email}.`:''}`,'success');
+        }catch(e){fail(e?.message||'Unable to suspend this account.');element.disabled=false;}
+      })}>Suspend and email</button></div>
+  </div>`);
 }
 
 export function reactivateUser(id){

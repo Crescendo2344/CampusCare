@@ -6,6 +6,21 @@ import {contactValidationError,nameValidationError,usernameValidationError} from
 import {emailCredentials,generatePassword} from "../_shared/account-credentials.js";
 import {SPECIALIZATIONS,cleanServicesRendered,defaultStartTimeForSpecialty} from "../_shared/clinic-services.js";
 
+const SUSPENSION_REASONS=["Policy violation","Misuse of appointments","Suspicious or unauthorized activity","Identity or record verification","No longer enrolled or employed","Other"];
+const escHtml=(v:string)=>v.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+// Plain account emails for a suspension or reactivation, in the same layout as the registration emails.
+function statusEmail(status:string,name:string,category:string,reason:string){
+  const suspended=status==="Suspended";
+  const subject=suspended?"CampusCare — Your account has been suspended":"CampusCare — Your account has been reactivated";
+  const lines=suspended
+    ?[`Your CampusCare account has been suspended, so you cannot sign in or book appointments for now.`,`Reason: ${category}${reason?` — ${reason}`:""}`,`If you think this is a mistake or want to appeal, reply to this email or visit the clinic.`]
+    :[`Your CampusCare account has been reactivated. You may sign in again.`];
+  const footer="CTU Main Medical & Dental Clinic\nGround Floor, Education Building, CTU Main Campus\nPhone: (032) 402 4060 loc. 1142";
+  const text=`Hello ${name},\n\n${lines.join("\n\n")}\n\n${footer}`;
+  const html=`<!doctype html><html><body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937"><div style="max-width:620px;margin:0 auto;padding:28px 16px"><div style="background:#fff;border-radius:16px;border:1px solid #e5e7eb;padding:26px"><p style="margin-top:0">Hello ${escHtml(name)},</p><h2 style="font-size:20px;margin:0 0 12px;color:${suspended?"#b42318":"#0b6b3a"}">${suspended?"Your account has been suspended":"Your account has been reactivated"}</h2>${lines.map((l,i)=>`<p style="font-size:15px;line-height:1.65">${suspended&&i===1?`<strong>Reason:</strong> ${escHtml(l.slice(8))}`:escHtml(l)}</p>`).join("")}<div style="margin-top:24px;padding:16px;background:#f8fafc;border-radius:12px;font-size:13px;line-height:1.6;color:#475569"><strong>CTU Main Medical &amp; Dental Clinic</strong><br>Ground Floor, Education Building, CTU Main Campus<br>Phone: (032) 402 4060 loc. 1142</div></div></div></body></html>`;
+  return {subject,text,html};
+}
+
 const cors={
   "Access-Control-Allow-Origin":"*",
   "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
@@ -332,14 +347,31 @@ Deno.serve(async(req)=>{
       // A returning patient is restored by staff in Patient Records, which also reopens the record.
       if(target.role==="Patient"&&nextStatus==="Archived") return json({error:"Patient records archive automatically after five years without activity."},409);
       if(target.role==="Patient"&&target.status==="Archived") return json({error:"Restore a returning patient from Patient Records (staff)."},409);
+      // A suspension always carries a reason the person is told, like other account consoles.
+      const reasonCategory=SUSPENSION_REASONS.includes(String(body.reason_category))?String(body.reason_category):"";
+      const reasonText=String(body.reason||"").trim().slice(0,600);
+      if(nextStatus==="Suspended"&&(!reasonCategory||reasonText.length<10))
+        return json({error:"Choose a reason and explain it to the user (at least 10 characters)."},400);
       const {error}=await admin.from("users").update({status:nextStatus}).eq("user_id",targetId);
       if(error) throw error;
       await admin.from("audit_logs").insert({
         user_id:actor.user_id,
         action:nextStatus==="Suspended"?"USER_SUSPENDED":nextStatus==="Archived"?"USER_ARCHIVED":"USER_REACTIVATED",
-        entity_type:"users",entity_id:targetId,details:{previous_status:target.status,new_status:nextStatus}
+        entity_type:"users",entity_id:targetId,
+        details:{previous_status:target.status,new_status:nextStatus,...(reasonCategory?{reason_category:reasonCategory}:{}),...(reasonText?{reason:reasonText}:{})}
       });
-      return json({ok:true,status:nextStatus});
+      // The person is emailed directly: a suspended account cannot sign in to read an in-app notice.
+      let emailQueued=false;
+      const notify=body.notify!==false&&target.email&&(nextStatus==="Suspended"||(nextStatus==="Active"&&target.status==="Suspended"));
+      if(notify){
+        const mail=statusEmail(nextStatus,`${target.first_name||""} ${target.last_name||""}`.trim()||"CampusCare user",reasonCategory,reasonText);
+        const {error:mailErr}=await admin.from("email_outbox").insert({
+          user_id:null,recipient_email:target.email,subject:mail.subject,html_body:mail.html,text_body:mail.text,
+          template_key:"account",status:"Pending",scheduled_at:new Date().toISOString()
+        });
+        emailQueued=!mailErr;
+      }
+      return json({ok:true,status:nextStatus,email_queued:emailQueued});
     }
 
     if(action==="schedule"){

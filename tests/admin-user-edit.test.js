@@ -73,3 +73,18 @@ test('staff and doctor employee numbers can be added or corrected: five digits a
   const taken=await fixture({duplicate:true});const refused=await taken.call({id_number:'54321'});
   assert.equal(refused.status,409);assert.match((await refused.json()).error,/belongs to another account/);assert.equal(taken.writes.length,0);
 });
+test('suspending needs a reason and emails it to the person; reactivating emails them too',async()=>{
+  let f=await fixture();
+  for(const body of [{},{reason_category:'Policy violation',reason:'short'},{reason_category:'Made up',reason:'Repeated no-shows on booked visits'}]){
+    const response=await f.call({action:'status',status:'Suspended',...body});assert.equal(response.status,400);
+  }
+  assert.equal(f.writes.length,0);
+  const response=await f.call({action:'status',status:'Suspended',reason_category:'Misuse of appointments',reason:'Repeated no-shows on booked visits'});
+  assert.equal(response.status,200);assert.equal((await response.json()).email_queued,true);
+  const mail=f.audits.find(row=>row.recipient_email);
+  assert.equal(mail.recipient_email,'original@example.test');assert.match(mail.subject,/suspended/);assert.match(mail.text_body,/Misuse of appointments — Repeated no-shows/);
+  assert(f.audits.some(row=>row.action==='USER_SUSPENDED'&&row.details.reason_category==='Misuse of appointments'));
+  f=await fixture({status:'Suspended'});
+  const back=await f.call({action:'status',status:'Active'});assert.equal(back.status,200);
+  assert.match(f.audits.find(row=>row.recipient_email).subject,/reactivated/);
+});

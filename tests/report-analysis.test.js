@@ -69,3 +69,11 @@ test('report snapshot isolates doctors, excludes demo rows, and retains archived
    const data=reportData();assert.equal(data.appointments.length,1);assert.equal(data.appointments[0].college,'COE');assert.equal(data.patients.length,0);assert.equal(data.inventory.length,0);assert.equal(data.visits.length,1);
  }finally{state.auth.currentUser=saved.auth;Object.keys(state.reports).forEach(k=>delete state.reports[k]);Object.assign(state.reports,saved.reports);}
 });
+test('forecast periods are whole numbers that add up to the total, with a likely range',()=>{
+ const events=[{date:'2026-01-01',amount:5},{date:'2026-01-05',amount:6},{date:'2026-01-09',amount:5},{date:'2026-01-13',amount:6}];
+ const f=buildForecast(events,{from:'2026-01-01',to:'2026-01-14',today:'2026-02-01',days:90,method:'average'});
+ for(const r of f.rows){assert.ok(Number.isInteger(r.amount));assert.ok(r.low<=r.amount&&r.amount<=r.high);}
+ assert.equal(f.rows.reduce((s,r)=>s+r.amount,0),f.projected);
+ assert.ok(f.projectedLow<f.projected&&f.projected<f.projectedHigh);
+ assert.equal(f.weeklyAverage,11);
+});

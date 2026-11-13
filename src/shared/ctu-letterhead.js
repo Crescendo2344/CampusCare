@@ -38,12 +38,16 @@ export function ctuFooterHtml({width=0}={}){
 
 // A complete printable page. The header and footer sit in a table's thead/tfoot, which browsers
 // repeat on every printed page, so long documents keep the letterhead on each page.
-export function ctuPrintDocument({title='CampusCare document',body='',css='',head=''}={}){
+// A zero page margin keeps the browser from printing its own date, title and address lines; the page
+// spacing comes from the side padding and the repeated header and footer cells instead.
+export function ctuPrintDocument({title='CampusCare document',body='',css='',head='',landscape=false}={}){
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>${head}<style>
-    @page{size:A4;margin:10mm 12mm}
-    body{margin:0;background:#fff;color:#111;font:12px/1.5 Arial,Helvetica,sans-serif}
+    @page{size:A4 ${landscape?'landscape':'portrait'};margin:0}
+    body{margin:0;padding:0 12mm;background:#fff;color:#111;font:12px/1.5 Arial,Helvetica,sans-serif}
     table.ctu-page{width:100%;border-collapse:collapse}
     table.ctu-page>thead>tr>td,table.ctu-page>tfoot>tr>td,table.ctu-page>tbody>tr>td{padding:0;border:0}
+    table.ctu-page>thead>tr>td{padding-top:10mm}
+    table.ctu-page>tfoot>tr>td{padding-bottom:8mm}
     .ctu-page-body{padding:4px 0}
     ${css}
   </style></head><body><table class="ctu-page"><thead><tr><td>${ctuHeaderHtml()}</td></tr></thead>

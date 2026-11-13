@@ -130,9 +130,8 @@ export function exportToolbarHtml(){
   return `<div class="card">
     <div class="card-header"><h3>Export Report</h3></div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-      <button class="btn btn-sm" ${bindAction('click',(event,element)=>{exportReportCSV()})}>⬇️ CSV</button>
       <button class="btn btn-sm btn-success" ${bindAction('click',(event,element)=>{exportReportExcel()})}><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel (.xlsx)</button>
-      <button class="btn btn-sm btn-info" ${bindAction('click',(event,element)=>{exportReportWord()})}><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word (.doc)</button>
+      <button class="btn btn-sm btn-info" ${bindAction('click',(event,element)=>{exportReportWord()})}><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word (.docx)</button>
       <button class="btn btn-sm btn-danger" ${bindAction('click',(event,element)=>{exportReportPDF()})}><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF (Print)</button>
     </div>
   </div>`;
@@ -151,7 +150,7 @@ export function rowsToCSV(rows){
   return rows.length?objectsToCsv(rows):'';
 }
 
-// One exporter for every Reports & Analytics table: CSV, Excel, Word and PDF, the last two on the CTU letterhead.
+// One exporter for every Reports & Analytics table: Excel, Word and PDF (CSV stays for internal callers), the last two on the CTU letterhead.
 // `rows` are plain objects whose keys are the column headings; `csv` may supply the grouped CSV layout instead.
 const fileStem=title=>String(title||'CampusCare report').trim().replace(/[^\w.-]+/g,'_');
 // Column keys written as "Group: Label" get a two-row heading: the group spans its columns.
@@ -164,7 +163,7 @@ export function tableHeadings(rows){
   return {columns:split,grouped,groups};
 }
 const isNumeric=v=>typeof v==='number'||(/^-?\d+(\.\d+)?$/.test(String(v??''))&&String(v).length<12);
-function tableHtml(rows,{font=11,word=false}={}){
+export function tableHtml(rows,{font=11,word=false}={}){
   const {columns,grouped,groups}=tableHeadings(rows);
   // Word wraps cells mid-word when columns are tight, so short values and headings stay on one line there.
   const th=`border:1px solid #9fb3bf;padding:${word?'3px 4px':'5px 7px'};background:#e6eff4;color:#12314a;font-weight:700;text-align:center;vertical-align:middle${word?';white-space:nowrap':''}`;
@@ -346,7 +345,7 @@ export async function exportTable({title,rows=[],format,csv=null,extraHtml='',cs
       const wb=await excelWorkbook(title,rows);
       downloadBlob(await wb.xlsx.writeBuffer(),`${stem}.xlsx`,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       toast('Excel file exported.','success');
-    }catch(e){console.error('Excel export:',e);toast('Could not create the Excel file (the export library needs an internet connection). Try CSV instead.','error');}
+    }catch(e){console.error('Excel export:',e);toast('Could not create the Excel file (the export library needs an internet connection). Check the connection and try again.','error');}
     return;
   }
   const generated=`CTU Main Medical &amp; Dental Clinic · Generated ${escapeHtml(new Date().toLocaleString('en-PH'))}`;
@@ -356,7 +355,7 @@ export async function exportTable({title,rows=[],format,csv=null,extraHtml='',cs
       downloadBlob(blob,`${stem}.docx`,'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     }catch(e){
       // Without the Word library (offline), fall back to a Word-readable HTML document.
-      console.error('Word export:',e);
+      console.warn('Word export fell back to HTML:',e?.message||e);
       downloadBlob(wordDocumentHtml(title,rows,generated),`${stem}.doc`,'application/msword');
     }
     toast('Word document exported.','success');return;
@@ -365,14 +364,15 @@ export async function exportTable({title,rows=[],format,csv=null,extraHtml='',cs
   toast('Opening print dialog — choose "Save as PDF" as the destination.','info');
   // Charts need the app's styles; the table and letterhead carry their own.
   const head=extraHtml?[...document.querySelectorAll('link[rel="stylesheet"],style')].map(node=>node.outerHTML).join(''):'';
-  printCtuDocument({title,head,css:`body{background:#fff!important;color:#111!important}.doc-title{text-align:center;font-weight:700;font-size:15px;margin:4px 0 2px}.doc-sub{text-align:center;color:#555;margin:0 0 12px}.doc-extra{margin-bottom:12px}.doc-extra button,.doc-extra .chart-type-switch{display:none!important}`,
-    body:`<div class="doc-title">${escapeHtml(title)}</div><p class="doc-sub">${generated}</p>${extraHtml?`<div class="doc-extra">${extraHtml}</div>`:''}${tableHtml(rows)}`});
+  // Wide tables print landscape with compact cells, so dates and short values stay on one line.
+  const wide=Object.keys(rows[0]||{}).length>7;
+  printCtuDocument({title,head,landscape:wide,css:`body{background:#fff!important;color:#111!important}.doc-title{text-align:center;font-weight:700;font-size:15px;margin:4px 0 2px}.doc-sub{text-align:center;color:#555;margin:0 0 12px}.doc-extra{margin-bottom:12px}.doc-extra button,.doc-extra .chart-type-switch{display:none!important}`,
+    body:`<div class="doc-title">${escapeHtml(title)}</div><p class="doc-sub">${generated}</p>${extraHtml?`<div class="doc-extra">${extraHtml}</div>`:''}${tableHtml(rows,{font:wide?10:11,word:true})}`});
 }
-// The four download buttons; `source()` returns {title,rows,csv?,extraHtml?} at click time.
+// The download buttons (Excel, Word, PDF); `source()` returns {title,rows,csv?,extraHtml?} at click time.
 export function exportButtonsHtml(source,{label='Download'}={}){
   const run=format=>()=>exportTable({...source(),format});
   return `<div class="report-export-buttons" role="group" aria-label="${escapeHtml(label)}"><span class="text-muted" style="font-size:.78rem;margin-right:.25rem">${escapeHtml(label)}:</span>
-    <button type="button" class="btn btn-sm" ${bindAction('click',run('csv'))}><i class="bi bi-filetype-csv" aria-hidden="true"></i> CSV</button>
     <button type="button" class="btn btn-sm" ${bindAction('click',run('xlsx'))}><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel</button>
     <button type="button" class="btn btn-sm" ${bindAction('click',run('doc'))}><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word</button>
     <button type="button" class="btn btn-sm" ${bindAction('click',run('pdf'))}><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</button></div>`;

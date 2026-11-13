@@ -62,6 +62,7 @@ export async function renderAppointments(){
         <option>Scheduled</option><option>Completed</option><option>Cancelled</option><option>No-show</option>
       </select>
       <select id="appt-college" aria-label="College or department" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>${unitFilterOptionsHtml('')}</select>
+      <select id="appt-session" aria-label="Class session" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}><option value="">All class sessions</option><option value="Morning">Morning class</option><option value="Evening">Evening class</option></select>
       ${appState.auth.currentUser.role==='Doctor'||ownClinic?'':`      <select id="appt-clinic" aria-label="Clinic" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>
         <option value="">All clinics</option>
         <option>Medical Clinic</option><option>Dental Clinic</option>
@@ -87,7 +88,7 @@ const clinicNow=()=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Manila',hour
 // Every filter except the tab, so tab counts show what each list would contain.
 function filteredAppointments(){
   const value=id=>document.getElementById(id)?.value||'';
-  const q=value('appt-search').trim().toLowerCase(),stat=value('appt-status'),unit=value('appt-college'),clinic=value('appt-clinic');
+  const q=value('appt-search').trim().toLowerCase(),stat=value('appt-status'),unit=value('appt-college'),clinic=value('appt-clinic'),session=value('appt-session');
   const doctor=Number(value('appt-doctor'))||0,dateFrom=value('appt-date-from'),dateTo=value('appt-date-to');
   const account=appState.auth.currentUser;
   return appointmentRecords().filter(a=>{
@@ -95,7 +96,7 @@ function filteredAppointments(){
     const pt=getPatientById(a.patientId),doc=getUserById(a.doctorId);
     const haystack=[pt?`${pt.fname} ${pt.lname} ${pt.lname}, ${pt.fname} P-${patientDisplayId(pt)} ${pt.idNo||''}`:'',`#${appointmentDisplayId(a)} ${a.dbAppointmentId||a.id}`,doc?`Dr. ${doc.fname} ${doc.lname}`:'',a.clinic,a.service,a.reason].join(' ').toLowerCase();
     return (!q||haystack.includes(q))&&(!stat||a.status===stat)&&(!unit||(a.college||pt?.college||'')===unit)
-      &&(!clinic||a.clinic===clinic)&&(!doctor||a.doctorId===doctor)&&(!dateFrom||a.date>=dateFrom)&&(!dateTo||a.date<=dateTo);
+      &&(!clinic||a.clinic===clinic)&&(!session||(pt?.personType==='Student'&&pt?.classSession===session))&&(!doctor||a.doctorId===doctor)&&(!dateFrom||a.date>=dateFrom)&&(!dateTo||a.date<=dateTo);
   });
 }
 

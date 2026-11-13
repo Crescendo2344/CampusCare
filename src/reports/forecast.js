@@ -43,6 +43,7 @@ export function forecastControls(){
   return `<div class="card"><div class="card-header"><div><h3>Plan ahead</h3></div><span class="intel-badge">Planning estimate</span></div>
     <div class="report-control-grid">
       ${reportSelect('forecast-clinic','Clinic (visits only)',[['','All clinics'],...['Medical Clinic','Dental Clinic'].map(v=>[v,v])])}
+      ${reportSelect('forecast-session','Class session (visits only)',[['','All class sessions'],['Morning','Morning class'],['Evening','Evening class']])}
       ${reportSelect('forecast-target','What to forecast',[['visits','Clinical visits'],...medicines.map(m=>['medicine:'+m.item.id,m.item.name+' usage ('+m.item.unit+')'])])}
       <div class="form-group"><label for="forecast-from">History from</label><input type="date" id="forecast-from" value="${offsetDay(today,-89)}" max="${today}"></div>
       <div class="form-group"><label for="forecast-to">History to</label><input type="date" id="forecast-to" value="${today}" max="${today}"></div>
@@ -55,22 +56,22 @@ export function forecastControls(){
 export function runForecast(){
   const host=document.getElementById('forecast-result');if(!host)return;
   try{
-    const data=reportData(),target=read('forecast-target'),college=read('rpt-college'),clinic=read('forecast-clinic');
+    const data=reportData(),target=read('forecast-target'),college=read('rpt-college'),clinic=read('forecast-clinic'),session=read('forecast-session');
     const medicine=target.startsWith('medicine:')?data.consumption.find(m=>'medicine:'+m.item.id===target):null;
     if(target!=='visits'&&!medicine)throw new Error('Choose an available forecast target.');
-    const events=medicine?medicine.events:data.visits.filter(e=>(!college||e.college===college)&&(!clinic||e.clinic===clinic));
+    const events=medicine?medicine.events:data.visits.filter(e=>(!college||e.college===college)&&(!clinic||e.clinic===clinic)&&(!session||(e.personType==='Student'&&e.classSession===session)));
     const ui=forecastUi();
     const f=buildForecast(events,{from:read('forecast-from'),to:read('forecast-to'),today:state.clinicInformation.TODAY,days:ui.forecastDays,method:read('forecast-method')});
     const period=FORECAST_HORIZONS.find(([d])=>d===f.horizon)?.[1]||`${f.horizon} days`;
     const series=[...f.history.map(r=>({label:r.label,value:r.amount})),...f.rows.map(r=>({label:r.label,value:r.amount,projected:true}))];
     const unit=medicine?medicine.item.unit:'visits',name=medicine?medicine.item.name:'Clinical visits';
     const stale=f.lastDate&&f.lastDate<offsetDay(state.clinicInformation.TODAY,-30);
-    host.innerHTML=`<div class="card"><div class="card-header"><div><h3>${esc(name)} forecast</h3><p class="form-note">History: ${f.from} to ${f.to} · ${f.days} calendar days · ${medicine?'Campus inventory':esc((college||'All colleges')+' · '+(clinic||'All clinics'))}</p></div><span class="intel-badge">${esc(f.historyQuality||'Insufficient history')}</span></div>
+    host.innerHTML=`<div class="card"><div class="card-header"><div><h3>${esc(name)} forecast</h3><p class="form-note">History: ${f.from} to ${f.to} · ${f.days} calendar days · ${medicine?'Campus inventory':esc((college||'All colleges')+' · '+(clinic||'All clinics')+(session?` · ${session} class`:''))}</p></div><span class="intel-badge">${esc(f.historyQuality||'Insufficient history')}</span></div>
       ${f.reason?`<div class="empty-state"><h4>More history needed</h4><p>${esc(f.reason)}</p><p>${f.records} events found in this range.</p></div>`:`
       <div class="intel-grid">
-        <div class="intel-card"><div class="intel-kicker">Expected in the next ${esc(period)}</div><div class="intel-value">≈ ${f.projected.toLocaleString()}</div><div class="intel-meta">${esc(unit)} · ${f.rows[0].start} to ${f.rows.at(-1).end}</div></div>
+        <div class="intel-card"><div class="intel-kicker">Expected in the next ${esc(period)}</div><div class="intel-value">≈ ${f.projected.toLocaleString()}</div><div class="intel-meta">${esc(unit)} · likely ${f.projectedLow.toLocaleString()}–${f.projectedHigh.toLocaleString()} · ${f.rows[0].start} to ${f.rows.at(-1).end}</div></div>
         <div class="intel-card"><div class="intel-kicker">Historical activity</div><div class="intel-value">${f.total.toLocaleString()}</div><div class="intel-meta">${esc(unit)} from ${f.records} recorded events</div></div>
-        <div class="intel-card"><div class="intel-kicker">Average per week</div><div class="intel-value">${(f.dailyAverage*7).toFixed(1)}</div><div class="intel-meta">Includes days with no recorded activity</div></div>
+        <div class="intel-card"><div class="intel-kicker">Average per week</div><div class="intel-value">≈ ${f.weeklyAverage.toLocaleString()}</div><div class="intel-meta">Includes days with no recorded activity</div></div>
         <div class="intel-card"><div class="intel-kicker">Most recent event used</div><div class="intel-value report-date-value">${f.lastDate||'—'}</div><div class="intel-meta">${f.method==='weekday'?'Average for each day of the week':'Total activity ÷ selected calendar days'}</div></div>
       </div>
       ${stale?'<p class="report-stale">The latest event used is over 30 days old. Check that this history still reflects current demand.</p>':''}
@@ -80,12 +81,12 @@ export function runForecast(){
         ${chartTypeSwitchHtml(ui.forecastChart,type=>bindAction('click',()=>setForecastChart(type)))}
       </div>
       <div class="report-forecast-chart">${reportChartHtml(['pie','doughnut'].includes(ui.forecastChart)?series.filter(r=>r.projected):series,{type:ui.forecastChart,label:`${name}: recorded history and estimate`,limit:30})}</div>
-      <details class="report-details"><summary>View forecast table</summary><div class="table-wrap"><table><thead><tr><th>Period</th><th>From</th><th>To</th><th>Estimated ${esc(unit)}</th></tr></thead><tbody>${f.rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${r.start}</td><td>${r.end}</td><td>${r.amount}</td></tr>`).join('')}</tbody></table></div></details>
+      <details class="report-details"><summary>View forecast table</summary><div class="table-wrap"><table><thead><tr><th>Period</th><th>From</th><th>To</th><th>Estimated ${esc(unit)}</th><th>Likely range</th></tr></thead><tbody>${f.rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${r.start}</td><td>${r.end}</td><td>${r.amount}</td><td>${r.low}–${r.high}</td></tr>`).join('')}</tbody></table></div></details>
       ${exportButtonsHtml(()=>{const columns=[
         csvColumn('','Forecast For',()=>name),
         csvColumn('Period','Label',r=>r.label),csvColumn('Period','Start',r=>r.start),csvColumn('Period','End',r=>r.end),
-        csvColumn('Estimate','Amount',r=>r.amount),csvColumn('Estimate','Unit',()=>unit),
-        csvColumn('Scope','College/Department',()=>medicine?'Campus inventory':college||'All colleges'),csvColumn('Scope','Clinic',()=>medicine?'Not applicable':clinic||'All clinics'),
+        csvColumn('Estimate','Expected',r=>r.amount),csvColumn('Estimate','Low',r=>r.low),csvColumn('Estimate','High',r=>r.high),csvColumn('Estimate','Unit',()=>unit),
+        csvColumn('Scope','College/Department',()=>medicine?'Campus inventory':college||'All colleges'),csvColumn('Scope','Clinic',()=>medicine?'Not applicable':clinic||'All clinics'),csvColumn('Scope','Class Session',()=>medicine?'Not applicable':session?`${session} class`:'All'),
         csvColumn('Method','Calculation',()=>f.method==='weekday'?'Weekday pattern':'Daily average'),
         csvColumn('History','From',()=>f.from),csvColumn('History','To',()=>f.to)
       ];
@@ -95,10 +96,10 @@ export function runForecast(){
     </div>`;
     if(!f.reason)mountAiInsights('forecast-ai','reports',()=>({
       forecast_of:name,unit,today:state.clinicInformation.TODAY,
-      scope:medicine?'Campus inventory disbursements':`${college||'All colleges'} · ${clinic||'All clinics'}`,
+      scope:medicine?'Campus inventory disbursements':`${college||'All colleges'} · ${clinic||'All clinics'}${session?` · ${session} class`:''}`,
       calculation:f.method==='weekday'?'Average for each day of the week':'Daily average over the history',
       history:{from:f.from,to:f.to,calendar_days:f.days,recorded_events:f.records,total:f.total,last_event:f.lastDate,quality:f.historyQuality,last_8_weeks:f.history.map(r=>({week:r.label,amount:r.amount}))},
-      forecast:{period:period,days:f.horizon,total:f.projected,average_per_week:Math.round(f.dailyAverage*70)/10,periods:f.rows.map(r=>({period:r.label,from:r.start,to:r.end,amount:r.amount}))}
+      forecast:{period:period,days:f.horizon,total:f.projected,likely_range:[f.projectedLow,f.projectedHigh],average_per_week:f.weeklyAverage,periods:f.rows.map(r=>({period:r.label,from:r.start,to:r.end,amount:r.amount,likely_low:r.low,likely_high:r.high}))}
     }));
   }catch(error){host.innerHTML=`<div class="alert alert-danger show" role="alert">${esc(error.message)}</div>`;}
 }

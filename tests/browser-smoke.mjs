@@ -94,7 +94,9 @@ try{
     if(body.action==='update'){
       assert.equal(body.confirmed,true);assert(!('status' in body));assert(['Active','Suspended'].includes(target.status));
       for(const field of ['first_name','last_name','email','contact_number','specialty'])if(body[field]!==undefined)target[field]=body[field];response={ok:true,user:{...target}};
-    }else if(body.action==='status'){target.status=body.status;response={ok:true,status:target.status};}
+    }else if(body.action==='status'){
+      if(body.status==='Suspended'&&(!body.reason_category||String(body.reason||'').length<10)){route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({error:'Reason required.'})});return;}
+      target.status=body.status;response={ok:true,status:target.status,email_queued:body.status==='Suspended'};}
     else if(body.action==='detail')response={ok:true,user:{...target},patient:null};else response={ok:true};
    }else if(path.endsWith('/register-patient')){
     if(request.method()==='GET')response={captcha_required:!mobile,site_key:mobile?null:'0x4-fixture-key'};
@@ -1388,12 +1390,16 @@ try{
     await page.locator('#forecast-result .chart-type-switch').getByRole('radio',{name:'Line'}).click();
     assert(await page.locator('#forecast-result polyline.chart-line.projected').count());
     await page.locator('#forecast-result .chart-type-switch').getByRole('radio',{name:'Doughnut'}).click();
-    assert.equal(await page.locator('#forecast-result .report-pie li').count(),5);
+    // Whole-number estimates can round a quiet week to 0, and a doughnut leaves empty weeks out.
+    const slices=await page.locator('#forecast-result .report-pie li').count();assert(slices>=1&&slices<=5);
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#forecast-result').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reports-forecast-doughnut-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#forecast-result .chart-type-switch').getByRole('radio',{name:'Column'}).click();
     await page.locator('#forecast-horizon').getByRole('button',{name:'3 months',exact:true}).click();
-    const forecastDownload=page.waitForEvent('download');await page.getByRole('group',{name:'Download forecast'}).getByRole('button',{name:'CSV',exact:true}).click();
-    assert.equal((await forecastDownload).suggestedFilename(),'campuscare-forecast-2026-01-01-to-2026-03-31.csv');
+    // Reports download as Excel, Word or PDF only (no CSV); estimates are whole numbers with a likely range.
+    assert.equal(await page.getByRole('group',{name:'Download forecast'}).getByRole('button',{name:'CSV',exact:true}).count(),0);
+    assert.doesNotMatch(await page.locator('#forecast-result .intel-grid').innerText(),/\d\.\d/);
+    const forecastDownload=page.waitForEvent('download');await page.getByRole('group',{name:'Download forecast'}).getByRole('button',{name:'Word',exact:true}).click();
+    assert.match((await forecastDownload).suggestedFilename(),/^forecast.*\.docx?$/i);
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reports-forecast-${mobile?'mobile':'desktop'}.png`,fullPage:true});
     await page.locator('#forecast-from').fill('2026-04-01');
     await page.getByRole('button',{name:'Update forecast',exact:true}).click();
@@ -1413,12 +1419,10 @@ try{
     await page.getByRole('button',{name:'Generate Report',exact:true}).click();
     await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).waitFor();
     const downloaded=page.waitForEvent('download');
-    await page.getByRole('group',{name:'Download college summary'}).getByRole('button',{name:'CSV',exact:true}).click();
+    await page.getByRole('group',{name:'Download college summary'}).getByRole('button',{name:'Word',exact:true}).click();
     const summaryFile=await downloaded;
-    assert.match(summaryFile.suggestedFilename(),/^campuscare-student-college-summary-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.csv$/);
-    const summaryText=(await import('node:fs')).readFileSync(await summaryFile.path(),'utf8');
-    assert.match(summaryText,/^\ufeffCollege\/Department,Students: Registered,Coverage: No Linked Patient Record,/,'Readable headers in the shared CSV format');
-    assert.doesNotMatch(summaryText,/Dental/,'Medical Clinic staff get no dental columns');
+    assert.match(summaryFile.suggestedFilename(),/\.docx?$/);
+    assert.equal(await page.getByRole('group',{name:'Download college summary'}).getByRole('button',{name:'CSV',exact:true}).count(),0);
   }
   if(role==='Administrator'){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('settings'));
@@ -1481,7 +1485,13 @@ try{
     const updated=()=>page.locator('#user-table tbody tr').filter({hasText:'Doctor, Updated'});await updated().waitFor();
     assert.equal(requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').at(-1)?.body.reason,'Corrected per registrar records');
     assert.equal(managedUsers[1].first_name,'Updated');assert.equal(managedUsers[1].contact_number,'09987654321');assert.equal(managedUsers[1].status,'Active');
-    await updated().getByRole('button',{name:'Suspend',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Reactivate',exact:true}).waitFor();
+    // Suspending asks for a reason and details, which are emailed to the person.
+    await updated().getByRole('button',{name:'Suspend',exact:true}).click();
+    await page.getByRole('button',{name:'Suspend and email'}).click();
+    assert.match(await page.locator('#su-error').innerText(),/Choose a reason/);
+    await page.locator('#su-category').selectOption('Misuse of appointments');
+    await page.locator('#su-reason').fill('Repeated no-shows on booked visits');
+    await page.getByRole('button',{name:'Suspend and email'}).click();await updated().getByRole('button',{name:'Reactivate',exact:true}).waitFor();
     await updated().getByRole('button',{name:'Reactivate',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Suspend',exact:true}).waitFor();
     managedUsers.push(...Array.from({length:12},(_,i)=>({...profile,user_id:200+i,auth_user_id:'scroll-'+i,first_name:'Scroll',last_name:String(i),username:'scroll'+i,status:i===0?'Archived':i===1?'Suspended':'Active'})));
     await page.evaluate(()=>window.__fixtureApp.features.userManagement.renderUsers());
