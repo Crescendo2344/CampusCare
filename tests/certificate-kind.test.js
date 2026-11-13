@@ -13,10 +13,12 @@ test('certificate format follows the doctor or staff clinic',()=>{
   assert.equal(certificateLabel('dental'),'Dental Certificate');
 });
 
-test('certificates need a fresh signature and use the CTU letterhead',()=>{
+test('certificates are reviewed and printed for a wet signature, rest on a visit and use the CTU letterhead',()=>{
   const src=fs.readFileSync('src/features/certificateService.js','utf8');
-  assert.match(src,/Sign in the signature box before issuing/);
-  assert.doesNotMatch(src,/useSavedDoctorSignature\(\)\)/,'No "use saved signature" button');
+  assert.doesNotMatch(src,/cert-sign-canvas|contenteditable="true"/,'No e-signature pad and no editing');
+  assert.match(src,/Issue &amp; print/);assert.match(src,/Lic\. No\./);
+  assert.match(src,/Record a consultation with this patient before issuing a certificate\./);
+  assert.doesNotMatch(src,/Based on visit/);
   assert.match(src,/MEDICAL CERTIFICATE/);assert.match(src,/DENTAL CERTIFICATE/);
   for(const f of ['src/features/treatmentForm.js','src/features/patientForm.js','src/features/fitnessAssessments.js','src/features/stockOrders.js','src/features/reportCharts.js'])
     assert.match(fs.readFileSync(f,'utf8'),/ctu-letterhead\.js/,f);

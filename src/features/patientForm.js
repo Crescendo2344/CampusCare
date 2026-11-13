@@ -1,3 +1,5 @@
+import {isDentalTreatment} from './treatmentForm.js';
+import {clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
 // patientForm: imported feature APIs; state belongs to explicit application namespaces.
 import {printCtuDocument} from '../shared/ctu-letterhead.js';
 import {state as appState} from '../app/state.js';
@@ -138,10 +140,10 @@ export function openPatientModal(id=null){
       <fieldset class="registration-group">
         <legend>Contact &amp; emergency</legend>
         <div class="form-row">
-          ${field('pm-contact','Contact No.',`<input id="pm-contact" type="tel" inputmode="tel" maxlength="24" placeholder="09… or +63…" value="${escapeHtml(pt?.contact||'')}" ${live('phone')}>`,{hint:'Use 09XXXXXXXXX or +639XXXXXXXXX.'})}
+          ${field('pm-contact','Contact No.',`<input id="pm-contact" type="tel" inputmode="tel" maxlength="13" placeholder="09XXXXXXXXX" value="${escapeHtml(pt?.contact||'')}" ${live('phone')}>`,{hint:'Use 09XXXXXXXXX or +639XXXXXXXXX.'})}
           ${field('pm-addr','Address',`<input id="pm-addr" maxlength="300" value="${escapeHtml(pt?.address||'')}" ${live('text')}>`)}
           ${field('pm-ename','Emergency Contact Name',`<input id="pm-ename" maxlength="100" value="${escapeHtml(pt?.emergencyName||'')}" ${live('name')}>`)}
-          ${field('pm-econtact','Emergency Contact No.',`<input id="pm-econtact" type="tel" inputmode="tel" maxlength="24" placeholder="09… or +63…" value="${escapeHtml(pt?.emergencyContact||'')}" ${live('phone')}>`)}
+          ${field('pm-econtact','Emergency Contact No.',`<input id="pm-econtact" type="tel" inputmode="tel" maxlength="13" placeholder="09XXXXXXXXX" value="${escapeHtml(pt?.emergencyContact||'')}" ${live('phone')}>`)}
         </div>
       </fieldset>
 
@@ -322,7 +324,10 @@ export async function viewPatient(id){
   }
   const today=appState.clinicInformation.TODAY;
   const byNewest=(a,b)=>String(b).localeCompare(String(a));
-  const treats=treatmentRecords().filter(t=>t.patientId===id&&!t.archived).sort((a,b)=>byNewest(a.date,b.date));
+  // A doctor sees the visits of their own clinic: a Medical Clinic doctor does not see dental records.
+  const me=appState.auth.currentUser,myClinic=me.role==='Doctor'?clinicForSpecialization(me.specialty):'';
+  const treats=treatmentRecords().filter(t=>t.patientId===id&&!t.archived)
+    .filter(t=>!myClinic||(isDentalTreatment(t)?'Dental Clinic':'Medical Clinic')===myClinic).sort((a,b)=>byNewest(a.date,b.date));
   const appts=appointmentRecords().filter(a=>a.patientId===id).sort((a,b)=>byNewest(a.date+(a.time||''),b.date+(b.time||'')));
   // Certificates are the issuing doctor's records; other roles do not see them here.
   const showCerts=appState.auth.currentUser.role==='Doctor';

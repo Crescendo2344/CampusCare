@@ -13,7 +13,7 @@ test('a complete student profile is fully verified',()=>{
 test('missing details lower the level and say who completes them',()=>{
   const r=profileCompleteness({...user,profilePhoto:''},{...full,blood:'Unknown',emergencyContact:''});
   assert.deepEqual(r.missing.map(s=>s.id),['photo','emergency','blood']);
-  assert.equal(r.missing.find(s=>s.id==='blood').by,'clinic');
+  assert.equal(r.missing.find(s=>s.id==='blood').by,'patient');
   assert.equal(r.missing.find(s=>s.id==='emergency').by,'patient');
   assert.equal(r.level.label,'Almost there');
 });

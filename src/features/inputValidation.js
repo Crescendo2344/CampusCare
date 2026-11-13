@@ -245,5 +245,9 @@ export function resizeImageDataUrl(dataUrl, maxDim=320, quality=0.82){
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
-
+  // Every phone box takes digits only, 11 at most (09XXXXXXXXX), wherever it appears.
+  document.addEventListener('input',event=>{
+    const el=event.target;
+    if(el?.tagName==='INPUT'&&el.type==='tel')sanitizeInput(el,'phone');
+  },true);
 }

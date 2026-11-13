@@ -1,4 +1,5 @@
 // appInitialization: imported feature APIs; state belongs to explicit application namespaces.
+import {rememberedPage} from './navigationRaceProtection.js';
 import {promptPrivacyAcknowledgement} from './privacy.js';
 import {staffClinicOf} from '../domain/clinic-scope.js';
 import {state as appState} from '../app/state.js';
@@ -46,7 +47,10 @@ export function initApp(){
   startNotificationRefresh();
   startTaskBadgeRefresh();
   const firstNav = appState.topbarAndNavigation.NAV_CONFIG[appState.auth.currentUser.role]?.find(item => item.id);
-  if(firstNav) navTo(firstNav.id);
+  // After a refresh, reopen the page that was open (navTo still checks the role may see it).
+  const reopen=rememberedPage();
+  if(reopen&&document.getElementById('nav-'+reopen))navTo(reopen,{historyMode:'replace'});
+  else if(firstNav) navTo(firstNav.id);
   // New doctor and staff accounts replace their emailed password before anything else.
   // Then anyone who has not acknowledged a newly published Privacy Notice version is asked to.
   void enforceFirstPasswordChange().then(()=>promptPrivacyAcknowledgement());

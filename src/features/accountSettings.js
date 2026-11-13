@@ -153,7 +153,7 @@ export function renderMyAccount(){
           <div id="acc-edit-fields" hidden>
             <div class="form-row">
               <div class="form-group"><label for="acc-email">Email</label><div class="acc-email-row"><input id="acc-email" value="${escapeHtml(u.email||'')}" type="email" readonly aria-readonly="true" aria-describedby="acc-email-note"><button type="button" class="btn btn-sm" id="acc-change-email" ${bindAction('click',()=>openChangeEmailModal())}><i class="bi bi-pencil-square" aria-hidden="true"></i> Change email</button></div><p class="form-note" id="acc-email-note">Your sign-in email. Changing it needs a code sent to this address.</p></div>
-              <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${escapeHtml(u.contact||'')}" autocomplete="tel" type="tel" inputmode="tel" maxlength="24" placeholder="09XXXXXXXXX or +639XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
+              <div class="form-group"><label>Contact No.</label><input id="acc-contact" value="${escapeHtml(u.contact||'')}" autocomplete="tel" type="tel" inputmode="tel" maxlength="13" placeholder="09XXXXXXXXX" ${bindAction('input',(event,element)=>{sanitizeInput(element,'phone')})}></div>
               ${programEditFields(pt)}
             </div>
             <button class="btn btn-primary btn-sm" id="account-save-button" ${bindAction('click',(event,element)=>{saveAccount()})}>Save Changes</button>

@@ -64,7 +64,7 @@ export function healthDetailsCard(pt){
       <div class="form-row">
         <div class="form-group full"><label for="hd-address">Home address</label><input id="hd-address" maxlength="300" autocomplete="street-address" value="${val(pt.address)}" placeholder="House no., street, barangay, city"></div>
         <div class="form-group"><label for="hd-ename">Emergency contact name</label><input id="hd-ename" maxlength="100" value="${val(pt.emergencyName)}" placeholder="e.g. parent or guardian"></div>
-        <div class="form-group"><label for="hd-econtact">Emergency contact no.</label><input id="hd-econtact" type="tel" inputmode="tel" maxlength="24" value="${val(pt.emergencyContact)}" placeholder="09XXXXXXXXX"></div>
+        <div class="form-group"><label for="hd-econtact">Emergency contact no.</label><input id="hd-econtact" type="tel" inputmode="tel" maxlength="13" value="${val(pt.emergencyContact)}" placeholder="09XXXXXXXXX"></div>
       </div>
       <button class="btn btn-primary btn-sm" id="hd-save" ${bindAction('click',()=>saveHealthDetails())}>Save Changes</button>
       <button class="btn btn-sm" ${bindAction('click',()=>setHealthEditing(false))}>Cancel</button>

@@ -337,7 +337,7 @@ export async function saveAccount(){
   }
 }
 
-async function profileAction(payload){
+export async function profileAction(payload){
   const {data:{session}}=await appState.supabaseClient.supabaseClient.auth.getSession();
   if(!session)throw new Error('Your session has expired. Please log in again.');
   const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/profile-actions`,{

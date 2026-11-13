@@ -13,8 +13,10 @@ export function sanitizeValue(value,type){
       v=v.trim().toLowerCase().slice(0,150);
       break;
     case 'phone':
-      // Retain an initial + for international numbers; validation checks the full prefix.
-      v=v.replace(/[^\d+]/g,'').replace(/(?!^)\+/g,'').slice(0,16);
+      // Philippine mobile numbers are typed as 11 digits (09XXXXXXXXX); a pasted +63 number is converted.
+      v=v.replace(/\D/g,'');
+      if(/^639\d/.test(v))v='0'+v.slice(2);
+      v=v.slice(0,11);
       break;
     case 'password':
       v=v.replace(/\s/g,'').slice(0,64);
