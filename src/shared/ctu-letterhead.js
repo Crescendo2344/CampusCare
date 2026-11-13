@@ -30,8 +30,10 @@ export function ctuHeaderHtml(){
   </tr></table>`;
 }
 
-export function ctuFooterHtml(){
-  return `<div class="ctu-lh-foot" data-ctu-letterhead="footer" style="margin-top:18px;padding-top:6px"><img src="${absolute(CTU_FOOTER_SRC)}" alt="University rankings and accreditations" style="display:block;width:100%;height:auto"></div>`;
+// The footer strip is 1332×91; Word needs an explicit size, other documents scale it to the page width.
+export function ctuFooterHtml({width=0}={}){
+  const size=width?` width="${width}" height="${Math.round(width*91/1332)}"`:'';
+  return `<div class="ctu-lh-foot" data-ctu-letterhead="footer" style="margin-top:18px;padding-top:6px"><img src="${absolute(CTU_FOOTER_SRC)}" alt="University rankings and accreditations"${size} style="display:block;${width?`width:${width}px;height:${Math.round(width*91/1332)}px`:'width:100%;height:auto'}"></div>`;
 }
 
 // A complete printable page. The header and footer sit in a table's thead/tfoot, which browsers

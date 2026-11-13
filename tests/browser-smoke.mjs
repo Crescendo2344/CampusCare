@@ -1423,7 +1423,11 @@ try{
   if(role==='Administrator'){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('settings'));
     await page.locator('#set-school-year').waitFor();
-    assert.equal(await page.locator('.settings-danger-notice').count(),2);
+    assert.equal(await page.locator('.settings-danger-notice').count(),1);
+    // Clinic Settings open read-only; Edit unlocks them.
+    assert(await page.locator('#set-lunch-start').isDisabled());
+    await page.locator('#clinic-settings-edit').click();
+    assert(await page.locator('#set-lunch-start').isEnabled());
     // Clinic name, address and dental visit limit are shown read-only; the editable rules are saved.
     assert.equal(await page.locator('#set-name').count(),0);
     assert.match(await page.locator('.settings-profile-card').innerText(),/Dental visits allowed per semester/i);

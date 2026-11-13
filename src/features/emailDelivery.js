@@ -120,32 +120,35 @@ export async function dispatchOperationalEmails(){
 
 export async function sendTestOperationalEmail(){
   const input=document.getElementById('email-test-recipient');
-  const recipient=input?.value.trim()||appState.auth.currentUser?.email||'';
-  if(!recipient||!recipient.includes('@')){
-    toast('Enter a valid test recipient email address.','warning');
-    return;
-  }
+  const error=document.getElementById('email-test-error');
+  const recipient=(input?.value||'').trim();
+  const fail=message=>{if(error){error.textContent=message;error.hidden=false;}input?.setAttribute('aria-invalid','true');input?.focus();};
+  if(error){error.hidden=true;error.textContent='';}input?.removeAttribute('aria-invalid');
+  if(!recipient||!input?.checkValidity()||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)){fail('Enter a valid email address.');return;}
 
   const btn=document.getElementById('email-test-btn');
-  const old=btn?.textContent;
-  if(btn){btn.disabled=true;btn.textContent='Testing…';}
+  const old=btn?.innerHTML;
+  if(btn){btn.disabled=true;btn.textContent='Sending…';}
 
   try{
     const result=await emailDeliveryAction({action:'test',recipient_email:recipient});
     await syncEmailDeliveryStatus();
     renderEmailDeliveryPanel();
-
-    if(result.configured){
-      toast(`Test email processed for ${recipient}.`,'success');
-    }else{
-      toast('Test email queued. Add the provider secrets in Supabase to enable external delivery.','warning',7000);
+    if(!result.configured){
+      toast('Test email queued. It will be sent once the email provider is set up.','warning',7000);
+      return;
     }
+    // Report what happened to this test email, not just that the queue ran.
+    const test=(appState.data.DB.emailDeliveryStatus?.emails||[]).find(e=>e.template==='test'&&e.recipient.toLowerCase()===recipient.toLowerCase());
+    if(test?.status==='Sent')toast(`Test email sent to ${recipient}.`,'success');
+    else if(test?.status==='Failed')toast(`The test email to ${recipient} failed: ${test.lastError||'the provider rejected it'}.`,'error',8000);
+    else toast(`Test email to ${recipient} is queued and will be retried.`,'warning',6000);
   }catch(e){
-    toast(e?.message||'Unable to queue the test email.','error');
+    toast(e?.message||'Unable to send the test email.','error');
   }finally{
     if(btn&&document.body.contains(btn)){
       btn.disabled=false;
-      btn.textContent=old||'Send Test';
+      btn.innerHTML=old||'Send test';
     }
   }
 }

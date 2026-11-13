@@ -46,7 +46,7 @@ export function openAddUserModal(){
             <div class="form-row">${field('au-clinic','Clinic',`<select id="au-clinic"><option value="">Choose a clinic</option><option>Medical Clinic</option><option>Dental Clinic</option></select>`,{hint:'Staff see and manage only this clinic\'s appointments, inventory and records.'})}</div>
           </div>
           <div id="au-doctor" class="au-doctor">
-            <div class="form-row">${field('au-spec','Clinic',`<select id="au-spec">${specialties().map(x=>`<option value="${x}">${clinicForSpecialization(x)}</option>`).join('')}</select>`,{hint:'The doctor renders all of this clinic\'s services. You can narrow them later in Edit user.'})}</div>
+            <div class="form-row">${field('au-spec','Clinic',`<select id="au-spec">${specialties().map(x=>`<option value="${x}">${clinicForSpecialization(x)}</option>`).join('')}</select>`)}</div>
             <p class="form-note au-note"><i class="bi bi-calendar-week" aria-hidden="true"></i> Medical schedules start at 8 AM; dental schedules start at 9 AM for instrument sterilization. You can change the hours after creating the account.</p>
           </div>
         </section>
@@ -54,7 +54,7 @@ export function openAddUserModal(){
           <div class="form-row">
             ${field('au-fname','First name',`<input id="au-fname" maxlength="50" autocomplete="off" ${live('au-fname')} aria-describedby="au-fname-error">`)}
             ${field('au-lname','Last name',`<input id="au-lname" maxlength="50" autocomplete="off" ${live('au-lname')} aria-describedby="au-lname-error">`)}
-            ${field('au-empno','Employee No.',`<input id="au-empno" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="e.g. 14982" ${bindAction('input',(event,element)=>{element.value=element.value.replace(/\D/g,'').slice(0,5);setRegistrationFieldError('au-empno','',false);})} aria-describedby="au-empno-help au-empno-error">`,{hint:'The 5-digit CTU employee number.'})}
+            ${field('au-empno','Employee ID No.',`<input id="au-empno" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="e.g. 14982" ${bindAction('input',(event,element)=>{element.value=element.value.replace(/\D/g,'').slice(0,5);setRegistrationFieldError('au-empno','',false);})} aria-describedby="au-empno-help au-empno-error">`,{hint:'The 5-digit CTU employee number.'})}
           </div>
         </section>
         <section class="au-section"><h4><span class="au-step">3</span> Sign-in details</h4>
@@ -114,7 +114,7 @@ export function reviewNewUser(){
     ${row('Name',escapeHtml(v.first_name+' '+v.last_name))}
     ${row('Role',escapeHtml(v.role)+(v.specialty?' · '+escapeHtml(clinicForSpecialization(v.specialty)):'')+(v.clinic?' · '+escapeHtml(v.clinic):''))}
     ${v.role==='Doctor'?row('Services rendered',escapeHtml(v.services_rendered.join(', '))):''}
-    ${row('Employee No.',escapeHtml(v.id_number))}
+    ${row('Employee ID No.',escapeHtml(v.id_number))}
     ${row('Username','@'+escapeHtml(v.username))}${row('Email',escapeHtml(v.email))}
     ${row('Mobile',v.contact_number?escapeHtml(v.contact_number):'<span class="text-muted">Not provided</span>')}
     ${row('Password','Generated and emailed to them only')}
@@ -174,7 +174,7 @@ async function openCreatedDoctorSchedule(){
 // Editing an account is two deliberate steps, as in admin consoles such as Google Workspace and Okta:
 // edit the details (changed fields are marked), then review every change with a reason and confirm by
 // typing the account's username before anything is saved.
-const EDIT_LABELS={first_name:'First name',last_name:'Last name',email:'Email',contact_number:'Mobile number',specialty:'Clinic',services_rendered:'Services rendered',clinic:'Clinic',id_number:'Employee No.'};
+const EDIT_LABELS={first_name:'First name',last_name:'Last name',email:'Email',contact_number:'Mobile number',specialty:'Clinic',services_rendered:'Services rendered',clinic:'Clinic',id_number:'Employee ID No.'};
 function editState(){return appState.userManagement.editUser??={};}
 function editOriginal(u){return {...u,first_name:u.fname,last_name:u.lname,contact_number:u.contact||'',services_rendered:u.servicesRendered||[],id_number:u.idNo||''};}
 function editInputs(u){
@@ -212,7 +212,7 @@ export function openEditUserModal(id){
           ${field('eu-email','email','Email',`<input id="eu-email" type="email" maxlength="150" autocomplete="off" value="${escapeHtml(u.email)}">`)}
           ${field('eu-contact','contact_number','Mobile number',`<input id="eu-contact" type="tel" placeholder="09XXXXXXXXX" autocomplete="off" value="${escapeHtml(u.contact||'')}">`)}
         </div></section>
-        ${['Staff','Doctor'].includes(u.role)?`<section class="eu-section"><h4>Employee</h4><div class="form-row">${field('eu-empno','id_number','Employee No.',`<input id="eu-empno" inputmode="numeric" maxlength="5" pattern="\\d{5}" placeholder="5 digits" autocomplete="off" value="${escapeHtml(u.idNo||'')}">`)}</div></section>`:''}
+        ${['Staff','Doctor'].includes(u.role)?`<section class="eu-section"><h4>Employee</h4><div class="form-row">${field('eu-empno','id_number','Employee ID No.',`<input id="eu-empno" inputmode="numeric" maxlength="5" pattern="\\d{5}" placeholder="5 digits" autocomplete="off" value="${escapeHtml(u.idNo||'')}">`)}</div></section>`:''}
         ${u.role==='Staff'?`<section class="eu-section"><h4>Clinic</h4><div class="form-row">${field('eu-clinic','clinic','Clinic',`<select id="eu-clinic">${['Medical Clinic','Dental Clinic'].map(value=>`<option ${u.clinic===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div></section>`:''}
         ${u.role==='Doctor'?`<section class="eu-section"><h4>Professional</h4><div class="form-row">${field('eu-spec','specialty','Clinic',`<select id="eu-spec" ${bindAction('change',()=>renderEditServices(u))}>${specialties().map(value=>`<option value="${value}" ${u.specialty===value?'selected':''}>${clinicForSpecialization(value)}</option>`).join('')}</select>`)}</div>
           <fieldset class="au-services"><legend>Services rendered</legend><div id="eu-services">${editServicesHtml(u.specialty,u.servicesRendered)}</div></fieldset></section>`:''}

@@ -423,7 +423,6 @@ export function openCertificateEditor(id,draft=null){
       <div class="cert-editor-shell">
         <div><div class="cert-page-wrap"><div class="cert-paper" id="cert-editor" contenteditable="true" spellcheck="true">${documentHtml}</div></div></div>
         <div class="card cert-sign-card" style="margin:0"><div class="card-header"><h3>${kind==='dental'?'Dentist':'Physician'} signature</h3></div>
-          <p class="form-note" style="margin:0 0 .5rem">Sign below each time you issue a certificate.</p>
           <div class="cert-sign-pad"><canvas id="cert-sign-canvas" width="900" height="280" aria-label="Draw your signature"></canvas></div>
           <div class="cert-sign-actions"><button class="btn btn-xs" type="button" ${bindAction('click',()=>clearCertSignature())}>Clear</button></div>
         </div>
