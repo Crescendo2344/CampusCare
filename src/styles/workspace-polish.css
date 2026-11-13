@@ -1758,3 +1758,6 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .nc-visit-missing>.bi{color:var(--warning)}
 .cert-review{cursor:default;user-select:text}
 .cert-license{font-size:.82em;color:#333}
+.fv-unit{display:flex;gap:.4rem}
+.fv-unit input{flex:1;min-width:0}
+.fv-unit select{width:auto;flex:0 0 auto}

@@ -34,7 +34,7 @@ export function profileStrengthCardHtml(user,pt,{compact=false}={}){
   </div>`;
 }
 
-const field=(id,label,control)=>`<div class="form-group"><label for="fv-${id}">${label} <span class="required">*</span></label>${control}<p class="registration-field-error" id="fv-${id}-error" hidden></p></div>`;
+const field=(id,label,control)=>`<div class="form-group"><label for="fv-${id}">${label}</label>${control}<p class="registration-field-error" id="fv-${id}-error" hidden></p></div>`;
 const unit=v=>String(v||'').replace(/[^\d.]/g,'');
 
 // One form for every missing detail; what is already on file is not asked again.
@@ -43,14 +43,14 @@ export function openFinishVerification(){
   const missing=new Set(profileCompleteness(user,pt).missing.map(s=>s.id));
   const today=appState.clinicInformation.TODAY;
   const sections=[
-    missing.has('contact')&&field('contact','Mobile number',`<input id="fv-contact" type="tel" inputmode="tel" maxlength="16" placeholder="09XXXXXXXXX">`),
+    missing.has('contact')&&field('contact','Mobile number',`<input id="fv-contact" type="tel" inputmode="tel" maxlength="13" placeholder="09XXXXXXXXX">`),
     missing.has('personal')&&`<div class="form-row">${!pt.birthDate?field('birth','Date of birth',`<input id="fv-birth" type="date" max="${today}">`):''}${!pt.gender?field('sex','Sex',`<select id="fv-sex"><option value="">Select</option><option>Male</option><option>Female</option></select>`):''}</div>`,
     missing.has('program')&&field('course','Course',`<input id="fv-course" maxlength="120" placeholder="e.g. BS Information Technology">`),
     missing.has('session')&&field('session','Class session',`<select id="fv-session"><option value="">Select</option><option value="Morning">Morning class</option><option value="Evening">Evening class</option></select>`),
     missing.has('address')&&field('address','Home address',`<input id="fv-address" maxlength="300" placeholder="House no., street, barangay, city">`),
-    missing.has('emergency')&&`<div class="form-row">${field('ename','Emergency contact name',`<input id="fv-ename" maxlength="100" value="${escapeHtml(pt.emergencyName||'')}">`)}${field('econtact','Emergency contact number',`<input id="fv-econtact" type="tel" inputmode="tel" maxlength="16" placeholder="09XXXXXXXXX" value="${escapeHtml(pt.emergencyContact||'')}">`)}</div>`,
+    missing.has('emergency')&&`<div class="form-row">${field('ename','Emergency contact name',`<input id="fv-ename" maxlength="100" value="${escapeHtml(pt.emergencyName||'')}">`)}${field('econtact','Emergency contact number',`<input id="fv-econtact" type="tel" inputmode="tel" maxlength="13" placeholder="09XXXXXXXXX" value="${escapeHtml(pt.emergencyContact||'')}">`)}</div>`,
     missing.has('blood')&&field('blood','Blood type',`<select id="fv-blood"><option value="">Select</option>${BLOOD_TYPES.filter(b=>b!=='Unknown').map(b=>`<option>${b}</option>`).join('')}</select>`),
-    missing.has('body')&&`<div class="form-row">${field('height','Height (cm)',`<input id="fv-height" type="number" min="50" max="250" step="0.1" value="${escapeHtml(unit(pt.height))}">`)}${field('weight','Weight (kg)',`<input id="fv-weight" type="number" min="20" max="300" step="0.1" value="${escapeHtml(unit(pt.weight))}">`)}</div>`,
+    missing.has('body')&&`<div class="form-row">${field('height','Height',`<div class="fv-unit"><input id="fv-height" type="number" min="1" max="250" step="0.1" value="${escapeHtml(unit(pt.height))}"><select id="fv-height-unit" aria-label="Height unit"><option value="cm">cm</option><option value="in">in</option></select></div>`)}${field('weight','Weight (kg)',`<input id="fv-weight" type="number" min="20" max="300" step="0.1" value="${escapeHtml(unit(pt.weight))}">`)}</div>`,
     missing.has('allergies')&&field('allergies','Allergies',`<input id="fv-allergies" maxlength="300" placeholder='List them, or type "None"'>`)
   ].filter(Boolean);
   if(!sections.length){if(missing.has('photo'))navTo('my-account');return;}
@@ -66,18 +66,20 @@ async function saveFinishVerification(){
   const v=id=>document.getElementById('fv-'+id)?.value?.trim();
   const has=id=>!!document.getElementById('fv-'+id);
   const errors={};
-  if(has('contact'))errors.contact=v('contact')?contactValidationError(v('contact')):'Enter your mobile number.';
-  if(has('birth'))errors.birth=birthDateValidationError(v('birth'),appState.clinicInformation.TODAY);
-  if(has('sex')&&!v('sex'))errors.sex='Select your sex.';
-  if(has('course')&&!v('course'))errors.course='Enter your course.';
-  if(has('session')&&!v('session'))errors.session='Choose your class session.';
-  if(has('address')&&!v('address'))errors.address='Enter your home address.';
-  if(has('ename'))errors.ename=emergencyContactNameError(v('ename'));
-  if(has('econtact'))errors.econtact=emergencyContactNumberError(v('econtact'),v('contact')||user.contact);
-  if(has('blood')&&!v('blood'))errors.blood='Select your blood type.';
-  if(has('height'))errors.height=heightValidationError(v('height'));
-  if(has('weight'))errors.weight=weightValidationError(v('weight'));
-  if(has('allergies'))errors.allergies=allergiesValidationError(v('allergies'));
+  // Anything can be left for later; only what is filled in is checked and saved.
+  const given=id=>has(id)&&!!v(id);
+  const heightCm=given('height')?(document.getElementById('fv-height-unit')?.value==='in'?Math.round(Number(v('height'))*2.54*10)/10:Number(v('height'))):null;
+  if(given('contact'))errors.contact=contactValidationError(v('contact'));
+  if(given('birth'))errors.birth=birthDateValidationError(v('birth'),appState.clinicInformation.TODAY);
+  if(given('ename')||given('econtact')){
+    errors.ename=emergencyContactNameError(v('ename'));
+    errors.econtact=emergencyContactNumberError(v('econtact'),v('contact')||user.contact);
+  }
+  if(given('height'))errors.height=heightValidationError(heightCm);
+  if(given('weight'))errors.weight=weightValidationError(v('weight'));
+  if(given('allergies'))errors.allergies=allergiesValidationError(v('allergies'));
+  const anything=['contact','birth','sex','course','session','address','ename','econtact','blood','height','weight','allergies'].some(given);
+  if(!anything){const box=document.getElementById('fv-msg');if(box)box.innerHTML='<div class="alert alert-warning show">Fill in at least one detail to save.</div>';return;}
   for(const el of document.querySelectorAll('.fv-modal .registration-field-error')){el.hidden=true;el.textContent='';}
   const problems=Object.entries(errors).filter(([,m])=>m);
   for(const [id,message] of problems){const el=document.getElementById(`fv-${id}-error`);if(el){el.textContent=message;el.hidden=false;}}
@@ -86,17 +88,17 @@ async function saveFinishVerification(){
   try{
     // self_update replaces every health field, so values already on file are sent back unchanged.
     await patientAction({action:'self_update',
-      address:has('address')?v('address'):pt.address||'',
-      emergency_contact_name:has('ename')?v('ename'):pt.emergencyName||'',emergency_contact_number:has('econtact')?v('econtact'):pt.emergencyContact||'',
-      blood_type:has('blood')?v('blood'):pt.blood||'Unknown',
-      height_cm:has('height')?v('height'):unit(pt.height),weight_kg:has('weight')?v('weight'):unit(pt.weight),
-      allergies:has('allergies')?v('allergies'):pt.allergies||'',medical_history:pt.medHistory||'',
-      course:has('course')?v('course'):pt.course||'',major:pt.major||'',
-      ...(has('session')?{class_session:v('session')}:{}),...(has('birth')?{birth_date:v('birth')}:{}),...(has('sex')?{sex:v('sex')}:{})});
-    if(has('contact')){await profileAction({action:'update_contact',contact_number:v('contact')});await refreshCurrentProfileContact();}
+      address:given('address')?v('address'):pt.address||'',
+      emergency_contact_name:given('ename')?v('ename'):pt.emergencyName||'',emergency_contact_number:given('econtact')?v('econtact'):pt.emergencyContact||'',
+      blood_type:given('blood')?v('blood'):pt.blood||'Unknown',
+      height_cm:heightCm??unit(pt.height),weight_kg:given('weight')?v('weight'):unit(pt.weight),
+      allergies:given('allergies')?v('allergies'):pt.allergies||'',medical_history:pt.medHistory||'',
+      course:given('course')?v('course'):pt.course||'',major:pt.major||'',
+      ...(given('session')?{class_session:v('session')}:{}),...(given('birth')?{birth_date:v('birth')}:{}),...(given('sex')?{sex:v('sex')}:{})});
+    if(given('contact')){await profileAction({action:'update_contact',contact_number:v('contact')});await refreshCurrentProfileContact();}
     await syncCurrentPatientFromSupabase();
     closeAllModals();
-    toast('Your profile was updated.','success');
+    toast('Saved. You can finish the rest any time.','success');
     renderPage(appState.navigationRaceProtection.campusActivePageId||'dashboard');
   }catch(e){
     const box=document.getElementById('fv-msg');

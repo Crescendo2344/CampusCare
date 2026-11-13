@@ -140,10 +140,10 @@ export function openPatientModal(id=null){
       <fieldset class="registration-group">
         <legend>Contact &amp; emergency</legend>
         <div class="form-row">
-          ${field('pm-contact','Contact No.',`<input id="pm-contact" type="tel" inputmode="tel" maxlength="24" placeholder="09… or +63…" value="${escapeHtml(pt?.contact||'')}" ${live('phone')}>`,{hint:'Use 09XXXXXXXXX or +639XXXXXXXXX.'})}
+          ${field('pm-contact','Contact No.',`<input id="pm-contact" type="tel" inputmode="tel" maxlength="13" placeholder="09XXXXXXXXX" value="${escapeHtml(pt?.contact||'')}" ${live('phone')}>`,{hint:'Use 09XXXXXXXXX or +639XXXXXXXXX.'})}
           ${field('pm-addr','Address',`<input id="pm-addr" maxlength="300" value="${escapeHtml(pt?.address||'')}" ${live('text')}>`)}
           ${field('pm-ename','Emergency Contact Name',`<input id="pm-ename" maxlength="100" value="${escapeHtml(pt?.emergencyName||'')}" ${live('name')}>`)}
-          ${field('pm-econtact','Emergency Contact No.',`<input id="pm-econtact" type="tel" inputmode="tel" maxlength="24" placeholder="09… or +63…" value="${escapeHtml(pt?.emergencyContact||'')}" ${live('phone')}>`)}
+          ${field('pm-econtact','Emergency Contact No.',`<input id="pm-econtact" type="tel" inputmode="tel" maxlength="13" placeholder="09XXXXXXXXX" value="${escapeHtml(pt?.emergencyContact||'')}" ${live('phone')}>`)}
         </div>
       </fieldset>
 

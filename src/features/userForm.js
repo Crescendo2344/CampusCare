@@ -61,7 +61,7 @@ export function openAddUserModal(){
           <div class="form-row">
             ${field('au-user','Username',`<input id="au-user" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" ${live('au-user')} aria-describedby="au-user-help au-user-error">`,{hint:'4–20 letters, numbers, periods, underscores or hyphens.'})}
             ${field('au-email','Email',`<input id="au-email" type="email" maxlength="150" autocomplete="off" autocapitalize="off" spellcheck="false" ${live('au-email')} aria-describedby="au-email-help au-email-error">`,{hint:'They can sign in with this email or the username.'})}
-            ${field('au-contact','Mobile number',`<input id="au-contact" type="tel" inputmode="tel" maxlength="24" placeholder="09… or +63…" ${live('au-contact')} aria-describedby="au-contact-help au-contact-error">`,{required:false,hint:'Use 09XXXXXXXXX or +639XXXXXXXXX.'})}
+            ${field('au-contact','Mobile number',`<input id="au-contact" type="tel" inputmode="tel" maxlength="13" placeholder="09XXXXXXXXX" ${live('au-contact')} aria-describedby="au-contact-help au-contact-error">`,{required:false,hint:'Use 09XXXXXXXXX or +639XXXXXXXXX.'})}
           </div>
         </section>
         <section class="au-section"><h4><span class="au-step">4</span> Password</h4>

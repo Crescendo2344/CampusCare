@@ -283,10 +283,10 @@ try{
       await page.locator('#r-email').fill(email);await page.locator('#r-email').blur();assert(await page.locator('#r-email-error').isHidden());
     }
     assert(await page.locator('#r-contact-help').isHidden());
-    assert.equal(await page.locator('#r-contact').getAttribute('placeholder'),'09… or +63…');
+    assert.equal(await page.locator('#r-contact').getAttribute('placeholder'),'09XXXXXXXXX');
     await page.locator('#r-contact').focus();assert(await page.locator('#r-contact-help').isVisible());
     await page.locator('#r-contact').fill('+639171234567');await page.locator('#r-contact').blur();assert(await page.locator('#r-contact-error').isHidden());
-    assert.equal(await page.locator('#r-contact').inputValue(),'+639171234567');
+    assert.equal(await page.locator('#r-contact').inputValue(),'09171234567','A pasted +63 number becomes 11 digits');
     assert(await page.locator('#r-contact-help').isHidden(),'Contact guidance hides after blur');
     await page.locator('#r-contact').fill('08171234567');await page.locator('#r-contact').blur();await page.locator('#r-contact-error').waitFor({state:'visible'});
     await page.locator('#r-contact').fill('');await page.locator('#r-contact').blur();
@@ -1520,7 +1520,14 @@ try{
     await meter.getByRole('button',{name:'Finish verification'}).click();
     const form=page.locator('.fv-modal');await form.waitFor();
     await form.getByRole('button',{name:'Save',exact:true}).click();
-    assert(await form.locator('.registration-field-error:not([hidden])').count()>0,'Empty details are flagged');
+    // Details already on file are prefilled; blank boxes may stay blank, and a bad value keeps the form open.
+    await form.locator('#fv-econtact').fill('');
+    await form.getByRole('button',{name:'Save',exact:true}).click();
+    assert(await form.isVisible(),'An incomplete emergency contact is not saved');
+    // Phone boxes take digits only, 11 at most.
+    await form.locator('#fv-econtact').pressSequentially('0890-789677856756');
+    assert.equal(await form.locator('#fv-econtact').inputValue(),'08907896778');
+    if(await form.locator('#fv-height-unit').count()){await form.locator('#fv-height-unit').selectOption('in');}
     if(process.env.CAMPUSCARE_VISUAL_DIR)await form.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/finish-verification-${mobile?'mobile':'desktop'}.png`});
     await form.getByRole('button',{name:'Later'}).click();
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('my-appointments'));
