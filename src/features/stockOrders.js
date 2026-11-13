@@ -118,7 +118,7 @@ function ordersTableHtml(rows){
 
 export function openPurchaseOrderModal(prefill=[]){
   const items=inventoryRecords().filter(i=>!i.archived);
-  const s=st();s.draft=prefill.length?prefill.map(l=>({...l})):[{item_id:'',quantity:''}];
+  const s=st();s.draft=prefill.length?prefill.map(l=>({...l,name:l.name||inventoryRecords().find(i=>i.dbItemId===Number(l.item_id))?.name||''})):[{name:'',quantity:''}];
   openModal(`<div class="modal so-po-modal" role="dialog" aria-labelledby="so-po-title">
     <div class="modal-header"><h3 id="so-po-title">${prefill.length?'Re-order':'New purchase order'}</h3><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body"><div id="so-po-msg"></div>
@@ -126,35 +126,65 @@ export function openPurchaseOrderModal(prefill=[]){
         <div class="form-group"><label for="so-po-needed">Needed by</label>${campusDateFieldHtml('so-po-needed','','Needed by',appState.clinicInformation.TODAY)}</div>
       </div>
       <div id="so-po-lines"></div>
-      ${prefill.length?'':`<button type="button" class="btn btn-sm" ${bindAction('click',()=>{st().draft.push({item_id:'',quantity:''});renderDraftLines();})}>+ Add another item</button>`}
+      ${prefill.length?'':`<button type="button" class="btn btn-sm" ${bindAction('click',()=>{st().draft.push({name:'',quantity:''});renderDraftLines();})}>+ Add another item</button>`}
       <div class="form-group"><label for="so-po-notes">Notes</label><textarea id="so-po-notes" rows="2" maxlength="800"></textarea></div>
     </div>
     <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button class="btn btn-primary" id="so-po-send" ${bindAction('click',()=>submitPurchaseOrder())}>Prepare order</button></div>
   </div>`);
   renderDraftLines();
 }
+// Each line: type the medicine or supply. Items already in stock are suggested as you type and
+// linked when the name matches; a new name asks for its unit and category and joins the stock list.
+const UNITS=['tablet','capsule','bottle','box','pack','piece','vial','ampule','sachet','tube','cartridge','syringe','kit','jar','dose','cup','roll','pair'];
+const CATEGORIES=['Medicine','Dental','Supplies','Equipment','Laboratory'];
+const stockItems=()=>inventoryRecords().filter(i=>!i.archived);
+const findItem=name=>{const key=String(name||'').trim().toLowerCase();return key?stockItems().find(i=>i.name.trim().toLowerCase()===key):null;};
 function renderDraftLines(){
   const el=document.getElementById('so-po-lines');if(!el)return;
-  const items=inventoryRecords().filter(i=>!i.archived);
-  el.innerHTML=st().draft.map((l,idx)=>`<div class="so-po-line">
-    <select aria-label="Item ${idx+1}" data-line="${idx}" data-field="item_id"><option value="">Choose an item</option>${items.map(i=>`<option value="${i.dbItemId}" ${Number(l.item_id)===i.dbItemId?'selected':''}>${escapeHtml(i.name)} · ${i.qty} ${escapeHtml(i.unit)} left</option>`).join('')}</select>
-    <input type="number" min="1" step="1" inputmode="numeric" aria-label="Quantity ${idx+1}" placeholder="Qty" data-line="${idx}" data-field="quantity" value="${escapeHtml(String(l.quantity??''))}">
-    <button type="button" class="btn btn-xs" aria-label="Remove item ${idx+1}" ${st().draft.length===1?'disabled':''} ${bindAction('click',()=>{st().draft.splice(idx,1);renderDraftLines();})}>✕</button>
-  </div>`).join('');
-  el.querySelectorAll('[data-line]').forEach(input=>input.addEventListener(input.tagName==='SELECT'?'change':'input',()=>{st().draft[Number(input.dataset.line)][input.dataset.field]=input.value;}));
+  const items=stockItems();
+  el.innerHTML=`<datalist id="so-po-items">${items.map(i=>`<option value="${escapeHtml(i.name)}">${i.qty} ${escapeHtml(i.unit)} left</option>`).join('')}</datalist>`+st().draft.map((l,idx)=>{
+    const match=findItem(l.name),isNew=Boolean(String(l.name||'').trim())&&!match;
+    return `<div class="so-po-line-wrap"><div class="so-po-line">
+      <input type="text" list="so-po-items" autocomplete="off" maxlength="120" aria-label="Medicine or supply ${idx+1}" placeholder="Type the medicine or supply" data-line="${idx}" data-field="name" value="${escapeHtml(l.name||'')}">
+      <input type="number" min="1" step="1" inputmode="numeric" aria-label="Quantity ${idx+1}" placeholder="Qty" data-line="${idx}" data-field="quantity" value="${escapeHtml(String(l.quantity??''))}">
+      <button type="button" class="btn btn-xs" aria-label="Remove item ${idx+1}" ${st().draft.length===1?'disabled':''} ${bindAction('click',()=>{st().draft.splice(idx,1);renderDraftLines();})}>✕</button>
+    </div>
+    <div class="so-po-line-meta" data-meta="${idx}">${match?`<span class="text-muted">In stock: ${match.qty} ${escapeHtml(match.unit)}</span>`
+      :isNew?`<span class="badge badge-info">New item</span>
+        <select aria-label="Unit for ${escapeHtml(l.name)}" data-line="${idx}" data-field="unit"><option value="">Unit</option>${UNITS.map(u=>`<option ${l.unit===u?'selected':''}>${u}</option>`).join('')}</select>
+        <select aria-label="Category for ${escapeHtml(l.name)}" data-line="${idx}" data-field="category">${CATEGORIES.map(c=>`<option ${(l.category||'Medicine')===c?'selected':''}>${c}</option>`).join('')}</select>`:''}</div></div>`;}).join('');
+  el.querySelectorAll('[data-line]').forEach(input=>{
+    const line=st().draft[Number(input.dataset.line)];
+    input.addEventListener(input.tagName==='SELECT'?'change':'input',()=>{line[input.dataset.field]=input.value;});
+    // Re-check the name once typing settles, so the stock match or the new-item fields appear.
+    if(input.dataset.field==='name')input.addEventListener('change',()=>{line.name=input.value;renderDraftLines();});
+  });
 }
 async function submitPurchaseOrder(){
   const msg=document.getElementById('so-po-msg'),btn=document.getElementById('so-po-send');
-  const lines=st().draft.map(l=>({item_id:Number(l.item_id),quantity:Number(l.quantity)})).filter(l=>l.item_id||l.quantity);
+  document.querySelectorAll('#so-po-lines [data-line]').forEach(input=>{st().draft[Number(input.dataset.line)][input.dataset.field]=input.value;});
   const fail=t=>{msg.innerHTML=`<div class="alert alert-danger show">${escapeHtml(t)}</div>`;};
-  if(!lines.length)return fail('Add at least one item.');
-  if(lines.some(l=>!l.item_id||!Number.isInteger(l.quantity)||l.quantity<1))return fail('Each line needs an item and a quantity of at least 1.');
-  if(new Set(lines.map(l=>l.item_id)).size!==lines.length)return fail('Each item can appear once per order.');
+  const draft=st().draft.filter(l=>String(l.name||'').trim()||l.quantity);
+  if(!draft.length)return fail('Add at least one medicine or supply.');
+  const lines=[];
+  for(const l of draft){
+    const name=String(l.name||'').trim().replace(/\s+/g,' '),quantity=Number(l.quantity);
+    if(name.length<2)return fail('Type the name of each medicine or supply.');
+    if(!Number.isInteger(quantity)||quantity<1)return fail(`Give a quantity of at least 1 for ${name}.`);
+    const item=findItem(name);
+    if(item)lines.push({item_id:item.dbItemId,quantity,key:'id:'+item.dbItemId});
+    else{
+      if(!l.unit)return fail(`Choose the unit for ${name} (for example tablet, box or bottle).`);
+      lines.push({new_item:{name,unit:l.unit,category:l.category||'Medicine'},quantity,key:'new:'+name.toLowerCase()});
+    }
+  }
+  if(new Set(lines.map(l=>l.key)).size!==lines.length)return fail('Each medicine can appear once per order.');
   btn.disabled=true;btn.textContent='Sending…';
   try{
-    const res=await inventoryAction({action:'create_po',items:lines,needed_by:document.getElementById('so-po-needed').value||null,notes:document.getElementById('so-po-notes').value.trim()});
+    const res=await inventoryAction({action:'create_po',items:lines.map(({key,...l})=>l),needed_by:document.getElementById('so-po-needed').value||null,notes:document.getElementById('so-po-notes').value.trim()});
     closeAllModals();
-    toast(`${res.purchase_order?.po_no||'Purchase order'} is ready. Print it for the person who buys.`,'success');
+    const added=res.new_items?.length?` ${res.new_items.length} new item${res.new_items.length===1?' was':'s were'} added to the stock list.`:'';
+    toast(`${res.purchase_order?.po_no||'Purchase order'} is ready. Print it for the person who buys.${added}`,'success');
     await refreshInventoryAfterOrderChange();
     if(res.purchase_order?.po_id)printPurchaseOrder(res.purchase_order.po_id);
   }catch(e){fail(e?.message||'The order could not be sent.');btn.disabled=false;btn.textContent='Prepare order';}

@@ -325,8 +325,9 @@ export function openDisbursementModal(){
     <div class="modal-header"><h3>Record Item Disbursement</h3><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
     <div class="modal-body">
       <div id="disb-msg"></div>
-      <div class="form-group"><label>Item <span class="required">*</span></label>
-        <select id="disb-item">${items.map(i=>`<option value="${i.id}">${escapeHtml(i.name)} (${i.qty} ${escapeHtml(i.unit)})</option>`).join('')}</select>
+      <div class="form-group"><label for="disb-item">Item <span class="required">*</span></label>
+        <input id="disb-item" type="text" list="disb-items" autocomplete="off" maxlength="120" placeholder="Type to find the medicine or supply">
+        <datalist id="disb-items">${items.map(i=>`<option value="${escapeHtml(i.name)}">${i.qty} ${escapeHtml(i.unit)} left</option>`).join('')}</datalist>
       </div>
       <div class="form-group"><label>Quantity to Disburse <span class="required">*</span></label><input type="number" id="disb-qty" min="1" step="1"></div>
       <div class="form-group"><label>Date</label>${campusDateFieldHtml('disb-date',appState.clinicInformation.TODAY,'Disbursement Date','',appState.clinicInformation.TODAY)}</div>
@@ -340,7 +341,9 @@ export function openDisbursementModal(){
 }
 
 export async function saveDisbursement(){
-  const itemId=parseInt(document.getElementById('disb-item').value,10);
+  // The typed name must match an item in stock: only what is on hand can be dispensed.
+  const typed=document.getElementById('disb-item').value.trim().toLowerCase();
+  const itemId=inventoryRecords().find(i=>!i.archived&&i.name.trim().toLowerCase()===typed)?.id;
   const qty=parseInt(document.getElementById('disb-qty').value,10);
   const date=document.getElementById('disb-date').value;
   const notes=document.getElementById('disb-notes').value.trim();
@@ -349,7 +352,7 @@ export async function saveDisbursement(){
   const it=inventoryRecords().find(i=>i.id===itemId);
 
   hideAlert(msg);
-  if(!it){showAlert(msg,'Item not found.');return;}
+  if(!it){showAlert(msg,'Choose an item from the stock list (start typing its name).');return;}
   if(!qty||qty<1){showAlert(msg,'Quantity must be at least 1.');return;}
   if(qty>it.qty){showAlert(msg,`Only ${it.qty} ${it.unit} available.`);return;}
   if(!date||date>appState.clinicInformation.TODAY){showAlert(msg,'Disbursement date cannot be in the future.');return;}
