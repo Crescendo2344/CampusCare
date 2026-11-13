@@ -1659,12 +1659,12 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .so-due{margin-bottom:.8rem}
 .so-due-head{display:flex;gap:.6rem;align-items:center;margin-bottom:.4rem}
 .so-due-head>i{font-size:1.2rem;color:var(--warning)}
-.so-po-line{display:grid;grid-template-columns:minmax(0,1fr) 110px auto;gap:.5rem;align-items:center;margin-bottom:.5rem}
+.so-po-line{display:grid;grid-template-columns:minmax(0,1fr) 110px auto;gap:.5rem;align-items:center;margin-bottom:0}
 .so-po-line select,.so-po-line input{width:100%;min-width:0;padding:.45rem .75rem;border:1px solid var(--line);border-radius:9px;font-size:.87rem;font-family:inherit;transition:all .15s;background:var(--overlay);backdrop-filter:blur(6px);color:var(--ink);color-scheme:light dark}
 .so-po-line input::placeholder{color:var(--ink-muted);opacity:.7}
 .so-po-line select:focus,.so-po-line input:focus{outline:none;border-color:var(--primary);background:var(--overlay-strong);box-shadow:0 0 0 3px rgba(10,126,168,.18)}
 .so-po-modal #so-po-lines+.btn{margin-bottom:.9rem}
-@media (max-width:560px){.so-po-line{grid-template-columns:1fr auto}.so-po-line select{grid-column:1/-1}}
+@media (max-width:560px){.so-po-line{grid-template-columns:1fr auto}.so-po-line input[type=text]{grid-column:1/-1}}
 .inv-tabs .badge{margin-left:.35rem}
 
 .inv-archive-reason{display:flex;flex-direction:column;gap:.35rem;margin-top:.8rem}
@@ -1761,3 +1761,7 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .fv-unit{display:flex;gap:.4rem}
 .fv-unit input{flex:1;min-width:0}
 .fv-unit select{width:auto;flex:0 0 auto}
+/* Purchase order lines: typed name, quantity; new items ask for unit and category */
+.so-po-line-wrap{margin-bottom:.55rem}
+.so-po-line-meta{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin:.3rem 0 0 .1rem;font-size:.8rem}
+.so-po-line-meta select{width:auto;min-width:7.5rem;padding:.3rem .5rem;font-size:.8rem}

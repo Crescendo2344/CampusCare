@@ -191,20 +191,43 @@ Deno.serve(async(req)=>{
     }
 
     if(action==="create_po"){
-      const lines=(Array.isArray(body.items)?body.items:[]).map((l:any)=>({
-        item_id:Number(l?.item_id||0),quantity:Number(l?.quantity)
-      }));
-      if(!lines.length||lines.length>50)return json({error:"Add at least one medicine to the order."},400);
-      const ids=new Set<number>();
-      for(const l of lines){
-        if(!l.item_id||!Number.isInteger(l.quantity)||l.quantity<=0||l.quantity>100000)
+      // A line names an item in the stock list (item_id), or a new medicine or supply typed by name
+      // (new_item: name, unit, category). A typed name that matches an item already in this clinic's
+      // stock list uses that item, so the same medicine is never listed twice.
+      const CATEGORIES=["Medicine","Dental","Supplies","Equipment","Laboratory"];
+      const raw=Array.isArray(body.items)?body.items:[];
+      if(!raw.length||raw.length>50)return json({error:"Add at least one medicine to the order."},400);
+      const {data:stock}=await admin.from("inventory_items").select("item_id,item_name,archived,clinic").eq("clinic",staffClinic);
+      const byName=new Map((stock||[]).filter((i:any)=>!i.archived).map((i:any)=>[String(i.item_name).trim().toLowerCase(),i]));
+      const lines:any[]=[],created:any[]=[];
+      for(const l of raw){
+        const quantity=Number(l?.quantity);
+        if(!Number.isInteger(quantity)||quantity<=0||quantity>100000)
           return json({error:"Each line needs a medicine and a quantity of at least 1."},400);
-        if(ids.has(l.item_id))return json({error:"Each medicine can appear once per order."},400);
-        ids.add(l.item_id);
+        let itemId=Number(l?.item_id||0);
+        if(!itemId&&l?.new_item){
+          const name=clean(l.new_item.name,120).replace(/\s+/g," ");
+          const unit=clean(l.new_item.unit,30);
+          const category=CATEGORIES.includes(String(l.new_item.category))?String(l.new_item.category):"Medicine";
+          if(name.length<2)return json({error:"Type the name of each medicine or supply."},400);
+          const existing=byName.get(name.toLowerCase());
+          if(existing)itemId=Number(existing.item_id);
+          else{
+            if(!unit)return json({error:`Give the unit for ${name} (for example tablet, box or bottle).`},400);
+            lines.push({quantity,new_item:{name,unit,category}});continue;
+          }
+        }
+        if(!itemId)return json({error:"Each line needs a medicine and a quantity of at least 1."},400);
+        lines.push({item_id:itemId,quantity});
       }
-      const {data:items}=await admin.from("inventory_items").select("item_id,archived,clinic").in("item_id",[...ids]);
-      if((items||[]).some((i:any)=>i.clinic!==staffClinic))return otherClinic();
-      if((items||[]).filter((i:any)=>!i.archived).length!==ids.size)return json({error:"An item on the order is not in the stock list."},400);
+      const keys=lines.map(l=>l.item_id?`id:${l.item_id}`:`new:${l.new_item.name.toLowerCase()}`);
+      if(new Set(keys).size!==keys.length)return json({error:"Each medicine can appear once per order."},400);
+      const ids=new Set<number>(lines.filter(l=>l.item_id).map(l=>l.item_id));
+      if(ids.size){
+        const {data:items}=await admin.from("inventory_items").select("item_id,archived,clinic").in("item_id",[...ids]);
+        if((items||[]).some((i:any)=>i.clinic!==staffClinic))return otherClinic();
+        if((items||[]).filter((i:any)=>!i.archived).length!==ids.size)return json({error:"An item on the order is not in the stock list."},400);
+      }
       const neededBy=body.needed_by?String(body.needed_by).slice(0,10):null;
       if(neededBy&&!/^\d{4}-\d{2}-\d{2}$/.test(neededBy))return json({error:"Needed-by date is not valid."},400);
       const {data:po,error}=await admin.from("purchase_orders").insert({
@@ -214,10 +237,25 @@ Deno.serve(async(req)=>{
       const year=new Date().getUTCFullYear();
       const poNo=`PO-${year}-${String(po.po_id).padStart(4,"0")}`;
       await admin.from("purchase_orders").update({po_no:poNo}).eq("po_id",po.po_id);
-      const {error:lineErr}=await admin.from("purchase_order_items").insert(lines.map((l:any)=>({...l,po_id:po.po_id})));
-      if(lineErr){await admin.from("purchase_orders").delete().eq("po_id",po.po_id);return json({error:lineErr.message},400);}
-      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"PURCHASE_ORDER_PREPARED",entity_type:"purchase_orders",entity_id:po.po_id,details:{po_no:poNo,lines:lines.length}});
-      return json({ok:true,purchase_order:{...po,po_no:poNo}});
+      // New medicines join the stock list at zero; the delivery adds the stock.
+      for(const l of lines.filter(l=>l.new_item)){
+        const {data:item,error:itemErr}=await admin.from("inventory_items").insert({
+          item_name:l.new_item.name,unit:l.new_item.unit,category:l.new_item.category,quantity:0,threshold:10,clinic:staffClinic,archived:false
+        }).select("item_id").single();
+        if(itemErr){
+          if(created.length)await admin.from("inventory_items").delete().in("item_id",created.map(c=>c.item_id));
+          await admin.from("purchase_orders").delete().eq("po_id",po.po_id);return json({error:itemErr.message},400);
+        }
+        created.push({item_id:item.item_id,name:l.new_item.name});l.item_id=item.item_id;delete l.new_item;
+      }
+      const {error:lineErr}=await admin.from("purchase_order_items").insert(lines.map((l:any)=>({item_id:l.item_id,quantity:l.quantity,po_id:po.po_id})));
+      if(lineErr){
+        if(created.length)await admin.from("inventory_items").delete().in("item_id",created.map(c=>c.item_id));
+        await admin.from("purchase_orders").delete().eq("po_id",po.po_id);return json({error:lineErr.message},400);
+      }
+      for(const c of created)await admin.from("audit_logs").insert({user_id:actor.user_id,action:"INVENTORY_ITEM_CREATED",entity_type:"inventory_items",entity_id:c.item_id,details:{item_name:c.name,source:"purchase order",po_no:poNo}});
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:"PURCHASE_ORDER_PREPARED",entity_type:"purchase_orders",entity_id:po.po_id,details:{po_no:poNo,lines:lines.length,new_items:created.length}});
+      return json({ok:true,purchase_order:{...po,po_no:poNo},new_items:created});
     }
 
     // Staff hand the printed order to whoever buys, then mark it sent; or cancel an order no longer needed.

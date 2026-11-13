@@ -1145,6 +1145,22 @@ try{
     await page.locator('.inv-stat:not([disabled])').first().click();
     assert(await page.locator('#inv-panel-items').isVisible(),'A summary card opens the filtered item list');
     if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/inventory-tabs-${role}.png`});
+    // Purchase orders: the medicine is typed; a name not in stock is a new item that asks for its unit.
+    await page.locator('#inv-tab-orders').click();
+    await page.getByRole('button',{name:'+ New purchase order'}).click();
+    const poName=page.locator('#so-po-lines input[data-field="name"]').first();
+    await poName.fill('Tranexamic Acid 500 mg Capsule');await poName.dispatchEvent('change');
+    await page.locator('#so-po-lines .badge',{hasText:'New item'}).waitFor();
+    await page.locator('#so-po-lines input[data-field="quantity"]').first().fill('50');
+    await page.locator('#so-po-send').click();
+    assert.match(await page.locator('#so-po-msg').innerText(),/Choose the unit for Tranexamic Acid/);
+    await page.locator('#so-po-lines select[data-field="unit"]').selectOption('capsule');
+    const before=requests.length;
+    await page.locator('#so-po-send').click();
+    await page.waitForFunction(()=>!document.querySelector('.so-po-modal'));
+    const sent=requests.slice(before).find(r=>r.path.endsWith('/inventory-actions')&&r.body?.action==='create_po');
+    assert.deepEqual(sent?.body?.items,[{new_item:{name:'Tranexamic Acid 500 mg Capsule',unit:'capsule',category:'Medicine'},quantity:50}]);
+    if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/po-new-item-${role}.png`});
   }
   if(role==='Administrator'){
     // The activity log reads as a day-grouped timeline with category chips and an entry view showing before → after.
