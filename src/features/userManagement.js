@@ -1,3 +1,4 @@
+import {clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
 import {canEditApprovedUser} from '../../supabase/functions/_shared/admin-user-edit.js';
 // userManagement: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
@@ -131,7 +132,7 @@ export async function openUserDetails(id){
                 ${userDetailField('Account Created',formatLastLogin(d.auth_created_at||d.created_at))}
                 ${userDetailField('Last Login',formatLastLogin(d.last_sign_in_at||d.last_login_at))}
                 ${d.role==='Staff'?userDetailField('Clinic',d.clinic||'Not set'):''}
-                ${d.role==='Doctor'?userDetailField('Specialization',d.specialty)+userDetailField('Services rendered',(d.services_rendered||[]).join(', '),true):''}
+                ${d.role==='Doctor'?userDetailField('Clinic',d.specialty?clinicForSpecialization(d.specialty):'')+userDetailField('Services rendered',(d.services_rendered||[]).join(', '),true):''}
                 ${d.role==='Doctor'?userDetailField('Work Schedule',roleSchedule,true):''}
               </div>
             </section>

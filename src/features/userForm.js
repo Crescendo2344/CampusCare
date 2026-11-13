@@ -46,8 +46,7 @@ export function openAddUserModal(){
             <div class="form-row">${field('au-clinic','Clinic',`<select id="au-clinic"><option value="">Choose a clinic</option><option>Medical Clinic</option><option>Dental Clinic</option></select>`,{hint:'Staff see and manage only this clinic\'s appointments, inventory and records.'})}</div>
           </div>
           <div id="au-doctor" class="au-doctor">
-            <div class="form-row">${field('au-spec','Specialization',`<select id="au-spec" ${bindAction('change',()=>renderServicesRendered())}>${specialties().map(x=>`<option>${x}</option>`).join('')}</select>`,{hint:'Field of expertise.'})}</div>
-            <fieldset class="au-services" id="au-services" aria-describedby="au-services-error"><legend>Services rendered <span class="required">*</span></legend><div id="au-services-list"></div><p class="registration-field-error" id="au-services-error" aria-live="polite" hidden></p></fieldset>
+            <div class="form-row">${field('au-spec','Clinic',`<select id="au-spec">${specialties().map(x=>`<option value="${x}">${clinicForSpecialization(x)}</option>`).join('')}</select>`,{hint:'The doctor renders all of this clinic\'s services. You can narrow them later in Edit user.'})}</div>
             <p class="form-note au-note"><i class="bi bi-calendar-week" aria-hidden="true"></i> Medical schedules start at 8 AM; dental schedules start at 9 AM for instrument sterilization. You can change the hours after creating the account.</p>
           </div>
         </section>
@@ -74,16 +73,9 @@ export function openAddUserModal(){
     <div class="modal-footer" id="au-actions"><button type="button" class="btn btn-primary" ${bindAction('click',()=>reviewNewUser())}>Review account</button></div>
   </div>`);
   setAddUserRole(st.role);
-  renderServicesRendered();
   document.getElementById('au-fname')?.focus();
 }
 
-// Doctors pick the services they render from their clinic's list; all are ticked to start.
-function renderServicesRendered(){
-  const list=document.getElementById('au-services-list');if(!list)return;
-  const clinic=clinicForSpecialization(document.getElementById('au-spec')?.value);
-  list.innerHTML=CLINIC_SERVICES[clinic].map(service=>`<label class="au-service"><input type="checkbox" value="${escapeHtml(service)}" checked ${bindAction('change',()=>setRegistrationFieldError('au-services','',false))}> <span>${escapeHtml(service)}</span></label>`).join('');
-}
 
 function setAddUserRole(role){
   addUserState().role=role;
@@ -100,7 +92,8 @@ function setAddUserRole(role){
 
 function newUserValues(){
   const st=addUserState(),val=id=>document.getElementById(id)?.value||'';
-  const services=[...document.querySelectorAll('#au-services-list input:checked')].map(i=>i.value);
+  // Every service of the doctor's clinic, by default.
+  const services=CLINIC_SERVICES[clinicForSpecialization(val('au-spec'))]||[];
   return {role:st.role,specialty:st.role==='Doctor'?val('au-spec'):null,services_rendered:st.role==='Doctor'?services:[],clinic:st.role==='Staff'?val('au-clinic'):null,
     first_name:val('au-fname').trim(),last_name:val('au-lname').trim(),id_number:val('au-empno').trim(),
     username:val('au-user').trim(),email:val('au-email').trim().toLowerCase(),contact_number:normalizePhilippineMobile(val('au-contact'))||val('au-contact').trim()};
@@ -112,7 +105,6 @@ export function reviewNewUser(){
   const invalid=validateRegistrationForm('au-');
   const v=newUserValues();
   if(!/^\d{5}$/.test(v.id_number)){setRegistrationFieldError('au-empno','Enter the 5-digit employee number.',true);invalid.push('au-empno');}
-  if(v.role==='Doctor'&&!v.services_rendered.length){setRegistrationFieldError('au-services','Tick at least one service.',true);invalid.push('au-services');}
   if(v.role==='Staff'&&!v.clinic){setRegistrationFieldError('au-clinic','Choose the clinic this staff member works in.',true);invalid.unshift('au-clinic');}
   if(invalid.length){document.getElementById(invalid[0])?.focus();return;}
   const row=(label,value)=>`<div class="info-row"><span class="info-label">${label}</span><span class="info-val">${value}</span></div>`;
@@ -120,7 +112,7 @@ export function reviewNewUser(){
   const review=document.getElementById('au-review');review.hidden=false;
   review.innerHTML=`<h4 class="au-review-title">Check the new account</h4>
     ${row('Name',escapeHtml(v.first_name+' '+v.last_name))}
-    ${row('Role',escapeHtml(v.role)+(v.specialty?' · '+escapeHtml(v.specialty):'')+(v.clinic?' · '+escapeHtml(v.clinic):''))}
+    ${row('Role',escapeHtml(v.role)+(v.specialty?' · '+escapeHtml(clinicForSpecialization(v.specialty)):'')+(v.clinic?' · '+escapeHtml(v.clinic):''))}
     ${v.role==='Doctor'?row('Services rendered',escapeHtml(v.services_rendered.join(', '))):''}
     ${row('Employee No.',escapeHtml(v.id_number))}
     ${row('Username','@'+escapeHtml(v.username))}${row('Email',escapeHtml(v.email))}
@@ -182,7 +174,7 @@ async function openCreatedDoctorSchedule(){
 // Editing an account is two deliberate steps, as in admin consoles such as Google Workspace and Okta:
 // edit the details (changed fields are marked), then review every change with a reason and confirm by
 // typing the account's username before anything is saved.
-const EDIT_LABELS={first_name:'First name',last_name:'Last name',email:'Email',contact_number:'Mobile number',specialty:'Specialization',services_rendered:'Services rendered',clinic:'Clinic',id_number:'Employee No.'};
+const EDIT_LABELS={first_name:'First name',last_name:'Last name',email:'Email',contact_number:'Mobile number',specialty:'Clinic',services_rendered:'Services rendered',clinic:'Clinic',id_number:'Employee No.'};
 function editState(){return appState.userManagement.editUser??={};}
 function editOriginal(u){return {...u,first_name:u.fname,last_name:u.lname,contact_number:u.contact||'',services_rendered:u.servicesRendered||[],id_number:u.idNo||''};}
 function editInputs(u){
@@ -222,7 +214,7 @@ export function openEditUserModal(id){
         </div></section>
         ${['Staff','Doctor'].includes(u.role)?`<section class="eu-section"><h4>Employee</h4><div class="form-row">${field('eu-empno','id_number','Employee No.',`<input id="eu-empno" inputmode="numeric" maxlength="5" pattern="\\d{5}" placeholder="5 digits" autocomplete="off" value="${escapeHtml(u.idNo||'')}">`)}</div></section>`:''}
         ${u.role==='Staff'?`<section class="eu-section"><h4>Clinic</h4><div class="form-row">${field('eu-clinic','clinic','Clinic',`<select id="eu-clinic">${['Medical Clinic','Dental Clinic'].map(value=>`<option ${u.clinic===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div></section>`:''}
-        ${u.role==='Doctor'?`<section class="eu-section"><h4>Professional</h4><div class="form-row">${field('eu-spec','specialty','Specialization',`<select id="eu-spec" ${bindAction('change',()=>renderEditServices(u))}>${specialties().map(value=>`<option ${u.specialty===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div>
+        ${u.role==='Doctor'?`<section class="eu-section"><h4>Professional</h4><div class="form-row">${field('eu-spec','specialty','Clinic',`<select id="eu-spec" ${bindAction('change',()=>renderEditServices(u))}>${specialties().map(value=>`<option value="${value}" ${u.specialty===value?'selected':''}>${clinicForSpecialization(value)}</option>`).join('')}</select>`)}</div>
           <fieldset class="au-services"><legend>Services rendered</legend><div id="eu-services">${editServicesHtml(u.specialty,u.servicesRendered)}</div></fieldset></section>`:''}
         <dl class="eu-locked"><div><dt>Username</dt><dd>@${escapeHtml(u.username||'—')}</dd></div><div><dt>Role</dt><dd>${escapeHtml(u.role)}</dd></div><div><dt>Account status</dt><dd>${escapeHtml(u.status)}</dd></div></dl>
       </div>
@@ -273,7 +265,7 @@ export async function saveEditUser(id){
   fields.hidden=true;review.hidden=false;msg.innerHTML='';
   document.getElementById('eu-step-1').classList.replace('active','done');document.getElementById('eu-step-2').classList.add('active');
   review.innerHTML=`<h4>Confirm user changes</h4>
-    <div class="table-wrap"><table class="eu-diff"><thead><tr><th scope="col">Field</th><th scope="col">Current</th><th scope="col">New</th></tr></thead><tbody>${Object.entries(patch).map(([key,value])=>`<tr><th scope="row">${EDIT_LABELS[key]}</th><td><del>${escapeHtml(original[key]||'—')}</del></td><td><ins>${escapeHtml(value||'—')}</ins></td></tr>`).join('')}</tbody></table></div>
+    <div class="table-wrap"><table class="eu-diff"><thead><tr><th scope="col">Field</th><th scope="col">Current</th><th scope="col">New</th></tr></thead><tbody>${Object.entries(patch).map(([key,value])=>`<tr><th scope="row">${EDIT_LABELS[key]}</th><td><del>${escapeHtml((key==='specialty'&&original[key]?clinicForSpecialization(original[key]):original[key])||'—')}</del></td><td><ins>${escapeHtml((key==='specialty'&&value?clinicForSpecialization(value):value)||'—')}</ins></td></tr>`).join('')}</tbody></table></div>
     ${patch.email?`<div class="eu-warning"><i class="bi bi-envelope-exclamation" aria-hidden="true"></i><span><strong>Sign-in email changes.</strong> ${escapeHtml(u.fname)} will sign in with ${escapeHtml(patch.email)} from now on.</span></div>`:''}
     <div class="form-group"><label for="eu-reason">Reason for this change <span class="required">*</span></label><input id="eu-reason" maxlength="300" placeholder="e.g. Corrected spelling per registrar records" autocomplete="off"></div>
     <label class="fi-check"><input type="checkbox" class="cc-switch" role="switch" id="eu-notify" checked> Notify ${escapeHtml(u.fname)} about this change</label>

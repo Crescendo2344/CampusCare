@@ -170,7 +170,7 @@ async function syncPublicSystemSettings(){
 
   const {data,error}=await appState.supabaseClient.supabaseClient
     .from('system_settings')
-    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days,privacy_policy_version,privacy_policy_updated,session_timeout_minutes,booking_lead_hours')
+    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days,privacy_policy_version,privacy_policy_updated,session_timeout_minutes,booking_lead_hours,lunch_start,lunch_end,schedule_change_notice_days')
     .order('settings_id',{ascending:true})
     .limit(1)
     .maybeSingle();
@@ -193,7 +193,10 @@ async function syncPublicSystemSettings(){
     appointmentReminderDays:Number(data.appointment_reminder_days??1),
     privacyPolicyVersion:data.privacy_policy_version||appState.data.DB.settings.privacyPolicyVersion||'1.0',
     privacyPolicyUpdated:data.privacy_policy_updated||appState.data.DB.settings.privacyPolicyUpdated||appState.clinicInformation.TODAY,
-    sessionTimeoutMinutes:Number(data.session_timeout_minutes||appState.data.DB.settings.sessionTimeoutMinutes||30)
+    sessionTimeoutMinutes:Number(data.session_timeout_minutes||appState.data.DB.settings.sessionTimeoutMinutes||30),
+    lunchBreakStart:String(data.lunch_start||appState.data.DB.settings.lunchBreakStart||'12:00').slice(0,5),
+    lunchBreakEnd:String(data.lunch_end||appState.data.DB.settings.lunchBreakEnd||'13:00').slice(0,5),
+    scheduleChangeNoticeDays:Number(data.schedule_change_notice_days??appState.data.DB.settings.scheduleChangeNoticeDays??3)
   });
   if(appState.auth.currentUser)configureSessionGuard(appState.data.DB.settings.sessionTimeoutMinutes);
   return appState.data.DB.settings;

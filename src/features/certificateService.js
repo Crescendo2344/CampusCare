@@ -16,7 +16,7 @@ import {paginate,pagerHtml} from '../ui/pager.js';
 import {bindAction,certificateData,createCertificateService} from '../dependencies.js';
 import * as purposeData from '../domain/certificate-purpose.js';
 import {accomplishmentText,dentalHistorySummary} from '../domain/dental-certificate.js';
-import {CTU_FOOTER_SRC,CTU_HEADER_SRC} from '../shared/ctu-letterhead.js';
+import {CTU_FOOTER_SRC,ctuHeaderHtml} from '../shared/ctu-letterhead.js';
 import {certificateKindFor,certificateLabel} from '../domain/clinic-scope.js';
 export {certificateKindFor,certificateLabel};
 // A saved certificate keeps the format it was written in; older ones without the dental layout are medical.
@@ -145,7 +145,7 @@ const certSignatureArea=(name,title,signature)=>`<div class="cert-signature-area
       <img id="cert-signature-img" src="${signature||''}" style="${signature?'':'display:none'}" alt="Signature">
       <div class="cert-sign-line"><strong id="cert-doctor-name">${escapeHtml(name)}</strong><br><span>${escapeHtml(title)}</span></div>
     </div>`;
-const letterheadTop=()=>`<div class="dc-head"><img data-ctu-cert-logo="1" src="${CTU_HEADER_SRC}" alt="Cebu Technological University letterhead"></div>`;
+const letterheadTop=()=>ctuHeaderHtml();
 const letterheadBottom=()=>`<div class="dc-foot"><img src="${CTU_FOOTER_SRC}" alt="University rankings and accreditations"></div>`;
 
 // The details the doctor confirmed in step 1. Anything not given falls back to the patient's records.
@@ -291,8 +291,8 @@ export function openNewCertificateModal(patientId=null,treatmentId=null,prefill=
   const pt=patientId?getPatientById(patientId):null;
   appState.certificateService.certPrefill=prefill;
   const kind=certificateKindFor(appState.auth.currentUser);
-  openModal(`<div class="modal modal-lg cert-new-modal">
-    <div class="modal-header"><div><h3>New ${certificateLabel(kind).toLowerCase()}</h3><div class="text-muted">Step 1 of 2 · Patient, visit, purpose and certificate details</div></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+  openModal(`<div class="modal cert-new-modal">
+    <div class="modal-header"><div><h3>New ${certificateLabel(kind).toLowerCase()}</h3><div class="text-muted">Step 1 of 2 · Patient, visit and purpose</div></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
       <div class="form-group"><label for="nc-pt-search">Patient <span class="required">*</span></label>
         <input type="hidden" id="nc-pt" value="${pt?pt.id:''}">
@@ -300,7 +300,7 @@ export function openNewCertificateModal(patientId=null,treatmentId=null,prefill=
         <p class="registration-field-error" id="nc-pt-error" hidden></p>
       </div>
       <div class="form-group"><label for="nc-visit">Based on visit</label>
-        <select id="nc-visit" ${bindAction('change',()=>renderCertificateDetails())}></select>
+        <select id="nc-visit"></select>
         <p class="form-note" id="nc-visit-note">Choose the consultation where you examined the patient. Its findings fill in the certificate.</p>
         <p class="registration-field-error" id="nc-visit-error" hidden></p>
       </div>
@@ -308,7 +308,6 @@ export function openNewCertificateModal(patientId=null,treatmentId=null,prefill=
         <select id="nc-purpose" ${bindAction('change',()=>syncCertificatePurposeFields())}>${purposeData.CERTIFICATE_PURPOSES.map(p=>`<option ${p===prefill.purpose?'selected':''}>${escapeHtml(p)}</option>`).join('')}</select>
       </div>
       <div id="nc-purpose-fields"></div>
-      <div id="nc-details"></div>
     </div>
     <div class="modal-footer"><button class="btn btn-primary" ${bindAction('click',()=>continueNewCertificate())}>Continue to document</button></div>
   </div>`);
@@ -316,56 +315,21 @@ export function openNewCertificateModal(patientId=null,treatmentId=null,prefill=
   for(const key of ['event','fitness','restrictions']){const el=document.getElementById('nc-'+key);if(el&&prefill[key])el.value=prefill[key];}
   const restrictionsGroup=document.getElementById('nc-restrictions-group');if(restrictionsGroup)restrictionsGroup.hidden=document.getElementById('nc-fitness')?.value!=='Fit with restrictions';
   if(pt)selectCertificatePatient(pt.id,treatmentId);else syncCertificateVisits(null);
-  renderCertificateDetails();
 }
 
-// The certificate details, filled in from the patient's records and the chosen visit.
-// The doctor checks or corrects them here, so the document opens already complete.
-export function renderCertificateDetails(){
-  const box=document.getElementById('nc-details');if(!box)return;
-  const patientId=Number(document.getElementById('nc-pt')?.value)||0;
-  if(!patientId){box.innerHTML='<p class="form-note">Choose a patient to fill in the certificate details.</p>';return;}
-  const kind=certificateKindFor(appState.auth.currentUser);
-  const treatmentId=Number(document.getElementById('nc-visit')?.value)||0;
-  const visit=treatmentRecords().find(t=>t.id===treatmentId)||null;
+// Every detail on the certificate comes from the patient's records and the chosen visit, so the
+// document opens complete; the doctor can still correct anything directly on the page.
+function autofillCertificateDetails(patientId,visit,kind){
   const prefill=appState.certificateService.certPrefill||{};
   const dental=dentalHistorySummary(treatmentRecords().filter(t=>t.patientId===patientId));
   const visitFill=visit?certificateFromVisit(visit):{findings:prefill.findings||'',remarks:prefill.restrictions?`Restrictions: ${prefill.restrictions}`:''};
   const fill=kind==='dental'?dentalAutofill(dental,visitFill):visitFill;
-  const f=certificateFieldsFor({patientId},kind==='dental'?dental:{});
-  const v=x=>escapeHtml(x??'');
-  const input=(id,label,value,attrs='')=>`<div class="form-group"><label for="ncd-${id}">${label}</label><input id="ncd-${id}" value="${v(value)}" ${attrs}></div>`;
-  const area=(id,label,value,req=false)=>`<div class="form-group"><label for="ncd-${id}">${label}${req?' <span class="required">*</span>':''}</label><textarea id="ncd-${id}" rows="3" maxlength="2000">${v(value)}</textarea>${req?`<p class="registration-field-error" id="ncd-${id}-error" hidden></p>`:''}</div>`;
-  const common=`<div class="form-row">${input('name','Name',f.name,'readonly')}${input('age','Age',f.age,'inputmode="numeric" maxlength="3"')}</div>
-    <div class="form-row">${input('sex','Sex',f.sex,'maxlength="20"')}${input('idNo','ID No.',f.idNo,'maxlength="30"')}</div>
-    <div class="form-row">${input('course','Course &amp; Major',f.course,'maxlength="150"')}${input('yearSection','Yr. &amp; Section',f.yearSection,'maxlength="40"')}</div>`;
-  box.innerHTML=kind==='dental'?`<h4 class="nc-details-title">Certificate details</h4>${common}
-    <div class="form-row">${input('contact','Cel No.',f.contact,'maxlength="20"')}${input('messenger','Messenger Account',f.messenger,'maxlength="120"')}</div>
-    <fieldset class="nc-fieldset"><legend>Oral health record</legend>
-      <div class="nc-choice-row">${['Satisfactory','Fair','Poor'].map(o=>`<label><input type="radio" name="ncd-oral" value="${o}" ${f.oralRating===o?'checked':''}> ${o}</label>`).join('')}</div>
-      <div class="nc-choice-row"><label><input type="checkbox" id="ncd-harelip" ${f.harelip?'checked':''}> Harelip</label><label><input type="checkbox" id="ncd-gums" ${f.defectiveGums?'checked':''}> Defective Gums</label><label><input type="checkbox" id="ncd-cleft" ${f.cleftPalate?'checked':''}> Cleft Palate</label></div>
-      ${input('oralOthers','Others',f.oralOthers,'maxlength="150"')}
-    </fieldset>
-    ${area('findings','Accomplishment (tooth no. and nature of operation)',fill.findings,true)}
-    <fieldset class="nc-fieldset"><legend>Dental work status</legend><div class="nc-choice-row nc-choice-col">${[['Completed','All necessary dental work has been completed'],['In Progress','Treatment is in progress'],['No Dental Work Necessary','No dental work is necessary']].map(([val,label])=>`<label><input type="radio" name="ncd-work" value="${val}" ${f.workStatus===val?'checked':''}> ${label}</label>`).join('')}</div></fieldset>
-    ${area('remarks','Recommendation',fill.remarks)}`
-  :`<h4 class="nc-details-title">Certificate details</h4>${common}
-    <div class="form-row">${input('examDate','Date examined',visit?.date||appState.clinicInformation.TODAY,'type="date"')}</div>
-    ${area('findings','Findings / Diagnosis',fill.findings,true)}
-    ${area('remarks','Remarks / Recommendations',fill.remarks)}`;
-}
-function readCertificateDetails(){
-  const val=id=>document.getElementById('ncd-'+id)?.value?.trim()||'';
-  const checked=id=>!!document.getElementById('ncd-'+id)?.checked;
-  const radio=name=>document.querySelector(`input[name="ncd-${name}"]:checked`)?.value||'';
-  return {name:val('name'),age:val('age'),sex:val('sex'),idNo:val('idNo'),course:val('course'),yearSection:val('yearSection'),
-    contact:val('contact'),messenger:val('messenger'),examDate:val('examDate'),findings:val('findings'),remarks:val('remarks'),
-    oralRating:radio('oral'),harelip:checked('harelip'),defectiveGums:checked('gums'),cleftPalate:checked('cleft'),oralOthers:val('oralOthers'),workStatus:radio('work')};
+  return {...certificateFieldsFor({patientId},kind==='dental'?dental:{}),examDate:visit?.date||appState.clinicInformation.TODAY,findings:fill.findings||'',remarks:fill.remarks||''};
 }
 
 export function filterCertificatePatients(q=''){
   const box=document.getElementById('nc-pt-results');if(!box)return;
-  document.getElementById('nc-pt').value='';syncCertificateVisits(null);renderCertificateDetails();
+  document.getElementById('nc-pt').value='';syncCertificateVisits(null);
   const s=q.trim().toLowerCase();
   if(!s){box.innerHTML='';box.classList.remove('show');return;}
   const pts=appState.data.DB.patients.filter(p=>!p.archived&&(!appState.auth.currentUser._realSupabase||p._realSupabase)&&`${p.fname} ${p.lname} ${p.lname}, ${p.fname} ${p.idNo||''}`.toLowerCase().includes(s)).slice(0,12);
@@ -378,7 +342,6 @@ export function selectCertificatePatient(id,treatmentId=null){
   document.getElementById('nc-pt-search').value=`${p.fname} ${p.lname}`;
   document.getElementById('nc-pt-results')?.classList.remove('show');
   syncCertificateVisits(p.id,treatmentId);
-  renderCertificateDetails();
 }
 function doctorVisits(patientId){
   return treatmentRecords().filter(t=>t.patientId===patientId&&!t.archived&&t.doctorId===appState.auth.currentUser.id)
@@ -416,17 +379,17 @@ export async function continueNewCertificate(){
   const treatmentId=Number(document.getElementById('nc-visit').value)||0;
   const purpose=document.getElementById('nc-purpose').value;
   const fields=readCertificateFields();
-  const details=readCertificateDetails();
   const errors=purposeData.certificateDetailErrors(purpose,fields,appState.clinicInformation.TODAY);
   if(!patientId)errors.pt='Choose the patient from the list.';
-  else if(!details.findings)errors.findings=certificateKindFor(appState.auth.currentUser)==='dental'?'Write the accomplishment, or "No dental work performed."':'Write the findings or diagnosis.';
   for(const el of document.querySelectorAll('.cert-new-modal .registration-field-error')){el.hidden=true;el.textContent='';}
-  for(const [key,message] of Object.entries(errors)){const el=document.getElementById(`nc-${key}-error`)||document.getElementById(`ncd-${key}-error`);if(el){el.textContent=message;el.hidden=false;}}
+  for(const [key,message] of Object.entries(errors)){const el=document.getElementById(`nc-${key}-error`);if(el){el.textContent=message;el.hidden=false;}}
   if(Object.keys(errors).length){document.querySelector('.cert-new-modal .registration-field-error:not([hidden])')?.scrollIntoView({block:'center'});return;}
   const {statement,summary}=purposeData.certificateStatement(purpose,fields);
   // Dental records may not be loaded yet on this screen; the chart is filled from them.
   try{await syncRealDentalRecords();}catch(e){console.error('Dental records sync:',e);}
   closeAllModals();
+  const visit=treatmentRecords().find(t=>t.id===treatmentId)||null;
+  const details=autofillCertificateDetails(patientId,visit,certificateKindFor(appState.auth.currentUser));
   openCertificateEditor(null,{patientId,treatmentId,purpose,statement,details:summary,fields:details});
 }
 

@@ -1,5 +1,6 @@
 // profileDetails: what a person gave at registration, shown back on their profile, and the health and
 // emergency details a patient fills in afterwards (registration does not ask for them).
+import {clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {fmtDate} from './inputValidation.js';
@@ -33,7 +34,7 @@ export function registrationDetailsCard(u,pt){
   const fields=[userDetailField('Username',u.username?'@'+u.username:''),userDetailField(u.role==='Staff'?'Employee No.':'ID No.',u.idNo)];
   if(u.role==='Staff')fields.push(userDetailField('Clinic',u.clinic||'Not set'));
   if(u.role==='Doctor'){
-    fields.push(userDetailField('Specialization',u.specialty));
+    fields.push(userDetailField('Clinic',clinicForSpecialization(u.specialty)));
     fields.push(userDetailField('Services rendered',(u.servicesRendered||[]).join(', '),true));
   }
   return `<div class="card" id="acc-registration">

@@ -56,18 +56,31 @@ export async function renderSettings(){
   c.innerHTML=`
     <div class="report-tabs settings-tabs" role="tablist" aria-label="Settings sections">${sections.map(([id,label,icon])=>`<button type="button" role="tab" aria-selected="${ui.tab===id}" data-settings-tab="${id}" ${bindAction('click',()=>showSettingsSection(id))}><i class="bi ${icon}" aria-hidden="true"></i>${label}</button>`).join('')}</div>
     <div class="grid-2" data-settings-panel="clinic">
-      <div class="card">
-        <div class="card-header"><h3>Clinic Settings</h3></div><p class="settings-danger-notice">Critical settings: changes affect clinic information, visit limits and appointment reminders. Review every change before confirming.</p>
+      <div class="card settings-clinic-card">
+        <div class="card-header"><h3>Clinic Settings</h3></div><p class="settings-danger-notice">These rules apply to every booking, reminder and session. Review every change before confirming.</p>
         <div id="set-msg"></div>
-        <div class="form-group"><label>Clinic Name</label><input id="set-name" value="${escapeHtml(s.clinicName||'')}"></div>
-        <div class="form-group"><label>Address</label><input id="set-addr" value="${escapeHtml(s.address||'')}"></div>
-        <div class="form-group"><label>Contact Email</label><input id="set-email" type="email" value="${escapeHtml(s.contactEmail||'')}"></div>
-        <div class="form-group"><label>Contact Phone</label><input id="set-phone" value="${escapeHtml(s.contactPhone||appState.clinicInformation.CTU_CLINIC_INFO.phone)}"></div>
-        <div class="form-group"><label>Dental Visits Allowed Per Semester</label><input id="set-dental" type="number" min="1" max="5" value="${Number(s.dentalLimitPerSemester||1)}"></div>
-        <div class="form-group"><label>Appointment Reminder Days Before</label><input id="set-remind" type="number" min="0" max="14" value="${Number(s.appointmentReminderDays??1)}"></div>
-        <div class="form-group"><label for="set-lead">Booking Lead Time (hours)</label><input id="set-lead" type="number" min="0" max="72" value="${Number(s.bookingLeadHours??24)}" aria-describedby="set-lead-help"><p class="form-note" id="set-lead-help">Patients must book at least this many hours ahead. Nearer open slots are kept for reappointments the clinic places.</p></div>
+        <fieldset class="settings-group"><legend><i class="bi bi-calendar-check" aria-hidden="true"></i> Booking rules</legend>
+          <div class="form-group"><label for="set-lead">Booking lead time (hours)</label><input id="set-lead" type="number" min="0" max="72" value="${Number(s.bookingLeadHours??24)}" aria-describedby="set-lead-help"><p class="form-note" id="set-lead-help">Patients must book at least this many hours ahead. Nearer open slots are kept for reappointments.</p></div>
+          <div class="form-row"><div class="form-group"><label for="set-lunch-start">Lunch break starts</label><input id="set-lunch-start" type="time" min="10:00" max="15:00" step="900" value="${escapeHtml(s.lunchBreakStart||'12:00')}"></div>
+            <div class="form-group"><label for="set-lunch-end">Lunch break ends</label><input id="set-lunch-end" type="time" min="10:00" max="15:00" step="900" value="${escapeHtml(s.lunchBreakEnd||'13:00')}"></div></div>
+          <p class="form-note">No appointments are booked during the lunch break unless staff open a slot.</p>
+        </fieldset>
+        <fieldset class="settings-group"><legend><i class="bi bi-bell" aria-hidden="true"></i> Reminders &amp; notices</legend>
+          <div class="form-row"><div class="form-group"><label for="set-remind">Appointment reminder (days before)</label><input id="set-remind" type="number" min="0" max="14" value="${Number(s.appointmentReminderDays??1)}"></div>
+            <div class="form-group"><label for="set-notice">Schedule change notice (days)</label><input id="set-notice" type="number" min="0" max="30" value="${Number(s.scheduleChangeNoticeDays??3)}" aria-describedby="set-notice-help"></div></div>
+          <p class="form-note" id="set-notice-help">Doctors must request day-offs and schedule changes at least this many days ahead.</p>
+        </fieldset>
+        <fieldset class="settings-group"><legend><i class="bi bi-shield-lock" aria-hidden="true"></i> Security</legend>
+          <div class="form-group"><label for="set-timeout">Sign out after inactivity (minutes)</label><input id="set-timeout" type="number" min="5" max="120" value="${Number(s.sessionTimeoutMinutes??30)}"><p class="form-note">Protects patient records on shared clinic computers.</p></div>
+        </fieldset>
+        <fieldset class="settings-group"><legend><i class="bi bi-envelope" aria-hidden="true"></i> Contact on documents</legend>
+          <div class="form-row"><div class="form-group"><label for="set-email">Clinic email</label><input id="set-email" type="email" value="${escapeHtml(s.contactEmail||'')}"></div>
+            <div class="form-group"><label for="set-phone">Clinic phone</label><input id="set-phone" value="${escapeHtml(s.contactPhone||appState.clinicInformation.CTU_CLINIC_INFO.phone)}"></div></div>
+          <p class="form-note">Printed in the CTU letterhead of certificates, records and reports.</p>
+        </fieldset>
         <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{saveSettings()})}>Save Settings</button>
       </div>
+      <div class="settings-side">
       <div class="card">
         <div class="card-header"><h3>Semester Configuration</h3></div><p class="settings-danger-notice">Critical settings: changing semester boundaries changes dental visit quotas and semester reporting. Existing records are retained.</p><div class="form-group"><label for="set-school-year">School Year</label><select id="set-school-year">${Array.from({length:8},(_,i)=>Number(academicYearFor(s).slice(0,4))-2+i).map(year=>`<option value="${year}-${year+1}" ${academicYearFor(s)===`${year}-${year+1}`?'selected':''}>${year}–${year+1}</option>`).join('')}</select><p class="form-note">Use the actual school calendar: Semester 1 begins in the first year; Semester 2 ends in the following year.</p></div>
         <div class="form-group"><label>Semester 1 Start</label>${campusDateFieldHtml('set-s1s',s.semesterStart,'Semester 1 Start')}</div>
@@ -75,6 +88,16 @@ export async function renderSettings(){
         <div class="form-group"><label>Semester 2 Start</label>${campusDateFieldHtml('set-s2s',s.semester2Start,'Semester 2 Start')}</div>
         <div class="form-group"><label>Semester 2 End</label>${campusDateFieldHtml('set-s2e',s.semester2End,'Semester 2 End')}</div>
         <button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{saveSemSettings()})}>Save Semester</button>
+      </div>
+      <div class="card settings-profile-card" aria-describedby="set-profile-note">
+        <div class="card-header"><h3><i class="bi bi-lock" aria-hidden="true"></i> Clinic profile</h3></div>
+        <p class="form-note" id="set-profile-note">Fixed for CTU Main Campus. Shown for reference and used on documents and booking rules.</p>
+        <dl class="settings-readonly">
+          <div><dt>Clinic name</dt><dd>${escapeHtml(s.clinicName||'—')}</dd></div>
+          <div><dt>Address</dt><dd>${escapeHtml(s.address||'—')}</dd></div>
+          <div><dt>Dental visits allowed per semester</dt><dd>${Number(s.dentalLimitPerSemester||1)}</dd></div>
+        </dl>
+      </div>
       </div>
     </div>
     <div class="card" data-settings-panel="privacy">
@@ -194,8 +217,8 @@ export async function renderSettings(){
 // A typed confirmation reviews captured values before any local or server settings are changed.
 export function confirmCriticalSettings(kind,candidate){
  const phrase=kind==='clinic'?'UPDATE CLINIC':'UPDATE SEMESTER';
- const keys=kind==='clinic'?['clinicName','address','contactEmail','contactPhone','dentalLimitPerSemester','appointmentReminderDays','bookingLeadHours']:['semesterStart','semesterEnd','semester2Start','semester2End'];
- const labels={clinicName:'Clinic',address:'Address',contactEmail:'Email',contactPhone:'Phone',dentalLimitPerSemester:'Dental visits per semester',appointmentReminderDays:'Reminder days',bookingLeadHours:'Booking lead time (hours)',semesterStart:'Semester 1 start',semesterEnd:'Semester 1 end',semester2Start:'Semester 2 start',semester2End:'Semester 2 end'};
+ const keys=kind==='clinic'?['bookingLeadHours','lunchBreakStart','lunchBreakEnd','appointmentReminderDays','scheduleChangeNoticeDays','sessionTimeoutMinutes','contactEmail','contactPhone']:['semesterStart','semesterEnd','semester2Start','semester2End'];
+ const labels={clinicName:'Clinic',address:'Address',contactEmail:'Email',contactPhone:'Phone',dentalLimitPerSemester:'Dental visits per semester',appointmentReminderDays:'Reminder days',bookingLeadHours:'Booking lead time (hours)',lunchBreakStart:'Lunch break starts',lunchBreakEnd:'Lunch break ends',scheduleChangeNoticeDays:'Schedule change notice (days)',sessionTimeoutMinutes:'Sign out after (minutes)',semesterStart:'Semester 1 start',semesterEnd:'Semester 1 end',semester2Start:'Semester 2 start',semester2End:'Semester 2 end'};
  openModal(`<div class="modal"><div class="modal-header"><h3>Confirm Critical ${kind==='clinic'?'Clinic':'Semester'} Changes</h3><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div><div class="modal-body"><p class="settings-danger-notice">These changes apply across CampusCare. Confirm only after checking the values below.</p>${kind==='semester'?`<p><strong>School Year ${escapeHtml(candidate.academicYear)}</strong></p>`:''}<dl class="settings-change-review">${keys.filter(key=>candidate[key]!==appState.data.DB.settings[key]).map(key=>`<div><dt>${labels[key]}</dt><dd>${escapeHtml(String(appState.data.DB.settings[key]??'—'))} → <strong>${escapeHtml(String(candidate[key]))}</strong></dd></div>`).join('')}</dl><label for="critical-settings-phrase">Type <strong>${phrase}</strong> to confirm</label><input id="critical-settings-phrase" autocomplete="off" ${bindAction('input',(event,element)=>{document.getElementById('critical-settings-save').disabled=element.value.trim()!==phrase})}><p id="critical-settings-error" role="alert"></p></div><div class="modal-footer"><button id="critical-settings-save" class="btn btn-danger" disabled ${bindAction('click',async(event,element)=>{
  if(document.getElementById('critical-settings-phrase')?.value.trim()!==phrase)return;
  element.disabled=true;
@@ -206,8 +229,20 @@ export function confirmCriticalSettings(kind,candidate){
  })}>Confirm Changes</button></div></div>`);
 }
 export function saveSettings(){
- const candidate={...appState.data.DB.settings,clinicName:document.getElementById('set-name').value.trim(),address:document.getElementById('set-addr').value.trim(),contactEmail:document.getElementById('set-email').value.trim(),contactPhone:document.getElementById('set-phone').value.trim(),dentalLimitPerSemester:Number(document.getElementById('set-dental').value),appointmentReminderDays:Number(document.getElementById('set-remind').value),bookingLeadHours:Number(document.getElementById('set-lead').value)};
- if(!candidate.clinicName||!document.getElementById('set-email').checkValidity()||!Number.isInteger(candidate.dentalLimitPerSemester)||candidate.dentalLimitPerSemester<1||candidate.dentalLimitPerSemester>5||!Number.isInteger(candidate.appointmentReminderDays)||candidate.appointmentReminderDays<0||candidate.appointmentReminderDays>14||!Number.isInteger(candidate.bookingLeadHours)||candidate.bookingLeadHours<0||candidate.bookingLeadHours>72){toast('Check the clinic name, email, visit limit, reminder days and booking lead time (0–72 hours).','warning');return;}
+ const num=id=>Number(document.getElementById(id).value),val=id=>document.getElementById(id).value.trim();
+ const candidate={...appState.data.DB.settings,contactEmail:val('set-email'),contactPhone:val('set-phone'),
+   appointmentReminderDays:num('set-remind'),bookingLeadHours:num('set-lead'),scheduleChangeNoticeDays:num('set-notice'),sessionTimeoutMinutes:num('set-timeout'),
+   lunchBreakStart:val('set-lunch-start'),lunchBreakEnd:val('set-lunch-end')};
+ const whole=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
+ const problems=[
+   !candidate.contactEmail||!document.getElementById('set-email').checkValidity()?'a valid clinic email':'',
+   !whole(candidate.bookingLeadHours,0,72)?'booking lead time (0–72 hours)':'',
+   !whole(candidate.appointmentReminderDays,0,14)?'reminder days (0–14)':'',
+   !whole(candidate.scheduleChangeNoticeDays,0,30)?'schedule change notice (0–30 days)':'',
+   !whole(candidate.sessionTimeoutMinutes,5,120)?'sign-out time (5–120 minutes)':'',
+   !(candidate.lunchBreakStart&&candidate.lunchBreakEnd&&candidate.lunchBreakStart<candidate.lunchBreakEnd&&candidate.lunchBreakStart>='10:00'&&candidate.lunchBreakEnd<='15:00')?'a lunch break between 10:00 AM and 3:00 PM':''
+ ].filter(Boolean);
+ if(problems.length){toast(`Check ${problems.join(', ')}.`,'warning');return;}
  confirmCriticalSettings('clinic',candidate);
 }
 

@@ -151,10 +151,61 @@ export function rowsToCSV(rows){
   return rows.length?objectsToCsv(rows):'';
 }
 
+// One exporter for every Reports & Analytics table: CSV, Excel, Word and PDF, the last two on the CTU letterhead.
+// `rows` are plain objects whose keys are the column headings; `csv` may supply the grouped CSV layout instead.
+const fileStem=title=>String(title||'CampusCare report').trim().replace(/[^\w.-]+/g,'_');
+function tableHtml(rows){
+  const headers=Object.keys(rows[0]||{});
+  const cell='border:1px solid #bbb;padding:4px 8px;text-align:left';
+  return `<table style="border-collapse:collapse;width:100%;font-size:11px"><thead><tr>${headers.map(h=>`<th style="${cell};background:#eef3f6">${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${headers.map(h=>`<td style="${cell}">${r[h]==null?'':escapeHtml(String(r[h]))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+export async function exportTable({title,rows=[],format,csv=null,extraHtml='',csvName=''}){
+  if(!rows.length){toast('There is nothing to export yet.','error');return;}
+  const stem=fileStem(title);
+  if(format==='csv'){
+    downloadBlob(csv?csv():rowsToCSV(rows),csvName||csvFileName(title,appState.clinicInformation.TODAY),'text/csv;charset=utf-8;');
+    toast('CSV exported.','success');return;
+  }
+  if(format==='xlsx'){
+    try{
+      const XLSX=await loadSheetJs();
+      const wb=XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Report');
+      XLSX.writeFile(wb,`${stem}.xlsx`);
+      toast('Excel file exported.','success');
+    }catch{toast('Could not load the Excel export library (needs an internet connection). Try CSV instead.','error');}
+    return;
+  }
+  const generated=`CTU Main Medical &amp; Dental Clinic · Generated ${escapeHtml(new Date().toLocaleString('en-PH'))}`;
+  if(format==='doc'){
+    const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
+    <body style="font-family:Arial,sans-serif">${ctuHeaderHtml()}
+      <h2 style="text-align:center;font-size:15px">${escapeHtml(title)}</h2><p style="text-align:center;color:#555;font-size:11px">${generated}</p>
+      ${tableHtml(rows)}${ctuFooterHtml()}</body></html>`;
+    downloadBlob(html,`${stem}.doc`,'application/msword');
+    toast('Word document exported.','success');return;
+  }
+  // PDF: the print dialog's "Save as PDF" keeps the letterhead on every page.
+  toast('Opening print dialog — choose "Save as PDF" as the destination.','info');
+  // Charts need the app's styles; the table and letterhead carry their own.
+  const head=extraHtml?[...document.querySelectorAll('link[rel="stylesheet"],style')].map(node=>node.outerHTML).join(''):'';
+  printCtuDocument({title,head,css:`body{background:#fff!important;color:#111!important}.doc-title{text-align:center;font-weight:700;font-size:15px;margin:4px 0 2px}.doc-sub{text-align:center;color:#555;margin:0 0 12px}.doc-extra{margin-bottom:12px}.doc-extra button,.doc-extra .chart-type-switch{display:none!important}`,
+    body:`<div class="doc-title">${escapeHtml(title)}</div><p class="doc-sub">${generated}</p>${extraHtml?`<div class="doc-extra">${extraHtml}</div>`:''}${tableHtml(rows)}`});
+}
+// The four download buttons; `source()` returns {title,rows,csv?,extraHtml?} at click time.
+export function exportButtonsHtml(source,{label='Download'}={}){
+  const run=format=>()=>exportTable({...source(),format});
+  return `<div class="report-export-buttons" role="group" aria-label="${escapeHtml(label)}"><span class="text-muted" style="font-size:.78rem;margin-right:.25rem">${escapeHtml(label)}:</span>
+    <button type="button" class="btn btn-sm" ${bindAction('click',run('csv'))}><i class="bi bi-filetype-csv" aria-hidden="true"></i> CSV</button>
+    <button type="button" class="btn btn-sm" ${bindAction('click',run('xlsx'))}><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel</button>
+    <button type="button" class="btn btn-sm" ${bindAction('click',run('doc'))}><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word</button>
+    <button type="button" class="btn btn-sm" ${bindAction('click',run('pdf'))}><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</button></div>`;
+}
+
 export function exportReportCSV(){
   if(!appState.reportCharts.lastReportRows.length){toast('Generate a report first.','error');return;}
-  downloadBlob(rowsToCSV(appState.reportCharts.lastReportRows),csvFileName(appState.reportCharts.lastReportTitle,appState.clinicInformation.TODAY),'text/csv;charset=utf-8;');
-  toast('CSV exported.','success');
+  return exportTable({title:appState.reportCharts.lastReportTitle,rows:appState.reportCharts.lastReportRows,format:'csv'});
 }
 
 export function loadSheetJs(){
@@ -170,47 +221,20 @@ export function loadSheetJs(){
 
 export async function exportReportExcel(){
   if(!appState.reportCharts.lastReportRows.length){toast('Generate a report first.','error');return;}
-  try{
-    const XLSX=await loadSheetJs();
-    const ws=XLSX.utils.json_to_sheet(appState.reportCharts.lastReportRows);
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,ws,'Report');
-    XLSX.writeFile(wb,`${appState.reportCharts.lastReportTitle.replace(/\s+/g,'_')}.xlsx`);
-    toast('Excel file exported.','success');
-  }catch(e){
-    toast('Could not load the Excel export library (needs an internet connection). Try CSV instead.','error');
-  }
+  return exportTable({title:appState.reportCharts.lastReportTitle,rows:appState.reportCharts.lastReportRows,format:'xlsx'});
 }
 
 export function exportReportWord(){
   if(!appState.reportCharts.lastReportRows.length){toast('Generate a report first.','error');return;}
-  const headers=Object.keys(appState.reportCharts.lastReportRows[0]);
-  const tableRows=appState.reportCharts.lastReportRows.map(r=>`<tr>${headers.map(h=>`<td style="border:1px solid #ccc;padding:4px 8px">${r[h]==null?'':escapeHtml(String(r[h]))}</td>`).join('')}</tr>`).join('');
-  const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-    <head><meta charset="utf-8"><title>${escapeHtml(appState.reportCharts.lastReportTitle)}</title></head>
-    <body>
-      ${ctuHeaderHtml()}
-      <h2 style="text-align:center">${escapeHtml(appState.reportCharts.lastReportTitle)}</h2>
-      <p>Generated ${new Date().toLocaleString('en-PH')} — ${escapeHtml(appState.data.DB.settings.clinicName)}</p>
-      <table style="border-collapse:collapse">
-        <tr>${headers.map(h=>`<th style="border:1px solid #ccc;padding:4px 8px;background:#f0f0f0">${escapeHtml(h)}</th>`).join('')}</tr>
-        ${tableRows}
-      </table>
-      ${ctuFooterHtml()}
-    </body></html>`;
-  downloadBlob(html,`${appState.reportCharts.lastReportTitle.replace(/\s+/g,'_')}.doc`,'application/msword');
-  toast('Word document exported.','success');
+  return exportTable({title:appState.reportCharts.lastReportTitle,rows:appState.reportCharts.lastReportRows,format:'doc'});
 }
 
 export function exportReportPDF(){
   if(!appState.reportCharts.lastReportRows.length){toast('Generate a report first.','error');return;}
-  // The report prints on its own CTU letterhead page; choose "Save as PDF" in the print dialog.
+  // The report's charts and summary print above the table on the CTU letterhead.
   const result=document.getElementById('rpt-result');
-  const styles=[...document.querySelectorAll('link[rel="stylesheet"],style')].map(node=>node.outerHTML).join('');
-  toast('Opening print dialog — choose "Save as PDF" as the destination.','info');
-  printCtuDocument({title:appState.reportCharts.lastReportTitle||'CampusCare report',head:styles,
-    css:`body{background:#fff!important;color:#111!important}button,.btn,.report-export,.chart-type-switch,select,input{display:none!important}.card{box-shadow:none!important;border:1px solid #ddd!important;break-inside:avoid}.doc-title{text-align:center;font-weight:700;font-size:15px;margin:4px 0 2px}.doc-sub{text-align:center;color:#555;margin:0 0 12px}`,
-    body:`<div class="doc-title">${escapeHtml(appState.reportCharts.lastReportTitle||'Report')}</div><p class="doc-sub">CTU Main Medical &amp; Dental Clinic · Generated ${escapeHtml(new Date().toLocaleString('en-PH'))}</p>${result?result.innerHTML:''}`});
+  const charts=[...(result?.querySelectorAll('.report-chart,svg.report-svg,.stats-grid')||[])].slice(0,3).map(n=>n.outerHTML).join('');
+  return exportTable({title:appState.reportCharts.lastReportTitle,rows:appState.reportCharts.lastReportRows,format:'pdf',extraHtml:charts});
 }
 
 export async function generateReport(){

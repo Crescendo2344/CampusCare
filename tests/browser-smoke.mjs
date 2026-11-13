@@ -868,10 +868,11 @@ try{
     // Only doctors and staff can be added; administrators are never created here.
     assert.equal(await page.locator('.au-role').count(),2);
     assert.equal(await page.locator('.au-role',{hasText:'Administrator'}).count(),0);
-    assert(await page.locator('#au-doctor').isVisible(),'Doctors choose a specialization');
-    assert.equal(await page.locator('#au-services-list input:checked').count(),4,'Every service of the clinic starts ticked');
+    assert(await page.locator('#au-doctor').isVisible(),'Doctors choose a clinic');
+    // The doctor's clinic is Medical or Dental; services are not ticked one by one when adding.
+    assert.deepEqual(await page.locator('#au-spec option').allInnerTexts(),['Medical Clinic','Dental Clinic']);
+    assert.equal(await page.locator('#au-services-list').count(),0);
     await page.locator('#au-spec').selectOption('Dental');
-    assert.match(await page.locator('#au-services-list').innerText(),/Oral Prophylaxis/);
     await page.locator('.au-role',{hasText:'Staff'}).click();
     assert(await page.locator('#au-doctor').isHidden());
     await page.getByRole('button',{name:'Review account'}).click();
@@ -1391,7 +1392,7 @@ try{
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#forecast-result').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reports-forecast-doughnut-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#forecast-result .chart-type-switch').getByRole('radio',{name:'Column'}).click();
     await page.locator('#forecast-horizon').getByRole('button',{name:'3 months',exact:true}).click();
-    const forecastDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV',exact:true}).click();
+    const forecastDownload=page.waitForEvent('download');await page.getByRole('group',{name:'Download forecast'}).getByRole('button',{name:'CSV',exact:true}).click();
     assert.equal((await forecastDownload).suggestedFilename(),'campuscare-forecast-2026-01-01-to-2026-03-31.csv');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reports-forecast-${mobile?'mobile':'desktop'}.png`,fullPage:true});
     await page.locator('#forecast-from').fill('2026-04-01');
@@ -1412,7 +1413,7 @@ try{
     await page.getByRole('button',{name:'Generate Report',exact:true}).click();
     await page.locator('#rpt-result').getByText('Morning Student',{exact:true}).waitFor();
     const downloaded=page.waitForEvent('download');
-    await page.getByRole('button',{name:'Export college summary CSV',exact:true}).click();
+    await page.getByRole('group',{name:'Download college summary'}).getByRole('button',{name:'CSV',exact:true}).click();
     const summaryFile=await downloaded;
     assert.match(summaryFile.suggestedFilename(),/^campuscare-student-college-summary-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.csv$/);
     const summaryText=(await import('node:fs')).readFileSync(await summaryFile.path(),'utf8');
@@ -1423,7 +1424,10 @@ try{
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('settings'));
     await page.locator('#set-school-year').waitFor();
     assert.equal(await page.locator('.settings-danger-notice').count(),2);
-    await page.locator('#set-name').fill('Reviewed Fixture Clinic');
+    // Clinic name, address and dental visit limit are shown read-only; the editable rules are saved.
+    assert.equal(await page.locator('#set-name').count(),0);
+    assert.match(await page.locator('.settings-profile-card').innerText(),/Dental visits allowed per semester/i);
+    await page.locator('#set-lunch-start').fill('11:30');
     const before=requests.filter(r=>r.path.endsWith('/settings-actions')&&r.body?.action==='update').length;
     await page.getByRole('button',{name:'Save Settings',exact:true}).click();
     await page.getByRole('heading',{name:'Confirm Critical Clinic Changes',exact:true}).waitFor();

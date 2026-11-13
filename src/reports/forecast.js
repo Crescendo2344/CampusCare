@@ -1,4 +1,4 @@
-import {downloadBlob} from '../features/reportCharts.js';
+import {exportButtonsHtml} from '../features/reportCharts.js';
 import {state} from '../app/state.js';
 import {bindAction} from '../dependencies.js';
 import {escapeHtml} from '../features/issueReports.js';
@@ -81,14 +81,17 @@ export function runForecast(){
       </div>
       <div class="report-forecast-chart">${reportChartHtml(['pie','doughnut'].includes(ui.forecastChart)?series.filter(r=>r.projected):series,{type:ui.forecastChart,label:`${name}: recorded history and estimate`,limit:30})}</div>
       <details class="report-details"><summary>View forecast table</summary><div class="table-wrap"><table><thead><tr><th>Period</th><th>From</th><th>To</th><th>Estimated ${esc(unit)}</th></tr></thead><tbody>${f.rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${r.start}</td><td>${r.end}</td><td>${r.amount}</td></tr>`).join('')}</tbody></table></div></details>
-      <button type="button" class="btn btn-sm" ${bindAction('click',()=>downloadBlob(templateCsv([
+      ${exportButtonsHtml(()=>{const columns=[
         csvColumn('','Forecast For',()=>name),
         csvColumn('Period','Label',r=>r.label),csvColumn('Period','Start',r=>r.start),csvColumn('Period','End',r=>r.end),
         csvColumn('Estimate','Amount',r=>r.amount),csvColumn('Estimate','Unit',()=>unit),
         csvColumn('Scope','College/Department',()=>medicine?'Campus inventory':college||'All colleges'),csvColumn('Scope','Clinic',()=>medicine?'Not applicable':clinic||'All clinics'),
         csvColumn('Method','Calculation',()=>f.method==='weekday'?'Weekday pattern':'Daily average'),
         csvColumn('History','From',()=>f.from),csvColumn('History','To',()=>f.to)
-      ],f.rows),csvFileName(`forecast ${f.from} to ${f.to}`),'text/csv;charset=utf-8;'))}><i class="bi bi-download" aria-hidden="true"></i> Download CSV</button>`}
+      ];
+        return {title:`Forecast — ${name} — ${f.from} to ${f.to}`,
+          rows:f.rows.map(r=>Object.fromEntries(columns.map(c=>[c.group?`${c.group}: ${c.label}`:c.label,c.value(r)]))),
+          csv:()=>templateCsv(columns,f.rows),csvName:csvFileName(`forecast ${f.from} to ${f.to}`)};},{label:'Download forecast'})}`}
     </div>`;
     if(!f.reason)mountAiInsights('forecast-ai','reports',()=>({
       forecast_of:name,unit,today:state.clinicInformation.TODAY,

@@ -1,4 +1,5 @@
 // accountSettings: imported feature APIs; state belongs to explicit application namespaces.
+import {clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {closeAllModals,openModal,showFilePreview} from './modals.js';
@@ -47,7 +48,7 @@ export function openProfileDetails(){
     row('Blood type',escapeHtml(pt.blood||'Unknown')),
     row('Allergies',pt.allergies?.trim()?`<span class="text-danger">${escapeHtml(pt.allergies)}</span>`:'None recorded')
   ].join(''):u.role==='Doctor'?[
-    row('Specialization',escapeHtml(u.specialty||'General Medicine')),
+    row('Clinic',escapeHtml(clinicForSpecialization(u.specialty||'General Medicine'))),
     row('Work days',escapeHtml((u.workDays||[]).join(', ')||'—')),
     row('Hours',`${fmtTime(u.startTime||'08:00')} – ${fmtTime(u.endTime||'17:00')}`)
   ].join(''):'';
