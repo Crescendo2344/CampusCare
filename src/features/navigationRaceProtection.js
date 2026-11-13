@@ -1,6 +1,6 @@
 import {createFeatureSyncService} from '../services/feature-sync.js';
 // navigationRaceProtection: imported feature APIs; state belongs to explicit application namespaces.
-import {pagesHiddenFor} from '../domain/clinic-scope.js';
+import {certificateKindFor,certificateLabel,pagesHiddenFor} from '../domain/clinic-scope.js';
 import {state as appState} from '../app/state.js';
 import {acknowledgeNavAttention,toggleSidebar} from './topbarAndNavigation.js';
 import {renderPage,showDatabaseSkeleton} from './loadingSkeletons.js';
@@ -73,7 +73,7 @@ export function navTo(id,{historyMode='push'}={}){
   document.getElementById('top-title').textContent={
     dashboard:'Dashboard','my-appointments':'My Appointments','my-records':'My Health Records',
     'my-account':'Account Settings',patients:'Patient Records',appointments:'Appointments',
-    approvals:'Approval Queue',certificates:'Dental Certificate','cert-requests':'Dental Certificate',treatments:'Treatments',inventory:'Inventory Management',
+    approvals:'Approval Queue',certificates:certificateLabel(certificateKindFor(appState.auth.currentUser),true),'cert-requests':certificateLabel(certificateKindFor(appState.auth.currentUser),true),treatments:'Treatments',inventory:'Inventory Management',
     reports:appState.auth.currentUser.role==='Doctor'?'My Reports':'Reports & Analytics',users:'User Management',settings:'System Settings',
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',
     'feedback-issues':'Feedback & Issues','health_education':'Health Education',fitness:'Fitness Assessments','activity-log':'Activity Log',

@@ -14,3 +14,12 @@ export function staffClinicOf(user){return user?.role==='Staff'?userClinic(user)
 export function pagesHiddenFor(user){
   return user?.role==='Staff'&&userClinic(user)!=='Dental Clinic'?['survey-results']:[];
 }
+// A General Medicine doctor issues medical certificates and a dental doctor issues dental certificates.
+// Staff release the certificates of their own clinic.
+export function certificateKindFor(user){
+  if(!user)return 'medical';
+  if(user.role==='Doctor')return user.specialty==='Dental'?'dental':'medical';
+  if(user.role==='Staff')return staffClinicOf(user)==='Dental Clinic'?'dental':'medical';
+  return 'medical';
+}
+export const certificateLabel=(kind,plural=false)=>(kind==='dental'?'Dental Certificate':'Medical Certificate')+(plural?'s':'');

@@ -164,8 +164,8 @@ Deno.serve(async(req)=>{
       const signatureData=clean(body.signature_data,180000);
       const saveSignature=Boolean(body.save_signature);
 
-      if(!certificateId||!findings||!documentContent)
-        return json({error:"Findings and document content are required."},400);
+      if(!certificateId||!findings||!documentContent||!signatureData)
+        return json({error:"Findings, document content, and physician signature are required."},400);
 
       const existing=await loadOwn(certificateId);
       if(!existing)return json({error:"Certificate draft not found."},404);

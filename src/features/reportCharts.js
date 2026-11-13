@@ -1,3 +1,4 @@
+import {ctuFooterHtml,ctuHeaderHtml,printCtuDocument} from '../shared/ctu-letterhead.js';
 import {buildCustomReport,customReportControls} from '../reports/custom-report.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {generateStudentReport} from '../reports/student-report.js';
@@ -188,12 +189,14 @@ export function exportReportWord(){
   const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
     <head><meta charset="utf-8"><title>${escapeHtml(appState.reportCharts.lastReportTitle)}</title></head>
     <body>
-      <h2>${escapeHtml(appState.reportCharts.lastReportTitle)}</h2>
+      ${ctuHeaderHtml()}
+      <h2 style="text-align:center">${escapeHtml(appState.reportCharts.lastReportTitle)}</h2>
       <p>Generated ${new Date().toLocaleString('en-PH')} — ${escapeHtml(appState.data.DB.settings.clinicName)}</p>
       <table style="border-collapse:collapse">
         <tr>${headers.map(h=>`<th style="border:1px solid #ccc;padding:4px 8px;background:#f0f0f0">${escapeHtml(h)}</th>`).join('')}</tr>
         ${tableRows}
       </table>
+      ${ctuFooterHtml()}
     </body></html>`;
   downloadBlob(html,`${appState.reportCharts.lastReportTitle.replace(/\s+/g,'_')}.doc`,'application/msword');
   toast('Word document exported.','success');
@@ -201,8 +204,13 @@ export function exportReportWord(){
 
 export function exportReportPDF(){
   if(!appState.reportCharts.lastReportRows.length){toast('Generate a report first.','error');return;}
+  // The report prints on its own CTU letterhead page; choose "Save as PDF" in the print dialog.
+  const result=document.getElementById('rpt-result');
+  const styles=[...document.querySelectorAll('link[rel="stylesheet"],style')].map(node=>node.outerHTML).join('');
   toast('Opening print dialog — choose "Save as PDF" as the destination.','info');
-  setTimeout(()=>window.print(),400);
+  printCtuDocument({title:appState.reportCharts.lastReportTitle||'CampusCare report',head:styles,
+    css:`body{background:#fff!important;color:#111!important}button,.btn,.report-export,.chart-type-switch,select,input{display:none!important}.card{box-shadow:none!important;border:1px solid #ddd!important;break-inside:avoid}.doc-title{text-align:center;font-weight:700;font-size:15px;margin:4px 0 2px}.doc-sub{text-align:center;color:#555;margin:0 0 12px}`,
+    body:`<div class="doc-title">${escapeHtml(appState.reportCharts.lastReportTitle||'Report')}</div><p class="doc-sub">CTU Main Medical &amp; Dental Clinic · Generated ${escapeHtml(new Date().toLocaleString('en-PH'))}</p>${result?result.innerHTML:''}`});
 }
 
 export async function generateReport(){

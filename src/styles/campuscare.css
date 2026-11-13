@@ -2543,3 +2543,21 @@ tbody tr:hover td{background:var(--overlay)}
 
 /* Explain snapshot versus dated activity so similarly sized cards do not imply identical measures. */
 
+/* Medical certificate: same CTU letterhead page as the dental certificate. */
+.cert-paper .mc-doc{font-family:"Times New Roman",Times,serif;font-size:14px;line-height:1.7}
+.cert-paper .mc-doc .mc-title{font-size:18px;letter-spacing:.06em;margin:10px 0 14px}
+.cert-paper .mc-meta{display:flex;justify-content:space-between;font-size:13px;margin-bottom:16px}
+.cert-paper .mc-doc p{margin:0 0 12px}.cert-paper .mc-indent{text-indent:36px;text-align:justify}
+.cert-paper .mc-doc .cert-signature-area{margin-top:40px;font-size:13px}
+.cert-paper .mc-note{font-size:12px;font-style:italic;margin-top:28px}
+/* Certificate details step and fresh signature. */
+.cert-new-modal .nc-details-title{margin:1rem 0 .5rem;font-size:.9rem}
+.cert-new-modal .nc-fieldset{border:1px solid var(--line);border-radius:10px;padding:.5rem .75rem .25rem;margin:0 0 .85rem}
+.cert-new-modal .nc-fieldset legend{font-size:.78rem;font-weight:600;padding:0 .35rem}
+.cert-new-modal .nc-choice-row{display:flex;flex-wrap:wrap;gap:.35rem 1.1rem;margin-bottom:.5rem;font-size:.82rem}
+.cert-new-modal .nc-choice-row label{display:inline-flex;align-items:center;gap:.35rem;font-weight:400}
+.cert-new-modal .nc-choice-col{flex-direction:column}
+.cert-sign-card{padding:.85rem}.cert-sign-card .cert-sign-actions{margin-top:.45rem}
+/* CTU letterhead inside record documents: the header image is full width, not the old round logo size. */
+.dental-doc-head .ctu-lh-head img,.treatment-doc-head .ctu-lh-head img{width:100%!important;height:auto!important;max-width:none}
+.cert-paper .mc-doc [data-cert-field]{display:inline;min-width:0;padding:0}

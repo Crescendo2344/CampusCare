@@ -1,3 +1,4 @@
+import {printCtuDocument} from '../shared/ctu-letterhead.js';
 import {createFeatureSyncService} from '../services/feature-sync.js';
 // fitnessAssessments: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
@@ -114,16 +115,14 @@ export async function renderFitnessAssessments({refresh=true}={}){
     </div>`:''}
     <div class="toolbar"><input type="search" id="fit-search" placeholder="Search patient, sport or assessment #" aria-label="Search fitness assessments" value="${escapeHtml(ui.query)}" ${bindAction('input',(event,element)=>{ui.query=element.value;clearTimeout(ui.timer);ui.timer=setTimeout(()=>renderFitnessAssessments({refresh:false}).then(()=>{const input=document.getElementById('fit-search');if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length);}}),250);})}></div>
     <div class="card">${list.length?`<div class="table-wrap"><table class="treat-table">
-      <thead><tr><th scope="col">Requested</th><th scope="col">Patient</th><th scope="col">Sport / Event</th><th scope="col">Event date</th><th scope="col">Doctor</th><th scope="col">Status</th><th scope="col">Decision</th><th scope="col">Clearance</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+      <thead><tr><th scope="col">Requested</th><th scope="col">Patient</th><th scope="col">Sport / Event</th><th scope="col">Doctor</th><th scope="col">Status</th><th scope="col">Decision</th><th scope="col">Clearance</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>${page.rows.map(x=>{
         const p=getPatientById(x.patientId),d=getUserById(x.doctorId);
         const canAssess=role==='Doctor'&&(!x.doctorId||x.doctorId===appState.auth.currentUser.id)&&x.status!=='Cancelled';
-        const eventSoon=x.eventDate&&open(x)&&x.eventDate>=today&&x.eventDate<=new Date(Date.parse(today+'T12:00:00Z')+7*864e5).toISOString().slice(0,10);
         return `<tr class="treat-row" ${bindAction('click',()=>viewFitnessAssessment(x.id))}>
           <td data-label="Requested"><strong>${x.requestedDate?fmtDate(String(x.requestedDate).slice(0,10)):'—'}</strong><div class="text-muted">#${fitnessDisplayId(x)}</div></td>
           <td data-label="Patient">${p?`<strong>${escapeHtml(p.lname+', '+p.fname)}</strong><div class="text-muted">${escapeHtml(p.idNo||'')}${p.college?' · '+escapeHtml(p.college):''}</div>`:'Unknown'}</td>
           <td data-label="Sport / Event">${escapeHtml(x.sport||'—')}</td>
-          <td data-label="Event date">${x.eventDate?fmtDate(x.eventDate):'—'}${eventSoon?'<span class="tr-due today">This week</span>':''}</td>
           <td data-label="Doctor">${d?escapeHtml(docName(d)):'<span class="text-muted">Not yet assigned</span>'}</td>
           <td data-label="Status">${fitnessStatusBadge(x.status)}</td>
           <td data-label="Decision">${x.decision?fitnessDecisionBadge(x.decision):'<span class="text-muted">—</span>'}</td>
@@ -154,10 +153,6 @@ export function openFitnessRequestModal(){
         <input id="fit-sport" maxlength="255" placeholder="e.g. Basketball Intramurals">
       </div>
       <div class="form-group">
-        <label>Competition / Event Date</label>
-        ${campusDateFieldHtml('fit-event-date','','Event Date',appState.clinicInformation.TODAY)}
-      </div>
-      <div class="form-group">
         <label>Notes / Relevant Concern</label>
         <textarea id="fit-notes" rows="3" maxlength="1500" placeholder="Previous injury, symptoms, event details, or other information for the clinic"></textarea>
       </div>
@@ -171,7 +166,6 @@ export function openFitnessRequestModal(){
 
 export async function saveFitnessRequest(){
   const sport=document.getElementById('fit-sport').value.trim();
-  const eventDate=document.getElementById('fit-event-date').value;
   const notes=document.getElementById('fit-notes').value.trim();
   const msg=document.getElementById('fit-request-msg');
   const btn=document.getElementById('fit-request-btn');
@@ -191,7 +185,6 @@ export async function saveFitnessRequest(){
         action:'create',
         patient_id:appState.auth.currentPatient.dbPatientId,
         sport_event:sport,
-        event_date:eventDate||null,
         request_notes:notes
       });
       await syncRealFitnessAssessments();
@@ -200,7 +193,7 @@ export async function saveFitnessRequest(){
         id:appState.data.DB.nextFitnessId++,
         patientId:appState.auth.currentPatient.id,
         doctorId:null,
-        sport,eventDate,notes,
+        sport,notes,
         requestedDate:appState.clinicInformation.TODAY,date:'',
         status:'Requested',decision:'',
         createdAt:new Date().toISOString()
@@ -304,9 +297,6 @@ export function openFitnessAssessmentModal(id=null){
       </div>
 
       <div class="form-row">
-        <div class="form-group"><label>Competition / Event Date</label>
-          ${campusDateFieldHtml('fit-event-date-a',x?.eventDate||'','Event Date',appState.clinicInformation.TODAY)}<p class="registration-field-error" id="fit-event-date-a-error" aria-live="polite" hidden></p>
-        </div>
         <div class="form-group"><label>Assessment Date <span class="required">*</span></label>
           ${campusDateFieldHtml('fit-date',x?.date||appState.clinicInformation.TODAY,'Assessment Date','',appState.clinicInformation.TODAY)}<p class="registration-field-error" id="fit-date-error" aria-live="polite" hidden></p>
         </div>
@@ -419,7 +409,6 @@ export function selectFitnessPatient(id){
 export async function saveFitnessAssessment(id){
   const patientId=parseInt(document.getElementById('fit-patient')?.value||'');
   const sport=document.getElementById('fit-sport-a').value.trim();
-  const eventDate=document.getElementById('fit-event-date-a').value;
   const assessmentDate=document.getElementById('fit-date').value||appState.clinicInformation.TODAY;
   const doctorId=parseInt(document.getElementById('fit-doctor').value)||appState.auth.currentUser.id;
   const decision=document.getElementById('fit-decision').value;
@@ -436,8 +425,8 @@ export async function saveFitnessAssessment(id){
   };
   const answers=screeningAnswers();
   const examFindings=document.getElementById('fit-exam').value.trim();
-  const errors=screening.fitnessAssessmentErrors({patientId,sport,eventDate,assessmentDate,decision,restrictions,examFindings,answers,vitals},appState.clinicInformation.TODAY);
-  const fieldIds={patient:'fit-patient',sport:'fit-sport-a',eventDate:'fit-event-date-a',date:'fit-date',bp:'fit-bp',hr:'fit-hr',height:'fit-height',weight:'fit-weight',screening:'fit-screening',exam:'fit-exam',restrictions:'fit-restrict'};
+  const errors=screening.fitnessAssessmentErrors({patientId,sport,assessmentDate,decision,restrictions,examFindings,answers,vitals},appState.clinicInformation.TODAY);
+  const fieldIds={patient:'fit-patient',sport:'fit-sport-a',date:'fit-date',bp:'fit-bp',hr:'fit-hr',height:'fit-height',weight:'fit-weight',screening:'fit-screening',exam:'fit-exam',restrictions:'fit-restrict'};
   for(const id of Object.values(fieldIds)){const el=document.getElementById(id+'-error');if(el){el.hidden=true;el.textContent='';}}
   if(Object.keys(errors).length){
     for(const [key,message] of Object.entries(errors)){const el=document.getElementById(fieldIds[key]+'-error');if(el){el.textContent=message;el.hidden=false;}}
@@ -468,7 +457,6 @@ export async function saveFitnessAssessment(id){
         patient_id:pt.dbPatientId,
         doctor_id:doc.dbUserId,
         sport_event:sport,
-        event_date:eventDate||null,
         assessment_date:assessmentDate,
         vitals,
         medical_history:document.getElementById('fit-history').value.trim(),
@@ -489,7 +477,6 @@ export async function saveFitnessAssessment(id){
 
       rec.patientId=patientId;
       rec.sport=sport;
-      rec.eventDate=eventDate;
       rec.date=assessmentDate;
       rec.doctorId=doctorId;
       rec.vitals=vitals;
@@ -533,7 +520,6 @@ export function viewFitnessAssessment(id){
     <div class="modal-body">
       <div class="info-row"><div class="info-label">Patient</div><div class="info-val">${p?escapeHtml(p.fname+' '+p.lname):'—'}</div></div>
       <div class="info-row"><div class="info-label">Sport / Event</div><div class="info-val">${escapeHtml(x.sport||'—')}</div></div>
-      <div class="info-row"><div class="info-label">Event Date</div><div class="info-val">${x.eventDate?fmtDate(x.eventDate):'—'}</div></div>
       <div class="info-row"><div class="info-label">Requested</div><div class="info-val">${x.requestedDate?fmtDateTime(x.requestedDate):'—'}</div></div>
       <div class="info-row"><div class="info-label">Assessment Date</div><div class="info-val">${x.date?fmtDate(x.date):'—'}</div></div>
       <div class="info-row"><div class="info-label">Doctor</div><div class="info-val">${d?escapeHtml(docName(d)):'Pending assignment'}</div></div>
@@ -581,16 +567,10 @@ function printFitnessResult(button){
   const modal=button.closest('.modal');
   const body=modal?.querySelector('.modal-body');if(!body)return;
   const title=modal.querySelector('.modal-header h3')?.textContent||'Fitness assessment';
-  const frame=document.createElement('iframe');
-  frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
-  frame.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-  document.body.append(frame);
-  const styles=[...document.querySelectorAll('link[rel="stylesheet"],style')].map(node=>node.outerHTML).join('');
-  const doc=frame.contentDocument;
-  doc.open();
-  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>${styles}<style>body{background:#fff;color:#000;padding:24px;font-family:Arial,sans-serif}button{display:none!important}</style></head><body><h2 style="margin:0 0 4px">CTU Main Medical &amp; Dental Clinic</h2><h3 style="margin:0 0 16px">${escapeHtml(title)}</h3>${body.innerHTML}</body></html>`);
-  doc.close();
-  setTimeout(()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),1000);},200);
+  printCtuDocument({title,css:`button{display:none!important}.doc-title{text-align:center;font-weight:700;font-size:15px;margin:4px 0 2px}.doc-sub{text-align:center;color:#555;margin:0 0 12px}
+    .info-row{display:flex;gap:8px;padding:3px 0;border-bottom:1px solid #eee}.info-label{width:160px;color:#555}.section-label{font-weight:700;margin-top:10px}.badge{border:1px solid #999;border-radius:8px;padding:0 6px}.bi{display:none}.divider{border:0;border-top:1px solid #ccc;margin:10px 0}`,
+    body:`<div class="doc-title">FITNESS-TO-COMPETE ASSESSMENT</div><p class="doc-sub">CTU Main Medical Clinic · ${escapeHtml(title)}</p>${body.innerHTML}
+    <div style="display:flex;justify-content:flex-end;margin-top:40px"><div style="width:240px;text-align:center;border-top:1px solid #333;padding-top:4px">Attending Physician</div></div>`});
 }
 
 // Run side effects only after every feature's function exports are available.
