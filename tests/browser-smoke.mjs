@@ -1512,6 +1512,10 @@ try{
   await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
   if(role==='Patient'){
     assert.equal(await page.locator('.dashboard-a-head').getByRole('button',{name:/Book Appointment/}).count(),0);
+    // The profile meter shows the percentage and what is left, and links to My Account.
+    const meter=page.locator('#profile-strength');await meter.waitFor();
+    assert.match(await meter.locator('.ps-ring').getAttribute('aria-label'),/Profile \d+% complete/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await meter.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/profile-strength-${mobile?'mobile':'desktop'}.png`});
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('my-appointments'));
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('health_education'));
     await page.goBack();

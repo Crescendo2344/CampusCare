@@ -27,7 +27,7 @@ export function collapseOut(el,done=()=>{}){
 }
 
 // Segmented tabs: a pill slides from the old choice to the new one, even when the tabs are re-rendered.
-const PILL_HOSTS='.appt-views,.he-status';
+const PILL_HOSTS='.appt-views,.he-status,.audit-chips';
 const lastPill=new Map();
 const pillKey=host=>host.id||`${host.className.replace(/\s*cc-pill-host/,'')}:${[...document.querySelectorAll(PILL_HOSTS)].indexOf(host)}`;
 function placePill(host){

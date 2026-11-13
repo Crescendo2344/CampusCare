@@ -359,7 +359,10 @@ Deno.serve(async(req)=>{
       if(target.role==="Patient"&&target.status==="Archived") return json({error:"Restore a returning patient from Patient Records (staff)."},409);
       const reasonCategory=(STATUS_REASONS[nextStatus]||[]).includes(String(body.reason_category))?String(body.reason_category):"";
       const reasonText=String(body.reason||"").trim().slice(0,600);
-      if(!reasonCategory||reasonText.length<10)
+      // The admin screen always sends a reason. A request with none at all (an older page still open)
+      // is accepted so it keeps working, and the person is still emailed; a partial reason is rejected.
+      const legacy=body.reason_category==null&&body.reason==null;
+      if(!legacy&&(!reasonCategory||reasonText.length<10))
         return json({error:"Choose a reason and explain it to the user (at least 10 characters)."},400);
       const {error}=await admin.from("users").update({status:nextStatus}).eq("user_id",targetId);
       if(error) throw error;
@@ -367,11 +370,11 @@ Deno.serve(async(req)=>{
         user_id:actor.user_id,
         action:nextStatus==="Suspended"?"USER_SUSPENDED":nextStatus==="Archived"?"USER_ARCHIVED":"USER_REACTIVATED",
         entity_type:"users",entity_id:targetId,
-        details:{previous_status:target.status,new_status:nextStatus,reason_category:reasonCategory,reason:reasonText}
+        details:{previous_status:target.status,new_status:nextStatus,...(legacy?{}:{reason_category:reasonCategory,reason:reasonText})}
       });
       // Emailed directly: a suspended or archived account cannot sign in to read an in-app notice.
       const mail=statusEmail(nextStatus,target.status);
-      const emailQueued=await queueEmail(admin,{...mail,to:target.email,name:target.first_name||"there",reason:`${reasonCategory} — ${reasonText}`});
+      const emailQueued=await queueEmail(admin,{...mail,to:target.email,name:target.first_name||"there",reason:legacy?"":`${reasonCategory} — ${reasonText}`});
       return json({ok:true,status:nextStatus,email_queued:emailQueued});
     }
 

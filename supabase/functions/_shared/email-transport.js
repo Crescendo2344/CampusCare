@@ -11,6 +11,8 @@
 //
 // Supabase Edge Functions block outgoing ports 25 and 587, so SMTP uses 465 (implicit TLS) by default.
 
+import {inlineImagesFor} from './email-images.js';
+
 const CONNECTION_ERRORS=new Set(['ECONNECTION','ETIMEDOUT','ESOCKET','EDNS','ECONNREFUSED','ECONNRESET','ETLS','EPROTOCOL']);
 
 export function emailSettings(env){
@@ -37,7 +39,9 @@ export function createMailer({env,createTransport,request=(...args)=>fetch(...ar
 
   async function viaSmtp(mail){
     transporter??=createTransport({...settings.smtp,pool:true,maxConnections:1,connectionTimeout:10000,greetingTimeout:10000,socketTimeout:20000});
-    const info=await transporter.sendMail({from:settings.from,to:mail.to,subject:mail.subject,html:mail.html,text:mail.text||undefined});
+    // Header logos travel with the message as inline attachments (cid:), so they show without remote images.
+    const attachments=inlineImagesFor(mail.html).map(img=>({filename:img.filename,content:img.base64,encoding:'base64',contentType:img.contentType,cid:img.cid}));
+    const info=await transporter.sendMail({from:settings.from,to:mail.to,subject:mail.subject,html:mail.html,text:mail.text||undefined,...(attachments.length?{attachments}:{})});
     if(info?.rejected?.length)throw Object.assign(new Error(`Recipient rejected: ${info.rejected.join(', ')}`),{code:'EENVELOPE'});
     return {id:String(info?.messageId||''),transport:'nodemailer'};
   }
@@ -46,7 +50,8 @@ export function createMailer({env,createTransport,request=(...args)=>fetch(...ar
     const resp=await request('https://api.resend.com/emails',{
       method:'POST',
       headers:{Authorization:`Bearer ${settings.resendKey}`,'Content-Type':'application/json'},
-      body:JSON.stringify({from:settings.from,to:[mail.to],subject:mail.subject,html:mail.html,text:mail.text||undefined})
+      body:JSON.stringify({from:settings.from,to:[mail.to],subject:mail.subject,html:mail.html,text:mail.text||undefined,
+        ...(inlineImagesFor(mail.html).length?{attachments:inlineImagesFor(mail.html).map(img=>({filename:img.filename,content:img.base64,content_type:img.contentType,content_id:img.cid}))}:{})})
     });
     const result=await resp.json().catch(()=>({}));
     if(!resp.ok)throw new Error(result?.message||`Email provider returned HTTP ${resp.status}`);

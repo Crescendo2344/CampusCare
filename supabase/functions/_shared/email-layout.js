@@ -2,7 +2,8 @@
 // database template used for notification emails: CTU seal header, a labelled headline, a details
 // card, one button, an optional security note and the clinic footer, plus a plain-text version.
 export const EMAIL_APP_URL='https://campuscare-brown-two.vercel.app/';
-const SEAL=EMAIL_APP_URL+'assets/email-ctu-seal.png';
+// Inline attachments added by the email transport (see email-images.js).
+const SEAL='cid:ctu-seal',LOGO='cid:campuscare-logo';
 const CLINIC='CTU Main Medical & Dental Clinic';
 const ADDRESS='Ground Floor, Education Building, CTU Main Campus, M. J. Cuenco Ave., Cebu City';
 const PHONE='(032) 402 4060 loc. 1142';
@@ -24,7 +25,8 @@ export function renderCampusCareEmail(m){
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3f7"><tr><td align="center" style="padding:28px 12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid #dbe5ec;border-radius:16px;overflow:hidden">
 <tr><td style="padding:18px 26px;border-bottom:1px solid #e3eaef"><table role="presentation" cellpadding="0" cellspacing="0"><tr>
-<td style="padding-right:12px;vertical-align:middle"><img src="${SEAL}" width="48" height="48" alt="CTU seal" style="display:block;border:0;width:48px;height:48px"></td>
+<td style="padding-right:10px;vertical-align:middle"><img src="${LOGO}" width="46" height="46" alt="CampusCare" style="display:block;border:0;width:46px;height:46px;border-radius:10px"></td>
+<td style="padding-right:12px;vertical-align:middle"><img src="${SEAL}" width="46" height="46" alt="CTU seal" style="display:block;border:0;width:46px;height:46px"></td>
 <td style="vertical-align:middle"><div style="font-size:19px;font-weight:800;color:#0a5a78;letter-spacing:.01em">CampusCare</div><div style="font-size:12px;color:#4a6571">${CLINIC.replace('&','&amp;')} · Cebu Technological University</div></td>
 </tr></table></td></tr>
 <tr><td style="height:4px;background:${accent};font-size:0;line-height:0">&nbsp;</td></tr>

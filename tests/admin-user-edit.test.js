@@ -76,7 +76,7 @@ test('staff and doctor employee numbers can be added or corrected: five digits a
 });
 test('suspending needs a reason and emails it to the person; reactivating emails them too',async()=>{
   let f=await fixture();
-  for(const body of [{},{reason_category:'Policy violation',reason:'short'},{reason_category:'Made up',reason:'Repeated no-shows on booked visits'}]){
+  for(const body of [{reason_category:'Policy violation',reason:''},{reason_category:'Policy violation',reason:'short'},{reason_category:'Made up',reason:'Repeated no-shows on booked visits'}]){
     const response=await f.call({action:'status',status:'Suspended',...body});assert.equal(response.status,400);
   }
   assert.equal(f.writes.length,0);
@@ -86,8 +86,10 @@ test('suspending needs a reason and emails it to the person; reactivating emails
   assert.equal(mail.recipient_email,'original@example.test');assert.match(mail.subject,/suspended/);assert.match(mail.text_body,/Reason: Misuse of appointments — Repeated no-shows/);
   assert(f.audits.some(row=>row.action==='USER_SUSPENDED'&&row.details.reason_category==='Misuse of appointments'));
   f=await fixture({status:'Suspended'});
-  assert.equal((await f.call({action:'status',status:'Active'})).status,400,'Reactivation needs a reason too');
+  assert.equal((await f.call({action:'status',status:'Active',reason_category:'Appeal approved',reason:''})).status,400,'Reactivation needs details too');
   const back=await f.call({action:'status',status:'Active',reason_category:'Appeal approved',reason:'Appeal reviewed and accepted by the clinic'});assert.equal(back.status,200);
   const reactivated=f.audits.find(row=>row.recipient_email);
-  assert.match(reactivated.subject,/reactivated/);assert.match(reactivated.html_body,/email-ctu-seal\.png/);assert.match(reactivated.text_body,/Appeal approved — Appeal reviewed/);
+  assert.match(reactivated.subject,/reactivated/);
+  const legacy=await fixture({status:'Suspended'});assert.equal((await legacy.call({action:'status',status:'Active',reason:undefined})).status,200,'An older page without reasons still works');
+  assert(legacy.audits.some(row=>row.recipient_email==='original@example.test'),'and still emails the person');assert.match(reactivated.html_body,/cid:ctu-seal/);assert.match(reactivated.text_body,/Appeal approved — Appeal reviewed/);
 });

@@ -10,6 +10,7 @@ import {collegeBadge,currentSemester,fmtDate,fmtTime,getSemester,statusBadge} fr
 import {escapeHtml} from './issueReports.js';
 import {articleCategoryColor,captureCampusPageToken,healthResourceRecords,isCampusPageCurrent,navTo,viewArticle} from './navigationRaceProtection.js';
 import {ensureCurrentPatient} from './patientService.js';
+import {profileStrengthCardHtml} from './profileStrength.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {treatmentRecords} from './treatmentService.js';
 import {viewTreatment} from './treatmentForm.js';
@@ -86,6 +87,7 @@ export function renderDashboard(){
         ${dashboardStatCard('Current medications',reminders.length,reminders.length?'Prescribed by your doctor':'Nothing to take right now',note(reminders.length?`Until ${fmtDate(reminders.map(r=>r.endDate).sort().pop())}`:'From your clinic visits'),'bi-capsule',reminders.length?'attention':'')}
       </div>
       ${dashboardMobileQuickLinks(role)}
+      ${profileStrengthCardHtml(appState.auth.currentUser,pt,{compact:true})}
       <div class="dashboard-a-main">
         <div class="card pd-card"><div class="card-header"><h3>Upcoming appointments</h3><button class="btn btn-xs" ${bindAction('click',()=>navTo('my-appointments'))}>View all</button></div>
           ${upcoming.length?`<div class="pd-list">${upcoming.slice(0,3).map(a=>{const d=getUserById(a.doctorId);return `<button type="button" class="pd-item" ${bindAction('click',()=>viewAppt(a.id))}>${dateTile(a.date)}<span class="pd-text"><strong>${escapeHtml(a.service)}</strong><small>${fmtTime(a.time)} · ${escapeHtml(a.clinic)} · ${d?escapeHtml(docName(d)):'Doctor to be assigned'}</small></span>${statusBadge(a.status)}</button>`;}).join('')}</div>`

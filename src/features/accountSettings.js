@@ -1,4 +1,5 @@
 // accountSettings: imported feature APIs; state belongs to explicit application namespaces.
+import {profileStrengthCardHtml} from './profileStrength.js';
 import {clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
@@ -115,6 +116,7 @@ export function renderMyAccount(){
   const u=appState.auth.currentUser;
   const pt=appState.auth.currentPatient;
   c.innerHTML=`
+    ${profileStrengthCardHtml(u,pt)}
     <div class="grid-2">
       <div>
         <div class="card">
