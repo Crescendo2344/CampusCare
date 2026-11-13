@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 import {buildUserEditPatch,canEditApprovedUser} from '../supabase/functions/_shared/admin-user-edit.js';
+import {queueEmail} from '../supabase/functions/_shared/email-layout.js';
 async function fixture({status='Active',actorRole='Administrator',actorStatus='Active',race=false,writeError=false,duplicate=false}={}){
   let handler;const writes=[],authUpdates=[],audits=[];
   const target={user_id:2,auth_user_id:'target-auth',first_name:'Original',last_name:'User',email:'original@example.test',contact_number:'09123456789',status,verified:status!=='Pending',role:'Staff'};
@@ -18,10 +19,10 @@ async function fixture({status='Active',actorRole='Administrator',actorStatus='A
         if(race||filters.status&&filters.status!==target.status)return {data:null};Object.assign(target,patch);return {data:{...target}};
       },then(resolve,reject){return this.maybeSingle().then(resolve,reject);}};return query;
   }};
-  globalThis.__adminEditClient=()=>client;globalThis.__adminEditPolicy=buildUserEditPatch;
+  globalThis.__adminEditClient=()=>client;globalThis.__adminEditPolicy=buildUserEditPatch;globalThis.__queueEmail=queueEmail;
   globalThis.Deno={env:{get:name=>name==='SUPABASE_URL'?'https://fixture.test':'fixture-server-key'},serve:fn=>handler=fn};
   const source=readFileSync('supabase/functions/admin-users/index.ts','utf8').replace(/^import[^\n]+\n/gm,'');
-  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const createClient=globalThis.__adminEditClient,buildUserEditPatch=globalThis.__adminEditPolicy;\n'+source)+'\n// fixture '+Math.random()).toString('base64'));
+  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const createClient=globalThis.__adminEditClient,buildUserEditPatch=globalThis.__adminEditPolicy,queueEmail=globalThis.__queueEmail;\n'+source)+'\n// fixture '+Math.random()).toString('base64'));
   const call=(body={})=>handler(new Request('https://fixture.test',{method:'POST',headers:{Authorization:'Bearer fixture'},body:JSON.stringify({action:'update',user_id:2,confirmed:true,reason:'Corrected per registrar records',...body})}));
   return {call,target,writes,authUpdates,audits};
 }
@@ -82,9 +83,11 @@ test('suspending needs a reason and emails it to the person; reactivating emails
   const response=await f.call({action:'status',status:'Suspended',reason_category:'Misuse of appointments',reason:'Repeated no-shows on booked visits'});
   assert.equal(response.status,200);assert.equal((await response.json()).email_queued,true);
   const mail=f.audits.find(row=>row.recipient_email);
-  assert.equal(mail.recipient_email,'original@example.test');assert.match(mail.subject,/suspended/);assert.match(mail.text_body,/Misuse of appointments — Repeated no-shows/);
+  assert.equal(mail.recipient_email,'original@example.test');assert.match(mail.subject,/suspended/);assert.match(mail.text_body,/Reason: Misuse of appointments — Repeated no-shows/);
   assert(f.audits.some(row=>row.action==='USER_SUSPENDED'&&row.details.reason_category==='Misuse of appointments'));
   f=await fixture({status:'Suspended'});
-  const back=await f.call({action:'status',status:'Active'});assert.equal(back.status,200);
-  assert.match(f.audits.find(row=>row.recipient_email).subject,/reactivated/);
+  assert.equal((await f.call({action:'status',status:'Active'})).status,400,'Reactivation needs a reason too');
+  const back=await f.call({action:'status',status:'Active',reason_category:'Appeal approved',reason:'Appeal reviewed and accepted by the clinic'});assert.equal(back.status,200);
+  const reactivated=f.audits.find(row=>row.recipient_email);
+  assert.match(reactivated.subject,/reactivated/);assert.match(reactivated.html_body,/email-ctu-seal\.png/);assert.match(reactivated.text_body,/Appeal approved — Appeal reviewed/);
 });

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.3";
+import {queueEmail} from "../_shared/email-layout.js";
 
 const cors={
   "Access-Control-Allow-Origin":"*",
@@ -127,17 +128,11 @@ Deno.serve(async(req)=>{
       // Rejection: email the reason, then remove the pending account and its identity photos so the
       // applicant can register again with the same email and ID number. The audit log keeps the decision.
       const fullName=`${target.first_name||""} ${target.last_name||""}`.trim()||"CampusCare applicant";
-      const esc=(v:string)=>v.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-      const text=`Hello ${fullName},\n\nYour CampusCare registration was not approved.\n\nReason: ${reason}\n\nYou may register again at CampusCare with clear photos of your selfie and the front and back of your Student or Employee ID. Contact the clinic if you need help.\n\nCTU Main Medical & Dental Clinic\nGround Floor, Education Building, CTU Main Campus\nPhone: (032) 402 4060 loc. 1142`;
-      const html=`<!doctype html><html><body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937"><div style="max-width:620px;margin:0 auto;padding:28px 16px"><div style="background:#fff;border-radius:16px;border:1px solid #e5e7eb;padding:26px"><p style="margin-top:0">Hello ${esc(fullName)},</p><h2 style="font-size:20px;margin:0 0 12px;color:#0b6b3a">Your CampusCare registration was not approved</h2><p style="font-size:15px;line-height:1.65"><strong>Reason:</strong> ${esc(reason)}</p><p style="font-size:15px;line-height:1.65">You may register again with clear photos of your selfie and the front and back of your Student or Employee ID. Contact the clinic if you need help.</p><div style="margin-top:24px;padding:16px;background:#f8fafc;border-radius:12px;font-size:13px;line-height:1.6;color:#475569"><strong>CTU Main Medical &amp; Dental Clinic</strong><br>Ground Floor, Education Building, CTU Main Campus<br>Phone: (032) 402 4060 loc. 1142</div></div></div></body></html>`;
-      let emailQueued=false;
-      if(target.email){
-        const {error:mailErr}=await admin.from("email_outbox").insert({
-          user_id:null,recipient_email:target.email,subject:"CampusCare — Registration not approved",
-          html_body:html,text_body:text,template_key:"account",status:"Pending",scheduled_at:new Date().toISOString()
-        });
-        emailQueued=!mailErr;
-      }
+      const emailQueued=await queueEmail(admin,{to:target.email,subject:"CampusCare · Registration not approved",
+        title:"Your registration was not approved",label:"Registration",tone:"danger",name:target.first_name||"there",
+        paragraphs:["The clinic reviewed your CampusCare registration and could not approve it."],reason,
+        note:"You may register again with clear photos of your selfie and the front and back of your Student or Employee ID. Contact the clinic if you need help.",
+        button:{label:"Register again"}});
 
       await admin.from("audit_logs").insert({
         user_id:actor.user_id,action:"USER_REJECTED",entity_type:"users",entity_id:targetId,

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.3";
 import {emailValidationError,normalizePhilippineMobile} from "../_shared/contact-validation.js";
+import {renderCampusCareEmail} from "../_shared/email-layout.js";
 
 // Signed-in people update their own contact number here. No extra code is asked: they are already
 // signed in, and the number is contact information, not a sign-in method.
@@ -15,8 +16,6 @@ const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,
 const CODE_MINUTES=10,MAX_TRIES=5,RESEND_SECONDS=60,MAX_SENDS_PER_HOUR=5;
 const sixDigits=()=>{const b=new Uint32Array(1);do crypto.getRandomValues(b);while(b[0]>=4294000000);return String(b[0]%1000000).padStart(6,"0");};
 const hashCode=async(userId:number,code:string)=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(`${userId}:${code}`)))].map(x=>x.toString(16).padStart(2,"0")).join("");
-const esc=(v:unknown)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!));
-const mailHtml=(title:string,body:string)=>`<!doctype html><html><body style="margin:0;background:#eef3f7;font-family:Segoe UI,Arial,sans-serif;color:#16262f"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:28px 14px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border-radius:16px;border:1px solid #dbe5ec;overflow:hidden"><tr><td style="background:#0a7ea8;padding:18px 24px;color:#fff;font-size:19px;font-weight:800">CampusCare</td></tr><tr><td style="padding:24px"><h1 style="margin:0 0 12px;font-size:20px;color:#0a7ea8">${title}</h1>${body}</td></tr></table><p style="font-size:11px;color:#6b7f89">This is an automated CampusCare message.</p></td></tr></table></body></html>`;
 
 // Queue an email and ask email-dispatch to send it now; the 5-minute job retries if this attempt fails.
 const sendEmail=async(admin:any,url:string,mail:{userId:number,to:string,subject:string,html:string,text:string,template:string})=>{
@@ -55,6 +54,14 @@ Deno.serve(async(req)=>{
       const {error}=await admin.from("users").update({contact_number:contact||null}).eq("user_id",actor.user_id);
       if(error)throw error;
       await admin.from("audit_logs").insert({user_id:actor.user_id,action:"USER_CONTACT_UPDATED",entity_type:"users",entity_id:actor.user_id,details:{previous_contact_number:actor.contact_number||null,new_contact_number:contact||null}});
+      if(actor.email){
+        const masked=(v:string)=>v?v.slice(0,-4).replace(/\d/g,"•")+v.slice(-4):"none";
+        const mail=renderCampusCareEmail({title:"Your mobile number was changed",label:"Account update",tone:"info",name:actor.first_name||"there",
+          paragraphs:["The mobile number on your CampusCare account was updated. The clinic uses it to reach you about appointments."],
+          rows:[["Previous number",masked(actor.contact_number||"")],["New number",masked(contact)]],button:null,
+          note:"If you did not make this change, contact the clinic administrator right away."});
+        await sendEmail(admin,url,{userId:actor.user_id,to:actor.email,template:"account",subject:"CampusCare · Your mobile number was changed",html:mail.html,text:mail.text}).catch(()=>{});
+      }
       return json({ok:true,contact_number:contact});
     }
 
@@ -84,9 +91,11 @@ Deno.serve(async(req)=>{
         last_sent_at:new Date(nowMs).toISOString(),expires_at:new Date(nowMs+CODE_MINUTES*60000).toISOString()
       },{onConflict:"user_id,channel"});
       if(saveErr)throw saveErr;
-      await sendEmail(admin,url,{userId:actor.user_id,to:actor.email,template:"verification",subject:"CampusCare · Code to change your sign-in email",
-        html:mailHtml("Change your sign-in email",`<p style="margin:0 0 14px;font-size:15px;line-height:1.6">Hello ${esc(actor.first_name||"there")}, you asked to change your CampusCare sign-in email to <strong>${esc(email)}</strong>. Enter this code in CampusCare to confirm.</p><p style="margin:0 0 14px;font-size:30px;font-weight:800;letter-spacing:.3em;font-family:Consolas,monospace">${code}</p><p style="margin:0;font-size:13px;color:#4a6571">The code expires in ${CODE_MINUTES} minutes. If you did not ask for this, ignore this email and your sign-in email stays the same. Consider changing your password.</p>`),
-        text:`Your CampusCare code to change your sign-in email to ${email} is ${code}. It expires in ${CODE_MINUTES} minutes. If you did not ask for this, ignore this email.`});
+      {const mail=renderCampusCareEmail({title:"Confirm your new sign-in email",label:"Security code",tone:"info",name:actor.first_name||"there",
+        paragraphs:[`You asked to change your CampusCare sign-in email to ${email}. Enter this code in CampusCare to confirm.`],code,
+        rows:[["New email",email],["Code expires",`In ${CODE_MINUTES} minutes`]],button:null,
+        note:"If you did not ask for this, ignore this email and your sign-in email stays the same. Consider changing your password."});
+      await sendEmail(admin,url,{userId:actor.user_id,to:actor.email,template:"verification",subject:"CampusCare · Code to change your sign-in email",html:mail.html,text:mail.text});}
       return json({ok:true,email,sent_to:actor.email,expires_in:CODE_MINUTES*60,resend_after:RESEND_SECONDS});
     }
 
@@ -118,10 +127,18 @@ Deno.serve(async(req)=>{
       if(profileErr)throw profileErr;
       await admin.from("contact_change_codes").delete().eq("user_id",actor.user_id).eq("channel","email");
       await admin.from("audit_logs").insert({user_id:actor.user_id,action:"USER_EMAIL_CHANGED",entity_type:"users",entity_id:actor.user_id,details:{previous_email:previous||null,new_email:email,verified_by:"code_to_current_email"}});
-      // The new address is welcomed, so it is clear which inbox CampusCare now uses.
-      await sendEmail(admin,url,{userId:actor.user_id,to:email,template:"account",subject:"CampusCare · This is now your sign-in email",
-        html:mailHtml("This is now your sign-in email",`<p style="margin:0;font-size:15px;line-height:1.6">Hello ${esc(actor.first_name||"there")}, your CampusCare sign-in email was changed${previous?` from <strong>${esc(previous)}</strong>`:""} to this address. Sign in with it from now on. If you did not make this change, contact the clinic administrator right away.</p>`),
-        text:`Your CampusCare sign-in email was changed${previous?` from ${previous}`:""} to this address. If you did not make this change, contact the clinic administrator right away.`}).catch(()=>{});
+      // The new address is welcomed, and the previous one is told, as other sites do for sign-in changes.
+      {const welcome=renderCampusCareEmail({title:"This is now your sign-in email",label:"Account update",tone:"success",name:actor.first_name||"there",
+        paragraphs:["Your CampusCare sign-in email was changed to this address. Sign in with it from now on."],
+        rows:[["Previous email",previous],["New email",email]],button:{label:"Sign in to CampusCare"},
+        note:"If you did not make this change, contact the clinic administrator right away."});
+      await sendEmail(admin,url,{userId:actor.user_id,to:email,template:"account",subject:"CampusCare · This is now your sign-in email",html:welcome.html,text:welcome.text}).catch(()=>{});
+      if(previous&&previous.toLowerCase()!==email.toLowerCase()){
+        const notice=renderCampusCareEmail({title:"Your sign-in email was changed",label:"Security",tone:"warning",name:actor.first_name||"there",
+          paragraphs:[`The sign-in email on your CampusCare account was changed to ${email}. CampusCare emails will go to the new address from now on.`],
+          button:null,note:"If you did not make this change, contact the clinic administrator right away."});
+        await sendEmail(admin,url,{userId:actor.user_id,to:previous,template:"account",subject:"CampusCare · Your sign-in email was changed",html:notice.html,text:notice.text}).catch(()=>{});
+      }}
       return json({ok:true,email});
     }
 

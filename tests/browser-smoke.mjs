@@ -95,7 +95,7 @@ try{
       assert.equal(body.confirmed,true);assert(!('status' in body));assert(['Active','Suspended'].includes(target.status));
       for(const field of ['first_name','last_name','email','contact_number','specialty'])if(body[field]!==undefined)target[field]=body[field];response={ok:true,user:{...target}};
     }else if(body.action==='status'){
-      if(body.status==='Suspended'&&(!body.reason_category||String(body.reason||'').length<10)){route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({error:'Reason required.'})});return;}
+      if(!body.reason_category||String(body.reason||'').length<10){route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({error:'Reason required.'})});return;}
       target.status=body.status;response={ok:true,status:target.status,email_queued:body.status==='Suspended'};}
     else if(body.action==='detail')response={ok:true,user:{...target},patient:null};else response={ok:true};
    }else if(path.endsWith('/register-patient')){
@@ -1492,7 +1492,9 @@ try{
     await page.locator('#su-category').selectOption('Misuse of appointments');
     await page.locator('#su-reason').fill('Repeated no-shows on booked visits');
     await page.getByRole('button',{name:'Suspend and email'}).click();await updated().getByRole('button',{name:'Reactivate',exact:true}).waitFor();
-    await updated().getByRole('button',{name:'Reactivate',exact:true}).click();await page.locator('#cc-confirm-ok-btn').click();await updated().getByRole('button',{name:'Suspend',exact:true}).waitFor();
+    await updated().getByRole('button',{name:'Reactivate',exact:true}).click();
+    await page.locator('#su-category').selectOption('Appeal approved');await page.locator('#su-reason').fill('Appeal reviewed and accepted by the clinic');
+    await page.getByRole('button',{name:'Reactivate and email'}).click();await updated().getByRole('button',{name:'Suspend',exact:true}).waitFor();
     managedUsers.push(...Array.from({length:12},(_,i)=>({...profile,user_id:200+i,auth_user_id:'scroll-'+i,first_name:'Scroll',last_name:String(i),username:'scroll'+i,status:i===0?'Archived':i===1?'Suspended':'Active'})));
     await page.evaluate(()=>window.__fixtureApp.features.userManagement.renderUsers());
     // Ten accounts per page with a pager; All Status includes archived and suspended accounts.
