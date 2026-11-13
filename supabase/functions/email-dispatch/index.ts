@@ -1,4 +1,5 @@
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2.117.3";
+import {renderCampusCareEmail} from "../_shared/email-layout.js";
 import nodemailer from "npm:nodemailer@6.9.16";
 import {createMailer} from "../_shared/email-transport.js";
 
@@ -84,20 +85,16 @@ Deno.serve(async(req)=>{
       const recipient=String(body.recipient_email||actor.email||"").trim();
       if(!recipient)return json({error:"Recipient email is required."},400);
 
-      const subject="CampusCare Email Delivery Test";
-      const html=`<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f4f7fb;padding:24px">
-        <div style="max-width:620px;margin:auto;background:#fff;border-radius:14px;padding:26px;border:1px solid #e5e7eb">
-          <h2 style="color:#0b6b3a;margin-top:0">CampusCare Email Delivery Test</h2>
-          <p>This message confirms that the CampusCare operational email provider is configured correctly.</p>
-          <p><strong>CTU Main Medical & Dental Clinic</strong><br>Ground Floor, Education Building, CTU Main Campus</p>
-        </div></body></html>`;
-
+      const subject="CampusCare · Email delivery test";
+      const {html,text}=renderCampusCareEmail({title:"Email delivery is working",label:"Test message",tone:"success",name:actor.first_name||"there",
+        paragraphs:["This test confirms that CampusCare can send email from the clinic's configured provider. Appointment, account and certificate emails will arrive the same way."],
+        rows:[["Sent to",recipient],["Requested by","System Settings · Email delivery"]],button:{label:"Open CampusCare"}});
       const {data:row,error}=await admin.from("email_outbox").insert({
         user_id:actor.user_id,
         recipient_email:recipient,
         subject,
         html_body:html,
-        text_body:"CampusCare Email Delivery Test. CTU Main Medical & Dental Clinic, Ground Floor, Education Building, CTU Main Campus.",
+        text_body:text,
         template_key:"test",
         status:"Pending",
         scheduled_at:now()

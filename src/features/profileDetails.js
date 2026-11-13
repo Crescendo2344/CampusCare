@@ -1,5 +1,6 @@
 // profileDetails: what a person gave at registration, shown back on their profile, and the health and
 // emergency details a patient fills in afterwards (registration does not ask for them).
+import {clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {fmtDate} from './inputValidation.js';
@@ -9,7 +10,8 @@ import {toast} from './theme.js';
 import {bindAction} from '../dependencies.js';
 import {ageFromBirthDate} from '../domain/patient-records.js';
 
-const idLabel=type=>type==='Student'?'Student ID No.':'Employee No.';
+// The ID follows who the person is: students carry a Student ID, everyone else an Employee ID.
+const idLabel=type=>type==='Student'?'Student ID No.':'Employee ID No.';
 const numeric=v=>String(v||'').replace(/[^\d.]/g,'');
 const unitLabel=type=>type==='Non-Teaching Personnel'?'Department':'College';
 
@@ -30,10 +32,10 @@ export function registrationDetailsCard(u,pt){
       </div>
     </div>`;
   }
-  const fields=[userDetailField('Username',u.username?'@'+u.username:''),userDetailField(u.role==='Staff'?'Employee No.':'ID No.',u.idNo)];
+  const fields=[userDetailField('Username',u.username?'@'+u.username:''),userDetailField(u.role==='Patient'&&u.personType==='Student'?'Student ID No.':'Employee ID No.',u.idNo)];
   if(u.role==='Staff')fields.push(userDetailField('Clinic',u.clinic||'Not set'));
   if(u.role==='Doctor'){
-    fields.push(userDetailField('Specialization',u.specialty));
+    fields.push(userDetailField('Clinic',clinicForSpecialization(u.specialty)));
     fields.push(userDetailField('Services rendered',(u.servicesRendered||[]).join(', '),true));
   }
   return `<div class="card" id="acc-registration">

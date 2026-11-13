@@ -1,4 +1,5 @@
 // appInitialization: imported feature APIs; state belongs to explicit application namespaces.
+import {promptPrivacyAcknowledgement} from './privacy.js';
 import {staffClinicOf} from '../domain/clinic-scope.js';
 import {state as appState} from '../app/state.js';
 import {applyDueScheduleChanges} from './workflowRequests.js';
@@ -47,7 +48,8 @@ export function initApp(){
   const firstNav = appState.topbarAndNavigation.NAV_CONFIG[appState.auth.currentUser.role]?.find(item => item.id);
   if(firstNav) navTo(firstNav.id);
   // New doctor and staff accounts replace their emailed password before anything else.
-  void enforceFirstPasswordChange();
+  // Then anyone who has not acknowledged a newly published Privacy Notice version is asked to.
+  void enforceFirstPasswordChange().then(()=>promptPrivacyAcknowledgement());
 }
 
 // Run side effects only after every feature's function exports are available.

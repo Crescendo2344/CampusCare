@@ -5,6 +5,24 @@ import {emailValidationError,normalizePhilippineMobile} from "../_shared/contact
 import {contactValidationError,nameValidationError,usernameValidationError} from "../_shared/registration-validation.js";
 import {emailCredentials,generatePassword} from "../_shared/account-credentials.js";
 import {SPECIALIZATIONS,cleanServicesRendered,defaultStartTimeForSpecialty} from "../_shared/clinic-services.js";
+import {queueEmail} from "../_shared/email-layout.js";
+
+// Every status change carries a reason the person is told, like other account consoles.
+const STATUS_REASONS:Record<string,string[]>={
+  Suspended:["Policy violation","Misuse of appointments","Suspicious or unauthorized activity","Identity or record verification","No longer enrolled or employed","Other"],
+  Active:["Issue resolved","Appeal approved","Verification completed","Returned to the university","Suspended by mistake","Other"],
+  Archived:["Left the clinic","End of contract or assignment","Duplicate account","Other"]
+};
+const statusEmail=(next:string,previous:string)=>next==="Suspended"
+  ?{subject:"CampusCare · Your account has been suspended",title:"Your account has been suspended",label:"Account suspended",tone:"danger",
+    paragraphs:["Your CampusCare account has been suspended, so you cannot sign in or book appointments for now."],
+    note:"If you think this is a mistake or want to appeal, contact the clinic administrator or visit the clinic.",button:null}
+  :next==="Archived"
+  ?{subject:"CampusCare · Your account has been archived",title:"Your account has been archived",label:"Account archived",tone:"warning",
+    paragraphs:["Your CampusCare account has been archived and can no longer be used to sign in."],
+    note:"If this is unexpected, contact the clinic administrator.",button:null}
+  :{subject:`CampusCare · Your account has been ${previous==="Archived"?"restored":"reactivated"}`,title:`Your account has been ${previous==="Archived"?"restored":"reactivated"}`,
+    label:"Account active",tone:"success",paragraphs:["Your CampusCare account is active again. You may sign in and use CampusCare as before."],button:{label:"Sign in to CampusCare"}};
 
 const cors={
   "Access-Control-Allow-Origin":"*",
@@ -320,6 +338,13 @@ Deno.serve(async(req)=>{
           type:"Account",channel:"In-app",delivery_status:"Created",action_page:"my-account"
         });
       }
+      // The new address receives the notice above; the previous address is told too, as other sites do.
+      if(patch.email&&target.email&&String(patch.email).toLowerCase()!==String(target.email).toLowerCase()){
+        await queueEmail(admin,{to:target.email,subject:"CampusCare · Your sign-in email was changed",title:"Your sign-in email was changed",
+          label:"Security",tone:"warning",name:target.first_name||"there",
+          paragraphs:[`A CampusCare administrator changed the sign-in email on your account to ${patch.email}. Emails will go to the new address from now on.`],
+          reason,note:"If you did not ask for this change, contact the clinic administrator right away.",button:null});
+      }
       return json({ok:true,user:saved});
     }
 
@@ -332,14 +357,25 @@ Deno.serve(async(req)=>{
       // A returning patient is restored by staff in Patient Records, which also reopens the record.
       if(target.role==="Patient"&&nextStatus==="Archived") return json({error:"Patient records archive automatically after five years without activity."},409);
       if(target.role==="Patient"&&target.status==="Archived") return json({error:"Restore a returning patient from Patient Records (staff)."},409);
+      const reasonCategory=(STATUS_REASONS[nextStatus]||[]).includes(String(body.reason_category))?String(body.reason_category):"";
+      const reasonText=String(body.reason||"").trim().slice(0,600);
+      // The admin screen always sends a reason. A request with none at all (an older page still open)
+      // is accepted so it keeps working, and the person is still emailed; a partial reason is rejected.
+      const legacy=body.reason_category==null&&body.reason==null;
+      if(!legacy&&(!reasonCategory||reasonText.length<10))
+        return json({error:"Choose a reason and explain it to the user (at least 10 characters)."},400);
       const {error}=await admin.from("users").update({status:nextStatus}).eq("user_id",targetId);
       if(error) throw error;
       await admin.from("audit_logs").insert({
         user_id:actor.user_id,
         action:nextStatus==="Suspended"?"USER_SUSPENDED":nextStatus==="Archived"?"USER_ARCHIVED":"USER_REACTIVATED",
-        entity_type:"users",entity_id:targetId,details:{previous_status:target.status,new_status:nextStatus}
+        entity_type:"users",entity_id:targetId,
+        details:{previous_status:target.status,new_status:nextStatus,...(legacy?{}:{reason_category:reasonCategory,reason:reasonText})}
       });
-      return json({ok:true,status:nextStatus});
+      // Emailed directly: a suspended or archived account cannot sign in to read an in-app notice.
+      const mail=statusEmail(nextStatus,target.status);
+      const emailQueued=await queueEmail(admin,{...mail,to:target.email,name:target.first_name||"there",reason:legacy?"":`${reasonCategory} — ${reasonText}`});
+      return json({ok:true,status:nextStatus,email_queued:emailQueued});
     }
 
     if(action==="schedule"){

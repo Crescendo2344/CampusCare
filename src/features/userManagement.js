@@ -1,3 +1,4 @@
+import {clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
 import {canEditApprovedUser} from '../../supabase/functions/_shared/admin-user-edit.js';
 // userManagement: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
@@ -15,7 +16,7 @@ import {approveScheduleChange,rejectScheduleChange} from './workflowRequests.js'
 import {approveLeaveRequest,rejectLeaveRequest} from './doctorSchedule.js';
 import {approveNameChange,rejectNameChange} from './nameChangeRequests.js';
 import {navTo} from './navigationRaceProtection.js';
-import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
+import {toast} from './theme.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
 import {requestAttachmentBadge,requestAttachmentViewHtml} from './requestAttachments.js';
 import {appointmentRecords} from './appointmentService.js';
@@ -131,7 +132,7 @@ export async function openUserDetails(id){
                 ${userDetailField('Account Created',formatLastLogin(d.auth_created_at||d.created_at))}
                 ${userDetailField('Last Login',formatLastLogin(d.last_sign_in_at||d.last_login_at))}
                 ${d.role==='Staff'?userDetailField('Clinic',d.clinic||'Not set'):''}
-                ${d.role==='Doctor'?userDetailField('Specialization',d.specialty)+userDetailField('Services rendered',(d.services_rendered||[]).join(', '),true):''}
+                ${d.role==='Doctor'?userDetailField('Clinic',d.specialty?clinicForSpecialization(d.specialty):'')+userDetailField('Services rendered',(d.services_rendered||[]).join(', '),true):''}
                 ${d.role==='Doctor'?userDetailField('Work Schedule',roleSchedule,true):''}
               </div>
             </section>
@@ -412,18 +413,23 @@ export function renderUserTable(){
 }
 const USER_PAGE_SIZE=10;
 
-// Status changes share one flow: confirm, save, then offer Undo back to the previous status.
+// Status changes share one flow: choose a reason, explain it, save, and the person is emailed.
+// Same reason lists as the server. There is no Undo, because the email has already gone out.
 const STATUS_CHANGES={
-  Suspended:{title:'Suspend Account',verb:'suspend',done:'suspended',danger:true},
-  Reactivate:{title:'Reactivate Account',verb:'reactivate',done:'reactivated',status:'Active'},
-  Archived:{title:'Archive Account',verb:'archive',done:'archived',danger:true},
-  Restore:{title:'Restore Account',verb:'restore',done:'restored',status:'Active'}
+  Suspended:{title:'Suspend account',status:'Suspended',action:'Suspend and email',done:'suspended',danger:true,
+    reasons:['Policy violation','Misuse of appointments','Suspicious or unauthorized activity','Identity or record verification','No longer enrolled or employed','Other']},
+  Reactivate:{title:'Reactivate account',status:'Active',action:'Reactivate and email',done:'reactivated',
+    reasons:['Issue resolved','Appeal approved','Verification completed','Returned to the university','Suspended by mistake','Other']},
+  Archived:{title:'Archive account',status:'Archived',action:'Archive and email',done:'archived',danger:true,
+    reasons:['Left the clinic','End of contract or assignment','Duplicate account','Other']},
+  Restore:{title:'Restore account',status:'Active',action:'Restore and email',done:'restored',
+    reasons:['Returned to the clinic','Archived by mistake','Other']}
 };
-async function saveUserStatus(u,status){
+async function saveUserStatus(u,status,extra={}){
   if(u._realSupabase){
-    await adminUserAction({action:'status',user_id:u.dbUserId,status});
+    const result=await adminUserAction({action:'status',user_id:u.dbUserId,status,...extra});
     await renderUsers();
-    return;
+    return result;
   }
   u.status=status;
   u.archived=status==='Archived';
@@ -431,20 +437,31 @@ async function saveUserStatus(u,status){
 }
 function changeUserStatus(id,change){
   const u=appState.data.DB.users.find(x=>x.id===id);if(!u)return;
-  const meta=STATUS_CHANGES[change],next=meta.status||change,previous=u.status;
-  if(appState.auth.currentUser?.role==='Administrator'&&id===appState.auth.currentUser.id&&next!=='Active'){
+  const meta=STATUS_CHANGES[change];
+  if(appState.auth.currentUser?.role==='Administrator'&&id===appState.auth.currentUser.id&&meta.status!=='Active'){
     toast('You cannot suspend or archive your own administrator account.','warning');return;
   }
-  showConfirmDialog({
-    title:meta.title,
-    message:`Are you sure you want to ${meta.verb} <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account?`,
-    confirmLabel:meta.title.split(' ')[0],danger:!!meta.danger,
-    onConfirm:async()=>{
-      try{await saveUserStatus(u,next);}
-      catch(e){toast(e?.message||'Unable to update account.','error');return;}
-      toastWithUndo(`${u.fname} ${u.lname} ${meta.done}.`,()=>saveUserStatus(u,previous),{undoneMessage:`${u.fname} ${u.lname} is ${previous.toLowerCase()} again.`});
-    }
-  });
+  openModal(`<div class="modal modal-sm" role="dialog" aria-labelledby="su-title">
+    <div class="modal-header"><div><h3 id="su-title">${meta.title}</h3><div class="text-muted">${escapeHtml(`${u.fname} ${u.lname}`)}${u.email?` · ${escapeHtml(u.email)}`:''}</div></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label for="su-category">Reason <span class="required">*</span></label><select id="su-category"><option value="">Choose a reason</option>${meta.reasons.map(r=>`<option>${r}</option>`).join('')}</select></div>
+      <div class="form-group"><label for="su-reason">Details for the user <span class="required">*</span></label><textarea id="su-reason" rows="4" maxlength="600"></textarea></div>
+      <p class="registration-field-error" id="su-error" hidden></p>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button>
+      <button type="button" class="btn ${meta.danger?'btn-danger':'btn-primary'}" ${bindAction('click',async(event,element)=>{
+        const category=document.getElementById('su-category').value,reason=document.getElementById('su-reason').value.trim(),err=document.getElementById('su-error');
+        const fail=message=>{err.textContent=message;err.hidden=false;};
+        if(!category)return fail('Choose a reason.');
+        if(reason.length<10)return fail('Explain the reason to the user (at least 10 characters).');
+        element.disabled=true;
+        try{
+          const result=await saveUserStatus(u,meta.status,{reason_category:category,reason});
+          closeAllModals();
+          toast(`${u.fname} ${u.lname} ${meta.done}.${result?.email_queued===false?' The email could not be queued.':u.email?` An email was sent to ${u.email}.`:''}`,'success');
+        }catch(e){fail(e?.message||'Unable to update this account.');element.disabled=false;}
+      })}>${meta.action}</button></div>
+  </div>`);
 }
 
 export function suspendUser(id){

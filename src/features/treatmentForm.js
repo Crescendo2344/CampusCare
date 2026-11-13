@@ -1,4 +1,5 @@
 // treatmentForm: imported feature APIs; state belongs to explicit application namespaces.
+import {ctuFooterHtml,ctuHeaderHtml} from '../shared/ctu-letterhead.js';
 import {state as appState} from '../app/state.js';
 import {appointmentDisplayId,appointmentRecords,syncRealAppointments} from './appointmentService.js';
 import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
@@ -104,7 +105,8 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
       <div id="trm-msg"></div>
       <input type="hidden" id="tm-record-type" value="${clinic}">
       ${pt?treatmentPatientCardHtml(pt):`<div class="form-group"><label for="tm-pt">Patient <span class="required">*</span></label>
-        <select id="tm-pt" ${bindAction('change',(event,element)=>{const host=document.getElementById('tm-patient-card'),p=getPatientById(Number(element.value));if(host)host.innerHTML=p?treatmentPatientCardHtml(p):'';fillTriageVitals(p?triageVitalsForPatient(p.id):null);const c=document.getElementById('tm-complaint');if(c){const r=complaintForPatient(p?.id);c.innerHTML=complaintHtml(r);c.classList.toggle('empty',!r);}})}><option value="">Choose a patient</option>${patientSource.map(p=>`<option value="${p.id}">${escapeHtml(p.lname+', '+p.fname)}${p.idNo?' · '+escapeHtml(p.idNo):''}</option>`).join('')}</select>
+        <input type="hidden" id="tm-pt" value="">
+        <div class="patient-combobox"><input type="search" id="tm-pt-search" autocomplete="off" placeholder="Search by name or ID number" aria-describedby="tm-pt-error" ${bindAction('input',(event,element)=>filterVisitPatients(element.value,patientSource))} ${bindAction('focus',(event,element)=>filterVisitPatients(element.value,patientSource))}><div class="patient-combobox-list" id="tm-pt-results" role="listbox"></div></div>
         <p class="registration-field-error" id="tm-pt-error" aria-live="polite" hidden></p></div><div id="tm-patient-card"></div>`}
 
       <section class="tv-section"><h4>Vital signs</h4>
@@ -336,10 +338,32 @@ export async function saveTreatment(ptId,apptId){
   }
 }
 
+// Record visit: the doctor searches for the patient by name or ID number instead of scrolling a long list.
+function filterVisitPatients(q,patients){
+  const box=document.getElementById('tm-pt-results');if(!box)return;
+  const hidden=document.getElementById('tm-pt');
+  if(hidden.value){const p=getPatientById(Number(hidden.value));if(!p||q!==`${p.fname} ${p.lname}`)selectVisitPatient(null);}
+  const s=String(q||'').trim().toLowerCase();
+  if(!s){box.innerHTML='';box.classList.remove('show');return;}
+  const hits=patients.filter(p=>`${p.fname} ${p.lname} ${p.lname}, ${p.fname} ${p.idNo||''}`.toLowerCase().includes(s)).slice(0,12);
+  box.innerHTML=hits.length?hits.map(p=>`<button type="button" class="patient-combobox-option" role="option" ${bindAction('click',()=>selectVisitPatient(p.id))}><strong>${escapeHtml(p.lname+', '+p.fname)}</strong><span class="text-muted" style="display:block">${escapeHtml(p.idNo||'No ID')}${p.college?' · '+escapeHtml(p.college):''}</span></button>`).join(''):'<div class="text-muted" style="padding:.65rem">No matching patient.</div>';
+  box.classList.add('show');
+}
+function selectVisitPatient(id){
+  const p=id?getPatientById(Number(id)):null;
+  const hidden=document.getElementById('tm-pt'),search=document.getElementById('tm-pt-search');
+  if(hidden)hidden.value=p?p.id:'';
+  if(p&&search)search.value=`${p.fname} ${p.lname}`;
+  if(p)document.getElementById('tm-pt-results')?.classList.remove('show');
+  const host=document.getElementById('tm-patient-card');if(host)host.innerHTML=p?treatmentPatientCardHtml(p):'';
+  fillTriageVitals(p?triageVitalsForPatient(p.id):null);
+  const c=document.getElementById('tm-complaint');if(c){const r=complaintForPatient(p?.id);c.innerHTML=complaintHtml(r);c.classList.toggle('empty',!r);}
+}
+
 export function treatmentDocumentHtml(t){
   const pt=getPatientById(t.patientId)||{},doc=getUserById(t.doctorId)||{},s=appState.data.DB.settings,vit=t.vitals||{},safe=v=>escapeHtml(v||'—');
   return `<div class="treatment-record-doc" id="treatment-document-${t.id}">
-    <div class="treatment-doc-head"><img src="${appState.utilities.CTU_MAIN_LOGO_DATA}" alt="CTU Main Campus Logo" width="78" height="78" style="width:78px;height:78px;object-fit:contain;display:block;margin:0 auto 8px"><h2>${escapeHtml(s.clinicName||'CTU Main Medical & Dental Clinic')}</h2><p>${escapeHtml(s.address||'CTU Main Campus')}</p><p>${escapeHtml(s.contactEmail||'')}</p></div>
+    <div class="treatment-doc-head" style="border-bottom:0;padding-bottom:0">${ctuHeaderHtml()}<p style="margin:2px 0 0;font-weight:700;font-size:12px;color:#12314a">${escapeHtml(s.clinicName||'CTU Main Medical & Dental Clinic')}</p></div>
     <div class="treatment-doc-title">CLINICAL TREATMENT RECORD</div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:.7rem;color:#64717a"><span>Record No. <strong>#${treatmentDisplayId(t)}</strong></span>${t.archived?'<span class="treatment-archived-mark">ARCHIVED</span>':''}</div>
     <div class="treatment-doc-grid">
@@ -362,6 +386,7 @@ export function treatmentDocumentHtml(t){
     ${(t.amendments||[]).length?`<div class="treatment-doc-section treatment-doc-amend"><h4>Clarifications</h4>${t.amendments.map(m=>`<p><strong>${escapeHtml(new Date(m.at).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Manila'}))} · ${escapeHtml(m.by_name||'Attending doctor')}:</strong> ${escapeHtml(m.note)}</p>`).join('')}<p style="font-size:.7rem;color:#6b7680">Added after the visit. The original entries above are unchanged.</p></div>`:''}
     <div class="treatment-doc-sign"><div><div class="line">${safe(doc.fname?docName(doc):'Attending Doctor')}</div><span>Attending Clinician</span></div></div>
     <div style="margin-top:25px;padding-top:10px;border-top:1px solid #edf0f2;font-size:.6rem;color:#7a858d;text-align:center">Generated by CampusCare · CTU Main Campus · ${new Date().toLocaleString('en-PH')}</div>
+    ${ctuFooterHtml()}
   </div>`;
 }
 
@@ -438,13 +463,7 @@ export function dentalRecordDocumentHtml(t){
   const operations=Array.isArray(d.accomplishment)?d.accomplishment:[];
 
   return `<div class="dental-record-doc" id="dental-record-document-${t.id}">
-    <div class="dental-doc-head">
-      <img src="${appState.utilities.CTU_MAIN_LOGO_DATA}" alt="CTU Main Campus Logo">
-      <p>Republic of the Philippines</p><h2>CEBU TECHNOLOGICAL UNIVERSITY</h2><p>MAIN CAMPUS</p>
-      <p>M.J. Cuenco Avenue Cor. R. Palma Street, Cebu City, Philippines</p>
-      <p>${escapeHtml(appState.data.DB.settings?.contactEmail||'ctumainmedclinic@gmail.com')} · Phone: ${escapeHtml(appState.data.DB.settings?.phone||'(032) 402 4060 loc. 1142')}</p>
-      <p><strong>DENTAL CLINIC</strong></p>
-    </div>
+    <div class="dental-doc-head">${ctuHeaderHtml()}<p><strong>DENTAL CLINIC</strong></p></div>
     <div class="dental-doc-title">DENTAL RECORD</div>
 
     <div class="dental-doc-info">
@@ -488,6 +507,7 @@ export function dentalRecordDocumentHtml(t){
 
     <div class="dental-doc-recommendation"><strong>RECOMMENDATION</strong><div>${safe(d.recommendation)}</div></div>
     <div class="dental-doc-sign"><div class="line">${safe(d.dentistName||docName(doc)||'Dentist')}</div><span>Dentist</span></div>
+    ${ctuFooterHtml()}
   </div>`;
 }
 

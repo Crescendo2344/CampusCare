@@ -1,6 +1,7 @@
 // Purchase orders.
 // Staff order stock before it runs out: they print the purchase order for the person or office that buys,
 // mark it sent, and record the delivery (stock goes up). Purchasing is a staff task; there is no approval step.
+import {printCtuDocument} from '../shared/ctu-letterhead.js';
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
 import {fmtDate} from './inputValidation.js';
@@ -217,15 +218,15 @@ export function printPurchaseOrder(poId){
   const lines=po.purchase_order_items||[];
   const rows=lines.map((l,i)=>{const it=itemById(l.item_id);
     return `<tr><td>${i+1}</td><td>${escapeHtml(it?.item_name||itemLabel(l.item_id))}</td><td>${escapeHtml(it?.category||'')}</td><td class="n">${l.quantity}</td><td>${escapeHtml(it?.unit||'')}</td></tr>`;}).join('');
-  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(po.po_no||'Purchase order')}</title><style>
-    @page{size:A4;margin:16mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;margin:0}
+  printCtuDocument({title:po.po_no||'Purchase order',css:`
+    body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;margin:0}
     h1{font-size:20px;margin:0}h2{font-size:13px;margin:0 0 2px;font-weight:normal;color:#444}
     .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0a7ea8;padding-bottom:10px;margin-bottom:14px}
     .meta{width:100%;border-collapse:collapse;margin-bottom:14px}.meta td{padding:3px 0;vertical-align:top}.meta td:first-child{width:120px;color:#555}
     table.items{width:100%;border-collapse:collapse}table.items th,table.items td{border:1px solid #bbb;padding:6px;text-align:left}table.items th{background:#eef5f9}
     .n{text-align:right}.sign{display:flex;gap:40px;margin-top:48px}.sign div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center}
     .note{margin-top:12px;white-space:pre-wrap}
-  </style></head><body>
+  `,body:`
     <div class="head"><div><h1>Purchase Order</h1><h2>CTU Main Medical &amp; Dental Clinic</h2></div><div style="text-align:right"><strong style="font-size:15px">${escapeHtml(po.po_no||'')}</strong><div>Date: ${escapeHtml(fmtDate(manilaDate(po.created_at)))}</div></div></div>
     <table class="meta"><tr><td>Needed by</td><td>${po.needed_by?escapeHtml(fmtDate(po.needed_by)):'As soon as possible'}</td></tr>
       <tr><td>Prepared by</td><td>${escapeHtml(personName(po.created_by))}</td></tr></table>
@@ -233,13 +234,7 @@ export function printPurchaseOrder(poId){
       <tbody>${rows}</tbody></table>
     ${po.notes?`<div class="note"><strong>Notes:</strong> ${escapeHtml(po.notes)}</div>`:''}
     <div class="sign"><div>Prepared by</div><div>Noted by (Clinic head)</div><div>Received by (Purchasing)</div></div>
-  </body></html>`;
-  const frame=document.createElement('iframe');
-  frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
-  frame.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-  document.body.append(frame);
-  const doc=frame.contentDocument;doc.open();doc.write(html);doc.close();
-  setTimeout(()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),1000);},150);
+  `});
 }
 
 export function initializeFeature(){}

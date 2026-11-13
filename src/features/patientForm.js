@@ -1,4 +1,5 @@
 // patientForm: imported feature APIs; state belongs to explicit application namespaces.
+import {printCtuDocument} from '../shared/ctu-letterhead.js';
 import {state as appState} from '../app/state.js';
 import {getUserById} from './documentScanner.js';
 import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
@@ -404,26 +405,17 @@ export async function viewPatient(id){
 export function printPatientSummary(id){
   const chart=document.getElementById('pt-chart');
   if(!chart)return;
-  const frame=document.createElement('iframe');
-  frame.style.cssText='position:fixed;width:0;height:0;border:0;right:0;bottom:0';
-  document.body.append(frame);
   const panels=[...chart.querySelectorAll('[data-pt-panel]')].map(panel=>{
     const title=chart.querySelector(`[data-pt-tab="${panel.dataset.ptPanel}"]`)?.textContent||'';
     return `<h3>${escapeHtml(title)}</h3>${panel.innerHTML}`;
   }).join('');
-  const doc=frame.contentDocument;
-  doc.open();
-  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Patient summary</title><style>
-    body{font:12px/1.5 Arial,Helvetica,sans-serif;color:#111;margin:24px}h2{margin:0 0 4px}h3{margin:18px 0 6px;font-size:13px;border-bottom:1px solid #ccc;padding-bottom:3px}
-    h4{margin:10px 0 4px;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;text-align:left}
+  printCtuDocument({title:'Patient summary',css:`h2{margin:0 0 4px}h3{margin:18px 0 6px;font-size:13px;border-bottom:1px solid #ccc;padding-bottom:3px}
+    h4{margin:10px 0 4px;font-size:12px}.ctu-page-body table{width:100%;border-collapse:collapse}.ctu-page-body th,.ctu-page-body td{border:1px solid #ccc;padding:4px 6px;text-align:left}
     .info-row{display:flex;gap:8px}.info-label{width:140px;color:#555}.pt-banner img,.pt-banner .sb-avatar{display:none}.badge{border:1px solid #999;border-radius:8px;padding:0 5px}
-    .pt-allergy-alert{border:2px solid #b00;padding:6px 8px;margin:8px 0;color:#b00}.bi{display:none}
-  </style></head><body><p>CampusCare · CTU Main Medical &amp; Dental Clinic · Printed ${escapeHtml(new Date().toLocaleString('en-PH'))}</p>
+    .pt-allergy-alert{border:2px solid #b00;padding:6px 8px;margin:8px 0;color:#b00}.bi{display:none}.doc-title{text-align:center;font-weight:700;font-size:15px;margin:4px 0 2px}.doc-sub{text-align:center;color:#555;margin:0 0 10px}`,
+    body:`<div class="doc-title">PATIENT SUMMARY</div><p class="doc-sub">CTU Main Medical &amp; Dental Clinic · Printed ${escapeHtml(new Date().toLocaleString('en-PH'))}</p>
   ${chart.querySelector('.pt-banner')?.outerHTML||''}${chart.querySelector('.pt-allergy-alert')?.outerHTML||''}${panels}
-  <p style="margin-top:18px;color:#555">Confidential medical information. Handle according to the CampusCare Privacy Notice.</p></body></html>`);
-  doc.close();
-  frame.contentWindow.focus();frame.contentWindow.print();
-  setTimeout(()=>frame.remove(),2000);
+  <p style="margin-top:18px;color:#555">Confidential medical information. Handle according to the CampusCare Privacy Notice.</p>`});
 }
 
 // Records archive automatically after five years without a visit (private.archive_inactive_patients).

@@ -42,7 +42,6 @@ export function fitnessAssessmentErrors(f,today){
   if(String(f.sport||'').trim().length<2)errors.sport='Enter the sport or event.';
   if(!f.assessmentDate)errors.date='Enter the assessment date.';
   else if(f.assessmentDate>today)errors.date='The assessment date cannot be in the future.';
-  if(f.eventDate&&f.assessmentDate&&f.eventDate<f.assessmentDate)errors.eventDate='The event date cannot be before the assessment.';
   if(f.decision){
     const unanswered=SCREENING_QUESTIONS.filter(([key])=>!['yes','no'].includes(f.answers?.[key]));
     if(unanswered.length)errors.screening=`Answer all screening questions before deciding (${unanswered.length} left).`;

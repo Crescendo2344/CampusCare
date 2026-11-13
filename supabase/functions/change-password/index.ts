@@ -81,6 +81,12 @@ Deno.serve(async(req)=>{
       entity_id:profile.user_id,
       details:{method:firstChange?"first_sign_in":"account_settings",cooldown_days:7}
     });
+    // Like other sites, a password change is always confirmed by email (through the Account notice).
+    await admin.from("notifications").insert({
+      user_id:profile.user_id,title:"Your password was changed",
+      message:`Your CampusCare password was changed on ${new Date().toLocaleString("en-PH",{timeZone:"Asia/Manila",dateStyle:"medium",timeStyle:"short"})}. If you did not do this, contact the clinic administrator right away.`,
+      type:"Account",channel:"In-app",delivery_status:"Created",action_page:"my-account"
+    });
 
     return json({ok:true,password_changed_at:new Date().toISOString()});
   }catch(e){

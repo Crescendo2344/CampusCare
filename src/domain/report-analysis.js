@@ -82,12 +82,18 @@ export function buildForecast(events,{from,to,today,days,weeks,method='average'}
   const perDay=day=>method==='weekday'
     ?(w=>weekdays[w].total/Math.max(1,weekdays[w].days))(new Date(day+'T00:00:00Z').getUTCDay())
     :total/historyDays;
+  // Visits and units are counted whole. Each period's estimate is rounded on the running total, so
+  // the periods always add up to the overall estimate, and a likely range shows the normal spread.
+  let running=0,shown=0;
   const rows=projectionPeriods(offsetDay(today,1),horizon,92).map(p=>{
-    let amount=0;
-    for(let day=p.start;day<=p.end;day=offsetDay(day,1))amount+=perDay(day);
-    return {start:p.start,end:p.end,label:p.label,amount:Math.round(amount*10)/10};
+    let expected=0;
+    for(let day=p.start;day<=p.end;day=offsetDay(day,1))expected+=perDay(day);
+    running+=expected;const amount=Math.round(running)-shown;shown+=amount;
+    const spread=1.28*Math.sqrt(expected);
+    return {start:p.start,end:p.end,label:p.label,amount,low:Math.max(0,Math.floor(expected-spread)),high:Math.ceil(expected+spread)};
   });
-  return {...base,rows,projected:Math.round(rows.reduce((s,r)=>s+r.amount,0)),dailyAverage:total/historyDays,historyQuality:historyDays>=56&&selected.length>=30?'More history available':'Limited history'};
+  const spread=1.28*Math.sqrt(running);
+  return {...base,rows,projected:shown,projectedLow:Math.max(0,Math.floor(running-spread)),projectedHigh:Math.ceil(running+spread),dailyAverage:total/historyDays,weeklyAverage:Math.round(total/historyDays*7),historyQuality:historyDays>=56&&selected.length>=30?'More history available':'Limited history'};
 }
 const shortRange=(start,end)=>{
   const f=d=>new Date(d+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'});

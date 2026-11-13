@@ -2543,3 +2543,33 @@ tbody tr:hover td{background:var(--overlay)}
 
 /* Explain snapshot versus dated activity so similarly sized cards do not imply identical measures. */
 
+/* Medical certificate: same CTU letterhead page as the dental certificate. */
+.cert-paper .mc-doc{font-family:"Times New Roman",Times,serif;font-size:14px;line-height:1.7}
+.cert-paper .mc-doc .mc-title{font-size:18px;letter-spacing:.06em;margin:10px 0 14px}
+.cert-paper .mc-meta{display:flex;justify-content:space-between;font-size:13px;margin-bottom:16px}
+.cert-paper .mc-doc p{margin:0 0 12px}.cert-paper .mc-indent{text-indent:36px;text-align:justify}
+.cert-paper .mc-doc .cert-signature-area{margin-top:40px;font-size:13px}
+.cert-paper .mc-note{font-size:12px;font-style:italic;margin-top:28px}
+/* Fresh signature on certificates. */
+.cert-sign-card{padding:.85rem}.cert-sign-card .cert-sign-actions{margin-top:.45rem}
+.cert-paper .mc-doc [data-cert-field]{display:inline;min-width:0;padding:0}
+/* The CTU letterhead is a layout table; app table styles must not draw borders, stripes or full width on it. */
+table.ctu-lh-head{width:auto!important;border:0!important;background:none!important;margin-left:auto!important;margin-right:auto!important}
+table.ctu-lh-head tr,table.ctu-lh-head td{border:0!important;background:none!important;box-shadow:none!important}
+/* System Settings: grouped editable rules and a grayed-out, read-only clinic profile (text stays at 4.5:1 contrast). */
+.settings-group{border:1px solid var(--line);border-radius:12px;padding:.6rem .9rem .2rem;margin:0 0 .9rem}
+.settings-group legend{font-size:.8rem;font-weight:700;padding:0 .4rem;display:inline-flex;align-items:center;gap:.35rem}
+.settings-profile-card{background:#f1f4f6;border-style:dashed}
+.settings-profile-card h3,.settings-profile-card #set-profile-note,.settings-readonly dt,.settings-readonly dd{color:#4a5d68}
+.settings-readonly{margin:0}.settings-readonly>div{padding:.55rem 0;border-bottom:1px solid var(--line)}.settings-readonly>div:last-child{border-bottom:0}
+.settings-readonly dt{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
+.settings-readonly dd{margin:.15rem 0 0;font-size:.88rem}
+[data-theme="dark"] .settings-profile-card{background:#1a2027}
+[data-theme="dark"] .settings-profile-card h3,[data-theme="dark"] .settings-profile-card #set-profile-note,[data-theme="dark"] .settings-readonly dt,[data-theme="dark"] .settings-readonly dd{color:#aab7c0}
+.settings-side{display:flex;flex-direction:column;gap:1rem;min-width:0}.settings-side>.card{margin:0}
+.settings-group[disabled] input{opacity:1;cursor:default}
+.settings-edit-actions{display:flex;gap:.5rem;justify-content:flex-end}
+.settings-clinic-card.editing .settings-group{border-color:var(--primary,#0a7ea8)}
+.email-test-row{margin-bottom:1rem}.email-test-controls{display:flex;gap:.5rem;align-items:stretch}.email-test-controls input{flex:1;min-width:0}.email-test-controls .btn{white-space:nowrap;flex:none}
+.privacy-stats{margin-bottom:0}.privacy-stats small{font-size:.7em;color:var(--ink-muted,#4a5d68);font-weight:500}
+[data-settings-panel="privacy"]>.card{margin-bottom:1rem}

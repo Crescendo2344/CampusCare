@@ -1,3 +1,4 @@
+import {renderCampusCareEmail} from './email-layout.js';
 // New doctor and staff accounts: the server generates the password and emails it only to the new user.
 // The administrator never sees it; email-dispatch wipes the stored copy as soon as it is sent, and the
 // person must replace it at first sign-in (app_metadata.must_change_password).
@@ -25,26 +26,10 @@ const APP='https://campuscare-brown-two.vercel.app/';
 export function credentialsEmail({firstName,username,email,password,role}){
   const roleName=role==='Doctor'?'doctor':'staff';
   const subject='CampusCare · Your new account';
-  const html=`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your CampusCare account</title></head>
-<body style="margin:0;background:#eef3f7;font-family:Segoe UI,Arial,sans-serif;color:#16262f">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3f7"><tr><td align="center" style="padding:28px 14px">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #dbe5ec">
-<tr><td style="background:#0a7ea8;padding:20px 26px;color:#ffffff"><div style="font-size:20px;font-weight:800">CampusCare</div><div style="font-size:12px;opacity:.9;margin-top:2px">CTU Main Medical &amp; Dental Clinic</div></td></tr>
-<tr><td style="padding:26px">
-<p style="margin:0 0 6px;font-size:14px;color:#4a6571">Hello ${esc(firstName||'there')},</p>
-<h1 style="margin:0 0 12px;font-size:22px;color:#0a7ea8">Your ${roleName} account is ready</h1>
-<p style="margin:0;font-size:15px;line-height:1.6">A CampusCare administrator created an account for you. Sign in with the details below. You will be asked to choose your own password right away.</p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;border-top:1px solid #e3eaef;border-bottom:1px solid #e3eaef">
-<tr><td style="padding:8px 0;color:#5b6b75;font-size:13px;width:150px">Username</td><td style="padding:8px 0;font-size:14px;font-weight:600">${esc(username)}</td></tr>
-<tr><td style="padding:8px 0;color:#5b6b75;font-size:13px">Email</td><td style="padding:8px 0;font-size:14px;font-weight:600">${esc(email)}</td></tr>
-<tr><td style="padding:8px 0;color:#5b6b75;font-size:13px">Temporary password</td><td style="padding:8px 0;font-size:16px;font-weight:700;font-family:Consolas,monospace;letter-spacing:.04em">${esc(password)}</td></tr>
-</table>
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:22px"><tr><td style="border-radius:10px;background:#0a7ea8"><a href="${APP}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none">Sign in to CampusCare</a></td></tr></table>
-<p style="margin:16px 0 0;font-size:12px;color:#4a6571">Do not share this password. If you did not expect this email, tell the clinic administrator.</p>
-</td></tr></table>
-<p style="max-width:560px;margin:14px auto 0;font-size:11px;color:#6b7f89;text-align:center">This is an automated CampusCare message.</p>
-</td></tr></table></body></html>`;
-  const text=`Hello ${firstName||'there'},\n\nYour CampusCare ${roleName} account is ready.\n\nUsername: ${username}\nEmail: ${email}\nTemporary password: ${password}\n\nSign in at ${APP} — you will be asked to choose your own password right away.\nDo not share this password.`;
+  const {html,text}=renderCampusCareEmail({title:`Your ${roleName} account is ready`,label:'New account',tone:'info',name:firstName||'there',
+    paragraphs:['A CampusCare administrator created an account for you. Sign in with the details below. You will be asked to choose your own password right away.'],
+    rows:[['Username',username],['Email',email],['Temporary password',password]],button:{label:'Sign in to CampusCare',url:APP},
+    note:'Do not share this password. If you did not expect this email, tell the clinic administrator.'});
   return {subject,html,text};
 }
 

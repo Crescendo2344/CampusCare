@@ -22,7 +22,6 @@ test('a decision needs full screening, exam findings and reasons',()=>{
   assert(fitnessAssessmentErrors({...base,examFindings:'',decision:'Fit to Compete'},today).exam);
   assert(fitnessAssessmentErrors({...base,decision:'Not Fit to Compete'},today).restrictions);
   assert(fitnessAssessmentErrors({...base,answers:{...allNo,syncope:'yes'},decision:'Fit to Compete'},today).restrictions);
-  assert(fitnessAssessmentErrors({...base,eventDate:'2026-10-01'},today).eventDate);
   assert(fitnessAssessmentErrors({...base,vitals:{hr:'7'}},today).hr);
 });
 

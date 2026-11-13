@@ -1,5 +1,5 @@
 // topbarAndNavigation: imported feature APIs; state belongs to explicit application namespaces.
-import {pagesHiddenFor} from '../domain/clinic-scope.js';
+import {certificateKindFor,certificateLabel,pagesHiddenFor} from '../domain/clinic-scope.js';
 import {state as appState} from '../app/state.js';
 import {escapeHtml,issueReportRecords} from './issueReports.js';
 import {navTo} from './navigationRaceProtection.js';
@@ -26,6 +26,12 @@ export function updateTopDate(){
     : now.toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 }
 
+// The certificates page is "Medical Certificates" or "Dental Certificates" depending on the user's clinic.
+export function navLabel(item){
+  if(item.id==='cert-requests')return certificateLabel(certificateKindFor(appState.auth.currentUser),true);
+  return item.label||item.id;
+}
+
 export function getTopSearchItems(){
   if(!appState.auth.currentUser)return[];
   const hidden=pagesHiddenFor(appState.auth.currentUser);
@@ -33,7 +39,7 @@ export function getTopSearchItems(){
     .filter(x=>x.id&&!hidden.includes(x.id))
     .map(x=>({
       id:x.id,
-      label:String(x.label||x.id).replace(/&amp;/g,'&'),
+      label:String(navLabel(x)).replace(/&amp;/g,'&'),
       aliases:appState.topbarAndNavigation.TOP_SEARCH_ALIASES[x.id]||[]
     }));
 }
@@ -241,7 +247,7 @@ export function applyNavBadges(){
       // Animate only when the number goes up, so a periodic refresh does not keep flashing.
       if(state.count>previous){badge.classList.remove('nav-badge-new');void badge.offsetWidth;badge.classList.add('nav-badge-new');}
       hidden.textContent=`, ${state.label}`;
-      btn.title=`${item.label.replace(/&amp;/g,'&')}: ${state.label}`;
+      btn.title=`${String(navLabel(item)).replace(/&amp;/g,'&')}: ${state.label}`;
     }else{
       badge?.remove();hidden?.remove();
       btn.removeAttribute('title');
@@ -352,7 +358,7 @@ export function buildNav(){
     const badge=item.badge?`<span class="nav-badge">${item.badge}</span>`:'';
     return`<button class="nav-item-btn" id="nav-${item.id}" ${bindAction('click',(event,element)=>{navTo((String(item.id)))})}>
       <i class="bi ${icon}" aria-hidden="true"></i>
-      ${item.label}${badge}
+      ${navLabel(item)}${badge}
     </button>`;
   }).join('');
 }
@@ -440,7 +446,7 @@ export function initializeFeature(){
     {id:'appointments',label:'Appointments'},
     {id:'treatments',label:'Treatments'},
     {id:'fitness',label:'Fitness Assessments'},
-    {id:'cert-requests',label:'Dental Certificate'},
+    {id:'cert-requests',label:'Medical Certificates'},
     {section:'Reports'},
     {id:'reports',label:'My Reports'},
     {section:'Account'},
@@ -454,7 +460,7 @@ export function initializeFeature(){
     {id:'patients',label:'Patient Records'},
     {id:'inventory',label:'Inventory'},
     {section:'Release'},
-    {id:'cert-requests',label:'Dental Certificate'},
+    {id:'cert-requests',label:'Medical Certificates'},
     {id:'fitness',label:'Fitness Assessments'},
     {section:'Content &amp; Insights'},
     {id:'health_education',label:'Health Education'},

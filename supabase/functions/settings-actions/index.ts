@@ -64,6 +64,12 @@ Deno.serve(async(req)=>{
       const privacyUpdated=body.privacy_policy_updated||current.privacy_policy_updated||new Date().toISOString().slice(0,10);
       const bookingLead=Math.max(0,Math.min(72,Number(body.booking_lead_hours??current.booking_lead_hours??24)));
       const scheduleNoticeDays=Math.max(0,Math.min(30,Number(body.schedule_change_notice_days??current.schedule_change_notice_days??3)));
+      const sessionTimeout=Math.max(5,Math.min(120,Number(body.session_timeout_minutes??current.session_timeout_minutes??30)));
+      // Lunch break: whole HH:MM times, start before end, within clinic hours.
+      const hhmm=(v:unknown)=>{const m=String(v??"").match(/^(\d{2}):(\d{2})/);return m?`${m[1]}:${m[2]}`:"";};
+      const lunchStart=hhmm(body.lunch_start??current.lunch_start??"12:00"),lunchEnd=hhmm(body.lunch_end??current.lunch_end??"13:00");
+      if(!lunchStart||!lunchEnd||lunchStart>=lunchEnd||lunchStart<"10:00"||lunchEnd>"15:00")
+        return json({error:"Set a lunch break that starts before it ends, between 10:00 AM and 3:00 PM."},400);
 
       const patch={
         clinic_name:clean(body.clinic_name??current.clinic_name,255),
@@ -80,15 +86,20 @@ Deno.serve(async(req)=>{
         privacy_policy_updated:privacyUpdated,
         schedule_change_notice_days:scheduleNoticeDays,
         booking_lead_hours:bookingLead,
+        session_timeout_minutes:sessionTimeout,
+        lunch_start:lunchStart,
+        lunch_end:lunchEnd,
         updated_by:actor.user_id,
         updated_at:new Date().toISOString()
       };
 
       // Critical changes must pass both the client review and this server boundary.
-      const criticalKeys=["clinic_name","address","contact_email","contact_number","dental_visit_limit_per_semester","appointment_reminder_days","booking_lead_hours","semester_start","semester_end","semester2_start","semester2_end"];
+      const criticalKeys=["clinic_name","address","contact_email","contact_number","dental_visit_limit_per_semester","appointment_reminder_days","booking_lead_hours","lunch_start","lunch_end","session_timeout_minutes","schedule_change_notice_days","semester_start","semester_end","semester2_start","semester2_end"];
       // A setting the record does not hold yet counts as its default, not as a change.
-      const defaults:Record<string,unknown>={booking_lead_hours:24};
-      const changed=criticalKeys.filter(key=>String(patch[key]??"")!==String(current[key]??defaults[key]??""));
+      const defaults:Record<string,unknown>={booking_lead_hours:24,session_timeout_minutes:30,schedule_change_notice_days:3,lunch_start:"12:00",lunch_end:"13:00"};
+      // Times come back from the database as HH:MM:SS; compare them as HH:MM.
+      const norm=(key:string,v:unknown)=>key.startsWith("lunch_")?hhmm(v):String(v??"");
+      const changed=criticalKeys.filter(key=>norm(key,patch[key])!==norm(key,current[key]??defaults[key]));
       if(changed.length&&body.critical_confirmation!==true)return json({error:"Review and confirm the critical settings changes before saving."},409);
       if(!patch.clinic_name||!Number.isInteger(reminderDays)||!Number.isInteger(dentalLimit)||!Number.isInteger(bookingLead))return json({error:"Enter valid clinic settings and whole-number limits."},400);
       const dates={semesterStart:patch.semester_start,semesterEnd:patch.semester_end,semester2Start:patch.semester2_start,semester2End:patch.semester2_end};
@@ -117,7 +128,9 @@ Deno.serve(async(req)=>{
           dental_visit_limit_per_semester:dentalLimit,
           privacy_policy_version:privacyVersion,
           privacy_policy_updated:privacyUpdated,
-          schedule_change_notice_days:scheduleNoticeDays
+          schedule_change_notice_days:scheduleNoticeDays,
+          session_timeout_minutes:sessionTimeout,
+          lunch_start:lunchStart,lunch_end:lunchEnd
         }
       });
 

@@ -43,6 +43,7 @@ export async function renderMyPatients(){
     <div class="toolbar">
       <input type="search" placeholder="Search name, ID or patient no." id="mypt-search" aria-label="Search your patients" ${bindAction('input',()=>renderMyPatientsTable())}>
       <select id="mypt-college" aria-label="College or department" ${bindAction('change',()=>renderMyPatientsTable())}>${unitFilterOptionsHtml('')}</select>
+      <select id="mypt-session" aria-label="Class session" ${bindAction('change',()=>renderMyPatientsTable())}><option value="">All class sessions</option><option value="Morning">Morning class</option><option value="Evening">Evening class</option></select>
     </div>
     <div class="card"><div id="mypt-table"></div></div>`;
   renderMyPatientsTable();
@@ -51,14 +52,15 @@ export async function renderMyPatients(){
 export function renderMyPatientsTable(){
   const q=((document.getElementById('mypt-search')||{}).value||'').trim().toLowerCase();
   const col=(document.getElementById('mypt-college')||{}).value||'';
+  const session=(document.getElementById('mypt-session')||{}).value||'';
   const all=(appState.doctorPatients.myPatients||[]).filter(({p})=>{
     const haystack=`${p.fname} ${p.lname} ${p.lname}, ${p.fname} ${p.idNo||''} P-${patientDisplayId(p)}`.toLowerCase();
-    return (!q||haystack.includes(q))&&(!col||p.college===col);
+    return (!q||haystack.includes(q))&&(!col||p.college===col)&&(!session||(p.personType==='Student'&&p.classSession===session));
   }).sort((a,b)=>(b.next?1:0)-(a.next?1:0)||String(a.next||'9').localeCompare(String(b.next||'9'))||String(b.last).localeCompare(String(a.last)));
   const el=document.getElementById('mypt-table');
   if(!el)return;
-  if(!all.length){el.innerHTML=`<div class="empty-state"><p>${q||col?'No patients match these filters.':'No patients yet.'}</p></div>`;return;}
-  const page=paginate('my-patients',all,{signature:q+'|'+col});
+  if(!all.length){el.innerHTML=`<div class="empty-state"><p>${q||col||session?'No patients match these filters.':'No patients yet.'}</p></div>`;return;}
+  const page=paginate('my-patients',all,{signature:q+'|'+col+'|'+session});
   el.innerHTML=`<div class="table-wrap"><table class="patient-records-table"><thead><tr><th>Patient</th><th>College / Dept.</th><th>Type</th><th>Blood</th><th>Last visit</th><th>Next visit</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${
     page.rows.map(({p,last,next})=>{
       const allergy=patientData.hasAllergyAlert(p.allergies);

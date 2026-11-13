@@ -65,3 +65,18 @@ test('real Nodemailer delivers the message to an SMTP server',async()=>{
     assert.match(received[0].raw,/Subject: Reminder/);assert.match(received[0].raw,/Bring your COR/);
   }finally{await new Promise(r=>server.close(r));}
 });
+test('header logos referenced as cid: are attached inline on both transports',async()=>{
+  const {renderCampusCareEmail}=await import('../supabase/functions/_shared/email-layout.js');
+  const {html}=renderCampusCareEmail({title:'Test',paragraphs:['Hello']});
+  assert.match(html,/cid:campuscare-logo/);assert.match(html,/cid:ctu-seal/);
+  let smtpMail;
+  const smtp=createMailer({env:n=>({RESEND_API_KEY:'re_x',CAMPUSCARE_EMAIL_FROM:'CampusCare <a@example.test>'}[n]),createTransport:()=>({sendMail:async m=>{smtpMail=m;return {messageId:'1'};}})});
+  await smtp.send({to:'b@example.test',subject:'s',html});
+  assert.deepEqual(smtpMail.attachments.map(a=>a.cid).sort(),['campuscare-logo','ctu-seal']);
+  let apiBody;
+  const api=createMailer({env:n=>({RESEND_API_KEY:'re_x',CAMPUSCARE_EMAIL_FROM:'CampusCare <a@example.test>',EMAIL_TRANSPORT:'api'}[n]),createTransport:()=>{throw new Error('unused');},
+    request:async(url,init)=>{apiBody=JSON.parse(init.body);return {ok:true,json:async()=>({id:'2'})};}});
+  await api.send({to:'b@example.test',subject:'s',html});
+  assert.deepEqual(apiBody.attachments.map(a=>a.content_id).sort(),['campuscare-logo','ctu-seal']);
+  await api.send({to:'b@example.test',subject:'s',html:'<p>plain</p>'});assert.equal(apiBody.attachments,undefined);
+});

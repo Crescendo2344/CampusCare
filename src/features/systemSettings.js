@@ -1,3 +1,4 @@
+import {setLetterheadContact} from '../shared/ctu-letterhead.js';
 import {createFeatureSyncService} from '../services/feature-sync.js';
 // systemSettings: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
@@ -11,12 +12,15 @@ export async function settingsAction(payload){return createOperationalService({g
 
 export async function syncPublicSystemSettings(){
   const settings=await createFeatureSyncService({getState:()=>appState,callbacks:{configureSessionGuard}}).syncPublicSystemSettings();
+  setLetterheadContact(appState.data.DB.settings);
   if(appState.auth.currentUser?._realSupabase&&settings)saveWarm('settings',settings);
   return settings;
 }
 
 export async function syncRealSystemSettings(){
-  return createFeatureSyncService({getState:()=>appState,callbacks:{settingsAction}}).syncRealSystemSettings();
+  const result=await createFeatureSyncService({getState:()=>appState,callbacks:{settingsAction}}).syncRealSystemSettings();
+  setLetterheadContact(appState.data.DB.settings);
+  return result;
 }
 
 export async function saveRealSystemSettings(s=appState.data.DB.settings,confirmed=false){
@@ -35,6 +39,10 @@ export async function saveRealSystemSettings(s=appState.data.DB.settings,confirm
     dental_visit_limit_per_semester:Number(s.dentalLimitPerSemester||1),
     appointment_reminder_days:Number(s.appointmentReminderDays??1),
     booking_lead_hours:Number(s.bookingLeadHours??24),
+    session_timeout_minutes:Number(s.sessionTimeoutMinutes??30),
+    lunch_start:s.lunchBreakStart||'12:00',
+    lunch_end:s.lunchBreakEnd||'13:00',
+    schedule_change_notice_days:Number(s.scheduleChangeNoticeDays??3),
     privacy_policy_version:s.privacyPolicyVersion||'1.0',
     privacy_policy_updated:s.privacyPolicyUpdated||appState.clinicInformation.TODAY
   });
@@ -45,5 +53,6 @@ export async function saveRealSystemSettings(s=appState.data.DB.settings,confirm
 
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
+  setLetterheadContact(appState.data.DB?.settings||{});
 
 }
