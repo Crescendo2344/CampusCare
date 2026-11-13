@@ -1516,6 +1516,13 @@ try{
     const meter=page.locator('#profile-strength');await meter.waitFor();
     assert.match(await meter.locator('.ps-ring').getAttribute('aria-label'),/Profile \d+% complete/);
     if(process.env.CAMPUSCARE_VISUAL_DIR)await meter.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/profile-strength-${mobile?'mobile':'desktop'}.png`});
+    // Patients finish verification themselves: the form asks only for what is missing and checks it.
+    await meter.getByRole('button',{name:'Finish verification'}).click();
+    const form=page.locator('.fv-modal');await form.waitFor();
+    await form.getByRole('button',{name:'Save',exact:true}).click();
+    assert(await form.locator('.registration-field-error:not([hidden])').count()>0,'Empty details are flagged');
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await form.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/finish-verification-${mobile?'mobile':'desktop'}.png`});
+    await form.getByRole('button',{name:'Later'}).click();
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('my-appointments'));
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('health_education'));
     await page.goBack();

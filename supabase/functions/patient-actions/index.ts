@@ -78,7 +78,7 @@ Deno.serve(async(req)=>{
     // background, plus course and major when they shift. Identity fields stay with the clinic.
     if(action==="self_update"){
       if(actor.role!=="Patient")return json({error:"Only patients can update their own health details."},403);
-      const {data:own,error:ownErr}=await admin.from("patients").select("patient_id,archived_at").eq("user_id",actor.user_id).maybeSingle();
+      const {data:own,error:ownErr}=await admin.from("patients").select("patient_id,archived_at,birth_date,sex").eq("user_id",actor.user_id).maybeSingle();
       if(ownErr)throw ownErr;
       if(!own)return json({error:"Your patient record was not found."},404);
       if(own.archived_at)return json({error:"Your patient record is archived. Please contact the clinic."},409);
@@ -90,7 +90,27 @@ Deno.serve(async(req)=>{
         normalizedEmergency=normalizePhilippineMobile(emergencyNumber);
         if(!normalizedEmergency)return json({error:"Enter the emergency contact number as 09XXXXXXXXX or +639XXXXXXXXX.",field_errors:{emergency_contact_number:"Use 09XXXXXXXXX or +639XXXXXXXXX."}},400);
       }
+      // Finishing profile verification: the class session (students), and the date of birth and sex
+      // when the record does not have them yet. Once set, those two are corrected by the clinic.
+      const extra:Record<string,unknown>={};
+      if(body.class_session!==undefined){
+        const {data:me}=await admin.from("users").select("person_type").eq("user_id",actor.user_id).maybeSingle();
+        const session=clean(body.class_session,20);
+        if(session&&!["Morning","Evening"].includes(session))return json({error:"Choose Morning or Evening class.",field_errors:{class_session:"Choose Morning or Evening."}},400);
+        if(me?.person_type==="Student")extra.class_session=session||null;
+      }
+      if(body.birth_date!==undefined&&!own.birth_date){
+        const birth=clean(body.birth_date,10),today=new Date().toISOString().slice(0,10);
+        if(birth&&(!/^\d{4}-\d{2}-\d{2}$/.test(birth)||birth>today||birth<"1920-01-01"))return json({error:"Enter a valid date of birth.",field_errors:{birth_date:"Enter a valid date of birth."}},400);
+        if(birth)extra.birth_date=birth;
+      }
+      if(body.sex!==undefined&&!own.sex){
+        const sex=clean(body.sex,10);
+        if(sex&&!["Male","Female"].includes(sex))return json({error:"Choose Male or Female.",field_errors:{sex:"Choose Male or Female."}},400);
+        if(sex)extra.sex=sex;
+      }
       const {error:selfErr}=await admin.from("patients").update({
+        ...extra,
         address:clean(body.address,300)||null,
         emergency_contact_name:clean(body.emergency_contact_name,100)||null,
         emergency_contact_number:normalizedEmergency,

@@ -161,11 +161,12 @@ Deno.serve(async(req)=>{
       const documentContent=clean(body.document_content,90000);
       const findings=clean(body.examination_findings,5000)||extractCertificateField(documentContent,"findings");
       const remarks=clean(body.remarks,5000)||extractCertificateField(documentContent,"remarks");
+      // The printed certificate is signed by hand (wet signature) after printing, so no e-signature is needed.
       const signatureData=clean(body.signature_data,180000);
-      const saveSignature=Boolean(body.save_signature);
+      const saveSignature=Boolean(body.save_signature)&&Boolean(signatureData);
 
-      if(!certificateId||!findings||!documentContent||!signatureData)
-        return json({error:"Findings, document content, and physician signature are required."},400);
+      if(!certificateId||!findings||!documentContent)
+        return json({error:"Findings and document content are required."},400);
 
       const existing=await loadOwn(certificateId);
       if(!existing)return json({error:"Certificate draft not found."},404);
@@ -181,7 +182,7 @@ Deno.serve(async(req)=>{
       const {error}=await admin.from("medical_certificates")
         .update({
           certificate_no:certNo,examination_findings:findings,remarks:remarks||null,
-          document_content:documentContent,signature_url:signatureData,status:"Issued",
+          document_content:documentContent,signature_url:signatureData||null,status:"Issued",
           issued_at:now,signed_by:actor.user_id,signed_at:now,updated_at:now
         })
         .eq("certificate_id",certificateId);
@@ -196,7 +197,7 @@ Deno.serve(async(req)=>{
         await admin.from("notifications").insert({
           user_id:patient.user_id,
           title:"Medical Certificate Ready",
-          message:`Your medical certificate (${certNo}) has been signed and issued. You may collect the printed copy at the clinic.`,
+          message:`Your medical certificate (${certNo}) has been issued. You may collect the signed printed copy at the clinic.`,
           type:"Certificate",channel:"In-app",delivery_status:"Created",action_page:null
         });
       }

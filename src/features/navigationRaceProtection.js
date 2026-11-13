@@ -56,6 +56,10 @@ export function recordPageHistory(id,historyMode){
     window.history.pushState({...window.history.state,campuscareNavigation:{account,page:id,index:previous.index+1}},'');
   }
 }
+// The open page survives a refresh: it is kept for this browser tab only (a page name, no records).
+const pageKey=()=>appState.auth.currentUser?`campuscare.page.${appState.auth.currentUser.id}`:'';
+export function rememberedPage(){try{return pageKey()&&sessionStorage.getItem(pageKey())||'';}catch{return '';}}
+function rememberPage(id){try{if(pageKey())sessionStorage.setItem(pageKey(),id);}catch{/* storage unavailable */}}
 // Old links to removed pages (messages; the patient certificate page) land on the dashboard.
 const RETIRED_PAGES=new Set(['messages','my-certificates','certificates']);
 export function navTo(id,{historyMode='push'}={}){
@@ -66,6 +70,7 @@ export function navTo(id,{historyMode='push'}={}){
   const allowed=(appState.topbarAndNavigation.NAV_CONFIG?.[appState.auth.currentUser.role]||[]).map(item=>item.id).filter(id=>id&&!hiddenPages.includes(id));
   if(allowed.length&&!allowed.includes(id))id='dashboard';
   recordPageHistory(id,historyMode);
+  rememberPage(id);
   if(window.innerWidth<=768) toggleSidebar(false);
   document.querySelectorAll('[id^="nav-"]').forEach(el=>el.classList.remove('active'));
   const btn=document.getElementById('nav-'+id);

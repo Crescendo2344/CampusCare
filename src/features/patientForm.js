@@ -1,3 +1,5 @@
+import {isDentalTreatment} from './treatmentForm.js';
+import {clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
 // patientForm: imported feature APIs; state belongs to explicit application namespaces.
 import {printCtuDocument} from '../shared/ctu-letterhead.js';
 import {state as appState} from '../app/state.js';
@@ -322,7 +324,10 @@ export async function viewPatient(id){
   }
   const today=appState.clinicInformation.TODAY;
   const byNewest=(a,b)=>String(b).localeCompare(String(a));
-  const treats=treatmentRecords().filter(t=>t.patientId===id&&!t.archived).sort((a,b)=>byNewest(a.date,b.date));
+  // A doctor sees the visits of their own clinic: a Medical Clinic doctor does not see dental records.
+  const me=appState.auth.currentUser,myClinic=me.role==='Doctor'?clinicForSpecialization(me.specialty):'';
+  const treats=treatmentRecords().filter(t=>t.patientId===id&&!t.archived)
+    .filter(t=>!myClinic||(isDentalTreatment(t)?'Dental Clinic':'Medical Clinic')===myClinic).sort((a,b)=>byNewest(a.date,b.date));
   const appts=appointmentRecords().filter(a=>a.patientId===id).sort((a,b)=>byNewest(a.date+(a.time||''),b.date+(b.time||'')));
   // Certificates are the issuing doctor's records; other roles do not see them here.
   const showCerts=appState.auth.currentUser.role==='Doctor';
