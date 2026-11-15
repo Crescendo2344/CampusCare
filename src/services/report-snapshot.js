@@ -27,7 +27,7 @@ export async function loadReportSnapshot(client,role){
   if(!['Administrator','Staff','Doctor'].includes(role))throw new Error('Clinical reports access required.');
   const stockAccess=['Administrator','Staff'].includes(role);
   const [users,patients,appointments,treatments,inventory,transactions]=await Promise.all([
-    readReportPages(client,'users','user_id,first_name,last_name,role,person_type,college','user_id'),
+    readReportPages(client,'users','user_id,first_name,last_name,role,person_type,college,id_number','user_id'),
     readReportPages(client,'patients','patient_id,user_id,class_session,sex,blood_type,archived_at','patient_id'),
     readReportPages(client,'appointments','appointment_id,patient_id,doctor_id,clinic,service,appointment_date,appointment_time,status','appointment_id'),
     stockAccess?readTreatmentFactPages(client):readReportPages(client,'treatments','treatment_id,patient_id,doctor_id,appointment_id,diagnosis,treatment_date,status,archived_at','treatment_id'),

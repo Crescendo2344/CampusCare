@@ -9,7 +9,8 @@ import * as stockData from '../domain/inventory-status.js';
 import {archiveInv,openDisbursementModal,openInvModal,openUpdateQtyModal,restoreInv} from './inventoryForms.js';
 import {fmtDate} from './inputValidation.js';
 import {bindAction} from '../dependencies.js';
-import {csvFileName,downloadCsv} from '../shared/csv.js';
+import {csvFileName} from '../shared/csv.js';
+import {downloadTable} from './downloadFormats.js';
 import {itemsOnOrder,itemsToOrder,loadStockOrders,ordersPanelHtml,renderOrdersTable} from './stockOrders.js';
 // ================================================================
 // INVENTORY
@@ -54,7 +55,7 @@ export async function renderInventory(){
       <div class="card-header">
         <h3>Items</h3>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          <button class="btn btn-sm" ${bindAction('click',()=>exportInventoryCsv())}><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>
+          <button class="btn btn-sm" ${bindAction('click',()=>exportInventoryCsv())}><i class="bi bi-download" aria-hidden="true"></i> Download</button>
           ${canEdit?`<button class="btn btn-success btn-sm" ${bindAction('click',()=>openDisbursementModal())}><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Disburse Items</button>
           <button class="btn btn-primary btn-sm" ${bindAction('click',()=>openInvModal())}>+ Add Item</button>`:''}
         </div>
@@ -143,7 +144,7 @@ function filteredItems(){
 
 export function exportInventoryCsv(){
   const rows=filteredItems().map(i=>({...i,displayId:inventoryDisplayId(i)}));
-  downloadCsv(csvFileName('inventory',appState.clinicInformation.TODAY),stockData.inventoryCsv(rows,appState.clinicInformation.TODAY));
+  downloadTable(csvFileName('inventory',appState.clinicInformation.TODAY),stockData.inventoryCsv(rows,appState.clinicInformation.TODAY));
 }
 
 export {itemAvatarHtml};

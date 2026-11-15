@@ -193,14 +193,44 @@ export function updateRecoveryPasswordStrength(){
   renderPasswordStrength(el,label,input.value);
 }
 
+// True only for a session opened by a password-reset link (its token says how the person signed in).
+export function isRecoverySession(session){
+  try{
+    const part=String(session?.access_token||'').split('.')[1]||'';
+    const claims=JSON.parse(atob(part.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(part.length/4)*4,'=')));
+    return Array.isArray(claims.amr)&&claims.amr.some(entry=>entry?.method==='recovery');
+  }catch{return false;}
+}
+
+// Reset links arrive in three shapes depending on the email template and browser:
+// tokens in the URL fragment (handled by the SDK), ?token_hash=…&type=recovery, or ?code=….
+// The last two must be exchanged here, once.
+let linkExchange=null;
+function exchangeResetLink(client){
+  if(linkExchange)return linkExchange;
+  const params=new URLSearchParams(window.location.search);
+  const tokenHash=params.get('token_hash'),code=params.get('code');
+  linkExchange=(async()=>{
+    try{
+      if(tokenHash)await client.auth.verifyOtp({token_hash:tokenHash,type:params.get('type')||'recovery'});
+      else if(code)await client.auth.exchangeCodeForSession(code);
+    }catch(error){console.error('Reset link exchange:',error);}
+  })();
+  return linkExchange;
+}
+
 export async function getRecoverySession(){
   if(!initializeSupabaseClient())return null;
+  const client=appState.supabaseClient.supabaseClient;
+  await exchangeResetLink(client);
 
   // Supabase may still be consuming the URL hash when the page first loads,
   // so retry briefly before declaring the recovery link invalid.
+  // A normal signed-in session on this device does not count: without the reset link's own
+  // session the new password would be rejected, so the form must not look ready.
   for(let attempt=0;attempt<5;attempt++){
-    const {data:{session}}=await appState.supabaseClient.supabaseClient.auth.getSession();
-    if(session?.user)return session;
+    const {data:{session}}=await client.auth.getSession();
+    if(session?.user&&isRecoverySession(session))return session;
     await new Promise(resolve=>setTimeout(resolve,250));
   }
   return null;
@@ -287,7 +317,7 @@ export async function submitNewPassword(){
     if(!recoverySession){
       const newLinkBtn=document.getElementById('fp-new-link-btn');
       if(newLinkBtn)newLinkBtn.style.display='block';
-      throw new Error('This password-reset link is invalid or has expired. Please request a new reset link.');
+      throw new Error('This password-reset link has already been used or has expired. Request a new link and open the newest email.');
     }
 
     // Enforce the 7-day password-change rule on the server as well.
@@ -360,10 +390,9 @@ export async function handleCampusCareAuthCallback(){
     const newLinkBtn=document.getElementById('fp-new-link-btn');
 
     if(!recoverySession){
-      showAlert(err,'This password-reset link is invalid or has expired. Please request a new reset link.');
+      showAlert(err,'This password-reset link has already been used or has expired. Request a new link and open the newest email.');
       if(newLinkBtn)newLinkBtn.style.display='block';
-      const updateBtn=document.getElementById('fp-update-btn');
-      if(updateBtn)updateBtn.disabled=true;
+      for(const id of ['fp-update-btn','fp-newpass','fp-newpass2']){const el=document.getElementById(id);if(el)el.disabled=true;}
     }else{
       hideAlert(err);
       if(newLinkBtn)newLinkBtn.style.display='none';

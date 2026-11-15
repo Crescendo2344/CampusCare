@@ -15,7 +15,8 @@ import {databaseSkeletonHtml} from './loadingSkeletons.js';
 import {bindAction,createInventoryService,inventoryData} from '../dependencies.js';
 import {aiInsightsPanelHtml,mountAiInsights} from '../reports/ai-insights.js';
 import {DEFAULT_HORIZON,FORECAST_PRESETS,MAX_HORIZON,MIN_HORIZON,clampHorizon,projectItem} from '../domain/inventory-projection.js';
-import {csvDate,csvFileName,csvReadableDate,downloadCsv,toCsv} from '../shared/csv.js';
+import {csvDate,csvFileName,csvReadableDate,toCsv} from '../shared/csv.js';
+import {downloadTable} from './downloadFormats.js';
 // Compatibility adapters own application state; the data modules receive explicit dependencies.
 // Item photo or placeholder; either opens a larger view, with a shortcut to add a photo.
 export function itemAvatarHtml(item,size=36){
@@ -216,7 +217,7 @@ export function forecastSectionHtml(){
   const controls=`<div class="fc-controls">
     <div class="fc-presets" role="group" aria-label="Forecast period">${FORECAST_PRESETS.map(([d,label])=>`<button type="button" class="fc-preset ${d===days?'active':''}" aria-pressed="${d===days}" ${bindAction('click',()=>setForecastDays(d))}>${label}</button>`).join('')}</div>
     <label class="fc-custom">Custom <input type="number" id="fc-days" min="${MIN_HORIZON}" max="${MAX_HORIZON}" value="${isPreset?'':days}" placeholder="${MIN_HORIZON}–${MAX_HORIZON}" aria-label="Custom forecast period in days" ${bindAction('change',(event,element)=>setForecastDays(element.value))} ${bindAction('keydown',(event,element)=>{if(event.key==='Enter'){event.preventDefault();setForecastDays(element.value);}})}> days</label>
-    <button type="button" class="btn btn-sm" ${rows.length?'':'disabled'} ${bindAction('click',()=>openForecastCsvDialog())}><i class="bi bi-download" aria-hidden="true"></i> Download CSV</button>
+    <button type="button" class="btn btn-sm" ${rows.length?'':'disabled'} ${bindAction('click',()=>openForecastCsvDialog())}><i class="bi bi-download" aria-hidden="true"></i> Download</button>
   </div>`;
   if(!rows.length)return controls+'<div class="tech-note">Add inventory items and record disbursements to generate a forecast.</div>';
   const periods=rows[0].p.periods;
@@ -270,7 +271,7 @@ const FORECAST_COLUMNS=[
 export function openForecastCsvDialog(){
   const days=forecastDays();
   openModal(`<div class="modal modal-sm fc-csv" role="dialog" aria-labelledby="fc-csv-title">
-    <div class="modal-header"><h3 id="fc-csv-title">Download forecast CSV</h3><button class="close-btn" ${bindAction('click',()=>closeTopModal())}>✕</button></div>
+    <div class="modal-header"><h3 id="fc-csv-title">Download forecast</h3><button class="close-btn" ${bindAction('click',()=>closeTopModal())}>✕</button></div>
     <div class="modal-body">
       <fieldset class="fc-field"><legend>Layout</legend>
         <label><input type="radio" name="fc-layout" value="summary" checked> One row per item</label>
@@ -306,9 +307,8 @@ export function downloadForecastCsv(){
   }else{
     table=[['Item Name',...columns.map(([,,,header])=>header)],...rows.map(r=>[r.item.name,...columns.map(([key])=>value[key](r))])];
   }
-  downloadCsv(csvFileName(`inventory forecast ${days} days from ${start}`),toCsv(table));
   closeTopModal();
-  toast('Forecast CSV downloaded.','success');
+  downloadTable(csvFileName(`inventory forecast ${days} days from ${start}`),toCsv(table));
 }
 
 export function predictiveInventorySummaryHtml(){

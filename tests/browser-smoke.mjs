@@ -1039,17 +1039,16 @@ try{
     assert.equal(await page.locator('#active-modal').getByRole('button',{name:'Add photo'}).count(),await page.evaluate(()=>['Staff','Administrator'].includes(window.__fixtureApp.state.auth.currentUser.role))?1:0);
     await page.locator('#active-modal .close-btn').click();
     await page.locator('.fc-preset',{hasText:'3 months'}).click();
-    await page.getByRole('button',{name:'Download CSV'}).click();
+    await page.locator('.fc-controls').getByRole('button',{name:'Download',exact:true}).click();
     await page.locator('.fc-csv').waitFor();
     await page.locator('input[name="fc-layout"][value="detailed"]').check();
     await page.locator('input[name="fc-col"][value="category"]').uncheck();
-    const [forecastCsv]=await Promise.all([page.waitForEvent('download'),page.locator('.fc-csv').getByRole('button',{name:'Download',exact:true}).click()]);
-    assert.match(forecastCsv.suggestedFilename(),/^campuscare-inventory-forecast-90-days-from-\d{4}-\d{2}-\d{2}\.csv$/);
-    const forecastText=(await import('node:fs')).readFileSync(await forecastCsv.path(),'utf8');
-    assert(forecastText.startsWith('\ufeff'),'UTF-8 marker for Excel');
-    const forecastLines=forecastText.slice(1).trimEnd().split('\r\n');
-    assert.match(forecastLines[0],/^Item Name,Item: No\.,Item: Unit,Stock: On Hand,Stock: Reorder Level,Period: Start,Period: End,Period: Projected Use,Period: Stock Left$/);
-    assert(forecastLines.length>=4,'One row per item per month');
+    // Every list download offers Excel, Word and PDF; the forecast keeps its layout options first.
+    await page.locator('.fc-csv').getByRole('button',{name:'Download',exact:true}).click();
+    const formats=page.locator('.dl-formats');await formats.waitFor();
+    assert.deepEqual(await formats.locator('strong').allInnerTexts(),['Excel','Word','PDF']);
+    const [forecastDoc]=await Promise.all([page.waitForEvent('download'),formats.getByRole('button',{name:/Word/}).click()]);
+    assert.match(forecastDoc.suggestedFilename(),/^Inventory_forecast_90_days.*\.docx?$/);
   }
   if(role==='Administrator'&&!mobile){
     // Signed-in devices list each session; other devices can be signed out one by one.
@@ -1305,7 +1304,7 @@ try{
     // Sortable columns announce their order; the export covers the filtered list.
     await page.locator('#pt-table th').getByRole('button',{name:/Patient/}).click();
     assert.equal(await page.locator('#pt-table th[aria-sort="descending"]').count(),1);
-    assert.equal(await page.getByRole('button',{name:/Export CSV/}).count(),1);
+    assert.equal(await page.locator('.toolbar').getByRole('button',{name:'Download',exact:true}).count(),1);
     await page.locator('#pt-table').getByRole('button',{name:'View',exact:true}).click();
     for(const label of ['Allergies','Medical History'])assert.equal(await page.locator('.info-row').filter({has:page.locator('.info-label',{hasText:label})}).locator('.info-val').innerText(),'—');
     // Chart layout: identity banner, no allergy alert without allergies, and five keyboard-navigable tabs.
@@ -1368,6 +1367,11 @@ try{
     assert.match(await page.locator('.report-result').innerText(),/Record count by College and Clinic/);
     assert.equal(await page.locator('.report-answer>strong').innerText(),'2');
     assert.equal(await page.locator('.report-result table').first().locator('tbody tr').count(),2);
+    // Records with the person's name and ID number are shown open and are what downloads by default.
+    assert(await page.locator('.report-details[open]').count(),'Matching records with names are open');
+    assert.deepEqual(await page.locator('.report-details thead th').allInnerTexts().then(h=>h.slice(0,2).map(t=>t.toLowerCase())),['name','id no.']);
+    assert('Record: Name' in await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]));
+    await page.locator('#rpt-export-scope').selectOption('summary');
     assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['Result: Record count']),1);
     await page.locator('#rpt-split').selectOption('status');
     assert(await page.locator('#rpt-stale').isVisible());

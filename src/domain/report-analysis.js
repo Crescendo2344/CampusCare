@@ -7,7 +7,7 @@ export const reportDefinitions={
   inventory:{label:'Inventory',groups:['category','stock','item'],measures:['count','onhand']},
   medicine_use:{label:'Medicine consumption',groups:['month','week','date','item','category'],measures:['quantity','count']}
 };
-export const reportLabels={month:'Month',week:'Week starting Monday',date:'Day',clinic:'Clinic',status:'Status',college:'College',personType:'Person type',classSession:'Class session',sex:'Sex',doctor:'Doctor',diagnosis:'Diagnosis',service:'Service / procedure',quantity:'Quantity used',onhand:'Quantity on hand',blood:'Blood type',category:'Category',stock:'Stock level',item:'Item',count:'Record count',patients:'Unique patients',value:'Stock value (₱)'};
+export const reportLabels={patient:'Name',idNo:'ID No.',id:'Record No.',month:'Month',week:'Week starting Monday',date:'Day',clinic:'Clinic',status:'Status',college:'College',personType:'Person type',classSession:'Class session',sex:'Sex',doctor:'Doctor',diagnosis:'Diagnosis',service:'Service / procedure',quantity:'Quantity used',onhand:'Quantity on hand',blood:'Blood type',category:'Category',stock:'Stock level',item:'Item',count:'Record count',patients:'Unique patients',value:'Stock value (₱)'};
 export const isoDay=value=>String(value||'').slice(0,10);
 export function validDay(day){return /^\d{4}-\d{2}-\d{2}$/.test(day)&&!Number.isNaN(Date.parse(day+'T00:00:00Z'))&&new Date(day+'T00:00:00Z').toISOString().slice(0,10)===day;}
 export function offsetDay(day,amount){return new Date(Date.parse(day+'T00:00:00Z')+amount*86400000).toISOString().slice(0,10);}

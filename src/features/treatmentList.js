@@ -13,7 +13,8 @@ import {viewPatient} from './patientForm.js';
 import {fmtDate} from './inputValidation.js';
 import {docName} from './displayNames.js';
 import {bindAction} from '../dependencies.js';
-import {csvColumn,csvDate,csvFileName,downloadCsv,templateCsv} from '../shared/csv.js';
+import {csvColumn,csvDate,csvFileName,templateCsv} from '../shared/csv.js';
+import {downloadTable} from './downloadFormats.js';
 // ================================================================
 // TREATMENTS
 // ================================================================
@@ -52,7 +53,7 @@ export async function renderTreatments(){
         <option value="archived">Archived records</option>
         <option value="all">All records</option>
       </select>
-      <button class="btn btn-sm" ${bindAction('click',()=>exportTreatmentsCsv())}><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>
+      <button class="btn btn-sm" ${bindAction('click',()=>exportTreatmentsCsv())}><i class="bi bi-download" aria-hidden="true"></i> Download</button>
       ${canAdd?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>{openAddTreatmentModalPt(null)})}>+ Record visit</button>`:''}
     </div>
     <p class="patient-filter-summary" id="tr-summary" role="status" aria-live="polite"></p>
@@ -94,7 +95,7 @@ export function exportTreatmentsCsv(){
     csvColumn('Follow-up','Date',t=>csvDate(t.followupDate)),
     csvColumn('Record','Status',t=>t.archived?'Archived':'Active')
   ],rows);
-  downloadCsv(csvFileName('treatments',appState.clinicInformation.TODAY),csv);
+  downloadTable(csvFileName('treatments',appState.clinicInformation.TODAY),csv);
 }
 
 export function renderTreatTable(){
