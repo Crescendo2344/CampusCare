@@ -129,12 +129,14 @@ export function emergencyContactNumberError(value,ownContact=''){
 }
 
 // Field messages for the health and emergency details, keyed like registrationDetailErrors.
+const given=value=>String(value??'').trim()!=='';
 export function registrationHealthErrors(details){
   const errors={
-    blood_type:bloodTypeValidationError(details.blood_type),
-    height_cm:heightValidationError(details.height_cm),
-    weight_kg:weightValidationError(details.weight_kg),
-    allergies:allergiesValidationError(details.allergies),
+    // Optional at registration: checked only when filled in.
+    blood_type:given(details.blood_type)?bloodTypeValidationError(details.blood_type):'',
+    height_cm:given(details.height_cm)?heightValidationError(details.height_cm):'',
+    weight_kg:given(details.weight_kg)?weightValidationError(details.weight_kg):'',
+    allergies:given(details.allergies)?allergiesValidationError(details.allergies):'',
     emergency_contact_name:emergencyContactNameError(details.emergency_contact_name),
     emergency_contact_number:emergencyContactNumberError(details.emergency_contact_number,details.contact_number)
   };

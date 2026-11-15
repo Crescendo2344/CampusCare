@@ -42,7 +42,7 @@ test('health and emergency details have the same rules in the browser and on the
   const {registrationHealthErrors}=await import('../supabase/functions/_shared/registration-validation.js');
   const valid={blood_type:'Unknown',height_cm:'165.5',weight_kg:'60',allergies:'None',emergency_contact_name:"Ma. Clara O'Neil",emergency_contact_number:'+639171234567',contact_number:'09181234567'};
   assert.deepEqual(registrationHealthErrors(valid),{});
-  assert.deepEqual(Object.keys(registrationHealthErrors({})).sort(),['allergies','blood_type','emergency_contact_name','emergency_contact_number','height_cm','weight_kg']);
+  assert.deepEqual(Object.keys(registrationHealthErrors({})).sort(),['emergency_contact_name','emergency_contact_number']);
   assert.match(registrationHealthErrors({...valid,height_cm:'abc'}).height_cm,/number/);
   assert.match(registrationHealthErrors({...valid,weight_kg:'301'}).weight_kg,/between 20 and 300/);
   assert.match(registrationHealthErrors({...valid,allergies:'x'.repeat(301)}).allergies,/300/);

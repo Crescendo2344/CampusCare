@@ -289,8 +289,8 @@ export async function doRegister() {
   const dob=document.getElementById('r-dob').value;
   const sex=document.getElementById('r-sex').value;
   const bloodType=document.getElementById('r-blood').value;
-  const heightCm=Number(document.getElementById('r-height').value);
-  const weightKg=Number(document.getElementById('r-weight').value);
+  const heightCm=document.getElementById('r-height').value;
+  const weightKg=document.getElementById('r-weight').value;
   const allergies=document.getElementById('r-allergies').value.trim();
   const emergencyName=document.getElementById('r-ename').value.trim();
   const emergencyNumber=normalizePhilippineMobile(document.getElementById('r-econtact').value.trim());
@@ -331,10 +331,11 @@ export async function doRegister() {
     verification_document_type:ptype==='Student'?'Student ID':'Employee ID',
     date_of_birth:dob,
     sex,
-    blood_type:bloodType,
-    height_cm:heightCm,
-    weight_kg:weightKg,
-    allergies,
+    // Health details are optional here; anything left blank is filled in later.
+    ...(bloodType?{blood_type:bloodType}:{}),
+    ...(heightCm?{height_cm:Number(heightCm)}:{}),
+    ...(weightKg?{weight_kg:Number(weightKg)}:{}),
+    ...(allergies?{allergies}:{}),
     emergency_contact_name:emergencyName,
     emergency_contact_number:emergencyNumber,
     privacy_consent:true,
