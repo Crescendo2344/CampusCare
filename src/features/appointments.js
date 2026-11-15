@@ -25,7 +25,8 @@ import {bindAction} from '../dependencies.js';
 import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {canManageSlots,openSlotManager} from './slotManager.js';
 import {canDeclareEmergency,openEmergencyModal,openReappointModal,queueNumber} from './reappointment.js';
-import {csvDate,csvFileName,csvTime,downloadCsv} from '../shared/csv.js';
+import {csvDate,csvFileName,csvTime} from '../shared/csv.js';
+import {downloadTable} from './downloadFormats.js';
 import {openTriageVitalsModal,triageVitalsChipHtml} from './triageVitals.js';
 import {hasTriageVitals} from '../../supabase/functions/_shared/triage-vitals.js';
 // ================================================================
@@ -69,7 +70,7 @@ export async function renderAppointments(){
       </select>`}
       ${doctors.length?`<select id="appt-doctor" aria-label="Doctor" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}><option value="">All doctors</option>${doctors.map(d=>`<option value="${d.id}">Dr. ${escapeHtml(d.fname+' '+d.lname)}</option>`).join('')}</select>`:''}
       <div class="appt-range-filter"><input type="hidden" id="appt-date-from"><input type="hidden" id="appt-date-to"><button type="button" class="modern-date-btn" aria-label="Filter by date range" ${bindAction('click',()=>{openApptRangePicker()})}><i class="bi bi-calendar3" aria-hidden="true"></i><span id="appt-range-label">All dates</span></button></div>
-      <button class="btn btn-sm" ${bindAction('click',()=>exportAppointmentsCsv())}><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>
+      <button class="btn btn-sm" ${bindAction('click',()=>exportAppointmentsCsv())}><i class="bi bi-download" aria-hidden="true"></i> Download</button>
     </div>
     <p class="patient-filter-summary" id="appt-summary" role="status" aria-live="polite"></p>
     <div class="card"><div id="appt-table"></div></div>`;
@@ -109,7 +110,7 @@ function describeAppointment(a){
 export function exportAppointmentsCsv(){
   const view=appState.appointments?.view||'upcoming',today=clinicToday();
   const rows=listData.sortAppointments(filteredAppointments().filter(a=>view==='all'||listData.appointmentView(a,today)===view),view);
-  downloadCsv(csvFileName(`appointments ${view}`,today),listData.appointmentsCsv(rows,describeAppointment));
+  downloadTable(csvFileName(`appointments ${view}`,today),listData.appointmentsCsv(rows,describeAppointment));
 }
 
 function apptActionButtons(a,allowed,{compact=true}={}){

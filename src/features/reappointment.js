@@ -56,7 +56,7 @@ async function loadReappointDates(a,doc){
   const select=document.getElementById('ra-date');if(!select)return;
   try{
     const from=clinicToday(),to=addBookingDays(from,30);
-    const days=(await fetchDoctorAvailability(doc,from,to,a)).filter(d=>d.openSlots>0);
+    const days=(await fetchDoctorAvailability(doc,from,to,a,a.service||"")).filter(d=>d.openSlots>0);
     appState.reappointment.days=days;
     select.innerHTML=days.length?`<option value="">Choose a date</option>${days.map(d=>`<option value="${d.date}">${fmtDate(d.date)} · ${d.openSlots} open</option>`).join('')}`:'<option value="">No open times in the next 30 days</option>';
     select.disabled=!days.length;

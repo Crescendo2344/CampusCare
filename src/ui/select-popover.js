@@ -2,15 +2,20 @@
 // The native <select> stays in place and keeps its value, events and keyboard behaviour; only the
 // opened list is replaced, for mouse, pen and touch alike.
 let open=null;
+// On iPhones and iPads, focusing a <select> opens the system picker on top of this list, so after
+// a touch the select is never focused (and is blurred if it already was).
+let lastTouch=0;
+const touching=()=>Date.now()-lastTouch<1200;
+const focusSelect=select=>{if(touching())select.blur();else select.focus({preventScroll:true});};
 
 const isCustomisable=el=>el instanceof HTMLSelectElement&&!el.multiple&&el.size<=1&&!el.disabled&&el.options.length>0&&!el.closest('[data-native-select]');
 
-function close(focusSelect=false){
+function close(refocus=false){
   if(!open)return;
   const {list,select,cleanup}=open;
   open=null;cleanup();list.remove();
   select.setAttribute('aria-expanded','false');
-  if(focusSelect)select.focus({preventScroll:true});
+  if(refocus)focusSelect(select);
 }
 
 function choose(select,index){
@@ -64,6 +69,8 @@ function openList(select){
     items[active]?.scrollIntoView({block:'nearest'});
   };
   list.addEventListener('mousedown',event=>event.preventDefault());
+  list.addEventListener('touchstart',()=>{lastTouch=Date.now();},{passive:true});
+  list.addEventListener('touchend',()=>{lastTouch=Date.now();},{passive:true});
   list.addEventListener('click',event=>{
     const item=event.target.closest('.select-popover-option');
     if(item&&item.getAttribute('aria-disabled')!=='true')choose(select,Number(item.dataset.index));
@@ -104,7 +111,7 @@ export function installSelectPopover(root=document){
     if(event.button!==0||!isCustomisable(select))return;
     event.preventDefault();
     if(open?.select===select){close(true);return;}
-    select.focus({preventScroll:true});
+    focusSelect(select);
     openList(select);
   };
   // Touch: a tap (not a scroll) opens the list; stopping the touch keeps the native picker closed.
@@ -112,6 +119,7 @@ export function installSelectPopover(root=document){
   const onTouchStart=event=>{
     const select=event.target;
     if(!isCustomisable(select))return;
+    lastTouch=Date.now();
     const t=event.touches[0];touch={select,x:t.clientX,y:t.clientY};
   };
   const onTouchEnd=event=>{
@@ -119,9 +127,10 @@ export function installSelectPopover(root=document){
     const t=event.changedTouches[0],moved=Math.hypot(t.clientX-touch.x,t.clientY-touch.y)>10;
     const select=touch.select;touch=null;
     if(moved)return;
+    lastTouch=Date.now();
     event.preventDefault();
-    if(open?.select===select){close(true);return;}
-    select.focus({preventScroll:true});
+    select.blur();
+    if(open?.select===select){close();return;}
     openList(select);
   };
   // Alt+Down / F4 / Space would open the browser's list from the keyboard; open ours instead.
@@ -130,9 +139,12 @@ export function installSelectPopover(root=document){
     if(open||!isCustomisable(select))return;
     if((event.altKey&&event.key==='ArrowDown')||event.key==='F4'||event.key===' '){event.preventDefault();openList(select);}
   };
+  // If the browser still focuses the select after a tap, drop the focus so its picker closes.
+  const onFocus=event=>{if(touching()&&isCustomisable(event.target))event.target.blur();};
+  root.addEventListener('focusin',onFocus,true);
   root.addEventListener('mousedown',onDown,true);
   root.addEventListener('touchstart',onTouchStart,{capture:true,passive:true});
   root.addEventListener('touchend',onTouchEnd,{capture:true,passive:false});
   root.addEventListener('keydown',onKey,true);
-  return ()=>{root.removeEventListener('mousedown',onDown,true);root.removeEventListener('touchstart',onTouchStart,true);root.removeEventListener('touchend',onTouchEnd,true);root.removeEventListener('keydown',onKey,true);close();};
+  return ()=>{root.removeEventListener('focusin',onFocus,true);root.removeEventListener('mousedown',onDown,true);root.removeEventListener('touchstart',onTouchStart,true);root.removeEventListener('touchend',onTouchEnd,true);root.removeEventListener('keydown',onKey,true);close();};
 }

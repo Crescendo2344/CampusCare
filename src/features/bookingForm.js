@@ -25,15 +25,15 @@ import {bindAction,scheduleRules} from '../dependencies.js';
 
 
 // Day-by-day openings for one doctor. `editing` leaves that appointment's own time selectable.
-export async function fetchDoctorAvailability(doctor,from,to,editing=null){
+export async function fetchDoctorAvailability(doctor,from,to,editing=null,service=document.getElementById('b-service')?.value||''){
   if(appState.auth.currentUser?._realSupabase){
-    const result=await appointmentService().availability({doctor_id:doctor.dbUserId,from,to,...(editing?{appointment_id:editing.dbAppointmentId}:{})});
+    const result=await appointmentService().availability({doctor_id:doctor.dbUserId,from,to,service,...(editing?{appointment_id:editing.dbAppointmentId}:{})});
     if(!Array.isArray(result.days))throw new Error('Availability could not be loaded. Please retry.');
     return result.days;
   }
   // Local demonstration records use the same slot rules without pretending to query live reservations.
   const now=new Date(),nowMinutes=(now.getUTCHours()*60+now.getUTCMinutes()+480)%1440;
-  return buildDoctorAvailability({doctor,from,to,today:from,nowMinutes,appointments:appointmentRecords().filter(a=>a.doctorId===doctor.id&&a.id!==editing?.id),leaves:(appState.data.DB.doctorLeaves||[]).filter(l=>l.doctorId===doctor.id),overrides:(appState.data.DB.settings.slotOverrides||[]).filter(o=>o.doctorId===doctor.id).flatMap(o=>[...(o.blockedTimes||[]).map(time=>({date:o.date,time,available:false})),...(o.availableTimes||[]).map(time=>({date:o.date,time,available:true}))]),settings:{lunchStart:appState.data.DB.settings.lunchBreakStart,lunchEnd:appState.data.DB.settings.lunchBreakEnd}});
+  return buildDoctorAvailability({doctor,from,to,today:from,nowMinutes,service,appointments:appointmentRecords().filter(a=>a.doctorId===doctor.id&&a.id!==editing?.id),leaves:(appState.data.DB.doctorLeaves||[]).filter(l=>l.doctorId===doctor.id),overrides:(appState.data.DB.settings.slotOverrides||[]).filter(o=>o.doctorId===doctor.id).flatMap(o=>[...(o.blockedTimes||[]).map(time=>({date:o.date,time,available:false})),...(o.availableTimes||[]).map(time=>({date:o.date,time,available:true}))]),settings:{lunchStart:appState.data.DB.settings.lunchBreakStart,lunchEnd:appState.data.DB.settings.lunchBreakEnd}});
 }
 
 // For patients, slots inside the clinic's booking lead time are kept for reappointments the clinic places.
@@ -203,7 +203,8 @@ export async function onClinicChange(preferredDoctorId=null,editing=null){
 
   svc.innerHTML=svcs.map(s=>`<option>${s}</option>`).join('');
   if(svcs.includes(previousService))svc.value=previousService;
-  svc.onchange=()=>fillBookingDoctors(isDental,doc.value);
+  // The times depend on the service (an extraction or filling needs 1 hr 30 min), so reload them.
+  svc.onchange=()=>{fillBookingDoctors(isDental,doc.value);void onBookingDoctorChange();};
 
   if(checkDentalWarn())return;
   fillBookingDoctors(isDental,preferredDoctorId);

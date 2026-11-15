@@ -18,12 +18,12 @@ export function reportData(){
   const appointmentMap=new Map(appointments.map(a=>[a.id,a]));
   const decorate=row=>{
     const p=patientMap.get(row.patientId)||{},doctor=users.get(row.doctorId);
-    return {...row,clinic:row.clinic||appointmentMap.get(row.appointmentId)?.clinic||'Not recorded',date:isoDay(row.date),patient:name(patientMap.get(row.patientId)),college:row.college||p.college||'Not recorded',personType:p.personType||'Not recorded',classSession:p.classSession||'Not recorded',sex:p.gender||'Not recorded',doctor:name(doctor)};
+    return {...row,clinic:row.clinic||appointmentMap.get(row.appointmentId)?.clinic||'Not recorded',date:isoDay(row.date),patient:name(patientMap.get(row.patientId)),idNo:p.idNo||'',college:row.college||p.college||'Not recorded',personType:p.personType||'Not recorded',classSession:p.classSession||'Not recorded',sex:p.gender||'Not recorded',doctor:name(doctor)};
   };
   const stock=['Administrator','Staff'].includes(account?.role)?inventoryRecords(db,account).filter(i=>!i.archived):[];
   return {
     appointments:appointments.filter(a=>!a.archived).map(decorate),treatments:treatments.filter(t=>!t.archived).map(decorate),
-    patients:patients.map(p=>({id:p.dbPatientId||p.id,patientId:p.id,patient:name(p),college:p.college,personType:p.personType,classSession:p.classSession,sex:p.gender,blood:p.blood})),
+    patients:patients.map(p=>({id:p.dbPatientId||p.id,patientId:p.id,patient:name(p),idNo:p.idNo||'',college:p.college,personType:p.personType,classSession:p.classSession,sex:p.gender,blood:p.blood})),
     inventory:stock.map(i=>({...i,item:i.name,stock:i.qty<=i.threshold?'Low stock':'Available'})),
     visits:clinicalVisitEvents(appointments,treatments).map(decorate),
     // Every disbursement is one use of stock.

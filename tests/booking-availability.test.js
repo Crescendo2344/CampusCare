@@ -49,3 +49,25 @@ test('a custom time opened by staff is added to that day only, in time order',as
   assert.deepEqual(monday.find(s=>s[0]==='09:00'),['09:00','blocked',false]);
   assert(!days[1].slots.some(s=>s.custom),'Other days keep the regular grid');
 });
+
+test('an extraction or filling takes 1 hr 30 min and moves the next time to when it ends',async()=>{
+  const {daySlotStarts,slotFitProblem,serviceMinutes}=await import('../src/domain/booking-availability.js');
+  const t=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+  assert.equal(serviceMinutes('Tooth Extraction',60),90);assert.equal(serviceMinutes('Dental Checkup',60),60);
+  // No long procedure: the regular hourly grid.
+  assert.deepEqual(daySlotStarts({start:540,end:1020,duration:60}).map(t),['09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00']);
+  // Extraction at 9:00: the next time is 10:30, then 11:30 and so on.
+  assert.deepEqual(daySlotStarts({start:540,end:1020,duration:60,booked:[{minute:540,length:90}]}).map(t).slice(0,4),['09:00','10:30','11:30','12:30']);
+  // A visit already booked at 13:00 stays; the short gap before it is not offered, and the grid resumes after it.
+  assert.deepEqual(daySlotStarts({start:540,end:1020,duration:60,booked:[{minute:540,length:90},{minute:780,length:60}]}).map(t),['09:00','10:30','11:30','13:00','14:00','15:00','16:00']);
+  // A long procedure does not fit where another appointment starts before it would finish.
+  assert.match(slotFitProblem({minute:600,length:90,end:1020,booked:[{minute:660,length:60}]}),/Another appointment/);
+  assert.equal(slotFitProblem({minute:600,length:90,end:1020,booked:[]}),'');
+  const doctor={workDays:['Mon'],specialty:'Dental',startTime:'09:00',endTime:'17:00',slotDuration:60,maxPatients:8};
+  const day=service=>buildDoctorAvailability({doctor,from:'2026-11-16',to:'2026-11-16',today:'2026-11-15',service,
+    appointments:[{date:'2026-11-16',time:'09:00',status:'Scheduled',service:'Tooth Extraction'},{date:'2026-11-16',time:'14:30',status:'Scheduled',service:'Dental Checkup'}]})[0].slots;
+  assert.deepEqual(day('Dental Checkup').filter(s=>s.available).map(s=>s.time),['10:30','13:30','15:30']);
+  // For a filling, 13:30 is too close to the 14:30 visit; 10:30 ends at noon and 15:30 ends at 17:00, so both fit.
+  assert.deepEqual(day('Tooth Restoration').filter(s=>s.available).map(s=>s.time),['10:30','15:30']);
+  assert.equal(day('Tooth Restoration').find(s=>s.time==='13:30').label,'Needs 1 hr 30 min');
+});

@@ -11,7 +11,8 @@ import {showDatabaseSkeleton} from './loadingSkeletons.js';
 import {auditLog} from './auditAndBackups.js';
 import {loadDB,persistDB} from './persistence.js';
 import {bindAction,createOperationalService} from '../dependencies.js';
-import {csvColumn,csvDate,csvFileName,csvTime,downloadCsv,templateCsv} from '../shared/csv.js';
+import {csvColumn,csvDate,csvFileName,csvTime,templateCsv} from '../shared/csv.js';
+import {downloadTable} from './downloadFormats.js';
 // ================================================================
 // OPERATIONAL EMAIL DELIVERY
 // ================================================================
@@ -272,7 +273,7 @@ export async function renderActivityLog(){
         <div class="audit-head-actions">
           <span class="text-muted" id="audit-updated">Updated ${escapeHtml(auditTime(ui.loadedAt))}</span>
           <button class="btn btn-sm" ${bindAction('click',()=>renderActivityLog())}><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button>
-          <button class="btn btn-sm" ${bindAction('click',()=>exportActivityLog())}><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>
+          <button class="btn btn-sm" ${bindAction('click',()=>exportActivityLog())}><i class="bi bi-download" aria-hidden="true"></i> Download</button>
         </div>
       </div>
       <div class="audit-chips" id="audit-chips" role="group" aria-label="Category"></div>
@@ -409,7 +410,7 @@ export async function exportActivityLog(){
     csvColumn('Device','IP Address',x=>x.ipAddress||''),
     csvColumn('Device','Browser & System',x=>auditDevice(x))
   ],filteredActivity());
-  downloadCsv(csvFileName('activity log',appState.clinicInformation.TODAY),csv);
+  downloadTable(csvFileName('activity log',appState.clinicInformation.TODAY),csv);
 
   if(appState.auth.currentUser?._realSupabase){
     try{
@@ -424,7 +425,6 @@ export async function exportActivityLog(){
     persistDB();
   }
 
-  toast('Activity log exported as CSV.','success');
 }
 
 

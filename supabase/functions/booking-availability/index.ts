@@ -45,14 +45,14 @@ Deno.serve(async(req)=>{
     };
     const [rules,appointments,leaves,overrides,settings]=await Promise.all([
       loadRows(()=>admin.from('doctor_schedule_rules').select('weekday,is_working,start_time,end_time,slot_duration,max_patients,effective_from,effective_to').eq('doctor_id',doctorId).lte('effective_from',to).order('effective_from').order('rule_id')),
-      loadRows(()=>admin.from('appointments').select('appointment_date,appointment_time,status').eq('doctor_id',doctorId).gte('appointment_date',from).lte('appointment_date',to).neq('status','Cancelled').neq('appointment_id',exclude||-1).order('appointment_id')),
+      loadRows(()=>admin.from('appointments').select('appointment_date,appointment_time,status,service').eq('doctor_id',doctorId).gte('appointment_date',from).lte('appointment_date',to).neq('status','Cancelled').neq('appointment_id',exclude||-1).order('appointment_id')),
       loadRows(()=>admin.from('doctor_leaves').select('leave_date').eq('doctor_id',doctorId).gte('leave_date',from).lte('leave_date',to).order('leave_date')),
       loadRows(()=>admin.from('appointment_slot_overrides').select('override_date,slot_time,is_available').eq('doctor_id',doctorId).gte('override_date',from).lte('override_date',to).order('override_date').order('slot_time')),
       admin.from('system_settings').select('lunch_start,lunch_end').order('settings_id').limit(1).maybeSingle()
     ]);
     for(const result of [rules,appointments,leaves,overrides,settings])if(result.error)throw result.error;
     const now=new Date(),nowMinutes=(now.getUTCHours()*60+now.getUTCMinutes()+480)%1440;
-    const days=buildDoctorAvailability({from,to,today,nowMinutes,doctor:{workDays:Array.isArray(doc.work_days)?doc.work_days:['Mon','Tue','Wed','Thu','Fri'],specialty:doc.specialty,startTime:doc.start_time,endTime:doc.end_time,slotDuration:doc.slot_duration,maxPatients:doc.max_patients},rules:rules.data||[],appointments:(appointments.data||[]).map(a=>({date:a.appointment_date,time:a.appointment_time,status:a.status})),leaves:(leaves.data||[]).map(l=>({date:l.leave_date})),overrides:(overrides.data||[]).map(o=>({date:o.override_date,time:o.slot_time,available:o.is_available})),settings:{lunchStart:settings.data?.lunch_start,lunchEnd:settings.data?.lunch_end}});
+    const days=buildDoctorAvailability({from,to,today,nowMinutes,doctor:{workDays:Array.isArray(doc.work_days)?doc.work_days:['Mon','Tue','Wed','Thu','Fri'],specialty:doc.specialty,startTime:doc.start_time,endTime:doc.end_time,slotDuration:doc.slot_duration,maxPatients:doc.max_patients},rules:rules.data||[],service:String(body.service||'').slice(0,80),appointments:(appointments.data||[]).map(a=>({date:a.appointment_date,time:a.appointment_time,status:a.status,service:a.service})),leaves:(leaves.data||[]).map(l=>({date:l.leave_date})),overrides:(overrides.data||[]).map(o=>({date:o.override_date,time:o.slot_time,available:o.is_available})),settings:{lunchStart:settings.data?.lunch_start,lunchEnd:settings.data?.lunch_end}});
     return json({ok:true,doctor_id:doctorId,from,to,days});
   }catch(error){console.error('Booking availability:',error);return json({error:'Availability could not be loaded. Please retry.'},500);}
 });

@@ -688,7 +688,7 @@ tbody tr:hover td{background:var(--overlay)}
 .slot{padding:.45rem;border-radius:9px;text-align:center;font-size:.75rem;border:1px solid var(--line);background:var(--glass-surface-soft);cursor:pointer;transition:.12s;color:var(--ink)}
 .slot:hover:not(.booked):not(.blocked){border-color:var(--primary);background:var(--primary-light);color:var(--primary-text)}
 .slot.selected{background:linear-gradient(150deg,var(--primary-mid),var(--primary-dark));color:#fff;border-color:var(--primary)}
-.slot.booked{background:var(--glass-surface-soft);color:var(--ink-muted);opacity:.5;cursor:not-allowed}
+.slot.booked,.slot.short{background:var(--glass-surface-soft);color:var(--ink-muted);opacity:.5;cursor:not-allowed}
 .slot.blocked{background:var(--warning-bg);color:var(--warning);cursor:not-allowed;font-size:.7rem}
 .slot.past{background:var(--gray-light);color:var(--gray-mid);cursor:not-allowed;opacity:.7}.slot.lunch{background:var(--warning-bg);color:var(--warning);cursor:not-allowed}.slot .slot-state{display:block;font-size:.62rem;margin-top:2px;font-weight:650}.slot-manager-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.5rem}
 

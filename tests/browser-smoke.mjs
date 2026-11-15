@@ -103,7 +103,8 @@ try{
     else{
       if(!mobile){assert(request.postDataBuffer().toString().includes('fixture-captcha-'),'The CAPTCHA token must reach the API');if(!page.__fixtureLimited){page.__fixtureLimited=true;return route.fulfill({status:429,contentType:'application/json',headers:{'Retry-After':'120'},body:JSON.stringify({error:'Too many registration attempts. Please wait 2 minutes before trying again.',retry_after:120})});}}
       const sent=request.postDataBuffer().toString();
-      for(const part of ['"blood_type":"O+"','"height_cm":168','"weight_kg":61.5','"allergies":"None"','"emergency_contact_name":"Maria Student"','"emergency_contact_number":"09181234567"'])assert(sent.includes(part),`Registration must send ${part}`);
+      for(const part of ['"emergency_contact_name":"Maria Student"','"emergency_contact_number":"09181234567"'])assert(sent.includes(part),`Registration must send ${part}`);
+      assert(!sent.includes('"blood_type"')&&!sent.includes('"height_cm"'),'Registration no longer asks for blood type, height, weight or allergies');
       response={ok:true,email_confirmation_required:false};
     }
    }
@@ -326,9 +327,9 @@ try{
     await page.locator('#r-ptype').selectOption('Student');
     await page.waitForFunction(()=>document.getElementById('r-verification-label').textContent.includes('Student ID — Front and Back'));
     // Populate a valid registration and an OCR name mismatch at the requested 25% boundary.
-    const fields={'r-fname':'Fixture','r-lname':'Student','r-user':'fixture.student','r-email':'fixture@example.test','r-pass':'Clinic-only-Pass1!','r-pass2':'Clinic-only-Pass1!','r-idno':'1234567','r-height':'168','r-weight':'61.5','r-allergies':'None','r-ename':'Maria Student','r-econtact':'09181234567'};
+    const fields={'r-fname':'Fixture','r-lname':'Student','r-user':'fixture.student','r-email':'fixture@example.test','r-pass':'Clinic-only-Pass1!','r-pass2':'Clinic-only-Pass1!','r-idno':'1234567','r-ename':'Maria Student','r-econtact':'09181234567'};
     for(const [id,value]of Object.entries(fields))await page.locator('#'+id).fill(value);
-    await page.locator('#r-college').selectOption({index:0});await page.locator('#r-sex').selectOption('Male');await page.locator('#r-blood').selectOption('O+');
+    await page.locator('#r-college').selectOption({index:0});await page.locator('#r-sex').selectOption('Male');
     await page.evaluate(()=>{
       // The date picker stores its chosen date in a hidden field.
       document.getElementById('r-dob').value='2000-01-01';
@@ -1039,17 +1040,16 @@ try{
     assert.equal(await page.locator('#active-modal').getByRole('button',{name:'Add photo'}).count(),await page.evaluate(()=>['Staff','Administrator'].includes(window.__fixtureApp.state.auth.currentUser.role))?1:0);
     await page.locator('#active-modal .close-btn').click();
     await page.locator('.fc-preset',{hasText:'3 months'}).click();
-    await page.getByRole('button',{name:'Download CSV'}).click();
+    await page.locator('.fc-controls').getByRole('button',{name:'Download',exact:true}).click();
     await page.locator('.fc-csv').waitFor();
     await page.locator('input[name="fc-layout"][value="detailed"]').check();
     await page.locator('input[name="fc-col"][value="category"]').uncheck();
-    const [forecastCsv]=await Promise.all([page.waitForEvent('download'),page.locator('.fc-csv').getByRole('button',{name:'Download',exact:true}).click()]);
-    assert.match(forecastCsv.suggestedFilename(),/^campuscare-inventory-forecast-90-days-from-\d{4}-\d{2}-\d{2}\.csv$/);
-    const forecastText=(await import('node:fs')).readFileSync(await forecastCsv.path(),'utf8');
-    assert(forecastText.startsWith('\ufeff'),'UTF-8 marker for Excel');
-    const forecastLines=forecastText.slice(1).trimEnd().split('\r\n');
-    assert.match(forecastLines[0],/^Item Name,Item: No\.,Item: Unit,Stock: On Hand,Stock: Reorder Level,Period: Start,Period: End,Period: Projected Use,Period: Stock Left$/);
-    assert(forecastLines.length>=4,'One row per item per month');
+    // Every list download offers Excel, Word and PDF; the forecast keeps its layout options first.
+    await page.locator('.fc-csv').getByRole('button',{name:'Download',exact:true}).click();
+    const formats=page.locator('.dl-formats');await formats.waitFor();
+    assert.deepEqual(await formats.locator('strong').allInnerTexts(),['Excel','Word','PDF']);
+    const [forecastDoc]=await Promise.all([page.waitForEvent('download'),formats.getByRole('button',{name:/Word/}).click()]);
+    assert.match(forecastDoc.suggestedFilename(),/^Inventory_forecast_90_days.*\.docx?$/);
   }
   if(role==='Administrator'&&!mobile){
     // Signed-in devices list each session; other devices can be signed out one by one.
@@ -1305,7 +1305,7 @@ try{
     // Sortable columns announce their order; the export covers the filtered list.
     await page.locator('#pt-table th').getByRole('button',{name:/Patient/}).click();
     assert.equal(await page.locator('#pt-table th[aria-sort="descending"]').count(),1);
-    assert.equal(await page.getByRole('button',{name:/Export CSV/}).count(),1);
+    assert.equal(await page.locator('.toolbar').getByRole('button',{name:'Download',exact:true}).count(),1);
     await page.locator('#pt-table').getByRole('button',{name:'View',exact:true}).click();
     for(const label of ['Allergies','Medical History'])assert.equal(await page.locator('.info-row').filter({has:page.locator('.info-label',{hasText:label})}).locator('.info-val').innerText(),'—');
     // Chart layout: identity banner, no allergy alert without allergies, and five keyboard-navigable tabs.
@@ -1368,6 +1368,11 @@ try{
     assert.match(await page.locator('.report-result').innerText(),/Record count by College and Clinic/);
     assert.equal(await page.locator('.report-answer>strong').innerText(),'2');
     assert.equal(await page.locator('.report-result table').first().locator('tbody tr').count(),2);
+    // Records with the person's name and ID number are shown open and are what downloads by default.
+    assert(await page.locator('.report-details[open]').count(),'Matching records with names are open');
+    assert.deepEqual(await page.locator('.report-details thead th').allInnerTexts().then(h=>h.slice(0,2).map(t=>t.toLowerCase())),['name','id no.']);
+    assert('Record: Name' in await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]));
+    await page.locator('#rpt-export-scope').selectOption('summary');
     assert.equal(await page.evaluate(()=>window.__fixtureApp.state.reportCharts.lastReportRows[0]['Result: Record count']),1);
     await page.locator('#rpt-split').selectOption('status');
     assert(await page.locator('#rpt-stale').isVisible());

@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {CLINIC_SERVICES,clinicForSpecialization,defaultStartTimeForSpecialty,doctorRendersService} from "../_shared/clinic-services.js";
-import {buildDoctorAvailability} from "../_shared/booking-availability.js";
+import {LONG_SERVICES,buildDoctorAvailability,daySlotStarts,serviceMinutes,slotFitProblem} from "../_shared/booking-availability.js";
 import {cleanTriageVitals,triageVitalErrors} from "../_shared/triage-vitals.js";
 import {EMERGENCY_MAX_DAYS_AHEAD,EMERGENCY_REASONS,emergencyBlockedTimes,emergencyReappointMessage,emergencySearchEnd,planEmergencyReappointments,prettyDeadline} from "../_shared/emergency-reappointment.js";
 
@@ -185,6 +185,22 @@ Deno.serve(async(req)=>{
         if(clinicForSpecialization(doctor.specialty||"General Medicine")!==clinic)return json({error:"That doctor works in the other clinic."},400);
         if(!(CLINIC_SERVICES[clinic]||[]).includes(serviceName))return json({error:"Choose a service offered by this clinic."},400);
         if(!doctorRendersService(doctor,serviceName))return json({error:"The selected doctor does not render that service. Choose another doctor or service."},400);
+        // An extraction or filling follows the dentist's evaluation: the patient needs a completed
+        // dental check-up (a booked one, or a dental record from a walk-in) before booking it.
+        if(LONG_SERVICES.includes(serviceName)){
+          const {data:checkup}=await admin.from("appointments").select("appointment_id")
+            .eq("patient_id",patientId).eq("clinic","Dental Clinic").eq("service","Dental Checkup").eq("status","Completed").limit(1);
+          let evaluated=Boolean(checkup?.length);
+          if(!evaluated){
+            const {data:visits}=await admin.from("treatments").select("treatment_id").eq("patient_id",patientId).limit(200);
+            const ids=(visits||[]).map((v:any)=>v.treatment_id);
+            if(ids.length){
+              const {data:records}=await admin.from("dental_records").select("treatment_id").in("treatment_id",ids).limit(1);
+              evaluated=Boolean(records?.length);
+            }
+          }
+          if(!evaluated)return json({error:`${serviceName} needs a dental check-up first. Book a Dental Checkup so the dentist can evaluate the tooth.`,code:"CHECKUP_REQUIRED"},409);
+        }
       }
 
       const weekday=new Date(date+"T00:00:00Z").getUTCDay();
@@ -216,7 +232,21 @@ Deno.serve(async(req)=>{
       // A time staff explicitly opened for this date (a custom time) is valid even off the regular grid.
       const openedByStaff=override?.is_available===true;
       if(!openedByStaff&&(t<start||t+slotDuration>end))return json({error:"Selected appointment would extend outside the doctor's work schedule."},400);
-      if(!openedByStaff&&(t-start)%slotDuration!==0)return json({error:"Selected time does not align with this doctor's appointment interval."},400);
+      // The day's times follow the bookings already made: after an extraction or filling (1 hr 30 min)
+      // the next time starts when it ends.
+      const {data:dayRows,error:dayErr}=await admin.from("appointments").select("appointment_id,appointment_time,service")
+        .eq("doctor_id",doctorId).eq("appointment_date",date).neq("status","Cancelled").neq("appointment_id",appointmentId||-1);
+      if(dayErr)throw dayErr;
+      const dayBooked=(dayRows||[]).map((a:any)=>({minute:mins(a.appointment_time),length:serviceMinutes(a.service,slotDuration)}));
+      const serviceLength=serviceMinutes(serviceName,slotDuration);
+      if(!openedByStaff&&!daySlotStarts({start,end,duration:slotDuration,booked:dayBooked}).includes(t))
+        return json({error:"Selected time does not align with this doctor's appointment interval."},400);
+      const inProgress=slotFitProblem({minute:t,length:Math.min(serviceLength,slotDuration),end:Math.max(end,t+slotDuration),booked:dayBooked,ignoreLunch:true});
+      if(inProgress)return json({error:"That time slot is already booked."},409);
+      if(serviceLength>slotDuration){
+        const problem=slotFitProblem({minute:t,length:serviceLength,end,booked:dayBooked,ignoreLunch:true});
+        if(problem)return json({error:`${serviceName} takes 1 hour 30 minutes. ${problem} Choose another time.`},409);
+      }
 
       const {data:leave}=await admin.from("doctor_leaves").select("leave_id").eq("doctor_id",doctorId).eq("leave_date",date).maybeSingle();
       if(leave)return json({error:"The selected doctor is on leave on that date."},400);
@@ -239,7 +269,7 @@ Deno.serve(async(req)=>{
         const lunchStart=mins(settings.lunch_start),lunchEnd=mins(settings.lunch_end);
         // Staff/Admin may explicitly reopen a lunch-period slot for a specific
         // doctor/date. Without that positive override, lunch remains blocked.
-        if(t<lunchEnd&&t+slotDuration>lunchStart&&override?.is_available!==true)
+        if(t<lunchEnd&&t+serviceLength>lunchStart&&override?.is_available!==true)
           return json({error:"That appointment overlaps the clinic lunch break."},400);
       }
 
@@ -617,7 +647,7 @@ Deno.serve(async(req)=>{
         from:date,to,today:now.date,nowMinutes:now.minutes,
         doctor:{workDays:Array.isArray(doctor.work_days)?doctor.work_days:["Mon","Tue","Wed","Thu","Fri"],startTime:doctor.start_time,endTime:doctor.end_time,slotDuration:doctor.slot_duration,maxPatients:doctor.max_patients},
         rules,
-        appointments:booked.map((a:any)=>({date:a.appointment_date,time:a.appointment_time,status:a.status})),
+        appointments:booked.map((a:any)=>({date:a.appointment_date,time:a.appointment_time,status:a.status,service:a.service})),
         leaves:leaves.map((l:any)=>({date:l.leave_date})),
         overrides:overrides.map((o:any)=>({date:o.override_date,time:o.slot_time,available:o.is_available})),
         settings:{lunchStart:lunch.data?.lunch_start,lunchEnd:lunch.data?.lunch_end}

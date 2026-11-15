@@ -131,10 +131,6 @@ export function emergencyContactNumberError(value,ownContact=''){
 // Field messages for the health and emergency details, keyed like registrationDetailErrors.
 export function registrationHealthErrors(details){
   const errors={
-    blood_type:bloodTypeValidationError(details.blood_type),
-    height_cm:heightValidationError(details.height_cm),
-    weight_kg:weightValidationError(details.weight_kg),
-    allergies:allergiesValidationError(details.allergies),
     emergency_contact_name:emergencyContactNameError(details.emergency_contact_name),
     emergency_contact_number:emergencyContactNumberError(details.emergency_contact_number,details.contact_number)
   };

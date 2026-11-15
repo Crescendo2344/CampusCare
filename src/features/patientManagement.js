@@ -13,7 +13,8 @@ import {bindAction,patientData} from '../dependencies.js';
 import {appointmentRecords,syncRealAppointments} from './appointmentService.js';
 import {readTreatmentFactPages} from '../services/report-snapshot.js';
 import {treatmentRecords} from './treatmentService.js';
-import {csvFileName,downloadCsv} from '../shared/csv.js';
+import {csvFileName} from '../shared/csv.js';
+import {downloadTable} from './downloadFormats.js';
 // ================================================================
 // PATIENTS PAGE (Staff/Admin)
 // ================================================================
@@ -57,7 +58,7 @@ export async function renderPatients(){
         <option value="archived">Archived Records</option>
         <option value="all">All Records</option>
       </select>
-      <button class="btn btn-sm" ${bindAction('click',()=>exportPatientCsv())}><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>
+      <button class="btn btn-sm" ${bindAction('click',()=>exportPatientCsv())}><i class="bi bi-download" aria-hidden="true"></i> Download</button>
       ${canEdit?`<button class="btn btn-primary btn-sm" ${bindAction('click',(event,element)=>{openPatientModal()})}>+ Add Patient</button>`:''}
     </div>
     <p class="patient-filter-summary" id="pt-filter-summary" role="status" aria-live="polite"></p>
@@ -143,7 +144,7 @@ function filteredPatients(){
 export function exportPatientCsv(){
   const sort=appState.patientForm.patientSort||{key:'name',direction:'asc'};
   const rows=patientData.sortPatients(filteredPatients(),sort.key,sort.direction,patientLastVisit);
-  downloadCsv(csvFileName('patients',appState.clinicInformation.TODAY),patientData.patientsCsv(rows,patientLastVisit));
+  downloadTable(csvFileName('patients',appState.clinicInformation.TODAY),patientData.patientsCsv(rows,patientLastVisit));
 }
 
 const PATIENT_PAGE_SIZE=25;
