@@ -43,15 +43,18 @@ test('health and emergency details have the same rules in the browser and on the
   const valid={blood_type:'Unknown',height_cm:'165.5',weight_kg:'60',allergies:'None',emergency_contact_name:"Ma. Clara O'Neil",emergency_contact_number:'+639171234567',contact_number:'09181234567'};
   assert.deepEqual(registrationHealthErrors(valid),{});
   assert.deepEqual(Object.keys(registrationHealthErrors({})).sort(),['emergency_contact_name','emergency_contact_number']);
+  assert.match(registrationHealthErrors({...valid,height_cm:'abc'}).height_cm,/number/);
+  assert.match(registrationHealthErrors({...valid,weight_kg:'301'}).weight_kg,/between 20 and 300/);
+  assert.match(registrationHealthErrors({...valid,allergies:'x'.repeat(301)}).allergies,/300/);
   assert.match(registrationHealthErrors({...valid,emergency_contact_number:'09181234567'}).emergency_contact_number,/someone else/);
 });
 
-test('the registration form asks for an emergency contact after Account details and leaves health details for later',async()=>{
+test('the registration form asks for health details under Personal information and an emergency contact after Account details',async()=>{
   const fs=await import('node:fs');
   const html=fs.readFileSync('src/components/landing-and-auth.html','utf8');
   const at=id=>html.indexOf(`id="${id}"`);
-  for(const id of ['r-ename','r-econtact'])assert.ok(at(id)>0,id);
-  for(const id of ['r-blood','r-height','r-weight','r-allergies'])assert.equal(at(id),-1,id);
+  for(const id of ['r-blood','r-height','r-weight','r-allergies','r-ename','r-econtact'])assert.ok(at(id)>0,id);
+  assert.ok(at('r-sex')<at('r-blood')&&at('r-weight')<html.indexOf('<legend>Account details</legend>'));
   assert.ok(at('r-contact')<html.indexOf('<legend>Emergency contact</legend>')&&html.indexOf('<legend>Emergency contact</legend>')<html.indexOf('<legend>School details</legend>'));
   assert.match(html,/In case of emergency, please notify:/);
 });

@@ -27,29 +27,41 @@ Deno.serve(async(req)=>{
     const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
 
-    const auth=req.headers.get("Authorization")||"";
-    if(!auth.startsWith("Bearer "))return json({error:"Recovery session required."},401);
-
-    const token=auth.slice(7);
-    const {data:{user},error:userErr}=await admin.auth.getUser(token);
-    if(userErr||!user)return json({error:"Recovery session is invalid or expired."},401);
-
-    // getUser() above verifies the token. Only then inspect its verified claims.
-    // Password recovery sessions contain amr.method = "recovery".
-    const claims=decodeJwtPayload(token);
-    const amr=Array.isArray(claims?.amr)?claims.amr:[];
-    const isRecovery=amr.some((entry:any)=>entry?.method==="recovery");
-    if(!isRecovery)return json({error:"This password-reset link has already been used or has expired. Request a new link and open the newest email."},403);
-
-    const body=await req.json();
+    const body=await req.json().catch(()=>({}));
     const newPassword=String(body.new_password||"");
-
+    // Checked before the link is used, so a weak password does not use up the one-time link.
     const strong=
       newPassword.length>=8 &&
       /[A-Z]/.test(newPassword) &&
       /[a-z]/.test(newPassword) &&
       /[0-9]/.test(newPassword);
     if(!strong)return json({error:"New password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number."},400);
+
+    const expired={error:"This password-reset link has already been used or has expired. Request a new link and open the newest email."};
+    let user:any=null;
+    const tokenHash=String(body.token_hash||"");
+    if(tokenHash){
+      // CampusCare's own reset email: the one-time token is used here, when the password is submitted.
+      if(tokenHash.length>200)return json(expired,403);
+      const anon=createClient(url,Deno.env.get("SUPABASE_ANON_KEY")!,{auth:{persistSession:false,autoRefreshToken:false}});
+      const {data,error}=await anon.auth.verifyOtp({token_hash:tokenHash,type:"recovery"});
+      if(error||!data?.user)return json(expired,403);
+      user=data.user;
+    }else{
+      // Older reset emails open a session in the browser first.
+      const auth=req.headers.get("Authorization")||"";
+      if(!auth.startsWith("Bearer "))return json({error:"Recovery session required."},401);
+      const token=auth.slice(7);
+      const {data,error:userErr}=await admin.auth.getUser(token);
+      if(userErr||!data?.user)return json({error:"Recovery session is invalid or expired."},401);
+      // getUser() above verifies the token. A session opened by an emailed link is recorded as
+      // "otp" (or "recovery"); a normal password sign-in is not accepted here.
+      const claims=decodeJwtPayload(token);
+      const amr=Array.isArray(claims?.amr)?claims.amr:[];
+      const fresh=(entry:any)=>Date.now()/1000-Number(entry?.timestamp||0)<3600;
+      if(!amr.some((entry:any)=>["recovery","otp"].includes(entry?.method)&&fresh(entry)))return json(expired,403);
+      user=data.user;
+    }
 
     const {data:profile,error:profileErr}=await admin.from("users")
       .select("user_id,status")

@@ -198,23 +198,22 @@ export function isRecoverySession(session){
   try{
     const part=String(session?.access_token||'').split('.')[1]||'';
     const claims=JSON.parse(atob(part.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(part.length/4)*4,'=')));
-    return Array.isArray(claims.amr)&&claims.amr.some(entry=>entry?.method==='recovery');
+    // Supabase records a session opened by an emailed link as "otp"; a password sign-in never is.
+    return Array.isArray(claims.amr)&&claims.amr.some(entry=>['recovery','otp'].includes(entry?.method));
   }catch{return false;}
 }
 
-// Reset links arrive in three shapes depending on the email template and browser:
-// tokens in the URL fragment (handled by the SDK), ?token_hash=…&type=recovery, or ?code=….
-// The last two must be exchanged here, once.
+// CampusCare's own reset email carries ?token_hash=…: it is kept here and used only when the new
+// password is submitted, so nothing that merely opens the link can use it up.
+let resetTokenHash='';
+// Older emails arrive with tokens in the URL fragment (handled by the SDK) or as ?code=….
 let linkExchange=null;
 function exchangeResetLink(client){
   if(linkExchange)return linkExchange;
-  const params=new URLSearchParams(window.location.search);
-  const tokenHash=params.get('token_hash'),code=params.get('code');
+  const code=new URLSearchParams(window.location.search).get('code');
   linkExchange=(async()=>{
-    try{
-      if(tokenHash)await client.auth.verifyOtp({token_hash:tokenHash,type:params.get('type')||'recovery'});
-      else if(code)await client.auth.exchangeCodeForSession(code);
-    }catch(error){console.error('Reset link exchange:',error);}
+    try{if(code)await client.auth.exchangeCodeForSession(code);}
+    catch(error){console.warn('Reset link exchange:',error);}
   })();
   return linkExchange;
 }
@@ -313,23 +312,22 @@ export async function submitNewPassword(){
 
   try{
     if(!initializeSupabaseClient())throw new Error('Unable to connect to CampusCare.');
-    const recoverySession=await getRecoverySession();
-    if(!recoverySession){
+    const recoverySession=resetTokenHash?null:await getRecoverySession();
+    if(!resetTokenHash&&!recoverySession){
       const newLinkBtn=document.getElementById('fp-new-link-btn');
       if(newLinkBtn)newLinkBtn.style.display='block';
       throw new Error('This password-reset link has already been used or has expired. Request a new link and open the newest email.');
     }
 
-    // Enforce the 7-day password-change rule on the server as well.
-    // The backend also verifies that this access token came from a recovery link.
+    // The server uses the emailed one-time token (or, for older emails, checks the link's session).
     const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/complete-password-recovery`,{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
         apikey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY,
-        Authorization:`Bearer ${recoverySession.access_token}`
+        ...(recoverySession?{Authorization:`Bearer ${recoverySession.access_token}`}:{})
       },
-      body:JSON.stringify({new_password:p1})
+      body:JSON.stringify({new_password:p1,...(resetTokenHash?{token_hash:resetTokenHash}:{})})
     });
 
     const result=await response.json().catch(()=>({}));
@@ -342,8 +340,10 @@ export async function submitNewPassword(){
         };
         applyRecoveryCooldownUi(state);
       }
+      if(response.status===403){const newLinkBtn=document.getElementById('fp-new-link-btn');if(newLinkBtn)newLinkBtn.style.display='block';}
       throw new Error(result.error||'Unable to reset your password.');
     }
+    resetTokenHash='';
 
     // End the temporary recovery session so the user signs in normally afterward.
     await appState.supabaseClient.supabaseClient.auth.signOut();
@@ -385,11 +385,12 @@ export async function handleCampusCareAuthCallback(){
     // Always move from the public landing page to the authentication card.
     openForgotPassword(true);
 
-    const recoverySession=await getRecoverySession();
+    resetTokenHash=params.get('token_hash')||'';
+    const recoverySession=resetTokenHash?null:await getRecoverySession();
     const err=document.getElementById('fp-err3');
     const newLinkBtn=document.getElementById('fp-new-link-btn');
 
-    if(!recoverySession){
+    if(!resetTokenHash&&!recoverySession){
       showAlert(err,'This password-reset link has already been used or has expired. Request a new link and open the newest email.');
       if(newLinkBtn)newLinkBtn.style.display='block';
       for(const id of ['fp-update-btn','fp-newpass','fp-newpass2']){const el=document.getElementById(id);if(el)el.disabled=true;}

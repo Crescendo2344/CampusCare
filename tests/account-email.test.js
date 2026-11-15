@@ -3,13 +3,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAccountEmailHandler} from '../supabase/functions/_shared/account-email.js';
 function fixture(action,overrides={}){
-  const sent=[],lookups=[];
-  const account={auth_user_id:'fixture',email:'fixture@example.test',status:'Active',...overrides.account};
+  const sent=[],lookups=[],queued=[],dispatched=[];
+  const account={user_id:7,first_name:'Ana',auth_user_id:'fixture',email:'fixture@example.test',status:'Active',...overrides.account};
   const user={email:account.email,email_confirmed_at:action==='reset'?'2026-01-01':null,...overrides.user};
-  const client={from(){return {select(){return this;},ilike(...args){lookups.push(args);return this;},maybeSingle:async()=>({data:overrides.missing?null:account,error:overrides.lookupError})};},auth:{admin:{getUserById:async()=>({data:{user:overrides.noAuth?null:user}})},resend:async args=>{sent.push(args);return {error:overrides.sendError};},resetPasswordForEmail:async(...args)=>{sent.push(args);return {error:overrides.sendError};}}};
-  const handler=createAccountEmailHandler({createClient:()=>client,env:()=> 'fixture',action});
+  const table=name=>{
+    const q={select(){return q;},eq(){return q;},gte(){return q;},
+      ilike(...args){lookups.push(args);return q;},
+      insert(row){queued.push(row);return Promise.resolve({error:overrides.queueError||null});},
+      maybeSingle:async()=>name==='email_dispatch_config'?{data:{dispatch_key:'fixture-key'}}:{data:overrides.missing?null:account,error:overrides.lookupError},
+      then(resolve){return Promise.resolve({count:overrides.recent||0,error:null}).then(resolve);}};
+    return q;
+  };
+  const client={from:table,auth:{admin:{getUserById:async()=>({data:{user:overrides.noAuth?null:user}}),
+    generateLink:async args=>{sent.push(args);return overrides.linkError?{data:null,error:overrides.linkError}:{data:{properties:{hashed_token:'fixture-hash'}},error:null};}},
+    resend:async args=>{sent.push(args);return {error:overrides.sendError};}}};
+  const handler=createAccountEmailHandler({createClient:()=>client,env:()=> 'fixture',action,fetcher:async(...args)=>{dispatched.push(args);return new Response('{}');}});
   const call=identifier=>handler(new Request('https://fixture.test',{method:'POST',body:JSON.stringify({identifier})}));
-  return {call,sent,lookups};
+  return {call,sent,lookups,queued,dispatched};
 }
 test('unknown accounts cannot trigger either email flow; literal username wildcards are escaped',async()=>{
   for(const action of ['reset','resend']){
@@ -30,18 +40,31 @@ test('confirmed, missing Auth, suspended and changed-email accounts cannot reque
     const f=fixture('resend',options);assert((await f.call('fixture@example.test')).status>=400);assert.equal(f.sent.length,0);
   }
 });
-test('eligible password resets use the recovery callback while pending/unconfirmed accounts are blocked',async()=>{
+test('eligible password resets send a CampusCare email whose link carries the one-time token',async()=>{
   const f=fixture('reset');assert.equal((await f.call('fixture')).status,200);
-  assert.deepEqual(f.sent,[['fixture@example.test',{redirectTo:'https://campuscare-brown-two.vercel.app/?auth=recovery'}]]);
+  assert.deepEqual(f.sent,[{type:'recovery',email:'fixture@example.test'}]);
+  assert.equal(f.queued.length,1);
+  const mail=f.queued[0];
+  assert.equal(mail.recipient_email,'fixture@example.test');assert.equal(mail.subject,'CampusCare · Reset your password');
+  // Stored copies of this template are wiped once delivered.
+  assert.equal(mail.template_key,'verification');
+  assert.ok(mail.html_body.includes('https://campuscare-brown-two.vercel.app/?auth=recovery&amp;type=recovery&amp;token_hash=fixture-hash'));
+  assert.ok(mail.html_body.includes('cid:campuscare-logo')&&mail.html_body.includes('Hello Ana'));
+  assert.equal(f.dispatched.length,1,'the email is sent right away');
   for(const options of [{account:{status:'Pending'}},{user:{email_confirmed_at:null}}]){
-    const blocked=fixture('reset',options);assert((await blocked.call('fixture')).status>=400);assert.equal(blocked.sent.length,0);
+    const blocked=fixture('reset',options);assert((await blocked.call('fixture')).status>=400);assert.equal(blocked.queued.length,0);
   }
   // A forgotten password is never on the 7-day cooldown, even right after a change.
   const recent=fixture('reset',{account:{password_changed_at:new Date().toISOString()}});
-  assert.equal((await recent.call('fixture')).status,200);assert.equal(recent.sent.length,1);
+  assert.equal((await recent.call('fixture')).status,200);assert.equal(recent.queued.length,1);
 });
-test('delivery failures and provider rate limits never report successful email delivery',async()=>{
-  for(const action of ['reset','resend'])for(const [error,status] of [[{message:'Provider unavailable'},502],[{status:429,message:'Rate limited'},429]]){
-    const f=fixture(action,{sendError:error});const r=await f.call('fixture');assert.equal(r.status,status);assert.equal((await r.json()).ok,undefined);
+test('a second reset request within a minute is refused, and failures never report success',async()=>{
+  const again=fixture('reset',{recent:1});const r=await again.call('fixture');
+  assert.equal(r.status,429);assert.equal(again.queued.length,0);assert.equal(again.sent.length,0);
+  for(const options of [{linkError:{message:'down'}},{queueError:{message:'down'}}]){
+    const f=fixture('reset',options);const res=await f.call('fixture');assert.equal(res.status,502);assert.equal((await res.json()).ok,undefined);
+  }
+  for(const [error,status] of [[{message:'Provider unavailable'},502],[{status:429,message:'Rate limited'},429]]){
+    const f=fixture('resend',{sendError:error,account:{status:'Pending'}});const res=await f.call('fixture');assert.equal(res.status,status);assert.equal((await res.json()).ok,undefined);
   }
 });

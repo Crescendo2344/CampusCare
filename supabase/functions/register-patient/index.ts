@@ -174,18 +174,23 @@ Deno.serve(async(req:Request)=>{
     for(const key of ["first_name","last_name","username","college","sex"])metadata[key]=String(metadata[key]??"").trim();
     const manilaToday=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
     const fieldErrors=registrationDetailErrors({...metadata,email,password,contact_number:contactRaw,id_number:schoolId,birth_date:String(metadata.birth_date||"")},manilaToday);
-    for(const key of ["emergency_contact_name","emergency_contact_number"])metadata[key]=String(metadata[key]??"").trim();
+    for(const key of ["blood_type","allergies","emergency_contact_name","emergency_contact_number"])metadata[key]=String(metadata[key]??"").trim();
     const healthErrors=registrationHealthErrors({...metadata,contact_number:contactRaw});
     Object.assign(fieldErrors,healthErrors);
     if(Object.keys(fieldErrors).length)return json({error:Object.values(fieldErrors)[0],field_errors:fieldErrors},400);
     if(contactRaw){metadata.contact_number=normalizePhilippineMobile(contactRaw);metadata.contact_no=metadata.contact_number;}
-    // Stored in the patient record below; the sign-up trigger also reads the emergency contact.
-    // Blood type, height, weight and allergies are filled in later through Finish verification.
-    for(const key of ["blood_type","height_cm","weight_kg","allergies"])delete metadata[key];
-    const health={
+    // Stored in the patient record below; the sign-up trigger also reads the emergency contact and allergies.
+    // Health details are optional at registration; blank ones are left for Finish verification.
+    const filled=(key:string)=>String(metadata[key]??"").trim()!=="";
+    const health:Record<string,unknown>={
+      ...(filled("blood_type")?{blood_type:String(metadata.blood_type)}:{}),
+      ...(filled("height_cm")?{height_cm:Math.round(Number(metadata.height_cm)*100)/100}:{}),
+      ...(filled("weight_kg")?{weight_kg:Math.round(Number(metadata.weight_kg)*100)/100}:{}),
+      ...(filled("allergies")?{allergies:String(metadata.allergies)}:{}),
       emergency_contact_name:String(metadata.emergency_contact_name),
       emergency_contact_number:normalizePhilippineMobile(String(metadata.emergency_contact_number))
     };
+    for(const key of ["blood_type","height_cm","weight_kg","allergies"])if(!filled(key))delete metadata[key];
     Object.assign(metadata,health);
     const captchaError=await validateCaptcha(captcha,form.get("captcha_token"));if(captchaError)return captchaError;
     for(const [scope,value] of [["email",email],["id",schoolId]]){const denied=await registrationLimit(adminClient,scope,value,serviceKey);if(denied)return denied;}
@@ -237,7 +242,7 @@ Deno.serve(async(req:Request)=>{
       .maybeSingle();
     if(profileError||!profileRow)throw new Error("Registration files could not be linked. Please try again.");
     const {error:healthError}=await adminClient.from("patients").update(health).eq("user_id",profileRow.user_id);
-    if(healthError)throw new Error("Your emergency contact could not be saved. Please try again.");
+    if(healthError)throw new Error("Your health details could not be saved. Please try again.");
 
     // Record the privacy acknowledgement separately from Auth metadata so
     // CampusCare has an auditable consent history for each privacy version.
