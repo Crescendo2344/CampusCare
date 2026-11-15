@@ -174,15 +174,17 @@ Deno.serve(async(req:Request)=>{
     for(const key of ["first_name","last_name","username","college","sex"])metadata[key]=String(metadata[key]??"").trim();
     const manilaToday=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
     const fieldErrors=registrationDetailErrors({...metadata,email,password,contact_number:contactRaw,id_number:schoolId,birth_date:String(metadata.birth_date||"")},manilaToday);
-    for(const key of ["emergency_contact_name","emergency_contact_number"])metadata[key]=String(metadata[key]??"").trim();
+    for(const key of ["blood_type","allergies","emergency_contact_name","emergency_contact_number"])metadata[key]=String(metadata[key]??"").trim();
     const healthErrors=registrationHealthErrors({...metadata,contact_number:contactRaw});
     Object.assign(fieldErrors,healthErrors);
     if(Object.keys(fieldErrors).length)return json({error:Object.values(fieldErrors)[0],field_errors:fieldErrors},400);
     if(contactRaw){metadata.contact_number=normalizePhilippineMobile(contactRaw);metadata.contact_no=metadata.contact_number;}
-    // Stored in the patient record below; the sign-up trigger also reads the emergency contact.
-    // Blood type, height, weight and allergies are filled in later through Finish verification.
-    for(const key of ["blood_type","height_cm","weight_kg","allergies"])delete metadata[key];
+    // Stored in the patient record below; the sign-up trigger also reads the emergency contact and allergies.
     const health={
+      blood_type:String(metadata.blood_type),
+      height_cm:Math.round(Number(metadata.height_cm)*100)/100,
+      weight_kg:Math.round(Number(metadata.weight_kg)*100)/100,
+      allergies:String(metadata.allergies),
       emergency_contact_name:String(metadata.emergency_contact_name),
       emergency_contact_number:normalizePhilippineMobile(String(metadata.emergency_contact_number))
     };
@@ -237,7 +239,7 @@ Deno.serve(async(req:Request)=>{
       .maybeSingle();
     if(profileError||!profileRow)throw new Error("Registration files could not be linked. Please try again.");
     const {error:healthError}=await adminClient.from("patients").update(health).eq("user_id",profileRow.user_id);
-    if(healthError)throw new Error("Your emergency contact could not be saved. Please try again.");
+    if(healthError)throw new Error("Your health details could not be saved. Please try again.");
 
     // Record the privacy acknowledgement separately from Auth metadata so
     // CampusCare has an auditable consent history for each privacy version.

@@ -135,15 +135,15 @@ test('availability checks answer for well-formed values only and use their own l
   assert.equal(f.limits.length,2);
 });
 
-test('registration saves only the emergency contact to the patient record',async()=>{
+test('registration saves blood type, height, weight, allergies and the emergency contact to the patient record',async()=>{
   const f=await fixture();const r=await f.call({details:{emergency_contact_number:'+639181234567',emergency_contact_name:'  Maria Reyes '}});
   assert.equal(r.status,200);
-  assert.deepEqual(f.updates[1],{emergency_contact_name:'Maria Reyes',emergency_contact_number:'09181234567'});
+  assert.deepEqual(f.updates[1],{blood_type:'O+',height_cm:158,weight_kg:52.5,allergies:'None',emergency_contact_name:'Maria Reyes',emergency_contact_number:'09181234567'});
   assert.equal(f.creates[0].user_metadata.emergency_contact_number,'09181234567','The sign-up trigger stores the normalized number');
 });
 
-test('registration refuses missing or impossible emergency details before creating an account',async()=>{
-  for(const [details,field] of [[{emergency_contact_name:''},'emergency_contact_name'],[{emergency_contact_number:'12345'},'emergency_contact_number']]){
+test('registration refuses missing or impossible health and emergency details before creating an account',async()=>{
+  for(const [details,field] of [[{blood_type:''},'blood_type'],[{blood_type:'Z+'},'blood_type'],[{height_cm:''},'height_cm'],[{height_cm:900},'height_cm'],[{weight_kg:5},'weight_kg'],[{allergies:''},'allergies'],[{emergency_contact_name:''},'emergency_contact_name'],[{emergency_contact_number:'12345'},'emergency_contact_number']]){
     const f=await fixture();const r=await f.call({details});assert.equal(r.status,400,JSON.stringify(details));
     assert.ok((await r.json()).field_errors[field],field);assert.equal(f.creates.length,0);
   }
