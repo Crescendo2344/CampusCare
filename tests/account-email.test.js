@@ -30,12 +30,15 @@ test('confirmed, missing Auth, suspended and changed-email accounts cannot reque
     const f=fixture('resend',options);assert((await f.call('fixture@example.test')).status>=400);assert.equal(f.sent.length,0);
   }
 });
-test('eligible password resets use the recovery callback while pending/unconfirmed/cooldown accounts are blocked',async()=>{
+test('eligible password resets use the recovery callback while pending/unconfirmed accounts are blocked',async()=>{
   const f=fixture('reset');assert.equal((await f.call('fixture')).status,200);
   assert.deepEqual(f.sent,[['fixture@example.test',{redirectTo:'https://campuscare-brown-two.vercel.app/?auth=recovery'}]]);
-  for(const options of [{account:{status:'Pending'}},{user:{email_confirmed_at:null}},{account:{password_changed_at:new Date().toISOString()}}]){
+  for(const options of [{account:{status:'Pending'}},{user:{email_confirmed_at:null}}]){
     const blocked=fixture('reset',options);assert((await blocked.call('fixture')).status>=400);assert.equal(blocked.sent.length,0);
   }
+  // A forgotten password is never on the 7-day cooldown, even right after a change.
+  const recent=fixture('reset',{account:{password_changed_at:new Date().toISOString()}});
+  assert.equal((await recent.call('fixture')).status,200);assert.equal(recent.sent.length,1);
 });
 test('delivery failures and provider rate limits never report successful email delivery',async()=>{
   for(const action of ['reset','resend'])for(const [error,status] of [[{message:'Provider unavailable'},502],[{status:429,message:'Rate limited'},429]]){

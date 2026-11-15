@@ -2,7 +2,6 @@ import {authRedirect} from './app-url.js';
 // Both public email flows verify the application profile and Auth record on the server.
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'POST, OPTIONS'};
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
-const week=7*24*60*60*1000;
 
 export function createAccountEmailHandler({createClient,env,action}){
   // Optional configuration must never turn a missing variable into a failed email request.
@@ -20,7 +19,7 @@ export function createAccountEmailHandler({createClient,env,action}){
       // Escape LIKE metacharacters so an underscore or percent never matches a different account.
       const literal=identifier.replace(/[\\%_]/g,'\\$&');
       const {data:account,error:lookupError}=await admin.from('users')
-        .select('auth_user_id,email,status,password_changed_at')
+        .select('auth_user_id,email,status')
         .ilike(identifier.includes('@')?'email':'username',literal).maybeSingle();
       if(lookupError)throw lookupError;
       if(!account?.auth_user_id||!account?.email)return json({error:'No CampusCare account matches that username or email. Check your details or register first.'},404);
@@ -33,7 +32,7 @@ export function createAccountEmailHandler({createClient,env,action}){
       if(action==='reset'){
         if(!data.user.email_confirmed_at)return json({error:'Please contact the clinic for help activating this registration.'},409);
         if(account.status!=='Active')return json({error:'Your registration is still pending clinic approval.'},403);
-        if(account.password_changed_at&&Date.now()<new Date(account.password_changed_at).getTime()+week)return json({error:'You recently changed your password. Please wait seven days before resetting it again.'},429);
+        // A forgotten password can always be reset: the emailed link proves who is asking.
       }
       // Keep credentials server-side and preserve Supabase's email rate limits.
       const client=createClient(env('SUPABASE_URL'),env('SUPABASE_ANON_KEY'),options);

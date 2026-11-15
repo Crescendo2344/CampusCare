@@ -194,3 +194,10 @@ html {scrollbar-gutter:stable}
 #landing-page .public-faq details:hover {background:#f4f9fc}
 #landing-page .public-faq summary {color:#14334c}
 #landing-page .public-faq details p {color:#405e75}
+/* Log in sits beside Register: same shape, outlined so Register stays the main action. */
+#landing-navbar .landing-nav-login {display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-width:88px;height:34px;padding:0 16px;border-radius:999px;line-height:1;font-size:.83rem;white-space:nowrap;background:transparent;border:1px solid rgba(190,231,246,.45);color:#f4fbff;box-shadow:none;transition:background .18s ease,border-color .18s ease}
+#landing-navbar .landing-nav-login:focus-visible {outline:2px solid #9bddfa;outline-offset:4px}
+@media(hover:hover) and (pointer:fine) {#landing-navbar .landing-nav-login:hover {background:rgba(255,255,255,.12);border-color:rgba(190,231,246,.8);transform:none;box-shadow:none}}
+#landing-navbar.auth-mode .landing-nav-login {display:none!important}
+@media(max-width:560px) {#landing-navbar .landing-nav-login {min-width:auto;height:32px;padding:0 .75rem;font-size:.75rem}
+  #landing-navbar .landing-get-started {width:auto;min-width:auto;height:32px;padding:0 .85rem;font-size:.75rem}}

@@ -75,8 +75,7 @@ export function initializeFeature(){
         setTimeout(async()=>{
           openForgotPassword(true);
           const activeSession=session||await getRecoverySession();
-          const cooldown=await getRecoveryCooldownState(activeSession);
-          if(!applyRecoveryCooldownUi(cooldown))updateRecoveryPasswordStrength();
+          applyRecoveryCooldownUi({locked:false});updateRecoveryPasswordStrength();
         },0);
         return;
       }

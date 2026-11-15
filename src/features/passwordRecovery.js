@@ -397,12 +397,9 @@ export async function handleCampusCareAuthCallback(){
       hideAlert(err);
       if(newLinkBtn)newLinkBtn.style.display='none';
 
-      const cooldownState=await getRecoveryCooldownState(recoverySession);
-      const locked=applyRecoveryCooldownUi(cooldownState);
-
-      if(!locked){
-        updateRecoveryPasswordStrength();
-      }
+      // Forgot-password is never on the 7-day cooldown.
+      applyRecoveryCooldownUi({locked:false});
+      updateRecoveryPasswordStrength();
     }
     return 'recovery';
   }

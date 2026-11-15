@@ -7,7 +7,6 @@ const cors={
   "Access-Control-Allow-Methods":"POST, OPTIONS"
 };
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
-const SEVEN_DAYS_MS=7*24*60*60*1000;
 
 function decodeJwtPayload(token:string){
   try{
@@ -53,25 +52,14 @@ Deno.serve(async(req)=>{
     if(!strong)return json({error:"New password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number."},400);
 
     const {data:profile,error:profileErr}=await admin.from("users")
-      .select("user_id,status,password_changed_at")
+      .select("user_id,status")
       .eq("auth_user_id",user.id)
       .maybeSingle();
 
     if(profileErr||!profile)return json({error:"CampusCare profile not found."},404);
     if(profile.status!=="Active")return json({error:"Only active accounts can reset their password."},403);
 
-    if(profile.password_changed_at){
-      const last=new Date(profile.password_changed_at).getTime();
-      const next=last+SEVEN_DAYS_MS;
-      if(Date.now()<next){
-        return json({
-          error:"Password changes are limited to once every 7 days.",
-          password_changed_at:profile.password_changed_at,
-          next_allowed_at:new Date(next).toISOString()
-        },429);
-      }
-    }
-
+    // The once-every-7-days rule covers voluntary changes only; a forgotten password is always resettable.
     const {error:updateErr}=await admin.auth.admin.updateUserById(user.id,{password:newPassword});
     if(updateErr)return json({error:updateErr.message},400);
 
@@ -80,7 +68,7 @@ Deno.serve(async(req)=>{
       action:"PASSWORD_RESET_COMPLETED",
       entity_type:"users",
       entity_id:profile.user_id,
-      details:{method:"email_recovery",cooldown_days:7}
+      details:{method:"email_recovery"}
     });
     // A password change is always confirmed by email (through the Account notice).
     await admin.from("notifications").insert({
