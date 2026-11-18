@@ -77,7 +77,7 @@ export function navTo(id,{historyMode='push'}={}){
   if(btn)btn.classList.add('active');
   document.getElementById('top-title').textContent={
     dashboard:'Dashboard','my-appointments':'My Appointments','my-records':'My Health Records',
-    'my-account':'Account Settings',patients:'Patient Records',appointments:'Appointments',
+    'my-account':'Account Settings',patients:'Patient Records',appointments:'Appointments','clinic-calendar':'Clinic Calendar & Queue',
     approvals:'Approval Queue',certificates:certificateLabel(certificateKindFor(appState.auth.currentUser),true),'cert-requests':certificateLabel(certificateKindFor(appState.auth.currentUser),true),treatments:'Treatments',inventory:'Inventory Management',
     reports:appState.auth.currentUser.role==='Doctor'?'My Reports':'Reports & Analytics',users:'User Management',settings:'System Settings',
     schedule:'My Schedule','my-patients':'My Patients','report-issue':'Report an Issue',

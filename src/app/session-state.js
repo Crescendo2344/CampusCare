@@ -10,6 +10,8 @@ export function clearAccountState(){
   state.reports.currentAnalyticsSummary=null;
   state.reportCharts.lastReportRows=[];
   state.doctorPatients.myPatients=[];
+  // The calendar reopens on today for the next account.
+  state.clinicCalendar={};
   state.workflowRequests.pendingAccountUpdate=null;
   // Stop an active camera stream rather than keeping the device running after sign-out.
   state.camera._cameraStream?.getTracks().forEach(track=>track.stop());

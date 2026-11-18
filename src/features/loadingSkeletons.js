@@ -8,6 +8,7 @@ import {renderCertRequests} from './certificateService.js';
 import {renderMyAccount} from './accountSettings.js';
 import {renderPatients} from './patientManagement.js';
 import {renderAppointments} from './appointments.js';
+import {renderClinicCalendar} from './clinicCalendar.js';
 import {renderApprovals} from './approvalQueue.js';
 import {renderTreatments} from './treatmentList.js';
 import {renderInventory} from './inventory.js';
@@ -136,6 +137,7 @@ export function renderPage(id){
     'my-account':()=>renderMyAccount(),
     patients:()=>renderPatients(),
     appointments:()=>renderAppointments(),
+    'clinic-calendar':()=>renderClinicCalendar(),
     approvals:()=>renderApprovals(),
     'cert-requests':()=>renderCertRequests(),
     treatments:()=>renderTreatments(),

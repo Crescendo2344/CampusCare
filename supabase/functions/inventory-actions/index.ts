@@ -186,7 +186,7 @@ Deno.serve(async(req)=>{
     }
     if(["send_po","cancel_po","receive_po"].includes(action)){
       const {data:ownedPo}=await admin.from("purchase_orders").select("clinic").eq("po_id",Number(body.po_id||0)).maybeSingle();
-      if(!ownedPo)return json({error:"Purchase order not found."},404);
+      if(!ownedPo)return json({error:"Supply replenishment not found."},404);
       if(ownedPo.clinic!==staffClinic)return otherClinic();
     }
 
@@ -235,7 +235,7 @@ Deno.serve(async(req)=>{
       }).select("*").single();
       if(error)return json({error:error.message},400);
       const year=new Date().getUTCFullYear();
-      const poNo=`PO-${year}-${String(po.po_id).padStart(4,"0")}`;
+      const poNo=`SR-${year}-${String(po.po_id).padStart(4,"0")}`;
       await admin.from("purchase_orders").update({po_no:poNo}).eq("po_id",po.po_id);
       // New medicines join the stock list at zero; the delivery adds the stock.
       for(const l of lines.filter(l=>l.new_item)){
@@ -253,7 +253,7 @@ Deno.serve(async(req)=>{
         if(created.length)await admin.from("inventory_items").delete().in("item_id",created.map(c=>c.item_id));
         await admin.from("purchase_orders").delete().eq("po_id",po.po_id);return json({error:lineErr.message},400);
       }
-      for(const c of created)await admin.from("audit_logs").insert({user_id:actor.user_id,action:"INVENTORY_ITEM_CREATED",entity_type:"inventory_items",entity_id:c.item_id,details:{item_name:c.name,source:"purchase order",po_no:poNo}});
+      for(const c of created)await admin.from("audit_logs").insert({user_id:actor.user_id,action:"INVENTORY_ITEM_CREATED",entity_type:"inventory_items",entity_id:c.item_id,details:{item_name:c.name,source:"supply replenishment",po_no:poNo}});
       await admin.from("audit_logs").insert({user_id:actor.user_id,action:"PURCHASE_ORDER_PREPARED",entity_type:"purchase_orders",entity_id:po.po_id,details:{po_no:poNo,lines:lines.length,new_items:created.length}});
       return json({ok:true,purchase_order:{...po,po_no:poNo},new_items:created});
     }
@@ -263,7 +263,7 @@ Deno.serve(async(req)=>{
       const id=Number(body.po_id||0);
       const reason=clean(body.reason,500);
       const {data:po}=await admin.from("purchase_orders").select("*").eq("po_id",id).maybeSingle();
-      if(!po)return json({error:"Purchase order not found."},404);
+      if(!po)return json({error:"Supply replenishment not found."},404);
       const from=action==="send_po"?["Prepared"]:["Prepared","Sent"];
       if(!from.includes(po.status))return json({error:`This order is already ${po.status.toLowerCase()}.`},409);
       if(action==="cancel_po"&&reason.length<3)return json({error:"Give a reason for cancelling the order."},400);
@@ -280,7 +280,7 @@ Deno.serve(async(req)=>{
     if(action==="receive_po"){
       const id=Number(body.po_id||0);
       const {data:po}=await admin.from("purchase_orders").select("*").eq("po_id",id).maybeSingle();
-      if(!po)return json({error:"Purchase order not found."},404);
+      if(!po)return json({error:"Supply replenishment not found."},404);
       if(!["Prepared","Sent"].includes(po.status))return json({error:po.status==="Received"?"This order was already received.":"A cancelled order cannot be received."},409);
       // Only what arrived in good condition goes into stock; anything short or damaged needs a note.
       const {data:lines}=await admin.from("purchase_order_items").select("po_item_id,item_id,quantity").eq("po_id",id);

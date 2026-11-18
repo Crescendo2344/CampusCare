@@ -19,7 +19,7 @@ import {auditLog} from './auditAndBackups.js';
 import {persistDB} from './persistence.js';
 import {renderMyRecords} from './patientRecords.js';
 import {renderTreatTable,renderTreatments} from './treatmentList.js';
-import {renderAppointments} from './appointments.js';
+import {refreshAppointmentViews} from './appointments.js';
 import {renderDoctorSchedule} from './doctorSchedule.js';
 import {loadJsPDF} from './settingsAndCertificates.js';
 import {loadHtml2Canvas,openNewCertificateModal} from './certificateService.js';
@@ -328,7 +328,7 @@ export async function saveTreatment(ptId,apptId){
     }else if(document.getElementById('treat-table')){
       await renderTreatments();
     }else if(document.getElementById('appt-table')){
-      await renderAppointments();
+      await refreshAppointmentViews();
     }else if(appState.auth.currentUser.role==='Doctor'){
       await renderDoctorSchedule();
     }

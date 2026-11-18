@@ -1163,9 +1163,9 @@ try{
     await page.locator('.inv-stat:not([disabled])').first().click();
     assert(await page.locator('#inv-panel-items').isVisible(),'A summary card opens the filtered item list');
     if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/inventory-tabs-${role}.png`});
-    // Purchase orders: the medicine is typed; a name not in stock is a new item that asks for its unit.
+    // Supply replenishment: the medicine is typed; a name not in stock is a new item that asks for its unit.
     await page.locator('#inv-tab-orders').click();
-    await page.getByRole('button',{name:'+ New purchase order'}).click();
+    await page.getByRole('button',{name:'+ New supply replenishment'}).click();
     const poName=page.locator('#so-po-lines input[data-field="name"]').first();
     await poName.fill('Tranexamic Acid 500 mg Capsule');await poName.dispatchEvent('change');
     await page.locator('#so-po-lines .badge',{hasText:'New item'}).waitFor();
@@ -1253,6 +1253,29 @@ try{
   await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('messages'));
   await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
   assert.equal(await page.locator('#msgr-shell').count(),0);
+  // Clinic Calendar & Queue: staff and doctors only, each limited to their own clinic's bookings.
+  assert.equal(navIds.includes('nav-clinic-calendar'),['Staff','Doctor'].includes(role),`${role}: Clinic Calendar & Queue menu entry`);
+  if(!['Staff','Doctor'].includes(role)){
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('clinic-calendar'));
+    await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
+    assert.equal(await page.locator('#cq-root').count(),0,`${role} cannot open the clinic calendar`);
+  }
+  if(role==='Staff'){
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('clinic-calendar'));
+    await page.locator('#cq-root').waitFor();
+    assert.match(await page.locator('.cq-clinic').innerText(),/Medical Clinic/);
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp,today=state.clinicInformation.TODAY;
+      const pt=state.data.DB.patients.find(p=>p._realSupabase)||state.data.DB.patients[0],doc=state.data.DB.users.find(u=>u.role==='Doctor');
+      const base={_realSupabase:true,patientId:pt.id,doctorId:doc?.id||1,date:today,status:'Scheduled',reason:'Check-up'};
+      state.data.DB.appointments.push({...base,id:990301,dbAppointmentId:301,clinic:'Medical Clinic',service:'General Checkup',time:'09:00'},
+        {...base,id:990302,dbAppointmentId:302,clinic:'Dental Clinic',service:'Dental Checkup',time:'10:00'});
+      features.clinicCalendar.repaintClinicCalendar();});
+    assert.equal(await page.locator('#cq-queue .cq-item').count(),1,'Medical staff see only the Medical Clinic booking');
+    assert.match(await page.locator('#cq-queue').innerText(),/No\. 1[\s\S]*General Checkup/);
+    assert.doesNotMatch(await page.locator('#cq-queue').innerText(),/Dental Checkup/);
+    assert.match(await page.locator('#cq-month .cq-cell.today').getAttribute('aria-label'),/1 booking/);
+    if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/clinic-calendar-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+  }
   if(role==='Staff'){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('patients'));
     await page.locator('#pt-session').waitFor();

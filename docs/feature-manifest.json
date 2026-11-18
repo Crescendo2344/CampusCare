@@ -14,6 +14,8 @@
     ],
     "state": [],
     "imports": [
+      "./profileStrength.js",
+      "../../supabase/functions/_shared/clinic-services.js",
       "../app/state.js",
       "./issueReports.js",
       "./modals.js",
@@ -55,6 +57,8 @@
     ],
     "state": [],
     "imports": [
+      "./navigationRaceProtection.js",
+      "./privacy.js",
       "../domain/clinic-scope.js",
       "../app/state.js",
       "./workflowRequests.js",
@@ -91,7 +95,8 @@
       "./treatmentForm.js",
       "./bookingForm.js",
       "./triageVitals.js",
-      "../dependencies.js"
+      "../dependencies.js",
+      "./dentalHealthHistory.js"
     ]
   },
   {
@@ -120,9 +125,11 @@
     "functions": [
       "renderAppointments",
       "exportAppointmentsCsv",
+      "apptActionButtons",
       "apptMenuHtml",
       "appointmentAllowedActions",
       "renderApptTable",
+      "refreshAppointmentViews",
       "noShowAppt",
       "cancelAppt",
       "confirmCancelAppt",
@@ -157,6 +164,7 @@
       "./slotManager.js",
       "./reappointment.js",
       "../shared/csv.js",
+      "./downloadFormats.js",
       "./triageVitals.js",
       "../../supabase/functions/_shared/triage-vitals.js"
     ]
@@ -366,7 +374,8 @@
       "patientPriority",
       "corChecklistHtml",
       "showBookingConfirmation",
-      "openRescheduleModal"
+      "openRescheduleModal",
+      "showRescheduleRequested"
     ],
     "state": [
       {
@@ -379,6 +388,7 @@
       }
     ],
     "imports": [
+      "../domain/reschedule-requests.js",
       "../domain/clinic-scope.js",
       "./reappointment.js",
       "../../supabase/functions/_shared/clinic-services.js",
@@ -398,6 +408,7 @@
       "./patientAppointments.js",
       "./appointments.js",
       "../domain/booking-availability.js",
+      "./dentalHealthHistory.js",
       "../dependencies.js"
     ]
   },
@@ -483,7 +494,7 @@
       "ensureCertificateLogo",
       "normalizeCertificateDocumentMetadata",
       "buildCertificateDocument",
-      "certEditorToolbarHtml",
+      "buildMedicalCertificateDocument",
       "renderCertRequests",
       "openNewCertificateModal",
       "filterCertificatePatients",
@@ -497,13 +508,6 @@
       "voidCertificate",
       "cleanCertificateFieldText",
       "readCertificateDocumentField",
-      "formatCertDocument",
-      "initCertSignaturePad",
-      "setCertSignaturePreview",
-      "clearCertSignature",
-      "uploadCertSignature",
-      "pasteCertSignatureFromClipboard",
-      "useSavedDoctorSignature",
       "sanitizeCertHtml",
       "signCert",
       "loadHtml2Canvas",
@@ -541,10 +545,43 @@
       "./persistence.js",
       "./documentScanner.js",
       "./patientForm.js",
+      "../shared/dental-chart.js",
+      "./treatmentForm.js",
       "./settingsAndCertificates.js",
       "../ui/pager.js",
       "../dependencies.js",
-      "../domain/certificate-purpose.js"
+      "../domain/certificate-purpose.js",
+      "../domain/dental-certificate.js",
+      "../shared/ctu-letterhead.js",
+      "../domain/clinic-scope.js"
+    ]
+  },
+  {
+    "name": "clinicCalendar",
+    "path": "src/features/clinicCalendar.js",
+    "functions": [
+      "renderClinicCalendar",
+      "repaintClinicCalendar"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./navigationRaceProtection.js",
+      "./loadingSkeletons.js",
+      "./appointmentService.js",
+      "./appointments.js",
+      "./appointmentDetails.js",
+      "./bookingForm.js",
+      "./issueReports.js",
+      "./documentScanner.js",
+      "./patientManagement.js",
+      "./patientService.js",
+      "./patientForm.js",
+      "./scheduleAndDrafts.js",
+      "./inputValidation.js",
+      "./triageVitals.js",
+      "../domain/clinic-calendar.js",
+      "../dependencies.js"
     ]
   },
   {
@@ -597,6 +634,7 @@
       "./issueReports.js",
       "./navigationRaceProtection.js",
       "./patientService.js",
+      "./profileStrength.js",
       "./loadingSkeletons.js",
       "./treatmentService.js",
       "./treatmentForm.js",
@@ -812,7 +850,8 @@
       "./persistence.js",
       "../domain/survey-analysis.js",
       "../dependencies.js",
-      "../shared/csv.js"
+      "../shared/csv.js",
+      "./downloadFormats.js"
     ]
   },
   {
@@ -881,6 +920,9 @@
       "./persistence.js",
       "./userManagement.js",
       "../dependencies.js",
+      "./modals.js",
+      "./appointmentService.js",
+      "./topbarAndNavigation.js",
       "../ui/pager.js",
       "./patientManagement.js",
       "./triageVitals.js",
@@ -915,7 +957,8 @@
       "./theme.js",
       "../dependencies.js",
       "./slotManager.js",
-      "../domain/doctor-coverage.js"
+      "../domain/doctor-coverage.js",
+      "../../supabase/functions/_shared/clinic-services.js"
     ]
   },
   {
@@ -985,6 +1028,21 @@
     ]
   },
   {
+    "name": "downloadFormats",
+    "path": "src/features/downloadFormats.js",
+    "functions": [
+      "parseCsv",
+      "csvToObjects",
+      "downloadTable"
+    ],
+    "state": [],
+    "imports": [
+      "../dependencies.js",
+      "./modals.js",
+      "./issueReports.js"
+    ]
+  },
+  {
     "name": "emailDelivery",
     "path": "src/features/emailDelivery.js",
     "functions": [
@@ -1018,7 +1076,8 @@
       "./auditAndBackups.js",
       "./persistence.js",
       "../dependencies.js",
-      "../shared/csv.js"
+      "../shared/csv.js",
+      "./downloadFormats.js"
     ]
   },
   {
@@ -1063,6 +1122,7 @@
     ],
     "state": [],
     "imports": [
+      "../shared/ctu-letterhead.js",
       "../services/feature-sync.js",
       "../app/state.js",
       "./issueReports.js",
@@ -1167,6 +1227,7 @@
       "./inputValidation.js",
       "../dependencies.js",
       "../shared/csv.js",
+      "./downloadFormats.js",
       "./stockOrders.js"
     ]
   },
@@ -1260,7 +1321,8 @@
       "../dependencies.js",
       "../reports/ai-insights.js",
       "../domain/inventory-projection.js",
-      "../shared/csv.js"
+      "../shared/csv.js",
+      "./downloadFormats.js"
     ]
   },
   {
@@ -1356,6 +1418,7 @@
     ],
     "state": [],
     "imports": [
+      "../app/stale-build.js",
       "./navigationRaceProtection.js",
       "./dashboard.js",
       "./patientAppointments.js",
@@ -1364,6 +1427,7 @@
       "./accountSettings.js",
       "./patientManagement.js",
       "./appointments.js",
+      "./clinicCalendar.js",
       "./approvalQueue.js",
       "./treatmentList.js",
       "./inventory.js",
@@ -1510,6 +1574,7 @@
       "isCampusPageCurrent",
       "navigationAccountKey",
       "recordPageHistory",
+      "rememberedPage",
       "navTo",
       "healthResourceRecords",
       "healthResourceAction",
@@ -1588,10 +1653,12 @@
       "maskPasswordResetEmail",
       "updatePasswordResetDestination",
       "sendPasswordResetEmail",
+      "requestNewResetLink",
       "cleanAuthCallbackUrl",
       "showRecoveryPasswordChecklist",
       "hideRecoveryPasswordChecklist",
       "updateRecoveryPasswordStrength",
+      "isRecoverySession",
       "getRecoverySession",
       "getRecoveryCooldownState",
       "applyRecoveryCooldownUi",
@@ -1620,7 +1687,8 @@
     "functions": [
       "renderMyAppointments",
       "filterMyAppts",
-      "renderMyApptsList"
+      "renderMyApptsList",
+      "withdrawReschedule"
     ],
     "state": [],
     "imports": [
@@ -1640,6 +1708,10 @@
       "./scheduleAndDrafts.js",
       "./treatmentForm.js",
       "../dependencies.js",
+      "../domain/reschedule-requests.js",
+      "./appointmentService.js",
+      "./theme.js",
+      "./dentalHealthHistory.js",
       "../ui/pager.js"
     ]
   },
@@ -1676,6 +1748,10 @@
       }
     ],
     "imports": [
+      "./treatmentForm.js",
+      "../../supabase/functions/_shared/clinic-services.js",
+      "../shared/ctu-letterhead.js",
+      "../shared/dental-chart.js",
       "../app/state.js",
       "./documentScanner.js",
       "./theme.js",
@@ -1726,8 +1802,10 @@
       "./inputValidation.js",
       "../dependencies.js",
       "./appointmentService.js",
+      "../services/report-snapshot.js",
       "./treatmentService.js",
-      "../shared/csv.js"
+      "../shared/csv.js",
+      "./downloadFormats.js"
     ]
   },
   {
@@ -1828,13 +1906,17 @@
     "path": "src/features/privacy.js",
     "functions": [
       "openPrivacyRequestModal",
-      "submitPrivacyRequest"
+      "submitPrivacyRequest",
+      "promptPrivacyAcknowledgement"
     ],
     "state": [],
     "imports": [
       "./modals.js",
       "./theme.js",
       "./loginLockout.js",
+      "../app/state.js",
+      "./issueReports.js",
+      "./inputValidation.js",
       "../dependencies.js"
     ]
   },
@@ -1853,6 +1935,7 @@
     ],
     "state": [],
     "imports": [
+      "../../supabase/functions/_shared/clinic-services.js",
       "../app/state.js",
       "./issueReports.js",
       "./inputValidation.js",
@@ -1861,6 +1944,28 @@
       "./theme.js",
       "../dependencies.js",
       "../domain/patient-records.js"
+    ]
+  },
+  {
+    "name": "profileStrength",
+    "path": "src/features/profileStrength.js",
+    "functions": [
+      "profileStrengthCardHtml",
+      "openFinishVerification"
+    ],
+    "state": [],
+    "imports": [
+      "../domain/profile-completeness.js",
+      "./issueReports.js",
+      "../dependencies.js",
+      "./navigationRaceProtection.js",
+      "./modals.js",
+      "../app/state.js",
+      "./patientService.js",
+      "./workflowRequests.js",
+      "./loadingSkeletons.js",
+      "./theme.js",
+      "../../supabase/functions/_shared/registration-validation.js"
     ]
   },
   {
@@ -1904,6 +2009,14 @@
       "exportToolbarHtml",
       "downloadBlob",
       "rowsToCSV",
+      "tableHeadings",
+      "tableHtml",
+      "excelWorkbook",
+      "loadDocxLib",
+      "wordDocx",
+      "wordDocumentHtml",
+      "exportTable",
+      "exportButtonsHtml",
       "exportReportCSV",
       "loadSheetJs",
       "exportReportExcel",
@@ -1938,9 +2051,12 @@
       }
     ],
     "imports": [
+      "../shared/ctu-letterhead.js",
+      "../shared/word-letterhead.js",
       "../reports/custom-report.js",
       "./navigationRaceProtection.js",
       "../reports/student-report.js",
+      "../reports/saturday-report.js",
       "../app/state.js",
       "./issueReports.js",
       "./theme.js",
@@ -1969,6 +2085,7 @@
       "../reports/forecast.js",
       "../domain/report-analysis.js",
       "../reports/student-report.js",
+      "../reports/saturday-report.js",
       "./analyticsDisplay.js",
       "../app/state.js",
       "./issueReports.js",
@@ -2122,13 +2239,16 @@
       "showSettingsSection",
       "renderSettings",
       "confirmCriticalSettings",
+      "setClinicSettingsEditing",
       "saveSettings",
+      "syncPrivacyRequests",
       "savePrivacySettings",
       "saveSemSettings",
       "loadJsPDF"
     ],
     "state": [],
     "imports": [
+      "./inputValidation.js",
       "../domain/academic-year.js",
       "./modals.js",
       "../app/state.js",
@@ -2236,6 +2356,7 @@
     ],
     "state": [],
     "imports": [
+      "../shared/ctu-letterhead.js",
       "../app/state.js",
       "./issueReports.js",
       "./inputValidation.js",
@@ -2292,6 +2413,8 @@
     ],
     "state": [],
     "imports": [
+      "../shared/ctu-letterhead.js",
+      "../domain/clinic-scope.js",
       "../services/feature-sync.js",
       "../app/state.js",
       "../services/warm-cache.js",
@@ -2344,6 +2467,7 @@
     "path": "src/features/topbarAndNavigation.js",
     "functions": [
       "updateTopDate",
+      "navLabel",
       "getTopSearchItems",
       "renderTopSearch",
       "openTopSearchResult",
@@ -2427,10 +2551,12 @@
       "isDentalTreatment",
       "openDentalRecordEditor",
       "saveDentalRecordForTreatment",
+      "dentalRecordSheetData",
       "dentalRecordDocumentHtml",
       "viewDentalRecord",
       "printDentalRecord",
       "downloadDentalRecordPDF",
+      "downloadDentalRecordWord",
       "viewTreatment",
       "openClarifyTreatment",
       "printTreatmentRecord",
@@ -2442,16 +2568,20 @@
     ],
     "state": [],
     "imports": [
+      "../shared/ctu-letterhead.js",
+      "../shared/dental-record-sheet.js",
       "../app/state.js",
       "./appointmentService.js",
       "./theme.js",
       "./inputValidation.js",
       "./treatmentService.js",
       "./documentScanner.js",
+      "../../supabase/functions/_shared/clinic-services.js",
       "./issueReports.js",
       "./displayNames.js",
       "./modals.js",
       "./patientForm.js",
+      "./dentalHealthHistory.js",
       "./patientManagement.js",
       "./datePicker.js",
       "./auditAndBackups.js",
@@ -2492,7 +2622,8 @@
       "./inputValidation.js",
       "./displayNames.js",
       "../dependencies.js",
-      "../shared/csv.js"
+      "../shared/csv.js",
+      "./downloadFormats.js"
     ]
   },
   {
@@ -2594,6 +2725,7 @@
     ],
     "state": [],
     "imports": [
+      "../../supabase/functions/_shared/clinic-services.js",
       "../../supabase/functions/_shared/admin-user-edit.js",
       "../app/state.js",
       "./issueReports.js",
@@ -2649,6 +2781,9 @@
       "normalizePhilippinePhoneForAuth",
       "refreshCurrentProfileContact",
       "saveAccount",
+      "profileAction",
+      "openChangeEmailModal",
+      "openEmailCodeModal",
       "cancelAccountUpdate"
     ],
     "state": [

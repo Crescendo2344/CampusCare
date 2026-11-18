@@ -11,7 +11,7 @@ import {hideAlert,showAlert,toast} from './theme.js';
 import {persistDB} from './persistence.js';
 import {auditLog} from './auditAndBackups.js';
 import {patientAvatarHtml} from './patientManagement.js';
-import {appointmentAllowedActions,renderApptTable} from './appointments.js';
+import {appointmentAllowedActions,refreshAppointmentViews,renderApptTable} from './appointments.js';
 import {viewAppt} from './appointmentDetails.js';
 import * as clinicalChecks from '../domain/clinical-validation.js';
 import {TRIAGE_VITAL_FIELDS,cleanTriageVitals,hasTriageVitals,triageVitalErrors} from '../../supabase/functions/_shared/triage-vitals.js';
@@ -128,6 +128,7 @@ export async function saveTriageVitals(apptId,{returnToDetails=false}={}){
     toast(had?'Vital signs updated.':'Vital signs saved. The doctor can see them now.','success');
     closeAllModals();
     if(document.getElementById('appt-table'))renderApptTable();
+    if(document.getElementById('cq-queue'))await refreshAppointmentViews();
     if(returnToDetails)viewAppt(a.id);
   }catch(e){
     console.error('Triage vitals save:',e);

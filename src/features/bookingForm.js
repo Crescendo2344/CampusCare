@@ -17,7 +17,7 @@ import {clearToasts,hideAlert,showAlert,toast} from './theme.js';
 import {persistDB} from './persistence.js';
 import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {renderMyAppointments} from './patientAppointments.js';
-import {renderAppointments} from './appointments.js';
+import {refreshAppointmentViews} from './appointments.js';
 import {addBookingDays,buildDoctorAvailability} from '../domain/booking-availability.js';
 import {healthHistoryNextStepHtml} from './dentalHealthHistory.js';
 import {bindAction,scheduleRules} from '../dependencies.js';
@@ -389,7 +389,7 @@ export async function saveAppt(editId){
       return;
     }
     if(forSelf)await renderMyAppointments();
-    else await renderAppointments();
+    else await refreshAppointmentViews();
     // Patients get a confirmation that spells out what to bring; staff get a reminder to pass on.
     const booked=appointmentRecords().find(x=>x.patientId===ptId&&x.date===date&&x.time===time&&['Scheduled','Pending','Confirmed'].includes(x.status));
     const queue=booked?queueLabel(booked):'';
