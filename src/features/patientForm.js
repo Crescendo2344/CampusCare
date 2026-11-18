@@ -126,7 +126,6 @@ export function openPatientModal(id=null){
           <div class="form-group" id="pm-course-group">
             <label for="pm-course">Course</label>
             <input id="pm-course" maxlength="120" autocomplete="off" placeholder="e.g. BS Information Technology" value="${escapeHtml(pt?.course||'')}">
-            <p class="form-note field-hint">Update this when the student shifts to another program.</p>
           </div>
           <div class="form-group" id="pm-major-group">
             <label for="pm-major">Major</label>

@@ -256,8 +256,7 @@ function privacyPanelHtml(s){
           <div class="form-group"><label for="set-privacy-version">Version</label><input id="set-privacy-version" maxlength="40" value="${escapeHtml(s.privacyPolicyVersion||'1.0')}" data-current="${escapeHtml(s.privacyPolicyVersion||'1.0')}"></div>
           <div class="form-group"><label for="set-privacy-updated">Updated on</label>${campusDateFieldHtml('set-privacy-updated',s.privacyPolicyUpdated||appState.clinicInformation.TODAY,'Privacy Notice Updated')}</div>
         </div>
-        <div class="form-group"><label for="set-privacy-changes">What changed <span class="required">*</span></label><textarea id="set-privacy-changes" rows="4" maxlength="2000" placeholder="e.g. We now keep verification selfies for 30 days after approval instead of 90 days."></textarea>
-          <p class="form-note">Shown to everyone when they are asked to acknowledge the new version, and at the top of the Privacy Notice.</p></div>
+        <div class="form-group"><label for="set-privacy-changes">What changed <span class="required">*</span></label><textarea id="set-privacy-changes" rows="4" maxlength="2000" placeholder="e.g. We now keep verification selfies for 30 days after approval instead of 90 days."></textarea></div>
       </fieldset>
       <div class="settings-edit-actions" id="privacy-version-actions" hidden>
         <button type="button" class="btn btn-sm" ${bindAction('click',()=>renderSettings())}>Cancel</button>

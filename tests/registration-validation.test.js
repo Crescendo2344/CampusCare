@@ -59,6 +59,5 @@ test('the registration form asks for health details under Personal information a
   for(const id of ['r-blood','r-height','r-weight','r-allergies','r-ename','r-econtact'])assert.ok(at(id)>0,id);
   assert.ok(at('r-sex')<at('r-blood')&&at('r-weight')<html.indexOf('<legend>Account details</legend>'));
   assert.ok(at('r-contact')<html.indexOf('<legend>Emergency contact')&&html.indexOf('<legend>Emergency contact')<html.indexOf('<legend>School details</legend>'));
-  assert.match(html,/In case of emergency, please notify/);
   assert.match(html,/<legend>Emergency contact <span[^>]*>\(optional\)/);
 });

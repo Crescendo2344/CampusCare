@@ -91,7 +91,7 @@ function healthInfoCard(pt){
 export function openHealthEditModal(){
   const pt=appState.auth.currentPatient;if(!pt)return;
   openModal(`<div class="modal mr-health-modal" role="dialog" aria-labelledby="mr-health-title">
-    <div class="modal-header"><div><h3 id="mr-health-title">Edit Health Information</h3><div class="text-muted">The clinic sees these details at your visits.</div></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-header"><h3 id="mr-health-title">Edit Health Information</h3><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
       <div id="mr-health-msg"></div>
       <div class="form-group"><label for="mr-blood">Blood Type</label><select id="mr-blood">${BLOOD_TYPES.map(b=>`<option ${String(pt.blood||'Unknown')===b?'selected':''}>${b}</option>`).join('')}</select></div>
