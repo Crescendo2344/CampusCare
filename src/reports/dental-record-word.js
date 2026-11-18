@@ -21,8 +21,20 @@ async function toothPng(sides,cache){
   return bytes;
 }
 
-/** @param D the docx library @param r the same record object as dentalRecordSheetHtml */
-export async function dentalRecordDocx(D,r){
+// A drawn e-signature (PNG data URL) as image bytes with its size, or null.
+async function signatureImage(dataUrl,maxW,maxH){
+  if(!/^data:image\/png;base64,/.test(String(dataUrl||'')))return null;
+  const image=new Image();image.src=dataUrl;await image.decode();
+  const scale=Math.min(maxW/image.naturalWidth,maxH/image.naturalHeight,1);
+  const bytes=Uint8Array.from(atob(dataUrl.split(',')[1]),c=>c.charCodeAt(0));
+  return {data:bytes,width:Math.round(image.naturalWidth*scale),height:Math.round(image.naturalHeight*scale)};
+}
+
+/**
+ * @param D the docx library @param r the same record object as dentalRecordSheetHtml
+ * @param log the TREATMENT/REMARKS rows ({date, remarks, signature, dentistName}), printed on the next page
+ */
+export async function dentalRecordDocx(D,r,log=[]){
   const font='Arial',size=20; // half-points: 10 pt
   const pageW=11906,pageH=16838,margin=720,contentW=pageW-2*margin;
   const {header,footer}=await docxLetterhead(D,{contentW,clinic:'Dental Clinic',font});
@@ -98,6 +110,22 @@ export async function dentalRecordDocx(D,r){
   const recLines=[...recommendation,...Array.from({length:Math.max(0,3-recommendation.length)},()=>'')];
   const ruled=text=>para(run(text||' '),{border:{bottom:{style:D.BorderStyle.SINGLE,size:6,color:'111111',space:1}},spacing:{after:80}});
 
+  const dentistSig=await signatureImage(r.dentistSignature,160,48);
+  const logW=[Math.floor(contentW*.18),Math.floor(contentW*.58)];logW.push(contentW-logW[0]-logW[1]);
+  const logCell=(width,children,o={})=>new D.TableCell({borders:boxed,width:{size:width,type:D.WidthType.DXA},verticalAlign:D.VerticalAlign.CENTER,
+    margins:{top:40,bottom:40,left:80,right:80},children:Array.isArray(children)?children:[children],...o});
+  const logRows=[];
+  for(const row of log){
+    const sig=await signatureImage(row.signature,110,22);
+    logRows.push(new D.TableRow({height:{value:380,rule:D.HeightRule.ATLEAST},children:[
+      logCell(logW[0],para(run(row.date,{size:18}))),logCell(logW[1],para(run(row.remarks,{size:18}))),
+      logCell(logW[2],[...(sig?[para(new D.ImageRun({data:sig.data,transformation:{width:sig.width,height:sig.height}}),{alignment:center})]:[]),para(run(row.dentistName||'',{size:14}),{alignment:center})])]}));
+  }
+  for(let i=log.length;i<28;i++)logRows.push(new D.TableRow({height:{value:380,rule:D.HeightRule.ATLEAST},children:logW.map(w=>logCell(w,para(run(''))))}));
+  const logTable=new D.Table({width:{size:contentW,type:D.WidthType.DXA},columnWidths:logW,rows:[
+    new D.TableRow({tableHeader:true,children:[logCell(logW[0],para(run('Date'))),logCell(logW[1],para(run('Treatment/Remarks'))),logCell(logW[2],para(run('Signature')))]}),
+    ...logRows]});
+
   const doc=new D.Document({creator:'CampusCare',title:`Dental Record ${r.name||''}`.trim(),styles:{default:{document:{run:{font,size}}}},
     sections:[{properties:{page:{size:{width:pageW,height:pageH,orientation:D.PageOrientation.PORTRAIT},margin:{top:margin,bottom:margin,left:margin,right:margin,header:360,footer:300}}},
       headers:{default:header},...(footer?{footers:{default:footer}}:{}),
@@ -112,8 +140,13 @@ export async function dentalRecordDocx(D,r){
         bottom,
         para(run('RECOMMENDATION',{bold:true}),{spacing:{before:240,after:80}}),
         ...recLines.map(ruled),
-        para(run(r.dentistName||'',{bold:true}),{alignment:D.AlignmentType.RIGHT,spacing:{before:400}}),
+        ...(dentistSig?[para(new D.ImageRun({data:dentistSig.data,transformation:{width:dentistSig.width,height:dentistSig.height}}),{alignment:D.AlignmentType.RIGHT,spacing:{before:240}})]:[]),
+        para(run(r.dentistName||'',{bold:true}),{alignment:D.AlignmentType.RIGHT,spacing:{before:dentistSig?0:400}}),
         para(run(r.dentistTitle||'Dentist'),{alignment:D.AlignmentType.RIGHT})
-      ]}]});
+      ]},
+      // TREATMENT/REMARKS: one row per visit, then blank ruled rows like the paper sheet.
+      {properties:{page:{size:{width:pageW,height:pageH,orientation:D.PageOrientation.PORTRAIT},margin:{top:margin,bottom:margin,left:margin,right:margin,header:360,footer:300}}},
+        headers:{default:header},...(footer?{footers:{default:footer}}:{}),
+        children:[logTable]}]});
   return D.Packer.toBlob(doc);
 }

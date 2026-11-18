@@ -73,6 +73,7 @@ import * as feature71 from '../features/profileDetails.js';
 import * as feature72 from '../features/stockOrders.js';
 import * as feature73 from '../features/triageVitals.js';
 import * as feature74 from '../features/clinicCalendar.js';
+import * as feature75 from '../features/eSignature.js';
 export const features={
 analyticsDisplay,
   dentalHealthHistory,
@@ -150,6 +151,7 @@ analyticsDisplay,
   stockOrders:feature72,
   triageVitals:feature73,
   clinicCalendar:feature74,
+  eSignature:feature75,
 };
 import {initializeOptionalState} from './optional-state.js';
 import * as dentalHealthHistory from '../features/dentalHealthHistory.js';
@@ -226,4 +228,5 @@ initializeOptionalState();
   feature68.initializeFeature();
   feature69.initializeFeature();
   feature74.initializeFeature();
+  feature75.initializeFeature();
 }

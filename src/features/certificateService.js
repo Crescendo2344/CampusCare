@@ -15,6 +15,7 @@ import {PERMANENT_TEETH,PRIMARY_TEETH,dentalChartTableHtml} from '../shared/dent
 import {openAddTreatmentModalPt} from './treatmentForm.js';
 import {loadJsPDF} from './settingsAndCertificates.js';
 import {paginate,pagerHtml} from '../ui/pager.js';
+import {openSignaturePad,signatureFor} from './eSignature.js';
 import {bindAction,certificateData,createCertificateService} from '../dependencies.js';
 import * as purposeData from '../domain/certificate-purpose.js';
 import {accomplishmentText,dentalHistorySummary} from '../domain/dental-certificate.js';
@@ -393,16 +394,20 @@ export function openCertificateEditor(id,draft=null){
     :buildMedicalCertificateDocument(r,doctor.id,findings,remarks,'')));
   appState.certificateService.certEditing={id:r.id,patientId:r.patientId,treatmentId:r.treatmentId||null,purpose:r.purpose,details:r.details||''};
   // The document comes from the recorded visit and is reviewed, not edited: a correction is made in
-  // the visit record. It is signed by hand after printing, so there is no e-signature.
-  appState.certificateService.certDraftSignature='';
+  // the visit record. The doctor's saved e-signature is placed on it; they can draw a new one, or
+  // leave it off and sign the printed copy by hand.
+  appState.certificateService.certDraftSignature=signatureFor(doctor.id);
+  appState.certificateService.certSaveSignature=false;
   openModal(`<div class="modal modal-xl" style="max-width:980px">
     <div class="modal-header"><div><h3>${r.id?`${certificateLabel(kind)} draft`:`Review ${certificateLabel(kind).toLowerCase()}`}</h3><div class="text-muted">Step 2 of 2 · ${pt?escapeHtml(pt.fname+' '+pt.lname):'Unknown patient'} · ${escapeHtml(r.purpose)}${visit?` · visit of ${escapeHtml(fmtDate(visit.date))}`:''}</div></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
       <input id="ic-doctor" type="hidden" value="${doctor.id}">
       <div class="cert-page-wrap"><div class="cert-paper cert-review" id="cert-editor" aria-label="Certificate preview">${documentHtml}</div></div>
+      <div class="cert-sign-bar" id="cert-sign-bar"></div>
     </div>
     <div class="modal-footer"><button class="btn" ${bindAction('click',()=>saveCertificateDraft())}>Save draft</button><button class="btn btn-success" ${bindAction('click',()=>signCert())}><i class="bi bi-printer" aria-hidden="true"></i> Issue &amp; print</button></div>
   </div>`);
+  renderCertSignBar();
 }
 
 // Dental records take priority for the Accomplishment and Recommendation; a record with no operations still reads as a finding.
@@ -555,6 +560,27 @@ export function sanitizeCertHtml(html){
 }
 
 // Issuing saves the draft, assigns the certificate number and prints it for the wet signature.
+
+// The signature on the certificate: the saved e-signature, a newly drawn one, or none (signed by hand).
+function setCertSignature(data){
+  appState.certificateService.certDraftSignature=data||'';
+  const img=document.getElementById('cert-signature-img');
+  if(img){img.src=data||'';img.style.display=data?'':'none';}
+  renderCertSignBar();
+}
+function renderCertSignBar(){
+  const bar=document.getElementById('cert-sign-bar');if(!bar)return;
+  const sig=appState.certificateService.certDraftSignature,saved=signatureFor(appState.auth.currentUser?.id);
+  bar.innerHTML=`<strong>E-signature</strong>${sig?`<img src="${escapeHtml(sig)}" alt="Signature on this certificate">`:'<span class="text-muted">None. Sign the printed copy by hand.</span>'}
+    <button type="button" class="btn btn-xs" ${bindAction('click',()=>openSignaturePad({title:'Sign this certificate',confirmLabel:'Use signature',
+      note:'It is placed above your name. It is also saved as your e-signature for the next certificates.',
+      onSave:data=>{appState.certificateService.certSaveSignature=true;setCertSignature(data);}}))}><i class="bi bi-pen" aria-hidden="true"></i> Draw ${sig?'a new one':'signature'}</button>
+    ${!sig&&saved?`<button type="button" class="btn btn-xs" ${bindAction('click',()=>{appState.certificateService.certSaveSignature=false;setCertSignature(saved);})}>Use my e-signature</button>`:''}
+    ${sig?`<button type="button" class="btn btn-xs" ${bindAction('click',()=>setCertSignature(''))}>Remove</button>`:''}`;
+  const img=document.getElementById('cert-signature-img');
+  if(img){img.src=sig||'';img.style.display=sig?'':'none';}
+}
+
 export async function signCert(){
   if(!isDoctor())return;
   const findings=readCertificateDocumentField('findings');
@@ -569,15 +595,18 @@ export async function signCert(){
     const recommendations=readCertificateDocumentField('remarks');
     let issuedNo=certNo;
     if(r._realSupabase){
-      const result=await certificateAction({action:'sign',certificate_id:r.dbCertificateId,examination_findings:findings,remarks:recommendations,document_content:finalHtml});
+      const signature=appState.certificateService.certDraftSignature||'';
+      const result=await certificateAction({action:'sign',certificate_id:r.dbCertificateId,examination_findings:findings,remarks:recommendations,document_content:finalHtml,
+        ...(signature?{signature_data:signature,save_signature:Boolean(appState.certificateService.certSaveSignature)}:{})});
+      if(signature&&appState.certificateService.certSaveSignature){appState.auth.currentUser.savedSignature=signature;}
       issuedNo=result.certificate_no||certNo;
       await syncRealCertificates();
     }else{
-      Object.assign(r,{certNo,issuedAt,findings,recommendations,documentHtml:finalHtml,status:'Issued',issuedById:appState.auth.currentUser.id,signedById:appState.auth.currentUser.id,signedAt:issuedAt});
+      Object.assign(r,{certNo,issuedAt,findings,recommendations,signatureData:appState.certificateService.certDraftSignature||'',documentHtml:finalHtml,status:'Issued',issuedById:appState.auth.currentUser.id,signedById:appState.auth.currentUser.id,signedAt:issuedAt});
       persistDB();
     }
     closeAllModals();
-    toast(`Certificate ${issuedNo} issued. Sign the printed copy before releasing it.`,'success');
+    toast(appState.certificateService.certDraftSignature?`Certificate ${issuedNo} issued with your e-signature.`:`Certificate ${issuedNo} issued. Sign the printed copy before releasing it.`,'success');
     await renderCertRequests('Issued');
     const issued=certificateRecords().find(x=>x.id===r.id||(r.dbCertificateId&&x.dbCertificateId===r.dbCertificateId));
     if(issued)printCertificate(issued.id);

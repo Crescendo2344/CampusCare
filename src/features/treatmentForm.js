@@ -1,6 +1,6 @@
 // treatmentForm: imported feature APIs; state belongs to explicit application namespaces.
 import {ctuFooterHtml,ctuHeaderHtml} from '../shared/ctu-letterhead.js';
-import {DENTAL_RECORD_CSS,dentalRecordSheetHtml} from '../shared/dental-record-sheet.js';
+import {DENTAL_RECORD_CSS,dentalPageHtml,dentalRecordSheetHtml,treatmentRemarksSheetHtml} from '../shared/dental-record-sheet.js';
 import {state as appState} from '../app/state.js';
 import {appointmentDisplayId,appointmentRecords,syncRealAppointments} from './appointmentService.js';
 import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
@@ -12,7 +12,8 @@ import {escapeHtml} from './issueReports.js';
 import {docName} from './displayNames.js';
 import {closeAllModals,openModal} from './modals.js';
 import {collectDentalRecordForm,dentalRecordFormHtml} from './patientForm.js';
-import {fillHealthHistorySlots,healthHistorySlotHtml} from './dentalHealthHistory.js';
+import {blankHealthHistoryPages,fillHealthHistorySlots,healthHistoryForAppointment,healthHistoryPrintPages,healthHistorySlotHtml} from './dentalHealthHistory.js';
+import {signatureFor} from './eSignature.js';
 import {patientAvatarHtml} from './patientManagement.js';
 import {campusDateFieldHtml} from './datePicker.js';
 import {auditLog} from './auditAndBackups.js';
@@ -121,7 +122,7 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
       </section>
 
       ${dental&&appt?healthHistorySlotHtml(appt,'panel'):''}
-      ${dental?dentalRecordFormHtml({},pt,defaultDate):''}
+      ${dental?dentalRecordFormHtml({},pt,defaultDate,{inVisit:true}):''}
 
       <section class="tv-section"><h4>Findings</h4>
         <div class="form-group">
@@ -479,57 +480,82 @@ export function dentalRecordSheetData(t){
     workStatus:d.workStatus||'',
     recommendation:d.recommendation||'',
     dentistName:d.dentistName||docName(doctor)||'',
-    dentistTitle:'Dentist'
+    dentistTitle:'Dentist',
+    dentistSignature:signatureFor(t.doctorId)
   };
+}
+
+// The TREATMENT/REMARKS page: every dental visit of the patient up to this one, oldest first, with what
+// was done and the signature of the dentist who did it.
+export function dentalTreatmentRows(t){
+  const visits=treatmentRecords().filter(x=>x.patientId===t.patientId&&!x.archived&&isDentalTreatment(x)&&String(x.date||'')<=String(t.date||''))
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date))||a.id-b.id);
+  return visits.map(x=>{
+    const ops=(x.dentalRecord?.accomplishment||[]).filter(op=>op?.tooth_no||op?.nature).map(op=>[op.tooth_no?`#${op.tooth_no}`:'',op.nature].filter(Boolean).join(' '));
+    const remarks=[ops.join(', '),x.diagnosis,x.notes].map(v=>String(v||'').trim()).filter(Boolean);
+    const doctor=getUserById(x.doctorId)||{};
+    return {date:fmtDate(x.date),remarks:[...new Set(remarks)].join(' — ')||'Dental consultation',signature:signatureFor(x.doctorId),dentistName:doctor.fname?docName(doctor):''};
+  });
+}
+
+// The official CTU Dental Clinic record of a visit, page by page: the Dental Health History Form (with the
+// patient's answers for the dentist, otherwise the blank paper form), the DENTAL RECORD, then TREATMENT/REMARKS.
+export async function dentalRecordPages(t){
+  const pt=getPatientById(t.patientId)||{};
+  const appt=t.appointmentId?appointmentRecords().find(a=>a.id===t.appointmentId):null;
+  const answered=await healthHistoryForAppointment(appt?.dbAppointmentId);
+  const history=answered?healthHistoryPrintPages(answered.patient,answered.history)
+    :blankHealthHistoryPages([pt.fname,pt.lname].filter(Boolean).join(' '));
+  return [
+    ...history.pages.map(page=>dentalPageHtml(page,history.css)),
+    dentalRecordSheetHtml(dentalRecordSheetData(t)),
+    treatmentRemarksSheetHtml(dentalTreatmentRows(t))
+  ];
 }
 export function dentalRecordDocumentHtml(t){
   return `<div class="dental-record-doc" id="dental-record-document-${t.id}" style="padding:0;max-width:none;overflow-x:auto"><style>${DENTAL_RECORD_CSS}</style>${dentalRecordSheetHtml(dentalRecordSheetData(t))}</div>`;
 }
 const dentalRecordFileName=(t,ext)=>{const pt=getPatientById(t.patientId)||{};return `CampusCare_Dental_Record_${(pt.lname||'Patient').replace(/[^A-Za-z0-9]+/g,'_')}_${treatmentDisplayId(t)}.${ext}`;};
 
-export function viewDentalRecord(id){
-  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t?.dentalRecord)return;
-  openModal(`<div class="modal modal-xl"><div class="modal-header"><div><h3>Dental Record</h3><div class="text-muted">CTU Dental Clinic record preview</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div>
-    <div class="modal-body"><div class="treatment-record-shell">${dentalRecordDocumentHtml(t)}</div></div>
-    <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
-      <button class="btn btn-info" ${bindAction('click',(event,element)=>{printDentalRecord((id))})}><i class="bi bi-printer"></i> Print</button>
-      <button class="btn" ${bindAction('click',(event,element)=>{downloadDentalRecordWord((id))})}><i class="bi bi-file-earmark-word"></i> Download Word</button>
-      <button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadDentalRecordPDF((id))})}><i class="bi bi-file-earmark-pdf"></i> Download PDF</button></div></div>`);
-}
+export function viewDentalRecord(id){viewTreatment(id);}
 
-// Prints the sheet from a hidden frame once its images have loaded.
-export function printDentalRecord(id){
-  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t?.dentalRecord)return;
+// Prints every page of the record from a hidden frame once its images have loaded.
+export async function printDentalRecord(id){
+  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  const pages=await dentalRecordPages(t);
   const frame=document.createElement('iframe');
   frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
   frame.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
   document.body.append(frame);
   const doc=frame.contentDocument;
   doc.open();
-  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Dental Record</title><style>@page{size:A4 portrait;margin:0}body{margin:0;background:#fff}${DENTAL_RECORD_CSS}.drd{margin:0 auto}</style></head><body>${dentalRecordSheetHtml(dentalRecordSheetData(t))}</body></html>`);
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Dental Record</title><style>@page{size:A4 portrait;margin:0}body{margin:0;background:#fff}${DENTAL_RECORD_CSS}.drd{margin:0 auto}</style></head><body>${pages.map(page=>`<div class="drd-page">${page}</div>`).join('')}</body></html>`);
   doc.close();
   const run=()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),1500);};
   waitForDocumentImages(doc.body).then(()=>setTimeout(run,100));
 }
 
-// A one-page A4 PDF of the sheet.
+// An A4 PDF with one page per sheet of the record.
 export async function downloadDentalRecordPDF(id){
-  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t?.dentalRecord)return;
+  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
   let stage=null;
   try{
-    const [jsPDF,html2canvas]=await Promise.all([loadJsPDF(),loadHtml2Canvas()]);
+    const [jsPDF,html2canvas,pages]=await Promise.all([loadJsPDF(),loadHtml2Canvas(),dentalRecordPages(t)]);
     stage=document.createElement('div');
     stage.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1';
-    stage.innerHTML=`<style>${DENTAL_RECORD_CSS}</style>${dentalRecordSheetHtml(dentalRecordSheetData(t))}`;
+    stage.innerHTML=`<style>${DENTAL_RECORD_CSS}</style>${pages.join('')}`;
     document.body.appendChild(stage);
-    const sheet=stage.querySelector('.drd');
-    await waitForDocumentImages(sheet);
-    const canvas=await html2canvas(sheet,{scale:2,backgroundColor:'#fff',useCORS:true,logging:false});
     const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
-    // Fit the whole form on one A4 page, like the paper record.
-    const pageW=210,pageH=297,ratio=canvas.height/canvas.width;
-    const w=Math.min(pageW,pageH/ratio),h=w*ratio;
-    pdf.addImage(canvas.toDataURL('image/jpeg',.95),'JPEG',(pageW-w)/2,0,w,h,'FAST');
+    const pageW=210,pageH=297;
+    const sheets=[...stage.querySelectorAll(':scope > .drd')];
+    for(const [index,sheet] of sheets.entries()){
+      await waitForDocumentImages(sheet);
+      const canvas=await html2canvas(sheet,{scale:2,backgroundColor:'#fff',useCORS:true,logging:false});
+      // Each sheet fits one A4 page, like the paper record.
+      const ratio=canvas.height/canvas.width,w=Math.min(pageW,pageH/ratio),h=w*ratio;
+      if(index)pdf.addPage();
+      pdf.addImage(canvas.toDataURL('image/jpeg',.95),'JPEG',(pageW-w)/2,0,w,h,'FAST');
+    }
     pdf.save(dentalRecordFileName(t,'pdf'));
     toast('Dental record downloaded as PDF.','success');
   }catch(e){
@@ -540,10 +566,10 @@ export async function downloadDentalRecordPDF(id){
 
 // The same form as an editable Word document.
 export async function downloadDentalRecordWord(id){
-  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t?.dentalRecord)return;
+  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
   try{
     const [{loadDocxLib,downloadBlob},{dentalRecordDocx}]=await Promise.all([import('./reportCharts.js'),import('../reports/dental-record-word.js')]);
-    const blob=await dentalRecordDocx(await loadDocxLib(),dentalRecordSheetData(t));
+    const blob=await dentalRecordDocx(await loadDocxLib(),dentalRecordSheetData(t),dentalTreatmentRows(t));
     downloadBlob(blob,dentalRecordFileName(t,'docx'),'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     toast('Dental record downloaded as a Word document.','success');
   }catch(e){
@@ -558,7 +584,26 @@ export function viewTreatment(id){
   const viewer=appState.auth.currentUser;
   const dental=isDentalTreatment(t)&&!(viewer.role==='Doctor'&&clinicForSpecialization(viewer.specialty)!=='Dental Clinic');
   const canEditDental=appState.auth.currentUser.role==='Doctor'&&t.doctorId===appState.auth.currentUser.id;
-  openModal(`<div class="modal modal-xl"><div class="modal-header"><div><h3>Treatment Record #${treatmentDisplayId(t)}</h3><div class="text-muted">Clinical document preview</div></div><button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>✕</button></div><div class="modal-body"><div class="treatment-record-shell">${treatmentDocumentHtml(t)}</div></div><div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap"><span class="tech-note">${dental&&t.dentalRecord?'This treatment includes a CTU Dental Clinic record.':dental?'A Dental Clinic record can be completed for this treatment.':'PDF uses the same clinical-document layout shown in the preview.'}</span><div style="display:flex;gap:.45rem;flex-wrap:wrap"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>${canEditDental&&!t.archived&&t._realSupabase?`<button class="btn" ${bindAction('click',()=>openClarifyTreatment(id))}><i class="bi bi-pencil-square" aria-hidden="true"></i> Clarify record</button>`:''}${dental&&t.dentalRecord?`<button class="btn btn-success" ${bindAction('click',(event,element)=>{viewDentalRecord((id))})}><i class="bi bi-emoji-smile"></i> Dental Record</button>`:(dental&&canEditDental?`<button class="btn btn-success" ${bindAction('click',(event,element)=>{openDentalRecordEditor((id))})}><i class="bi bi-plus-circle"></i> Add Dental Record</button>`:'')}${dental&&t.dentalRecord&&canEditDental?`<button class="btn btn-warning" ${bindAction('click',(event,element)=>{openDentalRecordEditor((id))})}><i class="bi bi-pencil"></i> Edit Dental Record</button>`:''}${appState.auth.currentUser.role==='Doctor'&&t.doctorId===appState.auth.currentUser.id&&!t.archived?`<button class="btn" ${bindAction('click',()=>{closeAllModals();openNewCertificateModal(t.patientId,t.id)})}><i class="bi bi-file-earmark-medical" aria-hidden="true"></i> Issue Certificate</button>`:''}<button class="btn btn-info" ${bindAction('click',(event,element)=>{printTreatmentRecord((id))})}><i class="bi bi-printer"></i> Print</button><button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadTreatmentPDF((id))})}><i class="bi bi-file-earmark-arrow-down"></i> Download PDF</button></div></div></div>`);
+  const clarify=canEditDental&&!t.archived&&t._realSupabase?`<button class="btn" ${bindAction('click',()=>openClarifyTreatment(id))}><i class="bi bi-pencil-square" aria-hidden="true"></i> Clarify record</button>`:'';
+  const certificate=appState.auth.currentUser.role==='Doctor'&&t.doctorId===appState.auth.currentUser.id&&!t.archived?`<button class="btn" ${bindAction('click',()=>{closeAllModals();openNewCertificateModal(t.patientId,t.id)})}><i class="bi bi-file-earmark-medical" aria-hidden="true"></i> Issue Certificate</button>`:'';
+  if(dental){
+    // A dental visit is kept in the CTU Dental Clinic's official record format.
+    const editDental=canEditDental&&!t.archived?`<button class="btn btn-warning" ${bindAction('click',()=>openDentalRecordEditor(id))}><i class="bi bi-pencil" aria-hidden="true"></i> ${t.dentalRecord?'Edit':'Add'} Dental Record</button>`:'';
+    openModal(`<div class="modal modal-xl"><div class="modal-header"><div><h3>Dental Record · #${treatmentDisplayId(t)}</h3><div class="text-muted">CTU Dental Clinic record: Dental Health History Form, Dental Record and Treatment/Remarks</div></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+      <div class="modal-body"><div class="treatment-record-shell dental-record-pages" id="dental-record-pages-${t.id}"><p class="text-muted">Preparing the record…</p></div></div>
+      <div class="modal-footer" style="justify-content:flex-end;flex-wrap:wrap"><div style="display:flex;gap:.45rem;flex-wrap:wrap">
+        <button class="btn" ${bindAction('click',()=>closeAllModals())}>Close</button>${clarify}${editDental}${certificate}
+        <button class="btn btn-info" ${bindAction('click',()=>printDentalRecord(id))}><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
+        <button class="btn" ${bindAction('click',()=>downloadDentalRecordWord(id))}><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Download Word</button>
+        <button class="btn btn-primary" ${bindAction('click',()=>downloadDentalRecordPDF(id))}><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Download PDF</button>
+      </div></div></div>`);
+    dentalRecordPages(t).then(pages=>{
+      const box=document.getElementById(`dental-record-pages-${t.id}`);
+      if(box)box.innerHTML=`<style>${DENTAL_RECORD_CSS}</style>${pages.map(page=>`<div class="dental-record-page">${page}</div>`).join('')}`;
+    });
+    return;
+  }
+  openModal(`<div class="modal modal-xl"><div class="modal-header"><div><h3>Treatment Record #${treatmentDisplayId(t)}</h3><div class="text-muted">Clinical document preview</div></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div><div class="modal-body"><div class="treatment-record-shell">${treatmentDocumentHtml(t)}</div></div><div class="modal-footer" style="justify-content:flex-end;flex-wrap:wrap"><div style="display:flex;gap:.45rem;flex-wrap:wrap"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Close</button>${clarify}${certificate}<button class="btn btn-info" ${bindAction('click',()=>printTreatmentRecord(id))}><i class="bi bi-printer" aria-hidden="true"></i> Print</button><button class="btn btn-primary" ${bindAction('click',()=>downloadTreatmentPDF(id))}><i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i> Download PDF</button></div></div></div>`);
 }
 // Clarify a saved visit record: the doctor adds a dated note; the original entries stay as written.
 export function openClarifyTreatment(id){

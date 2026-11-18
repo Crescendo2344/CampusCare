@@ -784,9 +784,14 @@ try{
     await box36.focus();await page.keyboard.press('Tab');
     assert.equal(await page.evaluate(()=>document.activeElement?.dataset.tooth),'37');
     await page.locator('.dr-chip',{hasText:'Fair'}).click();await page.locator('.dr-chip',{hasText:'Poor'}).click();
-    await page.getByRole('button',{name:'Add procedure'}).click();
+    await page.getByRole('button',{name:'Add operation'}).click();
     await page.locator('.dr-op').nth(0).locator('.tm-dental-op-tooth').fill('36');await page.locator('.dr-op').nth(0).locator('.tm-dental-op-nature').fill('Tooth filling (restoration)');
+    // The paper record's patient lines and the accomplishment's work status are filled in too.
+    for(const id of ['#tm-dental-course','#tm-dental-year','#tm-dental-cell','#tm-dental-messenger'])assert.equal(await page.locator(id).count(),1,id);
+    await page.locator('#tm-dental-messenger').fill('patient.messenger');
+    await page.locator('.dr-work .dr-chip',{hasText:'All necessary dental work has been completed'}).click();
     const dentalData=await page.evaluate(()=>window.__fixtureApp.features.patientForm.collectDentalRecordForm());
+    assert.equal(dentalData.work_status,'Completed');assert.equal(dentalData.messenger_account,'patient.messenger');
     assert.equal(dentalData.odontogram['36'],'✓');assert.equal(dentalData.odontogram['37'],'CL2');assert.equal(dentalData.odontogram['36-surfaces'],'T');assert.equal(dentalData.oral_health.poor,true);assert.equal(dentalData.oral_health.fair,false,'Condition is one choice');
     assert.deepEqual(dentalData.accomplishment,[{tooth_no:'36',nature:'Tooth filling (restoration)'}]);
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#tm-dental-section').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/dental-record-${mobile?'mobile':'desktop'}.png`});

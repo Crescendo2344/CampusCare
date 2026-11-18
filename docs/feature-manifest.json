@@ -27,6 +27,7 @@
       "./privacy.js",
       "./legalPages.js",
       "./theme.js",
+      "./eSignature.js",
       "../dependencies.js",
       "./patientService.js",
       "./profileDetails.js",
@@ -549,6 +550,7 @@
       "./treatmentForm.js",
       "./settingsAndCertificates.js",
       "../ui/pager.js",
+      "./eSignature.js",
       "../dependencies.js",
       "../domain/certificate-purpose.js",
       "../domain/dental-certificate.js",
@@ -803,6 +805,8 @@
       "openHealthHistoryForm",
       "openDentistHealthHistory",
       "healthHistoryPrintPages",
+      "healthHistoryForAppointment",
+      "blankHealthHistoryPages",
       "printHealthHistory",
       "healthHistoryNextStepHtml"
     ],
@@ -1041,6 +1045,26 @@
       "../dependencies.js",
       "./modals.js",
       "./issueReports.js"
+    ]
+  },
+  {
+    "name": "eSignature",
+    "path": "src/features/eSignature.js",
+    "functions": [
+      "signatureFor",
+      "openSignaturePad",
+      "saveMySignature",
+      "signatureCardHtml"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./issueReports.js",
+      "./documentScanner.js",
+      "./modals.js",
+      "./theme.js",
+      "./workflowRequests.js",
+      "../dependencies.js"
     ]
   },
   {
@@ -2558,6 +2582,8 @@
       "openDentalRecordEditor",
       "saveDentalRecordForTreatment",
       "dentalRecordSheetData",
+      "dentalTreatmentRows",
+      "dentalRecordPages",
       "dentalRecordDocumentHtml",
       "viewDentalRecord",
       "printDentalRecord",
@@ -2588,6 +2614,7 @@
       "./modals.js",
       "./patientForm.js",
       "./dentalHealthHistory.js",
+      "./eSignature.js",
       "./patientManagement.js",
       "./datePicker.js",
       "./auditAndBackups.js",
