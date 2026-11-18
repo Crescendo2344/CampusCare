@@ -515,11 +515,18 @@ function openToothMarkPicker(box){
   clearTimeout(box._markTimer);
   closeToothMarkPicker();
   const current=box.dataset.value||'';
-  const option=(value,label,title='')=>`<button type="button" role="menuitemradio" aria-checked="${current===value}" class="dr-mark-option ${current===value?'active':''}" data-value="${escapeHtml(value)}"${title?` title="${escapeHtml(title)}"`:''}><b>${escapeHtml(value||'—')}</b><span>${escapeHtml(label)}</span></button>`;
+  const option=(value,label,title='',kind='')=>`<button type="button" role="menuitemradio" aria-checked="${current===value}" class="dr-mark-option ${kind} ${current===value?'active':''}" data-value="${escapeHtml(value)}" aria-label="${escapeHtml(label)}${title?`: ${escapeHtml(title)}`:''}"${title?` title="${escapeHtml(title)}"`:''}><b>${escapeHtml(value||'—')}</b><span>${escapeHtml(label)}</span></button>`;
   const picker=document.createElement('div');
   picker.id='dr-mark-picker';picker.className='dr-mark-picker';picker.setAttribute('role','menu');
   picker.setAttribute('aria-label',`Tooth ${box.dataset.tooth} mark`);
-  picker.innerHTML=`<div class="dr-mark-title">Tooth ${escapeHtml(box.dataset.tooth)}</div>${option(TOOTH_CHECK,'Check')}${TOOTH_MARKS.map(([code,label,description])=>option(code,label,description)).join('')}${option('','Clear')}`;
+  const caries=TOOTH_MARKS.filter(([code])=>code.startsWith('CL')),conditions=TOOTH_MARKS.filter(([code])=>!code.startsWith('CL'));
+  picker.innerHTML=`<div class="dr-mark-head"><span>Tooth <strong>${escapeHtml(box.dataset.tooth)}</strong></span>${current?`<span class="dr-mark-now">${escapeHtml(current)}</span>`:''}</div>
+    ${option(TOOTH_CHECK,'Check','','dr-mark-check')}
+    <div class="dr-mark-label">Caries class</div>
+    <div class="dr-mark-row five">${caries.map(([code,label,description])=>option(code,label,description,'dr-mark-class')).join('')}</div>
+    <div class="dr-mark-label">Condition</div>
+    <div class="dr-mark-row three">${conditions.map(([code,label])=>option(code,label,'','dr-mark-cond')).join('')}</div>
+    ${option('','Clear mark','','dr-mark-clear')}`;
   document.body.append(picker);
   const rect=box.getBoundingClientRect(),width=picker.offsetWidth,height=picker.offsetHeight;
   const below=rect.bottom+6+height<=window.innerHeight;

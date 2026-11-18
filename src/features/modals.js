@@ -31,8 +31,9 @@ export function openModal(html,{preserveParent=false}={}){
     if(footer&&!footer.textContent.trim()&&!footer.querySelector('button,a,input'))footer.remove();
   }
   const dismiss=()=>{const close=wrap.querySelector('.modal-header .close-btn');if(close)close.click();else closeAllModals();};
-  // Route backdrop/Escape through the existing close callback, preserving camera and verification cleanup.
-  wrap.addEventListener('click',event=>{if(event.target===wrap)dismiss();});
+  // Dialogs close only with their close button (or Escape, its keyboard equivalent), routed through the
+  // close callback so camera and verification cleanup still run. A click outside never closes one, so
+  // work in progress is not lost by a stray click.
   wrap.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();dismiss();}});
   wrap.setAttribute('role','dialog');wrap.setAttribute('aria-modal','true');wrap.tabIndex=-1;
   document.getElementById('modals').appendChild(wrap);wrap.focus();

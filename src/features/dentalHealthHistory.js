@@ -4,7 +4,7 @@
 // Answers never reach staff or administrators: they only see whether it is done.
 import {state as appState} from '../app/state.js';
 import {appointmentRecords} from './appointmentService.js';
-import {closeAllModals,closeTopModal,openModal} from './modals.js';
+import {closeAllModals,closeTopModal,openModal as openBaseModal} from './modals.js';
 import {escapeHtml} from './issueReports.js';
 import {showConfirmDialog,toast} from './theme.js';
 import {fmtDate,fmtTime} from './inputValidation.js';
@@ -13,6 +13,8 @@ import {bindAction} from '../dependencies.js';
 import {DHH_DECLARATION,DHH_PHYSICIAN_FIELDS,DHH_SECTIONS,dhhAlerts,unansweredCount} from '../../supabase/functions/_shared/dental-health-history.js';
 
 const OPEN_STATUSES=['Pending','Scheduled','Confirmed'];
+// These dialogs open on top of the dialog they were opened from (such as the visit form) and close back to it.
+const openModal=html=>openBaseModal(html,{preserveParent:Boolean(appState.clinicInformation.activeModal?.isConnected)});
 // Status per appointment (UI id), refreshed whenever a list or detail view asks for it.
 const statusCache=new Map();
 const isDentalOpen=a=>a?.clinic==='Dental Clinic'&&OPEN_STATUSES.includes(a.status);
@@ -107,7 +109,7 @@ function showConfirmUnchanged(a,data){
       <label class="dhh-declare"><input type="checkbox" id="dhh-confirm-attest"> <span>Nothing has changed. ${escapeHtml(DHH_DECLARATION)}</span></label>
     </div>
     <div class="modal-footer">
-      <button class="btn" ${bindAction('click',()=>{closeTopModal();openHealthHistoryForm(a.id,{mode:'online',data,values:prev});})}>Something changed: update my answers</button>
+      <button class="btn" ${bindAction('click',()=>{closeTopModal();void openHealthHistoryForm(a.id,{mode:'online',data,values:prev});})}>Something changed: update my answers</button>
       <button class="btn btn-primary" ${bindAction('click',async(event,element)=>{
         if(!document.getElementById('dhh-confirm-attest')?.checked){toast('Tick the box to confirm nothing has changed.','warning');return;}
         element.disabled=true;
@@ -175,20 +177,21 @@ async function submitHealthHistory(a,mode,female){
     const button=document.getElementById('dhh-submit');if(button)button.disabled=true;
     try{
       await dhhRequest({action:'submit',mode,appointment_id:a.dbAppointmentId,attested:true,...form});
-      closeAllModals();
+      // Back to the dialog it was opened from (the visit form or appointment), not closing everything.
+      closeTopModal();
       toast(mode==='check-in'?'Thank you. The Dental Health History is saved for the dentist.':'Thank you. Your Dental Health History is saved for your visit.','success');
       await refreshAfterChange(a.id);
     }catch(error){toast(error.message,'error');if(button)button.disabled=false;}
   };
   const blank=unansweredCount(form.answers,{female});
-  if(blank)showConfirmDialog({title:'Some questions are blank',message:`${blank} question${blank===1?' is':'s are'} left blank. Blank answers mean you did not understand the question; the dentist will ask you about them. Submit anyway?`,confirmLabel:'Submit',onConfirm:send});
+  if(blank)showConfirmDialog({title:'Some questions are blank',message:`${blank} question${blank===1?' is':'s are'} left blank. Blank answers mean you did not understand the question; the dentist will ask you about them. Submit anyway?`,confirmLabel:'Submit',layered:true,onConfirm:send});
   else await send();
 }
 
 // ---------- Staff: the paper form was used ----------
 function recordPaperForm(id){
   const a=findAppointment(id);if(!a?.dbAppointmentId)return;
-  showConfirmDialog({title:'Answered on paper',message:'Record that the patient filled in the paper Dental Health History Form for this visit? Give the paper form to the dentist.',confirmLabel:'Record',
+  showConfirmDialog({title:'Answered on paper',message:'Record that the patient filled in the paper Dental Health History Form for this visit? Give the paper form to the dentist.',confirmLabel:'Record',layered:true,
     onConfirm:async()=>{try{await dhhRequest({action:'paper',appointment_id:a.dbAppointmentId});toast('Recorded: answered on the paper form.','success');await refreshAfterChange(a.id);}catch(error){toast(error.message,'error');}}});
 }
 
@@ -220,33 +223,55 @@ export async function openDentistHealthHistory(id){
 }
 
 // ---------- Print, laid out like the paper form ----------
-const PRINT_CSS=`.dhh-p-title{text-align:center;font-weight:700;font-size:14px;margin:2px 0 10px}
-  .dhh-p-line{display:flex;gap:18px;margin:4px 0;font-size:12px}.dhh-p-line span b{display:inline-block;min-width:90px;border-bottom:1px solid #111;font-weight:400;padding:0 4px}
-  .dhh-p-sec{margin:9px 0 3px;font-size:12px;font-weight:700}
-  .dhh-p-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:22px}
-  .dhh-p-q{display:flex;gap:6px;align-items:baseline;font-size:11px;margin:2px 0;break-inside:avoid}
-  .dhh-p-q .n{min-width:20px;text-align:right}.dhh-p-q .yn{white-space:nowrap}
+// The paper form keeps its content in a centred block: patient lines, then each section's questions
+// (two columns for II–V, filled top to bottom), with "Yes No" before each question and the chosen answer circled.
+const PRINT_CSS=`.dhh-p{width:92%;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.28}
+  .dhh-p-title{text-align:center;font-weight:700;font-size:14px;margin:0 0 9px}
+  .dhh-p-line{display:flex;flex-wrap:wrap;gap:3px 16px;margin:3px 0;font-size:11px}
+  .dhh-p .fill{display:inline-block;min-width:80px;border-bottom:1px solid #111;padding:0 4px;vertical-align:bottom}
+  .dhh-p-sec{margin:8px 0 2px;font-size:11.5px;font-weight:700}
+  .dhh-p-body{padding-left:18px}
+  .dhh-p-cols{display:grid;grid-template-columns:1fr 1fr;column-gap:18px}
+  .dhh-p-q{display:flex;gap:5px;align-items:baseline;font-size:10.5px;margin:1.5px 0;break-inside:avoid}
+  .dhh-p-q .n{min-width:20px;text-align:right}
+  .dhh-p-q .yn{white-space:nowrap;flex:none}
   .dhh-p-q .yn i{font-style:normal;display:inline-block;padding:0 3px;margin-right:2px;border:1px solid transparent;border-radius:50%}
   .dhh-p-q .yn i.on{border-color:#111}
-  .dhh-p-detail{font-size:11px;margin:0 0 2px 28px}.dhh-p-detail b{font-weight:400;border-bottom:1px solid #111;padding:0 4px}
-  .dhh-p-declare{font-size:12px;margin:14px 0 26px}
-  .dhh-p-sign{display:flex;gap:40px;font-size:12px;margin-top:18px}.dhh-p-sign span{display:inline-block;min-width:200px;border-bottom:1px solid #111;padding:0 4px}`;
-export function printHealthHistory(p,h){
-  const female=p.female!==false;
-  const yn=n=>{const v=h.answers?.[n];return `<span class="yn"><i class="${v==='Yes'?'on':''}">Yes</i><i class="${v==='No'?'on':''}">No</i></span>`;};
-  const q=([n,text,detail])=>`<div><div class="dhh-p-q"><span class="n">${n}.</span>${yn(n)}<span>${escapeHtml(text)}</span></div>${detail&&h.details?.[detail.key]?`<div class="dhh-p-detail">${escapeHtml(detail.label)} <b>${escapeHtml(h.details[detail.key])}</b></div>`:''}${n===4?DHH_PHYSICIAN_FIELDS.filter(([key])=>h.details?.[key]).map(([key,label])=>`<div class="dhh-p-detail">${label}: <b>${escapeHtml(h.details[key])}</b></div>`).join(''):''}</div>`;
-  const section=s=>`<div class="dhh-p-sec">${s.id}. ${escapeHtml(s.title)}</div><div class="${s.id==='I'||s.id==='VII'?'':'dhh-p-grid'}">${s.questions.map(q).join('')}</div>`;
-  const shown=DHH_SECTIONS.filter(s=>female||!s.women);
-  const page1=`<div class="dhh-p-title">Dental Health History Form</div>
-    <div class="dhh-p-line"><span>Patient Name: <b style="min-width:320px">${escapeHtml(p.name||'')}</b></span></div>
-    <div class="dhh-p-line"><span>Age: <b style="min-width:40px">${escapeHtml(String(ageOn(p.birth_date)))}</b></span><span>Height: <b style="min-width:60px">${h.height_cm?escapeHtml(h.height_cm)+' cm':''}</b></span><span>Weight: <b style="min-width:60px">${h.weight_kg?escapeHtml(h.weight_kg)+' kg':''}</b></span><span>Birth Date: <b>${p.birth_date?escapeHtml(fmtDate(p.birth_date)):''}</b></span></div>
-    ${shown.filter(s=>s.id!=='VII').map(section).join('')}`;
-  const last=DHH_SECTIONS.find(s=>s.id==='VII');
-  const page2=`${section(last)}
+  .dhh-p-sub{font-size:10.5px;margin:1px 0 2px 92px}
+  .dhh-p-page2{width:92%;margin:0 auto;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111}
+  .dhh-p-page2 .fill{display:inline-block;border-bottom:1px solid #111;padding:0 4px;min-width:360px}
+  .dhh-p-declare{margin:6px 0 34px;line-height:1.5}
+  .dhh-p-sign{display:flex;gap:40px;margin-top:10px}.dhh-p-sign .fill{min-width:220px}`;
+export function healthHistoryPrintPages(p,h){
+  const answers=h.answers||{},details=h.details||{};
+  const fill=(value,width)=>`<span class="fill"${width?` style="min-width:${width}px"`:''}>${escapeHtml(value||'')}&nbsp;</span>`;
+  const yn=n=>`<span class="yn"><i class="${answers[n]==='Yes'?'on':''}">Yes</i><i class="${answers[n]==='No'?'on':''}">No</i></span>`;
+  const sub=html=>`<div class="dhh-p-sub">${html}</div>`;
+  // Follow-up lines in the same places as on the paper form.
+  const extras={
+    3:sub(`Why? ${fill(details.hospitalized_why,300)}`),
+    5:sub(`Physician Name: ${fill(details.physician_name,150)} &nbsp; Address: ${fill(details.physician_address,150)}`)+sub(`Telephone Number: ${fill(details.physician_phone,150)}`),
+    43:sub(`Please list: ${fill(details.medicines,200)}`)
+  };
+  const q=([n,text])=>`<div class="dhh-p-q"><span class="n">${n}.</span>${yn(n)}<span>${escapeHtml(text)}${n===4?` For what? ${fill(details.physician_for,150)}`:''}</span></div>${extras[n]||''}`;
+  const half=list=>[list.slice(0,Math.ceil(list.length/2)),list.slice(Math.ceil(list.length/2))];
+  const twoColumns=new Set(['II','III','IV','V']);
+  const section=s=>`<div class="dhh-p-sec">${s.id}. ${escapeHtml(s.id==='I'?'Encircle appropriate answer (leave blank if you do not understand question).':s.id==='VI'?'Women only:':s.id==='VII'?'All patients:':s.title)}</div>
+    <div class="dhh-p-body">${twoColumns.has(s.id)?`<div class="dhh-p-cols">${half(s.questions).map(col=>`<div>${col.map(q).join('')}</div>`).join('')}</div>`:s.questions.map(q).join('')}</div>`;
+  const signed=fmtDate(String(h.created_at).slice(0,10));
+  const page1=`<div class="dhh-p"><div class="dhh-p-title">Dental Health History Form</div>
+    <div class="dhh-p-line"><span>Patient Name: ${fill(p.name,360)}</span></div>
+    <div class="dhh-p-line"><span>Age: ${fill(String(ageOn(p.birth_date)),50)}</span><span>Height: ${fill(h.height_cm?`${h.height_cm} cm`:'',70)}</span><span>Weight: ${fill(h.weight_kg?`${h.weight_kg} kg`:'',70)}</span><span>Birth Date: ${fill(p.birth_date?fmtDate(p.birth_date):'',110)}</span></div>
+    ${DHH_SECTIONS.map(section).join('')}</div>`;
+  const page2=`<div class="dhh-p-page2">
+    <p>If so, please explain: ${fill(details.other_explain)}</p>
     <div class="dhh-p-declare">${escapeHtml(DHH_DECLARATION)}</div>
-    <div class="dhh-p-sign"><div>Patient's Signature: <span>&nbsp;</span></div><div>Date: <span>${escapeHtml(fmtDate(String(h.created_at).slice(0,10)))}</span></div></div>
-    <p style="font-size:10px;color:#555;margin-top:16px">Answered ${h.source==='check-in'?'at check-in':'online'} in CampusCare on ${escapeHtml(fmtDate(String(h.created_at).slice(0,10)))}; the patient confirmed the declaration.</p>`;
-  printCtuDocument({title:`Dental Health History ${p.name||''}`.trim(),clinic:'Dental Clinic',css:PRINT_CSS,pages:[page1,page2]});
+    <div class="dhh-p-sign"><div>Patient's Signature: ${fill('')}</div><div>Date: ${fill(signed,150)}</div></div>
+    <p style="font-size:10px;color:#555;margin-top:22px">Answered ${h.source==='check-in'?'at check-in':'online'} in CampusCare on ${escapeHtml(signed)}; the patient confirmed the declaration.</p></div>`;
+  return {css:PRINT_CSS,pages:[page1,page2]};
+}
+export function printHealthHistory(p,h){
+  printCtuDocument({title:`Dental Health History ${p.name||''}`.trim(),clinic:'Dental Clinic',...healthHistoryPrintPages(p,h)});
 }
 
 // The booking confirmation's next step for a dental visit.
