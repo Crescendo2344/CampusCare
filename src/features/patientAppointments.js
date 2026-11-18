@@ -18,6 +18,7 @@ import {bindAction} from '../dependencies.js';
 import {RESCHEDULE_CUTOFF_HOURS,patientRescheduleState} from '../domain/reschedule-requests.js';
 import {appointmentAction} from './appointmentService.js';
 import {showConfirmDialog,toast} from './theme.js';
+import {fillHealthHistorySlots,healthHistorySlotHtml} from './dentalHealthHistory.js';
 import {paginate,pagerHtml} from '../ui/pager.js';
 // ================================================================
 // PATIENT – MY APPOINTMENTS
@@ -105,10 +106,12 @@ export function renderMyApptsList(appts,filter){
           ${reschedule==='closed'?`<span class="text-muted resched-note" title="Reschedule requests close ${RESCHEDULE_CUTOFF_HOURS} hours before the appointment">Reschedule closed · contact the clinic</span>`:''}
           ${canCancel?`<button class="btn btn-xs btn-danger" ${bindAction('click',(event,element)=>{cancelAppt((a.id),true)})}>Cancel</button>`:''}
           ${a.status==='Completed'?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewTreatmentForAppt((a.id))})}>View Notes</button>`:''}
+          ${['Pending','Scheduled','Confirmed'].includes(a.status)?healthHistorySlotHtml(a):''}
         </div></td>
       </tr>`;
     }).join('')
   }</tbody></table></div>${pagerHtml(page,()=>renderMyApptsList(appts,filter))}`;
+  void fillHealthHistorySlots(el);
 }
 
 export function withdrawReschedule(id){
