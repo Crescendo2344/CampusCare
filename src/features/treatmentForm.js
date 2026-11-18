@@ -1,5 +1,6 @@
 // treatmentForm: imported feature APIs; state belongs to explicit application namespaces.
 import {ctuFooterHtml,ctuHeaderHtml} from '../shared/ctu-letterhead.js';
+import {DENTAL_RECORD_CSS,dentalRecordSheetHtml} from '../shared/dental-record-sheet.js';
 import {state as appState} from '../app/state.js';
 import {appointmentDisplayId,appointmentRecords,syncRealAppointments} from './appointmentService.js';
 import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
@@ -454,68 +455,34 @@ export async function saveDentalRecordForTreatment(id){
   }
 }
 
-export function dentalRecordDocumentHtml(t){
+// The record in the shape of the paper DENTAL RECORD form (see shared/dental-record-sheet.js).
+export function dentalRecordSheetData(t){
   const pt=getPatientById(t.patientId)||{};
-  const doc=getUserById(t.doctorId)||{};
+  const u=getUserById(pt.userId)||{};
   const d=t.dentalRecord||{};
-  const age=pt.age||'';
-  const safe=v=>escapeHtml(v||'');
-  const allRows=(nums,primary=false)=>`<div class="dental-chart-row ${primary?'primary':''}">${nums.map(n=>`<div class="dental-chart-cell"><strong>${n}</strong><span>${safe(d.odontogram?.[n]||'')}</span>${d.odontogram?.[n+'-surfaces']?`<small>${safe(d.odontogram[n+'-surfaces'].replace(/,/g,' '))}</small>`:''}</div>`).join('')}</div>`;
-  const oral=d.oralHealth||{};
-  const oralLines=[
-    ['Satisfactory',oral.satisfactory],['Fair',oral.fair],['Poor',oral.poor],
-    ['Harelip',oral.harelip],['Defective Gums',oral.defective_gums],['Cleft Palate',oral.cleft_palate]
-  ];
-  const operations=Array.isArray(d.accomplishment)?d.accomplishment:[];
-
-  return `<div class="dental-record-doc" id="dental-record-document-${t.id}">
-    <div class="dental-doc-head">${ctuHeaderHtml({clinic:'Dental Clinic'})}</div>
-    <div class="dental-doc-title">DENTAL RECORD</div>
-
-    <div class="dental-doc-info">
-      <div class="wide">Name: <strong>${safe((pt.fname||'')+' '+(pt.lname||''))}</strong></div>
-      <div>Age: <strong>${safe(String(age))}</strong></div>
-      <div>Date: <strong>${d.recordDate?fmtDate(d.recordDate):fmtDate(t.date)}</strong></div>
-      <div>Course &amp; Major: <strong>${safe(d.courseMajor||pt.college||'')}</strong></div>
-      <div>Yr. &amp; Section: <strong>${safe(d.yearSection)}</strong></div>
-      <div>Cel No.: <strong>${safe(d.cellNo||pt.contact||'')}</strong></div>
-      <div>ID No.: <strong>${safe(pt.idNo||'')}</strong></div>
-      <div class="wide">Messenger Account: <strong>${safe(d.messengerAccount)}</strong></div>
-    </div>
-
-    <div class="dental-chart">
-      ${allRows(appState.patientForm.DENTAL_PERMANENT_UPPER)}
-      ${allRows(appState.patientForm.DENTAL_PERMANENT_LOWER)}
-      <div style="height:14px"></div>
-      ${allRows(appState.patientForm.DENTAL_PRIMARY_UPPER,true)}
-      ${allRows(appState.patientForm.DENTAL_PRIMARY_LOWER,true)}
-    </div>
-
-    <div class="dental-doc-bottom">
-      <div>
-        <h4>Oral Health Record</h4>
-        <div class="dental-doc-list">
-          ${oralLines.map(([label,on])=>`${on?'☑':'☐'} ${label}`).join('<br>')}
-          ${oral.others?`<br><strong>Others:</strong> ${safe(oral.others)}`:''}
-        </div>
-      </div>
-      <div>
-        <h4>Accomplishment</h4>
-        <table class="dental-doc-operation"><thead><tr><th>Tooth No.</th><th>Nature of Operation</th></tr></thead>
-          <tbody>${operations.length?operations.map(r=>`<tr><td>${safe(r.tooth_no)}</td><td>${safe(r.nature)}</td></tr>`).join(''):'<tr><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>&nbsp;</td><td>&nbsp;</td></tr>'}</tbody></table>
-        <div class="dental-doc-list">
-          ${d.workStatus==='Completed'?'☑':'☐'} All necessary dental work has been completed<br>
-          ${d.workStatus==='In Progress'?'☑':'☐'} Treatment is in progress<br>
-          ${d.workStatus==='No Dental Work Necessary'?'☑':'☐'} No dental work is necessary
-        </div>
-      </div>
-    </div>
-
-    <div class="dental-doc-recommendation"><strong>RECOMMENDATION</strong><div>${safe(d.recommendation)}</div></div>
-    <div class="dental-doc-sign"><div class="line">${safe(d.dentistName||docName(doc)||'Dentist')}</div><span>Dentist</span></div>
-    ${ctuFooterHtml()}
-  </div>`;
+  const doctor=getUserById(t.doctorId)||{};
+  return {
+    name:[pt.fname||u.fname,pt.lname||u.lname].filter(Boolean).join(' '),
+    age:pt.age??'',
+    date:fmtDate(d.recordDate||t.date),
+    courseMajor:d.courseMajor||[pt.course,pt.major].filter(Boolean).join(' – ')||pt.college||'',
+    yearSection:d.yearSection||'',
+    cellNo:d.cellNo||pt.contact||u.contact||'',
+    idNo:pt.idNo||u.idNo||'',
+    messenger:d.messengerAccount||'',
+    odontogram:d.odontogram||{},
+    oral:d.oralHealth||{},
+    operations:Array.isArray(d.accomplishment)?d.accomplishment:[],
+    workStatus:d.workStatus||'',
+    recommendation:d.recommendation||'',
+    dentistName:d.dentistName||docName(doctor)||'',
+    dentistTitle:'Dentist'
+  };
 }
+export function dentalRecordDocumentHtml(t){
+  return `<div class="dental-record-doc" id="dental-record-document-${t.id}" style="padding:0;max-width:none;overflow-x:auto"><style>${DENTAL_RECORD_CSS}</style>${dentalRecordSheetHtml(dentalRecordSheetData(t))}</div>`;
+}
+const dentalRecordFileName=(t,ext)=>{const pt=getPatientById(t.patientId)||{};return `CampusCare_Dental_Record_${(pt.lname||'Patient').replace(/[^A-Za-z0-9]+/g,'_')}_${treatmentDisplayId(t)}.${ext}`;};
 
 export function viewDentalRecord(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t?.dentalRecord)return;
@@ -523,23 +490,26 @@ export function viewDentalRecord(id){
     <div class="modal-body"><div class="treatment-record-shell">${dentalRecordDocumentHtml(t)}</div></div>
     <div class="modal-footer"><button class="btn" ${bindAction('click',(event,element)=>{closeAllModals()})}>Close</button>
       <button class="btn btn-info" ${bindAction('click',(event,element)=>{printDentalRecord((id))})}><i class="bi bi-printer"></i> Print</button>
-      <button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadDentalRecordPDF((id))})}><i class="bi bi-file-earmark-arrow-down"></i> Download PDF</button></div></div>`);
+      <button class="btn" ${bindAction('click',(event,element)=>{downloadDentalRecordWord((id))})}><i class="bi bi-file-earmark-word"></i> Download Word</button>
+      <button class="btn btn-primary" ${bindAction('click',(event,element)=>{downloadDentalRecordPDF((id))})}><i class="bi bi-file-earmark-pdf"></i> Download PDF</button></div></div>`);
 }
 
+// Prints the sheet from a hidden frame once its images have loaded.
 export function printDentalRecord(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t?.dentalRecord)return;
-  const w=window.open('','_blank','width=980,height=920');
-  if(!w){toast('Please allow pop-ups to print the dental record.','warning');return;}
-  const css=[...document.styleSheets].map(()=> '').join('');
-  w.document.write(`<!doctype html><html><head><title>Dental Record</title><style>
-    body{margin:0;padding:22px;background:#fff}
-    ${document.querySelector('style')?.textContent||''}
-    .dental-record-doc{box-shadow:none!important}
-    @media print{body{padding:0}.dental-record-doc{max-width:none;padding:14mm}}
-  </style></head><body>${dentalRecordDocumentHtml(t)}</body></html>`);
-  w.document.close();w.focus();setTimeout(()=>w.print(),350);
+  const frame=document.createElement('iframe');
+  frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
+  frame.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.append(frame);
+  const doc=frame.contentDocument;
+  doc.open();
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Dental Record</title><style>@page{size:A4 portrait;margin:0}body{margin:0;background:#fff}${DENTAL_RECORD_CSS}.drd{margin:0 auto}</style></head><body>${dentalRecordSheetHtml(dentalRecordSheetData(t))}</body></html>`);
+  doc.close();
+  const run=()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),1500);};
+  waitForDocumentImages(doc.body).then(()=>setTimeout(run,100));
 }
 
+// A one-page A4 PDF of the sheet.
 export async function downloadDentalRecordPDF(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t?.dentalRecord)return;
   let stage=null;
@@ -547,24 +517,36 @@ export async function downloadDentalRecordPDF(id){
     const [jsPDF,html2canvas]=await Promise.all([loadJsPDF(),loadHtml2Canvas()]);
     stage=document.createElement('div');
     stage.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1';
-    stage.innerHTML=dentalRecordDocumentHtml(t);
+    stage.innerHTML=`<style>${DENTAL_RECORD_CSS}</style>${dentalRecordSheetHtml(dentalRecordSheetData(t))}`;
     document.body.appendChild(stage);
-    const doc=stage.querySelector('.dental-record-doc');
-    doc.style.width='794px';doc.style.maxWidth='794px';
-    await waitForDocumentImages(doc);
-    const canvas=await html2canvas(doc,{scale:2,backgroundColor:'#fff',useCORS:true,logging:false});
+    const sheet=stage.querySelector('.drd');
+    await waitForDocumentImages(sheet);
+    const canvas=await html2canvas(sheet,{scale:2,backgroundColor:'#fff',useCORS:true,logging:false});
     const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
-    const img=canvas.toDataURL('image/jpeg',.96),pageW=210,pageH=297,imgH=canvas.height*pageW/canvas.width;
-    let remain=imgH,pos=0;
-    pdf.addImage(img,'JPEG',0,pos,pageW,imgH,'FAST');remain-=pageH;
-    while(remain>0){pos=remain-imgH;pdf.addPage();pdf.addImage(img,'JPEG',0,pos,pageW,imgH,'FAST');remain-=pageH;}
-    const pt=getPatientById(t.patientId)||{};
-    pdf.save(`CampusCare_Dental_Record_${(pt.lname||'Patient').replace(/\s+/g,'_')}_${treatmentDisplayId(t)}.pdf`);
+    // Fit the whole form on one A4 page, like the paper record.
+    const pageW=210,pageH=297,ratio=canvas.height/canvas.width;
+    const w=Math.min(pageW,pageH/ratio),h=w*ratio;
+    pdf.addImage(canvas.toDataURL('image/jpeg',.95),'JPEG',(pageW-w)/2,0,w,h,'FAST');
+    pdf.save(dentalRecordFileName(t,'pdf'));
     toast('Dental record downloaded as PDF.','success');
   }catch(e){
     console.error(e);
     toast('Could not generate the dental record PDF. Please use Print instead.','error');
   }finally{if(stage)stage.remove();}
+}
+
+// The same form as an editable Word document.
+export async function downloadDentalRecordWord(id){
+  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t?.dentalRecord)return;
+  try{
+    const [{loadDocxLib,downloadBlob},{dentalRecordDocx}]=await Promise.all([import('./reportCharts.js'),import('../reports/dental-record-word.js')]);
+    const blob=await dentalRecordDocx(await loadDocxLib(),dentalRecordSheetData(t));
+    downloadBlob(blob,dentalRecordFileName(t,'docx'),'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    toast('Dental record downloaded as a Word document.','success');
+  }catch(e){
+    console.error(e);
+    toast('Could not create the Word file (the export library needs an internet connection). Try again or use PDF.','error');
+  }
 }
 
 export function viewTreatment(id){

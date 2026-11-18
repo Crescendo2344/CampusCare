@@ -2,6 +2,7 @@ import {isDentalTreatment} from './treatmentForm.js';
 import {clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
 // patientForm: imported feature APIs; state belongs to explicit application namespaces.
 import {printCtuDocument} from '../shared/ctu-letterhead.js';
+import {TOOTH_CENTER,TOOTH_CHECK,TOOTH_MARKS,TOOTH_SURFACES,normalizeOdontogram,toothMark,toothSides,toothSurfaceName} from '../shared/dental-chart.js';
 import {state as appState} from '../app/state.js';
 import {getUserById} from './documentScanner.js';
 import {hideAlert,showAlert,showConfirmDialog,toast,toastWithUndo} from './theme.js';
@@ -459,39 +460,21 @@ async function setPatientArchived(p,archived){
 
 // Dental record (CTU dental form): the same fields, laid out as a tooth chart by quadrant, condition
 // choices, a procedure list and a work status.
-// The optional third item is a description shown under the chart and as the button tooltip.
-const TOOTH_CODES=[
-  ['D','Decayed'],['F','Filled'],['M','Missing'],['X','For extraction'],
-  ['DN','Denture'],
-  ['CI','Class I','Cavity on the pits and fissures of the chewing surface of molars and premolars'],
-  ['CII','Class II','Cavity on the side surfaces (between teeth) of molars and premolars'],
-  ['CIII','Class III','Cavity on the side surfaces (between teeth) of incisors and canines, not reaching the biting edge']
-];
 const ORAL_CONDITION=['Satisfactory','Fair','Poor'];
 const ORAL_FINDINGS=['Harelip','Defective Gums','Cleft Palate'];
 const DENTAL_STATUS=['Completed','In Progress','No Dental Work Necessary'];
 const DENTAL_PROCEDURES=['Oral examination','Tooth extraction','Oral prophylaxis (cleaning)','Tooth filling (restoration)'];
 
-// The tooth picture is five sections (top, left, right, bottom, centre); clicking a side fills it black and clicking the centre draws a red check.
-export const TOOTH_SURFACES=[['T','Top','2,2 22,2 16,8 15,7 9,7 8,8'],['L','Left','2,2 8,8 7,9 7,15 8,16 2,22'],['R','Right','22,2 22,22 16,16 17,15 17,9 16,8'],['B','Bottom','2,22 22,22 16,16 15,17 9,17 8,16'],['O','Center','9,7 15,7 17,9 17,15 15,17 9,17 7,15 7,9']];
-// Tooth surface names: the top is always facial and the bottom lingual. Mesial is the side toward the midline, so
-// left/right swap between the patient's right teeth (quadrants 1, 4, 5, 8, drawn on the left) and left teeth.
-// The centre is incisal on front teeth (incisors and canines end in 1-3) and occlusal on back teeth.
-function toothSurfaceName(n,q){
-  const tooth=String(n),rightSide='1458'.includes(tooth[0]);
-  if(q==='T')return 'Facial';
-  if(q==='B')return 'Lingual';
-  if(q==='O')return Number(tooth[1])<=3?'Incisal':'Occlusal';
-  return (q==='R')===rightSide?'Mesial':'Distal';
-}
-function toothIconHtml(n,surfaces){
-  const on=new Set(String(surfaces||'').split(',').filter(Boolean));
-  const part=([q,label,points])=>{
+// The tooth picture: the four sides (frontal, lingual, mesial, distal) are clicked to fill them black.
+// The centre is part of the drawing only and cannot be clicked.
+function toothIconHtml(n,sides){
+  const on=new Set(sides);
+  const part=([q,,points])=>{
     const name=toothSurfaceName(n,q);
     const attrs=`class="dr-surface ${on.has(q)?'on':''}" data-q="${q}" role="button" tabindex="-1" aria-label="Tooth ${n} ${name}" aria-pressed="${on.has(q)}" ${bindAction('click',(event,element)=>toggleToothSurface(element))} ${bindAction('keydown',(event,element)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleToothSurface(element);}})}`;
     return `<polygon ${attrs} points="${points}"><title>${name}</title></polygon>`;
   };
-  return `<svg class="dr-icon" viewBox="0 0 24 24" role="group" aria-label="Tooth ${n} surfaces"><defs><clipPath id="dr-clip-${n}"><rect x="2" y="2" width="20" height="20" rx="6"/></clipPath></defs><g clip-path="url(#dr-clip-${n})">${TOOTH_SURFACES.map(part).join('')}</g><rect class="dr-outline" x="2" y="2" width="20" height="20" rx="6"/><path class="dr-check" d="M5 12.5 10 18 19.5 6"/></svg>`;
+  return `<svg class="dr-icon" viewBox="0 0 24 24" role="group" aria-label="Tooth ${n} surfaces"><defs><clipPath id="dr-clip-${n}"><rect x="2" y="2" width="20" height="20" rx="6"/></clipPath></defs><g clip-path="url(#dr-clip-${n})">${TOOTH_SURFACES.map(part).join('')}<polygon class="dr-center" points="${TOOTH_CENTER}"/></g><rect class="dr-outline" x="2" y="2" width="20" height="20" rx="6"/></svg>`;
 }
 function toggleToothSurface(area){
   const tooth=area.closest('.dr-tooth'),hidden=tooth.querySelector('.tm-dental-surfaces'),q=area.dataset.q;
@@ -499,22 +482,82 @@ function toggleToothSurface(area){
   on.has(q)?on.delete(q):on.add(q);
   hidden.value=TOOTH_SURFACES.map(([code])=>code).filter(code=>on.has(code)).join(',');
   tooth.querySelectorAll('.dr-surface').forEach(part=>{const active=on.has(part.dataset.q);part.classList.toggle('on',active);part.setAttribute('aria-pressed',String(active));});
-  }
-// Like the paper chart: a box to mark, the FDI tooth number and a tooth picture (picture first on the lower jaw).
+}
+
+// The mark box (TM): one click puts a check mark (click again to remove it); a double-click, right-click
+// or F2 opens the codes (CL 1–CL 5, RF, Missing, Impacted). Clicking a box that has a code opens the codes too.
+const markLabel=value=>value===TOOTH_CHECK?'Checked':(TOOTH_MARKS.find(([code])=>code===value)?.[1]||value);
+function setToothMark(box,value){
+  box.dataset.value=value;
+  box.textContent=value;
+  box.classList.toggle('checked',value===TOOTH_CHECK);
+  box.classList.toggle('coded',Boolean(value)&&value!==TOOTH_CHECK);
+  box.setAttribute('aria-label',`Tooth ${box.dataset.tooth} mark: ${value?markLabel(value):'none'}. Click to check, double-click for codes.`);
+  box.closest('.dr-tooth')?.classList.toggle('marked',Boolean(value));
+}
+function clickToothMark(event,box){
+  // The second click of a double-click is left to the double-click handler.
+  if(event.detail>1){clearTimeout(box._markTimer);return;}
+  clearTimeout(box._markTimer);
+  box._markTimer=setTimeout(()=>{
+    const value=box.dataset.value||'';
+    if(value&&value!==TOOTH_CHECK)openToothMarkPicker(box);
+    else setToothMark(box,value?'':TOOTH_CHECK);
+  },230);
+}
+function closeToothMarkPicker(){
+  const picker=document.getElementById('dr-mark-picker');
+  if(!picker)return;
+  picker._cleanup?.();
+  picker.remove();
+}
+function openToothMarkPicker(box){
+  clearTimeout(box._markTimer);
+  closeToothMarkPicker();
+  const current=box.dataset.value||'';
+  const option=(value,label,title='')=>`<button type="button" role="menuitemradio" aria-checked="${current===value}" class="dr-mark-option ${current===value?'active':''}" data-value="${escapeHtml(value)}"${title?` title="${escapeHtml(title)}"`:''}><b>${escapeHtml(value||'—')}</b><span>${escapeHtml(label)}</span></button>`;
+  const picker=document.createElement('div');
+  picker.id='dr-mark-picker';picker.className='dr-mark-picker';picker.setAttribute('role','menu');
+  picker.setAttribute('aria-label',`Tooth ${box.dataset.tooth} mark`);
+  picker.innerHTML=`<div class="dr-mark-title">Tooth ${escapeHtml(box.dataset.tooth)}</div>${option(TOOTH_CHECK,'Check')}${TOOTH_MARKS.map(([code,label,description])=>option(code,label,description)).join('')}${option('','Clear')}`;
+  document.body.append(picker);
+  const rect=box.getBoundingClientRect(),width=picker.offsetWidth,height=picker.offsetHeight;
+  const below=rect.bottom+6+height<=window.innerHeight;
+  picker.style.left=`${Math.max(8,Math.min(window.innerWidth-width-8,rect.left+rect.width/2-width/2))}px`;
+  picker.style.top=`${below?rect.bottom+6:Math.max(8,rect.top-height-6)}px`;
+  const choose=value=>{setToothMark(box,value);closeToothMarkPicker();box.focus();};
+  picker.addEventListener('click',event=>{const item=event.target.closest('.dr-mark-option');if(item)choose(item.dataset.value);});
+  const items=[...picker.querySelectorAll('.dr-mark-option')];
+  picker.addEventListener('keydown',event=>{
+    const index=items.indexOf(document.activeElement);
+    if(event.key==='Escape'){event.preventDefault();closeToothMarkPicker();box.focus();}
+    else if(['ArrowDown','ArrowRight'].includes(event.key)){event.preventDefault();items[(index+1)%items.length].focus();}
+    else if(['ArrowUp','ArrowLeft'].includes(event.key)){event.preventDefault();items[(index-1+items.length)%items.length].focus();}
+  });
+  const outside=event=>{if(!picker.contains(event.target)&&event.target!==box)closeToothMarkPicker();};
+  const dismiss=()=>closeToothMarkPicker();
+  setTimeout(()=>document.addEventListener('pointerdown',outside,true),0);
+  window.addEventListener('resize',dismiss);
+  document.addEventListener('scroll',dismiss,true);
+  picker._cleanup=()=>{document.removeEventListener('pointerdown',outside,true);window.removeEventListener('resize',dismiss);document.removeEventListener('scroll',dismiss,true);};
+  (items.find(item=>item.dataset.value===current)||items[0]).focus();
+}
+function toothMarkKey(event,box){
+  if(event.key==='Enter'||event.key===' '){event.preventDefault();clearTimeout(box._markTimer);const value=box.dataset.value||'';if(value&&value!==TOOTH_CHECK)openToothMarkPicker(box);else setToothMark(box,value?'':TOOTH_CHECK);}
+  else if(event.key==='F2'||event.key==='ContextMenu'||(event.shiftKey&&event.key==='F10')){event.preventDefault();openToothMarkPicker(box);}
+  else if(event.key==='Delete'||event.key==='Backspace'){event.preventDefault();setToothMark(box,'');}
+}
+// Like the paper chart: the mark box, the FDI tooth number and the tooth picture (picture first on the lower jaw).
 function toothCellHtml(n,values,lower=false){
-  const surfaces=values?.[n+'-surfaces']||'';
-  const validCodes=TOOTH_CODES.map(([code])=>code);
-  const box=`<input class="tm-dental-tooth" data-tooth="${n}" maxlength="4" autocomplete="off" aria-label="Tooth ${n}" value="${escapeHtml(values?.[n]||'').toUpperCase()}" ${bindAction('input',(event,element)=>{element.value=element.value.toUpperCase().replace(/[^DFMXNCI]/g,'').slice(0,4);updateToothMarked(element);})} ${bindAction('blur',(event,element)=>{if(!validCodes.includes(element.value))element.value='';updateToothMarked(element);})} ${bindAction('keydown',(event,element)=>{if(event.key!=='Enter')return;event.preventDefault();const boxes=[...document.querySelectorAll('.tm-dental-tooth')].filter(box=>box.offsetParent);boxes[boxes.indexOf(element)+1]?.focus();})}><input type="hidden" class="tm-dental-surfaces" data-tooth="${n}" value="${escapeHtml(surfaces)}">`;
-  const parts=[`<span>${n}</span>`,toothIconHtml(n,surfaces)];
-  return `<div class="dr-tooth ${lower?'lower':''} ${values?.[n]?'marked':''}">${lower?parts.reverse().join('')+box:box+parts.join('')}</div>`;
+  const sides=toothSides(values,n),mark=toothMark(values,n);
+  const box=`<button type="button" class="tm-dental-tooth ${mark===TOOTH_CHECK?'checked':mark?'coded':''}" data-tooth="${n}" data-value="${escapeHtml(mark)}" aria-label="Tooth ${n} mark: ${escapeHtml(mark?markLabel(mark):'none')}. Click to check, double-click for codes." title="Click: check · Double-click: codes" ${bindAction('click',(event,element)=>clickToothMark(event,element))} ${bindAction('dblclick',(event,element)=>{event.preventDefault();openToothMarkPicker(element);})} ${bindAction('contextmenu',(event,element)=>{event.preventDefault();openToothMarkPicker(element);})} ${bindAction('keydown',(event,element)=>toothMarkKey(event,element))}>${escapeHtml(mark)}</button><input type="hidden" class="tm-dental-surfaces" data-tooth="${n}" value="${escapeHtml(sides.join(','))}">`;
+  const parts=[`<span>${n}</span>`,toothIconHtml(n,sides)];
+  return `<div class="dr-tooth ${lower?'lower':''} ${mark?'marked':''}">${lower?parts.reverse().join('')+box:box+parts.join('')}</div>`;
 }
 // One arch: the patient's right quadrant, the midline, then the left quadrant.
 export function dentalToothInputsHtml(numbers,values={},primary=false,lower=false){
   const half=numbers.length/2;
   return `<div class="dr-arch ${primary?'primary':''}"><div class="dr-quad">${numbers.slice(0,half).map(n=>toothCellHtml(n,values,lower)).join('')}</div><div class="dr-mid" aria-hidden="true"></div><div class="dr-quad">${numbers.slice(half).map(n=>toothCellHtml(n,values,lower)).join('')}</div></div>`;
-}
-function updateToothMarked(input){
-  input.closest('.dr-tooth')?.classList.toggle('marked',Boolean(input.value));
 }
 function operationRowHtml(row={}){
   return `<div class="dr-op"><input class="tm-dental-op-tooth" maxlength="20" placeholder="Tooth" aria-label="Tooth number" value="${escapeHtml(row.tooth_no||'')}"><input class="tm-dental-op-nature" maxlength="255" list="dr-procedure-list" placeholder="Procedure done" aria-label="Procedure done" value="${escapeHtml(row.nature||'')}"><button type="button" class="dr-op-remove" aria-label="Remove procedure" ${bindAction('click',(event,element)=>{const list=element.closest('.dr-ops');element.closest('.dr-op').remove();if(list&&!list.querySelector('.dr-op'))list.insertAdjacentHTML('beforeend',operationRowHtml());})}><i class="bi bi-x-lg" aria-hidden="true"></i></button></div>`;
@@ -522,7 +565,8 @@ function operationRowHtml(row={}){
 
 export function dentalRecordFormHtml(existing={},pt=null,defaultDate=appState.clinicInformation.TODAY){
   const oral=existing?.oralHealth||{};
-  const odontogram=existing?.odontogram||{};
+  // Older records drew the check on the centre of the picture; it now shows in the mark box.
+  const odontogram=normalizeOdontogram(existing?.odontogram||{});
   const operations=Array.isArray(existing?.accomplishment)&&existing.accomplishment.length?existing.accomplishment:[{}];
   const key=v=>v.toLowerCase().replace(/\s+/g,'_');
   const chip=(v,group)=>`<label class="dr-chip"><input type="checkbox" class="tm-dental-oral" value="${escapeHtml(v)}" ${oral?.[key(v)]?'checked':''} ${group?bindAction('change',(event,element)=>{if(element.checked)element.closest('.dr-chips').querySelectorAll('input').forEach(other=>{if(other!==element)other.checked=false;});}):''}><span>${escapeHtml(v)}</span></label>`;
@@ -531,8 +575,8 @@ export function dentalRecordFormHtml(existing={},pt=null,defaultDate=appState.cl
     <div class="dr-head"><h4><i class="bi bi-emoji-smile" aria-hidden="true"></i> Dental record</h4></div>
 
     <div class="dr-block"><h5>Tooth chart</h5>
-      <div class="dr-codes" role="group" aria-label="Mark teeth">${TOOTH_CODES.map(([code,label,description])=>`<button type="button" class="dr-code" data-code="${code}" disabled${description?` title="${escapeHtml(description)}"`:''} aria-label="${code}: ${label}"><b>${code}</b> ${label}</button>`).join('')}</div>
-      <ul class="dr-code-help">${TOOTH_CODES.filter(([,,description])=>description).map(([code,label,description])=>`<li><b>${code}</b> ${label}: ${escapeHtml(description)}</li>`).join('')}</ul>
+      <p class="dr-how"><b>Box above or below the number:</b> click once for a check mark (<span class="dr-legend-check">${TOOTH_CHECK}</span>); double-click (or right-click) to choose a code. <b>Tooth picture:</b> click a side (frontal, lingual, mesial or distal) to shade it.</p>
+      <ul class="dr-code-help">${TOOTH_MARKS.map(([code,label,description])=>`<li><b>${code}</b> ${label}${description?`: ${escapeHtml(description)}`:''}</li>`).join('')}</ul>
       <div class="dr-chart">
         <div class="dr-jaw">Upper</div>
         ${dentalToothInputsHtml(appState.patientForm.DENTAL_PERMANENT_UPPER,odontogram)}
@@ -570,9 +614,9 @@ export function collectDentalRecordForm(){
   if(!section||section.hidden)return null;
 
   const odontogram={};
-  document.querySelectorAll('.tm-dental-tooth').forEach(input=>{
-    const v=String(input.value||'').trim();
-    if(v)odontogram[input.dataset.tooth]=v;
+  document.querySelectorAll('.tm-dental-tooth').forEach(box=>{
+    const v=String(box.dataset.value||'').trim();
+    if(v)odontogram[box.dataset.tooth]=v;
   });
   document.querySelectorAll('.tm-dental-surfaces').forEach(input=>{
     if(input.value)odontogram[input.dataset.tooth+'-surfaces']=input.value;

@@ -19,6 +19,7 @@ export function setLetterheadContact(settings={}){
 // The clinic a document belongs to when the caller does not say: the signed-in staff member's or doctor's.
 let clinicSource=()=>'';
 export function setLetterheadClinicSource(source){clinicSource=typeof source==='function'?source:()=>'';}
+export const currentLetterheadClinic=()=>clinicSource();
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 // The clinic forms print the trunk line in international form: "(032) 402 4060" becomes "+6332 402 4060".
@@ -33,6 +34,9 @@ export function letterheadContact(clinic){
   return {email:clinic==='Dental Clinic'?DENTAL_CLINIC_EMAIL:contact.email,phone:letterheadPhone(contact.phone)};
 }
 
+// The fixed lines of the clinic forms' letterhead (the email and phone follow below them).
+export const LETTERHEAD_LINES=['REPUBLIC OF THE PHILIPPINES','CEBU TECHNOLOGICAL UNIVERSITY','MAIN CAMPUS','M. J. Cuenco Avenue Cor. R. Palma Street, Cebu City, Philippines'];
+
 // The CTU Main Campus letterhead, laid out like the clinic's paper forms: university seal, the
 // university and campus address block, the clinic's email and phone, the Bagong Pilipinas logo,
 // then the clinic name. `clinic` is 'Dental Clinic' or 'Medical Clinic' ('' for both clinics);
@@ -44,10 +48,10 @@ export function ctuHeaderHtml({clinic,unit=true}={}){
   // A table rather than flexbox, so Word documents keep the same layout as the browser and PDF.
   return `<table class="ctu-lh-head" data-ctu-letterhead="header" role="presentation" style="border-collapse:collapse;margin:0 auto 4px;font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.3"><tr>
     <td style="padding:0 16px 0 0;border:0;vertical-align:middle"><img data-ctu-cert-logo="1" src="${absolute(CTU_LOGO_SRC)}" alt="Cebu Technological University seal" width="84" height="84" style="width:84px;height:84px;object-fit:contain;display:block"></td>
-    <td style="padding:0;border:0;text-align:center;vertical-align:middle">${line(11.5,'Republic of the Philippines')}${line(14,'CEBU TECHNOLOGICAL UNIVERSITY','font-weight:700;letter-spacing:.02em')}
-      ${line(11,'MAIN CAMPUS M. J. Cuenco Avenue Cor. R. Palma Street, Cebu City, Philippines')}
-      ${line(11,esc(email))}
-      ${line(11,`Phone: ${esc(phone)}`)}</td>
+    <td style="padding:0;border:0;text-align:center;vertical-align:middle">${line(11.5,LETTERHEAD_LINES[0])}${line(14,LETTERHEAD_LINES[1],'font-weight:700;letter-spacing:.03em')}${line(11.5,LETTERHEAD_LINES[2],'font-weight:700')}
+      ${line(10.5,LETTERHEAD_LINES[3])}
+      ${line(10.5,esc(email))}
+      ${line(10.5,`Phone: ${esc(phone)}`)}</td>
     <td style="padding:0 0 0 16px;border:0;vertical-align:middle"><img src="${absolute(BAGONG_PILIPINAS_SRC)}" alt="Bagong Pilipinas logo" width="80" height="76" style="width:80px;height:76px;object-fit:contain;display:block"></td>
   </tr></table>${unit?`<div class="ctu-lh-unit" data-ctu-letterhead="unit" style="text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;letter-spacing:.03em;color:#111;margin:2px 0 8px">${letterheadUnit(which)}</div>`:''}`;
 }

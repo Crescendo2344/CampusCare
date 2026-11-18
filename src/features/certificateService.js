@@ -10,7 +10,8 @@ import {closeAllModals,openModal} from './modals.js';
 import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {persistDB} from './persistence.js';
 import {getPatientById,getUserById} from './documentScanner.js';
-import {TOOTH_SURFACES,viewPatient} from './patientForm.js';
+import {viewPatient} from './patientForm.js';
+import {PERMANENT_TEETH,PRIMARY_TEETH,dentalChartTableHtml} from '../shared/dental-chart.js';
 import {openAddTreatmentModalPt} from './treatmentForm.js';
 import {loadJsPDF} from './settingsAndCertificates.js';
 import {paginate,pagerHtml} from '../ui/pager.js';
@@ -112,26 +113,9 @@ export function normalizeCertificateDocumentMetadata(r,html=''){
 }
 
 // Layout follows the clinic's Dental_Certificate template (FDI numbering, permanent and primary dentition).
-// Each tooth shows its latest condition code above/below its number and the marked surfaces on its picture.
-const TOOTH_ROWS=[[[18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28],[48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38]],
-  [[55,54,53,52,51,61,62,63,64,65],[85,84,83,82,81,71,72,73,74,75]]];
-// Same tooth picture as the dental record form: rounded square, small inner octagon and four diagonals.
-// The surfaces are clipped to the rounded outline so no square corners show outside it.
-function toothIconSvg(surfaces=''){
-  const on=new Set(String(surfaces).split(',').filter(Boolean));
-  const parts=TOOTH_SURFACES.map(([q,,points])=>`<polygon points="${points}" fill="${on.has(q)&&q!=='O'?'#000':'#fff'}" stroke="#111" stroke-width="1" stroke-linejoin="round"/>`).join('');
-  const check=on.has('O')?'<path d="M5 12.5 10 18 19.5 6" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>':'';
-  return `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><defs><clipPath id="dc-clip"><rect x="2" y="2" width="20" height="20" rx="6"/></clipPath></defs><g clip-path="url(#dc-clip)">${parts}</g><rect x="2" y="2" width="20" height="20" rx="6" fill="none" stroke="#111" stroke-width="1.4"/>${check}</svg>`;
-}
-// One block of the chart: code box and number above, the two rows of tooth pictures, then number and code box below.
-function toothBlockHtml([upper,lower],odontogram={}){
-  const cells=(nums,fn)=>nums.map(fn).join('');
-  const code=n=>`<td class="dc-code" data-tooth="${n}">${escapeHtml(String(odontogram[n]||'').toUpperCase())}</td>`;
-  const num=n=>`<td class="dc-num">${n}</td>`;
-  const icon=n=>`<td class="dc-icon">${toothIconSvg(odontogram[n+'-surfaces'])}</td>`;
-  const side=`<tr class="dc-sides"><td colspan="${upper.length/2}" style="text-align:left">LEFT</td><td colspan="${upper.length/2}" style="text-align:right">RIGHT</td></tr>`;
-  return `<table class="dc-chart${upper.length<16?' dc-primary':''}" contenteditable="false"><tbody><tr>${cells(upper,code)}</tr><tr>${cells(upper,num)}</tr><tr class="dc-pics">${cells(upper,icon)}</tr><tr class="dc-pics">${cells(lower,icon)}</tr><tr>${cells(lower,num)}</tr><tr>${cells(lower,code)}</tr>${side}</tbody></table>`;
-}
+// Each tooth shows its latest mark (check or code) beside its number and its marked sides on the picture.
+const toothBlockHtml=(rows,odontogram={})=>dentalChartTableHtml(rows,odontogram,{width:rows[0].length<16?420:672});
+const TOOTH_ROWS=[PERMANENT_TEETH,PRIMARY_TEETH];
 // Checkbox and circle glyphs are plain text so the saved document prints identically; clicking one toggles it.
 const dcCheck=(label,checked=false)=>`<div class="dc-check-line"><span class="dc-check" contenteditable="false" data-dc-check>${checked?'☑':'☐'}</span> ${label}</div>`;
 const dcCircle=(label,checked=false)=>`<span class="dc-circle-item">${label} <span class="dc-check" contenteditable="false" data-dc-check>${checked?'●':'○'}</span></span>`;
