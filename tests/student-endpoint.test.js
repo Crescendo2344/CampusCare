@@ -11,7 +11,7 @@ async function endpoint(file,client){
   let handler;
   globalThis.__studentClient=()=>client;globalThis.__studentRules={buildStudentReport,scopeStudentReport,studentReportFilterError};globalThis.__authRedirect=authRedirect;globalThis.__registrationRules=registrationDetailErrors;globalThis.__phone=normalizePhilippineMobile;
   globalThis.Deno={env:{get:()=> 'fixture'},serve:fn=>{handler=fn;}};
-  let source=readFileSync(file,'utf8').replace(/import \{\s*createClient\s*\} from [^;]+;/,'const createClient=globalThis.__studentClient;').replace(/import \{buildStudentReport[^}]*\} from [^;]+;/,'const {buildStudentReport,scopeStudentReport,studentReportFilterError}=globalThis.__studentRules;').replace(/import \{authRedirect\} from [^;]+;/,'const authRedirect=globalThis.__authRedirect;').replace(/import \{registrationDetailErrors\} from [^;]+;/,'const registrationDetailErrors=globalThis.__registrationRules;').replace(/import \{normalizePhilippineMobile\} from [^;]+;/,'const normalizePhilippineMobile=globalThis.__phone;');
+  let source=readFileSync(file,'utf8').replace(/import \{\s*createClient\s*\} from [^;]+;/,'const createClient=globalThis.__studentClient;').replace(/import \{buildStudentReport[^}]*\} from [^;]+;/,'const {buildStudentReport,scopeStudentReport,studentReportFilterError}=globalThis.__studentRules;').replace(/import \{authRedirect\} from [^;]+;/,'const authRedirect=globalThis.__authRedirect;').replace(/import \{registrationDetailErrors\} from [^;]+;/,'const registrationDetailErrors=globalThis.__registrationRules;').replace(/import \{normalizePhilippineMobile\} from [^;]+;/,'const normalizePhilippineMobile=globalThis.__phone;').replace(/import \{queuePasswordEmail\} from [^;]+;/,'const queuePasswordEmail=(...args)=>globalThis.__passwordEmail(...args);');
   await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes(source)+'\n// '+Math.random()).toString('base64'));
   return handler;
 }
@@ -60,6 +60,7 @@ test('patient endpoint validates class session and persists explicit values unde
 });
 test('clinic-assisted registration validates fields, needs selfie and both ID sides, and leaves the email unverified',async()=>{
   const created=[],uploads=[],resets=[],userUpdates=[];
+  globalThis.__passwordEmail=async(admin,options)=>{resets.push(options);return true;};
   const pixel='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
   const other=pixel.replace('kgAAAAB','kgAAAAC');
   const query=table=>{let lookup='';return {select(){return this;},eq(key){lookup=key;return this;},ilike(){return this;},order(){return this;},
@@ -84,5 +85,6 @@ test('clinic-assisted registration validates fields, needs selfie and both ID si
   assert.equal(created[0].user_metadata.contact_number,'09171234567');
   assert.deepEqual(uploads.map(u=>u.path),['new-auth/selfie-verification.png','new-auth/id-front.png','new-auth/id-back.png']);
   assert.equal(userUpdates[0].id_back_file_url,'new-auth/id-back.png');assert.equal(userUpdates[0].profile_image_url,null);
-  assert.equal(resets[0].email,'ana.reyes@gmail.com');assert.match(resets[0].options.redirectTo,/\?auth=recovery$/);
+  // CampusCare's own "set your password" email, not Supabase's built-in one.
+  assert.equal(resets.length,1);assert.equal(resets[0].email,'ana.reyes@gmail.com');assert.equal(resets[0].setup,true);assert.equal(resets[0].firstName,'Ana');
 });

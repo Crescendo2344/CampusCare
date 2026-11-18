@@ -72,7 +72,8 @@ Deno.serve(async(req)=>{
     if(profile.status!=="Active")return json({error:"Only active accounts can reset their password."},403);
 
     // The once-every-7-days rule covers voluntary changes only; a forgotten password is always resettable.
-    const {error:updateErr}=await admin.auth.admin.updateUserById(user.id,{password:newPassword});
+    // Using the emailed link also proves the address, which matters for accounts the clinic created.
+    const {error:updateErr}=await admin.auth.admin.updateUserById(user.id,{password:newPassword,email_confirm:true});
     if(updateErr)return json({error:updateErr.message},400);
 
     await admin.from("audit_logs").insert({

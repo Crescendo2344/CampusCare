@@ -1,4 +1,5 @@
-import {setLetterheadContact} from '../shared/ctu-letterhead.js';
+import {setLetterheadClinicSource,setLetterheadContact} from '../shared/ctu-letterhead.js';
+import {userClinic} from '../domain/clinic-scope.js';
 import {createFeatureSyncService} from '../services/feature-sync.js';
 // systemSettings: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
@@ -54,5 +55,7 @@ export async function saveRealSystemSettings(s=appState.data.DB.settings,confirm
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
   setLetterheadContact(appState.data.DB?.settings||{});
+  // Printed documents carry the clinic of whoever is signed in (both clinics for administrators).
+  setLetterheadClinicSource(()=>userClinic(appState.auth.currentUser));
 
 }

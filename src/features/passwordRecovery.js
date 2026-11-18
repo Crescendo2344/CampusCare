@@ -165,6 +165,19 @@ export async function sendPasswordResetEmail(){
   }
 }
 
+// From an expired or used link: forget that link and ask for the account again, ready to send a new one.
+export function requestNewResetLink(){
+  resetTokenHash='';
+  cleanAuthCallbackUrl();
+  hideAlert(document.getElementById('fp-err'));
+  hideAlert(document.getElementById('fp-err3'));
+  for(const id of ['fp-update-btn','fp-newpass','fp-newpass2']){const el=document.getElementById(id);if(el)el.disabled=false;}
+  const newLinkBtn=document.getElementById('fp-new-link-btn');
+  if(newLinkBtn)newLinkBtn.style.display='none';
+  showForgotStep(1);
+  document.getElementById('fp-identifier')?.focus();
+}
+
 export function cleanAuthCallbackUrl(){
   try{
     const clean=window.location.origin+window.location.pathname;

@@ -362,9 +362,9 @@ function selectVisitPatient(id){
 }
 
 export function treatmentDocumentHtml(t){
-  const pt=getPatientById(t.patientId)||{},doc=getUserById(t.doctorId)||{},s=appState.data.DB.settings,vit=t.vitals||{},safe=v=>escapeHtml(v||'—');
+  const pt=getPatientById(t.patientId)||{},doc=getUserById(t.doctorId)||{},vit=t.vitals||{},safe=v=>escapeHtml(v||'—');
   return `<div class="treatment-record-doc" id="treatment-document-${t.id}">
-    <div class="treatment-doc-head" style="border-bottom:0;padding-bottom:0">${ctuHeaderHtml()}<p style="margin:2px 0 0;font-weight:700;font-size:12px;color:#12314a">${escapeHtml(s.clinicName||'CTU Main Medical & Dental Clinic')}</p></div>
+    <div class="treatment-doc-head" style="border-bottom:0;padding-bottom:0">${ctuHeaderHtml({clinic:doc.role==='Doctor'?clinicForSpecialization(doc.specialty):undefined})}</div>
     <div class="treatment-doc-title">CLINICAL TREATMENT RECORD</div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:.7rem;color:#64717a"><span>Record No. <strong>#${treatmentDisplayId(t)}</strong></span>${t.archived?'<span class="treatment-archived-mark">ARCHIVED</span>':''}</div>
     <div class="treatment-doc-grid">
@@ -469,7 +469,7 @@ export function dentalRecordDocumentHtml(t){
   const operations=Array.isArray(d.accomplishment)?d.accomplishment:[];
 
   return `<div class="dental-record-doc" id="dental-record-document-${t.id}">
-    <div class="dental-doc-head">${ctuHeaderHtml()}<p><strong>DENTAL CLINIC</strong></p></div>
+    <div class="dental-doc-head">${ctuHeaderHtml({clinic:'Dental Clinic'})}</div>
     <div class="dental-doc-title">DENTAL RECORD</div>
 
     <div class="dental-doc-info">

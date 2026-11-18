@@ -3,6 +3,7 @@ import {customReportControls,markReportStale} from '../reports/custom-report.js'
 import {forecastControls,runForecast,markForecastStale} from '../reports/forecast.js';
 import {offsetDay} from '../domain/report-analysis.js';
 import {studentFilterMarkup} from '../reports/student-report.js';
+import {saturdayFilterMarkup} from '../reports/saturday-report.js';
 import {fetchAnalyticsSummary,renderLiveAnalyticsCard} from './analyticsDisplay.js';
 // reports: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
@@ -58,7 +59,7 @@ export async function renderReports(){
     '<option value="treatments">Treatments</option>',
     ...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?['<option value="inventory">Inventory</option>','<option value="medicine_use">Medicine consumption</option>']:[]),
     '<option value="patients">Patients</option>',
-    ...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?['<option value="students">Student Coverage &amp; Registration</option>']:[])
+    ...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?['<option value="students">Student Coverage &amp; Registration</option>','<option value="saturday">Saturday Clinic Visit Log</option>']:[])
   ].join('');
 
   c.innerHTML=`<div class="reports-workspace">
@@ -76,12 +77,12 @@ export async function renderReports(){
     </div>
     <div class="report-tabs" role="tablist" aria-label="Analytics views">${[['overview','Overview','bi-grid'],['builder','Custom Reports','bi-sliders'],['forecast','Forecast','bi-graph-up-arrow']].map(([id,label,icon])=>`<button type="button" role="tab" id="report-tab-${id}" data-report-view="${id}" aria-controls="report-panel-${id}" aria-selected="${id==='overview'}" ${bindAction('click',()=>switchReportView(id))}><i class="bi ${icon}" aria-hidden="true"></i>${label}</button>`).join('')}</div>
     <section id="report-panel-overview" role="tabpanel" aria-labelledby="report-tab-overview">
-      <div class="report-template-grid">${[['appointments','Appointments by clinic'],['treatments','Treatments by diagnosis'],...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?[['students','Student service coverage'],['inventory','Stock by category'],['medicine_use','Medicine used by month']]:[]),['appointments','Visits by service / procedure']].map(([type,label])=>`<button type="button" class="report-template" ${bindAction('click',()=>{document.getElementById('rpt-type').value=type;updateReportMetricOptions();const group=document.getElementById('rpt-group');if(group)group.value=label.includes('service / procedure')?'service':type==='appointments'?'clinic':type==='treatments'?'diagnosis':type==='medicine_use'?'month':'category';})}><span>${label}</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>`).join('')}</div>
+      <div class="report-template-grid">${[['appointments','Appointments by clinic'],['treatments','Treatments by diagnosis'],...(['Administrator','Staff'].includes(appState.auth.currentUser.role)?[['students','Student service coverage'],['saturday','Saturday visit log'],['inventory','Stock by category'],['medicine_use','Medicine used by month']]:[]),['appointments','Visits by service / procedure']].map(([type,label])=>`<button type="button" class="report-template" ${bindAction('click',()=>{document.getElementById('rpt-type').value=type;updateReportMetricOptions();const group=document.getElementById('rpt-group');if(group)group.value=label.includes('service / procedure')?'service':type==='appointments'?'clinic':type==='treatments'?'diagnosis':type==='medicine_use'?'month':'category';})}><span>${label}</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>`).join('')}</div>
       <div id="health-intelligence-wrap">${appState.auth.currentUser?._realSupabase?renderLiveAnalyticsCard(appState.reports.currentAnalyticsSummary):renderHealthIntelligenceCard(defaultFrom,defaultTo)}</div>
     </section>
     <section id="report-panel-builder" role="tabpanel" aria-labelledby="report-tab-builder" hidden>
       <div class="card"><div class="card-header"><div><h3>Build a report</h3></div></div>
-        <div id="rpt-custom-controls"></div>${studentFilterMarkup()}
+        <div id="rpt-custom-controls"></div>${studentFilterMarkup()}${saturdayFilterMarkup()}
         <button class="btn btn-primary" ${bindAction('click',generateReport)}><i class="bi bi-bar-chart" aria-hidden="true"></i> Generate Report</button>
       </div><div id="rpt-result" aria-live="polite"></div>
     </section>
