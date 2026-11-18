@@ -755,6 +755,32 @@
     ]
   },
   {
+    "name": "dentalHealthHistory",
+    "path": "src/features/dentalHealthHistory.js",
+    "functions": [
+      "loadHealthHistoryStatuses",
+      "healthHistorySlotHtml",
+      "fillHealthHistorySlots",
+      "openPatientHealthHistory",
+      "openHealthHistoryForm",
+      "openDentistHealthHistory",
+      "printHealthHistory",
+      "healthHistoryNextStepHtml"
+    ],
+    "state": [],
+    "imports": [
+      "../app/state.js",
+      "./appointmentService.js",
+      "./modals.js",
+      "./issueReports.js",
+      "./theme.js",
+      "./inputValidation.js",
+      "../shared/ctu-letterhead.js",
+      "../dependencies.js",
+      "../../supabase/functions/_shared/dental-health-history.js"
+    ]
+  },
+  {
     "name": "dentalSurvey",
     "path": "src/features/dentalSurvey.js",
     "functions": [

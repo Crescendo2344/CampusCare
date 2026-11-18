@@ -1785,3 +1785,51 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .dl-format .bi{font-size:1.5rem;color:var(--primary-mid)}
 .dl-format span{font-size:.72rem;color:var(--ink-muted);text-align:center}
 @media (max-width:420px){.dl-formats{grid-template-columns:1fr}}
+
+/* Dental Health History: patient form, appointment panel and the dentist's review */
+.dhh-intro{margin:0 0 .75rem;color:var(--ink-muted);font-size:.85rem}
+.dhh-head{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.5rem .8rem;margin-bottom:.8rem;padding:.7rem .8rem;border:1px solid var(--line);border-radius:12px;background:var(--glass-surface-soft)}
+.dhh-head>div,.dhh-head>label{display:flex;flex-direction:column;gap:.15rem;margin:0}
+.dhh-head span{font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-muted)}
+.dhh-head input{width:100%}
+.dhh-section{border:1px solid var(--line);border-radius:12px;padding:.4rem .8rem .6rem;margin:0 0 .7rem}
+.dhh-section legend{padding:0 .35rem;font-size:.78rem;font-weight:800;color:var(--ink)}
+.dhh-q{display:grid;grid-template-columns:2rem 1fr auto;gap:.5rem;align-items:start;padding:.45rem 0;border-bottom:1px solid var(--line)}
+.dhh-q:last-child{border-bottom:0}
+.dhh-n{font-weight:700;color:var(--ink-muted);text-align:right;padding-top:.3rem}
+.dhh-text{display:flex;flex-direction:column;gap:.35rem;padding-top:.3rem;font-size:.86rem;line-height:1.4}
+.dhh-text input{width:100%;max-width:28rem}
+.dhh-physician{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.35rem;max-width:36rem}
+.dhh-physician[hidden],.dhh-detail[hidden]{display:none}
+.dhh-choices{display:flex;gap:.3rem}
+.dhh-choice{min-width:3.2rem;min-height:2.2rem;border:1px solid var(--line);border-radius:999px;background:var(--overlay);color:var(--ink);font:inherit;font-size:.82rem;font-weight:700;cursor:pointer;touch-action:manipulation}
+.dhh-choice:hover{border-color:var(--primary)}
+.dhh-choice.on[data-choice="Yes"]{background:#b45309;border-color:#b45309;color:#fff}
+.dhh-choice.on[data-choice="No"]{background:var(--primary);border-color:var(--primary);color:var(--on-primary,#fff)}
+.dhh-declare{display:flex;gap:.6rem;align-items:flex-start;margin:.8rem 0 0;padding:.75rem .85rem;border:1px solid var(--line);border-radius:12px;background:var(--glass-surface-soft);font-size:.85rem;line-height:1.5;cursor:pointer}
+.dhh-declare input{margin-top:.2rem;flex:none}
+.dhh-panel{margin:.8rem 0;padding:.75rem .85rem;border:1px solid var(--line);border-radius:12px;background:var(--glass-surface-soft)}
+.dhh-panel.todo{border-color:var(--warning,#b45309)}
+.dhh-panel-head{display:flex;gap:.6rem;align-items:flex-start}
+.dhh-panel-head>i{font-size:1.25rem;color:var(--primary)}
+.dhh-panel.todo .dhh-panel-head>i{color:var(--warning,#b45309)}
+.dhh-panel-head p{margin:.15rem 0 0;font-size:.82rem;color:var(--ink-muted)}
+.dhh-panel-actions{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem}
+.dhh-badge{white-space:nowrap}
+.dhh-next{display:flex;gap:.7rem;align-items:flex-start;margin:.2rem 0 .9rem;padding:.8rem .9rem;border:1px solid var(--primary);border-radius:12px;background:rgba(10,126,168,.07)}
+.dhh-next>i{font-size:1.4rem;color:var(--primary)}
+.dhh-next h4{margin:0 0 .2rem;font-size:.92rem}
+.dhh-next p{margin:0 0 .55rem;font-size:.82rem;color:var(--ink-muted)}
+.dhh-alerts{margin:0 0 .8rem;padding:.7rem .85rem;border:1px solid #b42318;border-radius:12px;background:rgba(180,35,24,.07);color:var(--ink)}
+.dhh-alerts strong{color:#b42318}
+.dhh-alerts ul{margin:.35rem 0 0;padding-left:1.1rem;columns:2;font-size:.84rem}
+.dhh-alerts.ok{border-color:var(--line);background:var(--glass-surface-soft);font-size:.85rem}
+.dhh-q.review{grid-template-columns:2rem 1fr 3.6rem}
+.dhh-q.review.alert{background:rgba(180,35,24,.06)}
+.dhh-ans{justify-self:end;padding:.2rem .55rem;border-radius:999px;font-size:.78rem;font-weight:800;margin-top:.2rem}
+.dhh-ans.yes{background:rgba(180,83,9,.14);color:#92400e}
+.dhh-ans.no{background:var(--overlay);color:var(--ink-muted)}
+.dhh-ans.alert{background:#b42318;color:#fff}
+.dhh-ans.blank{color:var(--ink-muted)}
+.dhh-ans-detail{font-size:.8rem;color:var(--ink);background:var(--overlay);border-radius:8px;padding:.25rem .5rem}
+@media (max-width:560px){.dhh-q{grid-template-columns:1.6rem 1fr}.dhh-choices{grid-column:2}.dhh-alerts ul{columns:1}}

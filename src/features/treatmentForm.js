@@ -12,6 +12,7 @@ import {escapeHtml} from './issueReports.js';
 import {docName} from './displayNames.js';
 import {closeAllModals,openModal} from './modals.js';
 import {collectDentalRecordForm,dentalRecordFormHtml} from './patientForm.js';
+import {fillHealthHistorySlots,healthHistorySlotHtml} from './dentalHealthHistory.js';
 import {patientAvatarHtml} from './patientManagement.js';
 import {campusDateFieldHtml} from './datePicker.js';
 import {auditLog} from './auditAndBackups.js';
@@ -119,6 +120,7 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
         <p class="tv-complaint${(appt?appt.reason:complaintForPatient(pt?.id))?'':' empty'}" id="tm-complaint">${complaintHtml(appt?appt.reason:complaintForPatient(pt?.id))}</p>
       </section>
 
+      ${dental&&appt?healthHistorySlotHtml(appt,'panel'):''}
       ${dental?dentalRecordFormHtml({},pt,defaultDate):''}
 
       <section class="tv-section"><h4>Findings</h4>
@@ -136,6 +138,7 @@ export function openAddTreatmentModalPt(ptId,apptId=null){
     </div>
   </div>`);
   if(triage)updateVitalFlags();
+  if(dental&&appt)void fillHealthHistorySlots();
 }
 
 // Without a linked appointment, use the readings taken at triage for the patient's nearest open appointment.

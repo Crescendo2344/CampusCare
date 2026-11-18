@@ -136,6 +136,12 @@ try{
     assert(body.context&&!JSON.stringify(body.context).match(/patient_id|id_number/),'Only aggregated forecast data is sent to the AI');
     response={ok:true,model:'gemini-3.8-flash',generated_at:'2026-10-28T02:00:00Z',insights:{headline:body.question?'':'Visits stay low and steady over the next 3 months.',summary:'About 3 visits are expected.',highlights:[{title:'Low demand',detail:'Roughly 0.2 visits a week.'}],risks:[{level:'medium',title:'Old history',detail:'The latest event is from March.'}],actions:[{priority:'soon',action:'Review recent records',reason:'The history may be incomplete.'}],caveats:['Based on 3 events only.'],answer:body.question?'Early November needs the most attention.':''}};
    }
+   else if(path.endsWith('/dental-health-history')){
+    const body=request.postDataJSON();
+    response=body.action==='status'?{ok:true,statuses:Object.fromEntries((body.appointment_ids||[]).map(id=>[id,{status:'needed'}]))}
+      :body.action==='get'||body.action==='form'?{ok:true,status:{status:'needed'},patient:{name:'Fixture Patient',birth_date:'2004-05-06',female:true,height_cm:160,weight_kg:50},history:null,previous:null,alerts:[]}
+      :{ok:true};
+   }
    else if(path.includes('/functions/v1/'))response={ok:true,notifications:[],requests:[],doctor_leaves:[],messages:[],contacts:[doctor],resources:[],surveys:[],users:[],doctors:[doctor],counts:{},items:{}};
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(response)});
   });
@@ -1541,6 +1547,33 @@ try{
   await page.locator('.sb-brand').evaluate(element=>element.click());
   await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
   if(role==='Patient'){
+    // Dental Health History: a dental appointment shows the form's status; the form has the 48 questions.
+    await page.evaluate(()=>{const {state,features}=window.__fixtureApp;const pt=state.data.DB.patients.find(p=>p._realSupabase)||state.data.DB.patients[0];
+      state.data.DB.appointments.push({id:990500,dbAppointmentId:500,_realSupabase:true,patientId:pt.id,doctorId:null,clinic:'Dental Clinic',service:'Dental Checkup',date:'2099-01-15',time:'09:00',status:'Scheduled',reason:'Checkup'});
+      features.appointmentDetails.viewAppt(990500);});
+    await page.locator('.dhh-panel').waitFor();
+    assert.match(await page.locator('.dhh-panel').innerText(),/Not yet answered/);
+    await page.locator('.dhh-panel').getByRole('button',{name:'Answer now'}).click();
+    await page.locator('.dhh-modal').waitFor();
+    assert.equal(await page.locator('.dhh-modal .dhh-q').count(),48);
+    const q3=page.locator('.dhh-q[data-q="3"]');
+    assert.equal(await q3.locator('.dhh-detail').isVisible(),false);
+    await q3.getByRole('button',{name:'Yes'}).click();
+    await q3.locator('.dhh-detail').fill('Dengue fever');
+    await page.locator('.dhh-q[data-q="1"]').getByRole('button',{name:'Yes'}).click();
+    await page.locator('.dhh-q[data-q="2"]').getByRole('button',{name:'No'}).click();
+    await page.locator('.dhh-q[data-q="2"]').getByRole('button',{name:'No'}).click();
+    assert.equal(await page.locator('.dhh-q[data-q="2"]').getAttribute('data-answer'),'','Clicking the same answer again leaves it blank');
+    for(let n=2;n<=48;n++)if(n!==3)await page.locator(`.dhh-q[data-q="${n}"]`).getByRole('button',{name:'No'}).click();
+    await page.locator('#dhh-submit').click();
+    assert.equal(await page.locator('.dhh-modal').count(),1,'The declaration must be ticked first');
+    await page.locator('#dhh-attest').check();
+    await page.locator('#dhh-submit').click();
+    await page.waitForFunction(()=>!document.querySelector('.dhh-modal'));
+    const submitted=requests.filter(r=>r.path.endsWith('/dental-health-history')&&r.body?.action==='submit').at(-1);
+    assert.equal(submitted.body.answers['3'],'Yes');assert.equal(submitted.body.details.hospitalized_why,'Dengue fever');assert.equal(submitted.body.mode,'online');
+    assert.equal(Object.keys(submitted.body.answers).length,48);
+    await page.evaluate(()=>window.__fixtureApp.features.modals.closeAllModals());
     assert.equal(await page.locator('.dashboard-a-head').getByRole('button',{name:/Book Appointment/}).count(),0);
     // The profile meter shows the percentage and what is left, and links to My Account.
     const meter=page.locator('#profile-strength');await meter.waitFor();

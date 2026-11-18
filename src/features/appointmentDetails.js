@@ -16,6 +16,7 @@ import {openAddTreatmentModal} from './treatmentForm.js';
 import {corChecklistHtml,openRescheduleModal} from './bookingForm.js';
 import {openTriageVitalsModal,triageVitalsPanelHtml} from './triageVitals.js';
 import {bindAction} from '../dependencies.js';
+import {fillHealthHistorySlots,healthHistorySlotHtml} from './dentalHealthHistory.js';
 // ── View Appointment ──
 // Summary first (who, when, where), then the visit details and its history, with the same actions as the list.
 export function viewAppt(id){
@@ -63,6 +64,7 @@ export function viewAppt(id){
       ${row('Chief complaint',escapeHtml(a.reason||'—'))}
       ${a.notes?row('Notes',escapeHtml(a.notes)):''}
       ${role==='Staff'||role==='Doctor'?triageVitalsPanelHtml(a,{onEdit:allowed.vitals?()=>{closeAllModals();openTriageVitalsModal(a.id,{returnToDetails:true});}:null}):''}
+      ${healthHistorySlotHtml(a,'panel')}
       ${role==='Patient'&&a.status==='Scheduled'&&a.date>=today?corChecklistHtml(a.date,pt?.personType):''}
       ${history.length?`<h4 class="appt-detail-section">History</h4><ul class="appt-history">${history.map(item=>`<li>${item}</li>`).join('')}</ul>`:''}
     </div>
@@ -74,6 +76,7 @@ export function viewAppt(id){
       ${allowed.document?`<button class="btn btn-primary" ${bindAction('click',()=>{closeAllModals();openAddTreatmentModal(a.id)})}>Add notes &amp; complete</button>`:''}
     </div>
   </div>`);
+  void fillHealthHistorySlots();
 }
 
 // Run side effects only after every feature's function exports are available.

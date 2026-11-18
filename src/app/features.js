@@ -74,6 +74,7 @@ import * as feature72 from '../features/stockOrders.js';
 import * as feature73 from '../features/triageVitals.js';
 export const features={
 analyticsDisplay,
+  dentalHealthHistory,
   authSession:feature0,
   supabaseClient:feature1,
   demoData:feature2,
@@ -149,6 +150,7 @@ analyticsDisplay,
   triageVitals:feature73,
 };
 import {initializeOptionalState} from './optional-state.js';
+import * as dentalHealthHistory from '../features/dentalHealthHistory.js';
 import * as analyticsDisplay from '../features/analyticsDisplay.js';
 export function initializeFeatures(){
 initializeOptionalState();

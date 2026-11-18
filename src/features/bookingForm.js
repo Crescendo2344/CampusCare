@@ -19,6 +19,7 @@ import {refreshTaskBadges} from './topbarAndNavigation.js';
 import {renderMyAppointments} from './patientAppointments.js';
 import {renderAppointments} from './appointments.js';
 import {addBookingDays,buildDoctorAvailability} from '../domain/booking-availability.js';
+import {healthHistoryNextStepHtml} from './dentalHealthHistory.js';
 import {bindAction,scheduleRules} from '../dependencies.js';
 // ── Book Appointment ──
 
@@ -390,9 +391,9 @@ export async function saveAppt(editId){
     if(forSelf)await renderMyAppointments();
     else await renderAppointments();
     // Patients get a confirmation that spells out what to bring; staff get a reminder to pass on.
-    const booked=appointmentRecords().find(x=>x.patientId===ptId&&x.date===date&&x.time===time&&x.status==='Scheduled');
+    const booked=appointmentRecords().find(x=>x.patientId===ptId&&x.date===date&&x.time===time&&['Scheduled','Pending','Confirmed'].includes(x.status));
     const queue=booked?queueLabel(booked):'';
-    if(forSelf)showBookingConfirmation({rescheduled:Boolean(existing),clinic,service:svc,doctor:doc,date,time,patient:pt,queue});
+    if(forSelf)showBookingConfirmation({rescheduled:Boolean(existing),clinic,service:svc,doctor:doc,date,time,patient:pt,queue,appointment:booked});
     else toast(existing?`Rescheduled for ${fmtDate(date)} at ${fmtTime(time)}. Remind the patient to bring a signed COR.`:`Booked for ${fmtDate(date)} at ${fmtTime(time)}. Remind the patient to bring a signed COR.`,'success',6000,{title:existing?'Appointment rescheduled':'Appointment booked'});
   }catch(e){
     showAlert(msg,e?.message||'Unable to save appointment.');
@@ -428,7 +429,7 @@ export function corChecklistHtml(date,personType='Student'){
   </section>`;
 }
 
-export function showBookingConfirmation({rescheduled,clinic,service,doctor,date,time,patient,queue=''}){
+export function showBookingConfirmation({rescheduled,clinic,service,doctor,date,time,patient,queue='',appointment=null}){
   clearToasts();
   openModal(`<div class="modal booking-done" role="dialog" aria-labelledby="booking-done-title">
     <div class="modal-body">
@@ -441,6 +442,7 @@ export function showBookingConfirmation({rescheduled,clinic,service,doctor,date,
         ${doctor?`<div><dt>With</dt><dd>${escapeHtml(docName(doctor))}</dd></div>`:''}
         ${queue?`<div><dt>Queue</dt><dd>${escapeHtml(queue)}</dd></div>`:''}
       </dl>
+      ${healthHistoryNextStepHtml(appointment)}
       ${corChecklistHtml(date,patient?.personType)}
     </div>
     <div class="modal-footer booking-done-actions"><button type="button" class="btn btn-primary" ${bindAction('click',()=>closeAllModals())}>Got it</button></div>
