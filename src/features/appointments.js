@@ -84,7 +84,7 @@ const APPT_VIEWS=[
   ['all','All','Every appointment']
 ];
 const APPT_PAGE_SIZE=25;
-const clinicNow=()=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());
+export const clinicNow=()=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());
 
 // Every filter except the tab, so tab counts show what each list would contain.
 function filteredAppointments(){
@@ -113,7 +113,7 @@ export function exportAppointmentsCsv(){
   downloadTable(csvFileName(`appointments ${view}`,today),listData.appointmentsCsv(rows,describeAppointment));
 }
 
-function apptActionButtons(a,allowed,{compact=true}={}){
+export function apptActionButtons(a,allowed,{compact=true}={}){
   const size=compact?'btn-xs':'btn-sm';
   const primary=allowed.document
     ?`<button class="btn ${size} btn-primary" ${bindAction('click',()=>{closeAllModals();openAddTreatmentModal(a.id)})}><i class="bi bi-journal-medical" aria-hidden="true"></i> Add notes &amp; complete</button>`
@@ -183,6 +183,16 @@ export function renderApptTable(){
   el.innerHTML=`<div class="table-wrap"><table class="appt-table"><thead><tr><th scope="col">Time</th><th scope="col">Patient</th><th scope="col">Service</th>${doctorView?'':'<th scope="col">Doctor</th>'}<th scope="col">Priority</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${body}</tbody></table></div>${pager}`;
 }
 
+
+// After an appointment changes, refresh the page the person is on: the Clinic Calendar & Queue keeps
+// its selected day; everywhere else the Appointments page is shown again, as before.
+export async function refreshAppointmentViews(){
+  if(appState.navigationRaceProtection.campusActivePageId==='clinic-calendar'){
+    const {renderClinicCalendar}=await import('./clinicCalendar.js');
+    return renderClinicCalendar();
+  }
+  return renderAppointments();
+}
 
 export function noShowAppt(id){
   const a=appointmentRecords().find(x=>x.id===Number(id));if(!a)return;
@@ -289,7 +299,7 @@ export async function confirmCancelAppt(id,patient=false,givenReason=null){
     }else{
       a.status='Cancelled';a.cancellationReason=reason;persistDB();
     }
-    const rerender=()=>patient||appState.auth.currentUser.role==='Patient'?renderMyAppointments():renderAppointments();
+    const rerender=()=>patient||appState.auth.currentUser.role==='Patient'?renderMyAppointments():refreshAppointmentViews();
     refreshTaskBadges(true);
     await rerender();
     toastWithUndo('Appointment cancelled.',async()=>{
@@ -312,7 +322,7 @@ async function setApptStatus(a,status){
     await syncRealAppointments();
   }else{a.status=status;persistDB();}
   refreshTaskBadges(true);
-  if(appState.auth.currentUser.role==='Patient')await renderMyAppointments();else await renderAppointments();
+  if(appState.auth.currentUser.role==='Patient')await renderMyAppointments();else await refreshAppointmentViews();
 }
 function recordOutcome(a,status,done,failure){
   return async()=>{

@@ -40,6 +40,7 @@ export const state={
   fitnessList:{},
   inventoryList:{},
   stockOrders:{},
+  clinicCalendar:{},
   userManagement:{},
   surveyResults:{},
   settingsPage:{},

@@ -1833,3 +1833,52 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .dhh-ans.blank{color:var(--ink-muted)}
 .dhh-ans-detail{font-size:.8rem;color:var(--ink);background:var(--overlay);border-radius:8px;padding:.25rem .5rem}
 @media (max-width:560px){.dhh-q{grid-template-columns:1.6rem 1fr}.dhh-choices{grid-column:2}.dhh-alerts ul{columns:1}}
+
+/* Clinic Calendar & Queue: month of the clinic's bookings beside the selected day's queue */
+.cq-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem;flex-wrap:wrap;margin-bottom:.75rem}
+.cq-clinic{font-size:.85rem;padding:.35rem .7rem}
+.cq-scope{margin:.35rem 0 0;font-size:.8rem}
+.cq-head-actions{display:flex;gap:.5rem;flex-wrap:wrap}
+.cq-layout{display:grid;grid-template-columns:minmax(300px,420px) 1fr;gap:1rem;align-items:start}
+.cq-calendar,.cq-day{padding:1rem;min-width:0}
+.cq-month-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.cq-month-head h3{margin:0;font-size:1rem;text-align:center;flex:1}
+.cq-month-total{margin:.2rem 0 .6rem;text-align:center;font-size:.78rem}
+.cq-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cq-weekday{font-size:.7rem;font-weight:700;color:var(--ink-muted);text-align:center;padding:.2rem 0}
+.cq-cell{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:58px;padding:.3rem .15rem .35rem;border:1px solid var(--glass-border-soft);border-radius:10px;background:var(--glass-surface-strong);color:var(--ink);cursor:pointer;font:inherit}
+.cq-cell:hover{border-color:var(--primary)}
+.cq-cell:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+.cq-cell.outside{background:transparent;border-style:dashed;color:var(--ink-muted)}
+.cq-cell.outside .cq-count{color:var(--ink-muted)}
+.cq-cell.weekend{background:var(--overlay)}
+.cq-cell.today .cq-num{background:var(--primary);color:var(--on-primary);border-radius:999px;min-width:1.5rem}
+.cq-cell.selected{border:2px solid var(--primary);box-shadow:0 0 0 2px var(--info-bg)}
+.cq-cell.attention::after{content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--danger)}
+.cq-num{font-size:.78rem;font-weight:700;line-height:1.5rem;text-align:center}
+.cq-count{font-size:.95rem;font-weight:800;color:var(--primary-text)}
+.cq-bar{display:flex;width:80%;height:4px;border-radius:4px;overflow:hidden;background:var(--overlay)}
+.cq-bar i,.cq-legend i{display:block;height:100%}
+.cq-bar .done,.cq-legend .done{background:var(--success)}
+.cq-bar .noshow,.cq-legend .noshow{background:var(--danger)}
+.cq-bar .waiting,.cq-legend .waiting{background:var(--warning)}
+.cq-legend{display:flex;gap:.9rem;flex-wrap:wrap;justify-content:center;margin-top:.7rem;font-size:.75rem;color:var(--ink-muted)}
+.cq-legend span{display:inline-flex;align-items:center;gap:.3rem}
+.cq-legend i{width:.7rem;height:.7rem;border-radius:3px}
+.cq-day-head h3{margin:0;font-size:1.05rem}
+.cq-day-head p{margin:.2rem 0 .75rem;font-size:.82rem}
+.cq-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5rem}
+.cq-item{display:grid;grid-template-columns:4.2rem 1fr auto;gap:.75rem;align-items:center;padding:.65rem .75rem;border:1px solid var(--glass-border-soft);border-left:4px solid var(--warning);border-radius:12px;background:var(--glass-surface-strong)}
+.cq-item.done{border-left-color:var(--success)}
+.cq-item.noshow{border-left-color:var(--danger)}
+.cq-item.cancelled{border-left-color:var(--ink-muted);opacity:.75}
+.cq-item.serving{box-shadow:0 0 0 2px var(--warning-border);background:var(--warning-bg)}
+.cq-no{font-weight:800;font-size:.95rem;text-align:center;color:var(--primary-text)}
+.cq-main{display:flex;flex-direction:column;gap:.3rem;min-width:0;cursor:pointer}
+.cq-time{font-size:.85rem}
+.cq-meta{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;font-size:.8rem;color:var(--ink-muted)}
+.cq-side{display:flex;flex-direction:column;align-items:flex-end;gap:.35rem}
+.cq-cancelled{margin-top:.75rem}
+.cq-cancelled summary{cursor:pointer;font-size:.85rem;color:var(--ink-muted);margin-bottom:.5rem}
+@media (max-width:900px){.cq-layout{grid-template-columns:1fr}.cq-calendar{max-width:520px;width:100%;margin:0 auto}}
+@media (max-width:560px){.cq-cell{min-height:48px}.cq-item{grid-template-columns:3rem 1fr}.cq-side{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start}}
