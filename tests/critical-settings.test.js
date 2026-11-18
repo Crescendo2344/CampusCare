@@ -15,6 +15,9 @@ test('camera falls back through unsupported constraints without repeating denied
  const attempts=[];const stream={};assert.equal(await requestCamera({getUserMedia:async c=>{attempts.push(c);if(attempts.length<3)throw {name:'OverconstrainedError'};return stream;}},false),stream);
  assert.equal(attempts.length,3);assert.equal(attempts[2].video,true);assert(attempts.every(a=>a.audio===false));
  let calls=0;await assert.rejects(requestCamera({getUserMedia:async()=>{calls++;throw Object.assign(new Error(),{name:'NotAllowedError'});}},true));assert.equal(calls,1);
+ // The selfie camera insists on the front camera first, then falls back like any other request.
+ const front=[];await requestCamera({getUserMedia:async c=>{front.push(c);if(front.length<2)throw {name:'OverconstrainedError'};return stream;}},true);
+ assert.deepEqual(front[0].video.facingMode,{exact:'user'});assert.deepEqual(front[1].video.facingMode,{ideal:'user'});
  assert.match(cameraStartupMessage({name:'NotAllowedError'}),/blocked/);assert.match(cameraStartupMessage({name:'NotReadableError'}),/busy/);
 });
 async function fixture(role='Administrator'){

@@ -186,6 +186,7 @@ export async function syncRegistrationPrivacyVersion(){
     if(response.ok&&result.ok){
       appState.data.DB.settings.privacyPolicyVersion=result.privacy_policy_version||appState.data.DB.settings.privacyPolicyVersion||'1.0';
       appState.data.DB.settings.privacyPolicyUpdated=result.privacy_policy_updated||appState.data.DB.settings.privacyPolicyUpdated||appState.clinicInformation.TODAY;
+      appState.data.DB.settings.privacyPolicyChanges=result.privacy_policy_changes||'';
     }
   }catch(e){
     console.error('Public privacy version:',e);
@@ -215,7 +216,7 @@ export async function openPrivacyNotice(){
   const sections=[
     ['collect','bi-clipboard2-data','Information we collect',`<ul class="pn-list">
       <li><strong>Identity &amp; contact</strong> — name, username, email, mobile number, birth date and sex.</li>
-      <li><strong>School or work details</strong> — college or department, ID number, class session.</li>
+      <li><strong>School or work details</strong> — college or department, ID number, year level, class session.</li>
       <li><strong>Verification images</strong> — profile photo, selfie and Student/Employee ID photos.</li>
       <li><strong>Health records</strong> — appointments, consultation findings, diagnoses, prescriptions, procedures, dental records and certificates.</li>
       <li><strong>Communication &amp; security</strong> — secure clinic messages, consent records, sign-in and audit events.</li></ul>`],
@@ -239,6 +240,7 @@ export async function openPrivacyNotice(){
   openModal(`<div class="modal modal-lg privacy-notice" aria-labelledby="pn-title">
     <div class="modal-header pn-header"><div class="pn-title"><span class="pn-badge" aria-hidden="true"><i class="bi bi-shield-lock"></i></span><div><h3 id="pn-title">Privacy Notice &amp; Consent</h3><p>Version ${escapeHtml(v)} · Updated ${escapeHtml(updated)} · Republic Act 10173</p></div></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body pn-body">
+      ${appState.data.DB.settings?.privacyPolicyChanges?`<div class="privacy-changes-current"><strong>What changed in version ${escapeHtml(v)}</strong><p>${escapeHtml(appState.data.DB.settings.privacyPolicyChanges)}</p></div>`:''}
       <div class="pn-glance" role="list" aria-label="At a glance">
         <div role="listitem"><i class="bi bi-clipboard2-data"></i><strong>What</strong><span>Identity, school and health records</span></div>
         <div role="listitem"><i class="bi bi-bullseye"></i><strong>Why</strong><span>To provide and document your clinic care</span></div>
@@ -265,7 +267,7 @@ export function dataUrlToRegistrationFile(dataUrl, filename='capture.jpg'){
   return new File([bytes],filename,{type:mime});
 }
 
-const REGISTRATION_SERVER_FIELDS={first_name:'r-fname',last_name:'r-lname',username:'r-user',email:'r-email',password:'r-pass',contact_number:'r-contact',college:'r-college',id_number:'r-idno',birth_date:'r-dob',sex:'r-sex',blood_type:'r-blood',height_cm:'r-height',weight_kg:'r-weight',allergies:'r-allergies',emergency_contact_name:'r-ename',emergency_contact_number:'r-econtact'};
+const REGISTRATION_SERVER_FIELDS={first_name:'r-fname',last_name:'r-lname',username:'r-user',email:'r-email',password:'r-pass',contact_number:'r-contact',college:'r-college',id_number:'r-idno',birth_date:'r-dob',sex:'r-sex',blood_type:'r-blood',height_cm:'r-height',weight_kg:'r-weight',allergies:'r-allergies',emergency_contact_name:'r-ename',emergency_contact_number:'r-econtact',year_level:'r-year'};
 
 export async function doRegister() {
   if(!initializeSupabaseClient()){
@@ -337,6 +339,7 @@ export async function doRegister() {
     ...(weightKg?{weight_kg:Number(weightKg)}:{}),
     ...(allergies?{allergies}:{}),
     emergency_contact_name:emergencyName,
+    ...(ptype==='Student'&&document.getElementById('r-year')?.value?{year_level:document.getElementById('r-year').value}:{}),
     emergency_contact_number:emergencyNumber,
     privacy_consent:true,
     privacy_policy_version:appState.data.DB.settings?.privacyPolicyVersion||'1.0',

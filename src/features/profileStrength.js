@@ -72,8 +72,8 @@ async function saveFinishVerification(){
   if(given('contact'))errors.contact=contactValidationError(v('contact'));
   if(given('birth'))errors.birth=birthDateValidationError(v('birth'),appState.clinicInformation.TODAY);
   if(given('ename')||given('econtact')){
-    errors.ename=emergencyContactNameError(v('ename'));
-    errors.econtact=emergencyContactNumberError(v('econtact'),v('contact')||user.contact);
+    errors.ename=emergencyContactNameError(v('ename'),v('econtact'));
+    errors.econtact=emergencyContactNumberError(v('econtact'),v('contact')||user.contact,v('ename'));
   }
   if(given('height'))errors.height=heightValidationError(heightCm);
   if(given('weight'))errors.weight=weightValidationError(v('weight'));

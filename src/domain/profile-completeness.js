@@ -29,7 +29,6 @@ export function profileCompleteness(user={},pt={}){
       {id:'session',label:'Class session (morning or evening)',done:filled(pt.classSession),by:'patient',section:'Finish verification'}
     ]:[]),
     {id:'address',label:'Home address',done:filled(pt.address),by:'patient',section:'Finish verification'},
-    {id:'emergency',label:'Emergency contact',done:filled(pt.emergencyName)&&filled(pt.emergencyContact),by:'patient',section:'Finish verification'},
     {id:'blood',label:'Blood type',done:known(pt.blood),by:'patient',section:'Finish verification'},
     {id:'body',label:'Height and weight',done:filled(pt.height)&&filled(pt.weight),by:'patient',section:'Finish verification'},
     {id:'allergies',label:'Allergies (or "None")',done:filled(pt.allergies),by:'patient',section:'Finish verification'}

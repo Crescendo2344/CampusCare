@@ -115,13 +115,15 @@ export function allergiesValidationError(value){
   return text.length>300?'Allergies must not exceed 300 characters.':'';
 }
 
-export function emergencyContactNameError(value){
-  return String(value||'').trim()?nameValidationError(value,'Name'):'Enter the name of the person to notify.';
+// The emergency contact is optional. When one half is given, the other is asked for too.
+export function emergencyContactNameError(value,otherHalf=''){
+  if(String(value||'').trim())return nameValidationError(value,'Name');
+  return String(otherHalf||'').trim()?'Add the name of the person to notify, or clear the number.':'';
 }
 
-export function emergencyContactNumberError(value,ownContact=''){
+export function emergencyContactNumberError(value,ownContact='',otherHalf=''){
   const contact=String(value||'').trim();
-  if(!contact)return 'Enter the contact number of the person to notify.';
+  if(!contact)return String(otherHalf||'').trim()?'Add the number of the person to notify, or clear the name.':'';
   const normalized=normalizePhilippineMobile(contact);
   if(!normalized)return 'Use 09 followed by 9 digits, or +63 followed by 10 digits starting with 9.';
   if(ownContact&&normalized===normalizePhilippineMobile(ownContact))return 'Use the number of someone else, not your own.';
@@ -137,8 +139,9 @@ export function registrationHealthErrors(details){
     height_cm:given(details.height_cm)?heightValidationError(details.height_cm):'',
     weight_kg:given(details.weight_kg)?weightValidationError(details.weight_kg):'',
     allergies:given(details.allergies)?allergiesValidationError(details.allergies):'',
-    emergency_contact_name:emergencyContactNameError(details.emergency_contact_name),
-    emergency_contact_number:emergencyContactNumberError(details.emergency_contact_number,details.contact_number)
+    // Optional: checked only when filled in, and then both the name and the number are needed.
+    emergency_contact_name:emergencyContactNameError(details.emergency_contact_name,details.emergency_contact_number),
+    emergency_contact_number:emergencyContactNumberError(details.emergency_contact_number,details.contact_number,details.emergency_contact_name)
   };
   return Object.fromEntries(Object.entries(errors).filter(([,message])=>message));
 }

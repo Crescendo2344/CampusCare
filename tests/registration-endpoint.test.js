@@ -143,15 +143,21 @@ test('registration saves blood type, height, weight, allergies and the emergency
   assert.equal(f.creates[0].user_metadata.emergency_contact_number,'09181234567','The sign-up trigger stores the normalized number');
 });
 
-test('registration accepts blank health details and saves only the emergency contact',async()=>{
+test('registration accepts blank health details and saves the emergency contact given',async()=>{
   const f=await fixture();const r=await f.call({details:{blood_type:'',height_cm:'',weight_kg:'',allergies:''}});
   assert.equal(r.status,200);
   assert.deepEqual(Object.keys(f.updates[1]).sort(),['emergency_contact_name','emergency_contact_number']);
   for(const key of ['blood_type','height_cm','weight_kg','allergies'])assert.equal(key in f.creates[0].user_metadata,false,key);
 });
 
-test('registration refuses missing or impossible health and emergency details before creating an account',async()=>{
-  for(const [details,field] of [[{blood_type:'Z+'},'blood_type'],[{height_cm:900},'height_cm'],[{weight_kg:5},'weight_kg'],[{allergies:'x'.repeat(301)},'allergies'],[{emergency_contact_name:''},'emergency_contact_name'],[{emergency_contact_number:'12345'},'emergency_contact_number']]){
+test('registration accepts no emergency contact at all',async()=>{
+  const f=await fixture();const r=await f.call({details:{emergency_contact_name:'',emergency_contact_number:''}});
+  assert.equal(r.status,200);
+  for(const key of ['emergency_contact_name','emergency_contact_number']){assert.equal(key in f.updates[1],false,key);assert.equal(key in f.creates[0].user_metadata,false,key);}
+});
+
+test('registration refuses half an emergency contact, or impossible health and emergency details before creating an account',async()=>{
+  for(const [details,field] of [[{blood_type:'Z+'},'blood_type'],[{height_cm:900},'height_cm'],[{weight_kg:5},'weight_kg'],[{allergies:'x'.repeat(301)},'allergies'],[{emergency_contact_name:''},'emergency_contact_name'],[{emergency_contact_number:''},'emergency_contact_number'],[{emergency_contact_number:'12345'},'emergency_contact_number']]){
     const f=await fixture();const r=await f.call({details});assert.equal(r.status,400,JSON.stringify(details));
     assert.ok((await r.json()).field_errors[field],field);assert.equal(f.creates.length,0);
   }

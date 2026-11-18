@@ -62,6 +62,8 @@ Deno.serve(async(req)=>{
       const dentalLimit=Math.max(1,Math.min(5,Number(body.dental_visit_limit_per_semester??current.dental_visit_limit_per_semester??1)));
       const privacyVersion=clean(body.privacy_policy_version||current.privacy_policy_version||"1.0",40)||"1.0";
       const privacyUpdated=body.privacy_policy_updated||current.privacy_policy_updated||new Date().toISOString().slice(0,10);
+      // What changed in this notice version; shown to everyone asked to acknowledge it again.
+      const privacyChanges=clean(body.privacy_policy_changes??current.privacy_policy_changes??"",2000)||null;
       const bookingLead=Math.max(0,Math.min(72,Number(body.booking_lead_hours??current.booking_lead_hours??24)));
       const scheduleNoticeDays=Math.max(0,Math.min(30,Number(body.schedule_change_notice_days??current.schedule_change_notice_days??3)));
       const sessionTimeout=Math.max(5,Math.min(120,Number(body.session_timeout_minutes??current.session_timeout_minutes??30)));
@@ -84,6 +86,7 @@ Deno.serve(async(req)=>{
         appointment_reminder_days:reminderDays,
         privacy_policy_version:privacyVersion,
         privacy_policy_updated:privacyUpdated,
+        privacy_policy_changes:privacyChanges,
         schedule_change_notice_days:scheduleNoticeDays,
         booking_lead_hours:bookingLead,
         session_timeout_minutes:sessionTimeout,
@@ -128,6 +131,7 @@ Deno.serve(async(req)=>{
           dental_visit_limit_per_semester:dentalLimit,
           privacy_policy_version:privacyVersion,
           privacy_policy_updated:privacyUpdated,
+          privacy_policy_changes:privacyChanges,
           schedule_change_notice_days:scheduleNoticeDays,
           session_timeout_minutes:sessionTimeout,
           lunch_start:lunchStart,lunch_end:lunchEnd

@@ -178,6 +178,10 @@ Deno.serve(async(req:Request)=>{
     for(const key of ["blood_type","allergies","emergency_contact_name","emergency_contact_number"])metadata[key]=String(metadata[key]??"").trim();
     const healthErrors=registrationHealthErrors({...metadata,contact_number:contactRaw});
     Object.assign(fieldErrors,healthErrors);
+    // Students may give their year level (1st to 4th year); it is optional.
+    const yearRaw=String(metadata.year_level??"").trim(),yearLevel=Number(yearRaw);
+    if(yearRaw&&!(Number.isInteger(yearLevel)&&yearLevel>=1&&yearLevel<=4))fieldErrors.year_level="Choose 1st to 4th year.";
+    delete metadata.year_level;
     if(Object.keys(fieldErrors).length)return json({error:Object.values(fieldErrors)[0],field_errors:fieldErrors},400);
     if(contactRaw){metadata.contact_number=normalizePhilippineMobile(contactRaw);metadata.contact_no=metadata.contact_number;}
     // Stored in the patient record below; the sign-up trigger also reads the emergency contact and allergies.
@@ -188,10 +192,12 @@ Deno.serve(async(req:Request)=>{
       ...(filled("height_cm")?{height_cm:Math.round(Number(metadata.height_cm)*100)/100}:{}),
       ...(filled("weight_kg")?{weight_kg:Math.round(Number(metadata.weight_kg)*100)/100}:{}),
       ...(filled("allergies")?{allergies:String(metadata.allergies)}:{}),
-      emergency_contact_name:String(metadata.emergency_contact_name),
-      emergency_contact_number:normalizePhilippineMobile(String(metadata.emergency_contact_number))
+      // The emergency contact is optional too; when given, both halves were checked above.
+      ...(filled("emergency_contact_name")?{emergency_contact_name:String(metadata.emergency_contact_name)}:{}),
+      ...(filled("emergency_contact_number")?{emergency_contact_number:normalizePhilippineMobile(String(metadata.emergency_contact_number))}:{}),
+      ...(yearRaw&&String(metadata.person_type)==="Student"?{year_level:yearLevel}:{})
     };
-    for(const key of ["blood_type","height_cm","weight_kg","allergies"])if(!filled(key))delete metadata[key];
+    for(const key of ["blood_type","height_cm","weight_kg","allergies","emergency_contact_name","emergency_contact_number"])if(!filled(key))delete metadata[key];
     Object.assign(metadata,health);
     const captchaError=await validateCaptcha(captcha,form.get("captcha_token"));if(captchaError)return captchaError;
     for(const [scope,value] of [["email",email],["id",schoolId]]){const denied=await registrationLimit(adminClient,scope,value,serviceKey);if(denied)return denied;}

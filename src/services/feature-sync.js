@@ -170,7 +170,7 @@ async function syncPublicSystemSettings(){
 
   const {data,error}=await appState.supabaseClient.supabaseClient
     .from('system_settings')
-    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days,privacy_policy_version,privacy_policy_updated,session_timeout_minutes,booking_lead_hours,lunch_start,lunch_end,schedule_change_notice_days')
+    .select('clinic_name,address,contact_email,contact_number,semester_start,semester_end,semester2_start,semester2_end,dental_visit_limit_per_semester,appointment_reminder_days,privacy_policy_version,privacy_policy_updated,privacy_policy_changes,session_timeout_minutes,booking_lead_hours,lunch_start,lunch_end,schedule_change_notice_days')
     .order('settings_id',{ascending:true})
     .limit(1)
     .maybeSingle();
@@ -193,6 +193,7 @@ async function syncPublicSystemSettings(){
     appointmentReminderDays:Number(data.appointment_reminder_days??1),
     privacyPolicyVersion:data.privacy_policy_version||appState.data.DB.settings.privacyPolicyVersion||'1.0',
     privacyPolicyUpdated:data.privacy_policy_updated||appState.data.DB.settings.privacyPolicyUpdated||appState.clinicInformation.TODAY,
+    privacyPolicyChanges:data.privacy_policy_changes||'',
     sessionTimeoutMinutes:Number(data.session_timeout_minutes||appState.data.DB.settings.sessionTimeoutMinutes||30),
     lunchBreakStart:String(data.lunch_start||appState.data.DB.settings.lunchBreakStart||'12:00').slice(0,5),
     lunchBreakEnd:String(data.lunch_end||appState.data.DB.settings.lunchBreakEnd||'13:00').slice(0,5),
@@ -226,7 +227,8 @@ async function syncRealSystemSettings(){
     bookingLeadHours:Number(s.booking_lead_hours??24),
     appointmentReminderDays:Number(s.appointment_reminder_days??1),
     privacyPolicyVersion:s.privacy_policy_version||appState.data.DB.settings.privacyPolicyVersion||'1.0',
-    privacyPolicyUpdated:s.privacy_policy_updated||appState.data.DB.settings.privacyPolicyUpdated||appState.clinicInformation.TODAY
+    privacyPolicyUpdated:s.privacy_policy_updated||appState.data.DB.settings.privacyPolicyUpdated||appState.clinicInformation.TODAY,
+    privacyPolicyChanges:s.privacy_policy_changes??appState.data.DB.settings.privacyPolicyChanges??''
   });
 
   return appState.data.DB.settings;

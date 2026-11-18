@@ -1,5 +1,5 @@
 // Explicit client and request dependencies keep directory and patient access out of the UI.
-const PATIENT_COLUMNS='patient_id,user_id,class_session,course,major,birth_date,sex,blood_type,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,archived_at,updated_at,created_at';
+const PATIENT_COLUMNS='patient_id,user_id,class_session,year_level,course,major,birth_date,sex,blood_type,address,height_cm,weight_kg,emergency_contact_name,emergency_contact_number,archived_at,updated_at,created_at';
 
 export function createPatientService({getClient,request,baseUrl,publishableKey}){
   async function action(payload){

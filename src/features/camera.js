@@ -57,13 +57,16 @@ export async function openCamera(target){
 }
 
 let cameraRequest=0;
-async function startCamera(target){
+// Which way the camera faces for each kind of capture; "Switch camera" flips it for that capture.
+const FRONT_TARGETS=['selfie','account','assisted-profile'];
+async function startCamera(target,front=FRONT_TARGETS.includes(target)){
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
     toast(target==='selfie'?'A working camera is required for selfie verification. Open CampusCare in a browser with camera access.':'Your browser does not support camera capture. Please upload a photo instead.','error');
     return;
   }
   const isId=target==='id-front'||target==='id-back',guided=target==='selfie'||isId;
-  const isFrontFacing = target==='selfie'||target==='account'||target==='assisted-profile';
+  const isFrontFacing=front;
+  appState.camera.facingFront=front;
   try{
     // Preserve document detail for the verification selfie; ordinary avatar captures keep their own sizing.
     stopCamera();
@@ -75,9 +78,10 @@ async function startCamera(target){
     openVerificationModal(`<div class="modal ${guided?'selfie-modal':'modal-sm'}">
       <div class="modal-header"><h3>${isId?'ID '+(target==='id-front'?'Front — Step 1 of 2':'Back — Step 2 of 2'):target==='selfie'?'Selfie Verification':target==='id'||target==='assisted-id'?'Photograph Your ID / COR':'Take a Photo'}</h3><button class="close-btn" ${bindAction('click',(event,element)=>{stopCamera();closeVerificationModal()})}>✕</button></div>
       <div class="modal-body" style="text-align:center">
-        ${guided?`<div class="selfie-stage" id="selfie-stage" data-camera="${isId?'id':'selfie'}" data-mirrored="${!isId}"><video id="camera-video" autoplay playsinline muted></video><div class="${isId?'id-guide-rectangle':'selfie-guide-square'}" aria-hidden="true"></div>${!isId?'<div class="selfie-id-guide" aria-hidden="true"><span>ID</span></div>':''}<div class="selfie-document-guide">${isId?'Keep all four ID corners visible':'Keep your matching ID visible'}</div></div>
+        ${guided?`<div class="selfie-stage" id="selfie-stage" data-camera="${isId?'id':'selfie'}" data-mirrored="${isFrontFacing}"><video id="camera-video" autoplay playsinline muted></video><div class="${isId?'id-guide-rectangle':'selfie-guide-square'}" aria-hidden="true"></div>${!isId?'<div class="selfie-id-guide" aria-hidden="true"><span>ID</span></div>':''}<div class="selfie-document-guide">${isId?'Keep all four ID corners visible':'Keep your matching ID visible'}</div></div>
         <div class="selfie-feedback"><p id="selfie-status" role="status" aria-live="polite">Preparing camera…</p><div class="selfie-progress" aria-hidden="true"><span id="selfie-progress"></span></div></div>`:`<video id="camera-video" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;transform:${isFrontFacing?'scaleX(-1)':'none'}"></video>`}
-        ${target==='selfie'?`<label class="camera-mirror-control"><input id="camera-mirror-preview" type="checkbox" checked ${bindAction('change',(event,element)=>{document.getElementById('selfie-stage').dataset.mirrored=String(element.checked)})}> Mirror preview</label><p class="selfie-privacy">The saved photo is not mirrored, so your ID text stays readable.</p>`:''}
+        ${target==='selfie'?`<label class="camera-mirror-control"><input id="camera-mirror-preview" type="checkbox" ${isFrontFacing?'checked':''} ${bindAction('change',(event,element)=>{document.getElementById('selfie-stage').dataset.mirrored=String(element.checked)})}> Mirror preview</label><p class="selfie-privacy">The saved photo is not mirrored, so your ID text stays readable.</p>`:''}
+        <button type="button" class="btn btn-sm camera-switch" id="camera-switch" ${bindAction('click',()=>startCamera(target,!isFrontFacing))}><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Switch to ${isFrontFacing?'back':'front'} camera</button>
         ${isId?'<button type="button" id="camera-refocus" class="btn btn-sm" hidden>Refocus camera</button>':''}
         ${guided?'<div class="capture-light-controls" id="capture-light-controls"></div>':''}
         <canvas id="camera-canvas" style="display:none"></canvas>
@@ -130,7 +134,8 @@ export function captureCameraPhoto(target,manual=false){
   if(!video||!canvas)return;
   // Never accept a blank frame while permission or camera initialization is still pending.
   if(video.readyState<2||!video.videoWidth||!video.videoHeight){toast('Wait until the camera preview is visible, then capture.','warning');return;}
-  const isFrontFacing = target==='selfie'||target==='account'||target==='assisted-profile';
+  // Mirror only what the front camera took, so a back-camera photo keeps its real orientation.
+  const isFrontFacing=appState.camera.facingFront??FRONT_TARGETS.includes(target);
   canvas.width=video.videoWidth||480;
   canvas.height=video.videoHeight||360;
   const ctx=canvas.getContext('2d');

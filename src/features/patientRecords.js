@@ -12,6 +12,7 @@ import {paginate,pagerHtml} from '../ui/pager.js';
 import {bindAction} from '../dependencies.js';
 import {patientAction,syncCurrentPatientFromSupabase} from './patientService.js';
 import {toast} from './theme.js';
+import {closeAllModals,openModal} from './modals.js';
 // ================================================================
 // PATIENT – MY RECORDS
 // ================================================================
@@ -52,7 +53,7 @@ export async function renderMyRecords(){
           <div class="info-row"><span class="info-label">ID No.</span><span class="info-val">${escapeHtml(pt.idNo||'—')}</span></div>
         </div>
       </div>
-      ${healthInfoCard(pt,false)}
+      ${healthInfoCard(pt)}
     </div>
     <div class="card">
       <div class="card-header"><h3>Current Medications</h3></div>
@@ -71,14 +72,12 @@ export async function renderMyRecords(){
 
 const BLOOD_TYPES=['Unknown','A+','A-','B+','B-','AB+','AB-','O+','O-'];
 
-// Read-only by default; the Edit button swaps the values for form fields.
-function healthInfoCard(pt,editing){
+// Read-only on the page; Edit opens the form in its own dialog so the page itself never turns into a form.
+function healthInfoCard(pt){
   const blood=pt.blood&&pt.blood!=='Unknown'?pt.blood:'';
-  if(!editing){
-    return `<div class="card" id="mr-health-card">
+  return `<div class="card" id="mr-health-card">
         <div class="card-header"><h3>Health Information</h3>
-          <button class="btn btn-sm" ${bindAction('click',()=>toggleHealthEdit(true))}>Edit</button></div>
-        <div id="mr-health-msg"></div>
+          <button class="btn btn-sm" ${bindAction('click',()=>openHealthEditModal())}><i class="bi bi-pencil" aria-hidden="true"></i> Edit</button></div>
         <div style="font-size:.83rem">
           <div class="info-row"><span class="info-label">Blood Type</span><span class="info-val">${escapeHtml(blood||'—')}</span></div>
           <div class="info-row"><span class="info-label">Height</span><span class="info-val">${pt.height?`${escapeHtml(String(pt.height).replace(/[^\d.]/g,''))} cm`:'—'}</span></div>
@@ -87,28 +86,24 @@ function healthInfoCard(pt,editing){
           <div class="info-row"><span class="info-label">Medical History</span><span class="info-val">${escapeHtml(pt.medHistory?.trim()||'—')}</span></div>
         </div>
       </div>`;
-  }
-  return `<div class="card" id="mr-health-card">
-        <div class="card-header"><h3>Health Information</h3></div>
-        <div id="mr-health-msg"></div>
-        <div class="form-group"><label for="mr-blood">Blood Type</label><select id="mr-blood">${BLOOD_TYPES.map(b=>`<option ${String(pt.blood||'Unknown')===b?'selected':''}>${b}</option>`).join('')}</select></div>
-        <div class="form-row">
-          <div class="form-group"><label for="mr-height">Height (cm)</label><input id="mr-height" type="number" inputmode="decimal" min="40" max="260" step=".1" value="${escapeHtml(String(pt.height||'').replace(/[^\d.]/g,''))}"></div>
-          <div class="form-group"><label for="mr-weight">Weight (kg)</label><input id="mr-weight" type="number" inputmode="decimal" min="1" max="500" step=".1" value="${escapeHtml(String(pt.weight||'').replace(/[^\d.]/g,''))}"></div>
-        </div>
-        <div class="form-group"><label for="mr-allergies">Allergies</label><input id="mr-allergies" maxlength="300" value="${escapeHtml(pt.allergies?.trim()||'')}" placeholder="e.g. Penicillin, shrimp, or None"></div>
-        <div class="form-group"><label for="mr-history">Medical History</label><textarea id="mr-history" maxlength="5000" rows="4" placeholder="Past illnesses, surgeries, maintenance medicines">${escapeHtml(pt.medHistory?.trim()||'')}</textarea></div>
-        <div class="td-actions">
-          <button class="btn btn-primary btn-sm" id="mr-health-save" ${bindAction('click',()=>saveMyHealthInfo())}>Save Changes</button>
-          <button class="btn btn-sm" ${bindAction('click',()=>toggleHealthEdit(false))}>Cancel</button>
-        </div>
-      </div>`;
 }
 
-function toggleHealthEdit(editing){
-  const pt=appState.auth.currentPatient;
-  const card=document.getElementById('mr-health-card');
-  if(pt&&card)card.outerHTML=healthInfoCard(pt,editing);
+export function openHealthEditModal(){
+  const pt=appState.auth.currentPatient;if(!pt)return;
+  openModal(`<div class="modal mr-health-modal" role="dialog" aria-labelledby="mr-health-title">
+    <div class="modal-header"><div><h3 id="mr-health-title">Edit Health Information</h3><div class="text-muted">The clinic sees these details at your visits.</div></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body">
+      <div id="mr-health-msg"></div>
+      <div class="form-group"><label for="mr-blood">Blood Type</label><select id="mr-blood">${BLOOD_TYPES.map(b=>`<option ${String(pt.blood||'Unknown')===b?'selected':''}>${b}</option>`).join('')}</select></div>
+      <div class="form-row">
+        <div class="form-group"><label for="mr-height">Height (cm)</label><input id="mr-height" type="number" inputmode="decimal" min="40" max="260" step=".1" value="${escapeHtml(String(pt.height||'').replace(/[^\d.]/g,''))}"></div>
+        <div class="form-group"><label for="mr-weight">Weight (kg)</label><input id="mr-weight" type="number" inputmode="decimal" min="1" max="500" step=".1" value="${escapeHtml(String(pt.weight||'').replace(/[^\d.]/g,''))}"></div>
+      </div>
+      <div class="form-group"><label for="mr-allergies">Allergies</label><input id="mr-allergies" maxlength="300" value="${escapeHtml(pt.allergies?.trim()||'')}" placeholder="e.g. Penicillin, shrimp, or None"></div>
+      <div class="form-group"><label for="mr-history">Medical History</label><textarea id="mr-history" maxlength="5000" rows="4" placeholder="Past illnesses, surgeries, maintenance medicines">${escapeHtml(pt.medHistory?.trim()||'')}</textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button><button class="btn btn-primary" id="mr-health-save" ${bindAction('click',()=>saveMyHealthInfo())}>Save Changes</button></div>
+  </div>`);
 }
 
 // The self_update endpoint replaces every field, so unchanged values are sent back as they are.
@@ -124,6 +119,7 @@ async function saveMyHealthInfo(){
       allergies:document.getElementById('mr-allergies').value.trim(),medical_history:document.getElementById('mr-history').value.trim(),
       course:pt.course||'',major:pt.major||''});
     await syncCurrentPatientFromSupabase();
+    closeAllModals();
     toast('Your health information was saved.','success');
     renderMyRecords();
   }catch(error){

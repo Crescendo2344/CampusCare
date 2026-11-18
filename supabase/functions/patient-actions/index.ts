@@ -11,6 +11,8 @@ const cors={
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{
   status,headers:{...cors,"Content-Type":"application/json"}
 });
+// A student's year level: 1 to 4, or null when not given.
+const yearLevelOf=(v:unknown)=>{const n=Number(String(v??"").trim());return Number.isInteger(n)&&n>=1&&n<=4?n:null;};
 const clean=(v:unknown,max=5000)=>String(v??"").trim().slice(0,max);
 const allowedBlood=["A+","A-","B+","B-","AB+","AB-","O+","O-","Unknown"];
 const allowedPerson=["Student","Teaching Personnel","Non-Teaching Personnel"];
@@ -98,6 +100,12 @@ Deno.serve(async(req)=>{
         const session=clean(body.class_session,20);
         if(session&&!["Morning","Evening"].includes(session))return json({error:"Choose Morning or Evening class.",field_errors:{class_session:"Choose Morning or Evening."}},400);
         if(me?.person_type==="Student")extra.class_session=session||null;
+      }
+      if(body.year_level!==undefined){
+        const given=String(body.year_level??"").trim();
+        if(given&&yearLevelOf(given)===null)return json({error:"Choose 1st to 4th year.",field_errors:{year_level:"Choose 1st to 4th year."}},400);
+        const {data:me}=await admin.from("users").select("person_type").eq("user_id",actor.user_id).maybeSingle();
+        if(me?.person_type==="Student")extra.year_level=yearLevelOf(given);
       }
       if(body.birth_date!==undefined&&!own.birth_date){
         const birth=clean(body.birth_date,10),today=new Date().toISOString().slice(0,10);
@@ -241,6 +249,7 @@ Deno.serve(async(req)=>{
       const {error:patientUpdateErr}=await admin.from("patients").update({
         birth_date:birthDate,sex:sex||null,blood_type:blood,
         class_session:personType==="Student"?classSession:null,
+        year_level:personType==="Student"?yearLevelOf(body.year_level):null,
         course:personType==="Student"?clean(body.course,120)||null:null,
         major:personType==="Student"?clean(body.major,120)||null:null,
         address:address||null,height_cm:height,weight_kg:weight,
@@ -383,6 +392,7 @@ Deno.serve(async(req)=>{
         emergency_contact_number:clean(body.emergency_contact_number,100)||null,
         medical_history:clean(body.medical_history,5000)||null,
         allergies:clean(body.allergies,3000)||null,
+        ...(body.year_level===undefined?{}:{year_level:personType==="Student"?yearLevelOf(body.year_level):null}),
         ...(body.course===undefined?{}:{course:personType==="Student"?clean(body.course,120)||null:null}),
         ...(body.major===undefined?{}:{major:personType==="Student"?clean(body.major,120)||null:null}),
         updated_at:new Date().toISOString()
