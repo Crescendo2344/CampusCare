@@ -1,4 +1,5 @@
 import {ctuFooterHtml,ctuHeaderHtml,printCtuDocument} from '../shared/ctu-letterhead.js';
+import {docxLetterhead} from '../shared/word-letterhead.js';
 import {buildCustomReport,customReportControls} from '../reports/custom-report.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {generateStudentReport} from '../reports/student-report.js';
@@ -249,7 +250,7 @@ export async function excelWorkbook(title,rows){
 }
 
 // docx builds a real Word file: page orientation, column widths, and a header and footer on every page.
-function loadDocxLib(){
+export function loadDocxLib(){
   return new Promise((resolve,reject)=>{
     if(window.docx?.Document){resolve(window.docx);return;}
     const s=document.createElement('script');
@@ -259,7 +260,6 @@ function loadDocxLib(){
     document.head.appendChild(s);
   });
 }
-const assetBytes=async path=>{try{return new Uint8Array(await (await fetch(path)).arrayBuffer());}catch{return null;}};
 export async function wordDocx(title,rows,generated){
   const D=await loadDocxLib();
   const {columns,grouped,groups}=tableHeadings(rows);
@@ -269,22 +269,8 @@ export async function wordDocx(title,rows,generated){
   const font='Arial',size=columns.length>9?15:columns.length>7?16:18; // half-points
   const run=(text,o={})=>new D.TextRun({text:String(text??''),font,size,...o});
   const para=(children,o={})=>new D.Paragraph({children:Array.isArray(children)?children:[children],spacing:{before:0,after:0},...o});
-  const [seal,bagong,foot]=await Promise.all(['/assets/ctu-logo.png','/assets/bagong-pilipinas.png','/assets/dental-cert-footer.png'].map(assetBytes));
-  const s=appState.data?.DB?.settings||{};
-  const noBorder={top:{style:D.BorderStyle.NONE,size:0,color:'FFFFFF'},bottom:{style:D.BorderStyle.NONE,size:0,color:'FFFFFF'},left:{style:D.BorderStyle.NONE,size:0,color:'FFFFFF'},right:{style:D.BorderStyle.NONE,size:0,color:'FFFFFF'}};
   const center=D.AlignmentType.CENTER;
-  const headLine=(text,sz,bold=false)=>para(new D.TextRun({text,font,size:sz,bold}),{alignment:center});
-  const headerTable=new D.Table({width:{size:contentW,type:D.WidthType.DXA},columnWidths:[1500,contentW-3000,1500],borders:{...noBorder,insideHorizontal:noBorder.top,insideVertical:noBorder.top},rows:[new D.TableRow({children:[
-    new D.TableCell({borders:noBorder,width:{size:1500,type:D.WidthType.DXA},verticalAlign:D.VerticalAlign.CENTER,children:[seal?para(new D.ImageRun({data:seal,transformation:{width:68,height:68}}),{alignment:D.AlignmentType.RIGHT}):para(run(''))]}),
-    new D.TableCell({borders:noBorder,width:{size:contentW-3000,type:D.WidthType.DXA},verticalAlign:D.VerticalAlign.CENTER,children:[
-      headLine('Republic of the Philippines',20),headLine('CEBU TECHNOLOGICAL UNIVERSITY',22,true),headLine('MAIN CAMPUS',19),
-      headLine('M. J. Cuenco Avenue Cor. R. Palma Street, Cebu City, Philippines',15),
-      headLine(`Website: http://www.ctu.edu.ph   E-mail: ${s.contactEmail||'ctumainmedclinic@gmail.com'}`,15),
-      headLine(`Phone: ${s.contactPhone||'(032) 402 4060 loc. 1142'}`,15)]}),
-    new D.TableCell({borders:noBorder,width:{size:1500,type:D.WidthType.DXA},verticalAlign:D.VerticalAlign.CENTER,children:[bagong?para(new D.ImageRun({data:bagong,transformation:{width:66,height:62}})):para(run(''))]})
-  ]})]});
-  const footW=Math.round(contentW/15); // px at 96 dpi
-  const footer=foot?new D.Footer({children:[para(new D.ImageRun({data:foot,transformation:{width:footW,height:Math.round(footW*91/1332)}}),{alignment:center})]}):undefined;
+  const {header,footer}=await docxLetterhead(D,{contentW,font});
 
   // Column widths follow content length, within sensible limits.
   const weights=columns.map(c=>Math.min(28,Math.max(6,Math.ceil(String(c.label).length*1.3)+1,...rows.map(r=>String(r[c.key]??'').length))));
@@ -311,7 +297,7 @@ export async function wordDocx(title,rows,generated){
       children:[para(run(v==null?'':String(v)),{alignment:isNumeric(v)?D.AlignmentType.RIGHT:D.AlignmentType.LEFT})]});})}));
   const doc=new D.Document({creator:'CampusCare',title,styles:{default:{document:{run:{font,size:18}}}},
     sections:[{properties:{page:{size:{width:12240,height:15840,orientation:landscape?D.PageOrientation.LANDSCAPE:D.PageOrientation.PORTRAIT},margin:{top:margin,bottom:margin,left:margin,right:margin,header:360,footer:300}}},
-      headers:{default:new D.Header({children:[headerTable]})},...(footer?{footers:{default:footer}}:{}),
+      headers:{default:header},...(footer?{footers:{default:footer}}:{}),
       children:[
         para(new D.TextRun({text:title,font,size:26,bold:true}),{alignment:center,spacing:{before:120,after:40}}),
         para(new D.TextRun({text:generated,font,size:16,color:'555555'}),{alignment:center,spacing:{after:160}}),

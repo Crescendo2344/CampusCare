@@ -756,19 +756,29 @@ try{
     await page.locator('#tm-dental-section').waitFor();
     assert.equal(await page.locator('#tm-record-type').inputValue(),'Dental Clinic');
     assert.equal(await page.locator('.dr-arch:not(.primary) .tm-dental-tooth').count(),32);
-    await page.locator('.tm-dental-tooth[data-tooth="36"]').fill('d');
-    assert.equal(await page.locator('.tm-dental-tooth[data-tooth="36"]').inputValue(),'D');
-    await page.locator('.tm-dental-tooth[data-tooth="37"]').pressSequentially('ciiz1');
-    assert.equal(await page.locator('.tm-dental-tooth[data-tooth="37"]').inputValue(),'CII');
-    await page.keyboard.press('Enter');
-    assert.equal(await page.evaluate(()=>document.activeElement?.dataset.tooth),'38');
-    await page.locator('.tm-dental-tooth[data-tooth="36"]').focus();await page.keyboard.press('Tab');
+    // Mark box: one click checks the tooth, a second click clears it; a double-click opens the codes.
+    const box36=page.locator('.tm-dental-tooth[data-tooth="36"]'),box37=page.locator('.tm-dental-tooth[data-tooth="37"]');
+    await box36.click();await page.waitForTimeout(350);
+    assert.equal(await box36.getAttribute('data-value'),'✓');
+    await box37.click();await page.waitForTimeout(350);await box37.click();await page.waitForTimeout(350);
+    assert.equal(await box37.getAttribute('data-value'),'','Clicking a checked box clears it');
+    await box37.dblclick();
+    await page.locator('#dr-mark-picker').waitFor();
+    assert.deepEqual(await page.locator('#dr-mark-picker .dr-mark-option b').allInnerTexts(),['✓','CL1','CL2','CL3','CL4','CL5','RF','M','IM','—']);
+    await page.locator('#dr-mark-picker .dr-mark-option[data-value="CL2"]').click();
+    assert.equal(await box37.getAttribute('data-value'),'CL2');
+    assert.equal(await page.locator('#dr-mark-picker').count(),0);
+    // The tooth picture: the four sides are clickable; the centre is not a surface.
+    assert.equal(await page.locator('.dr-tooth:has([data-tooth="36"]) .dr-surface').count(),4);
+    assert.equal(await page.locator('.dr-surface[data-q="O"]').count(),0);
+    await page.locator('.dr-tooth:has(.tm-dental-tooth[data-tooth="36"]) .dr-surface[data-q="T"]').click();
+    await box36.focus();await page.keyboard.press('Tab');
     assert.equal(await page.evaluate(()=>document.activeElement?.dataset.tooth),'37');
     await page.locator('.dr-chip',{hasText:'Fair'}).click();await page.locator('.dr-chip',{hasText:'Poor'}).click();
     await page.getByRole('button',{name:'Add procedure'}).click();
     await page.locator('.dr-op').nth(0).locator('.tm-dental-op-tooth').fill('36');await page.locator('.dr-op').nth(0).locator('.tm-dental-op-nature').fill('Tooth filling (restoration)');
     const dentalData=await page.evaluate(()=>window.__fixtureApp.features.patientForm.collectDentalRecordForm());
-    assert.equal(dentalData.odontogram['36'],'D');assert.equal(dentalData.oral_health.poor,true);assert.equal(dentalData.oral_health.fair,false,'Condition is one choice');
+    assert.equal(dentalData.odontogram['36'],'✓');assert.equal(dentalData.odontogram['37'],'CL2');assert.equal(dentalData.odontogram['36-surfaces'],'T');assert.equal(dentalData.oral_health.poor,true);assert.equal(dentalData.oral_health.fair,false,'Condition is one choice');
     assert.deepEqual(dentalData.accomplishment,[{tooth_no:'36',nature:'Tooth filling (restoration)'}]);
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#tm-dental-section').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/dental-record-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#active-modal .close-btn').click();
