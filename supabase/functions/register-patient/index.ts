@@ -5,6 +5,7 @@ import {emailValidationError,normalizePhilippineMobile} from '../_shared/contact
 import {createMailDomainValidator} from '../_shared/mail-domain.js';
 import {authRedirect} from '../_shared/app-url.js';
 import {registrationDetailErrors,registrationHealthErrors} from '../_shared/registration-validation.js';
+import {existingRegistrationFor} from '../_shared/registration-duplicates.js';
 const checkMailDomain=createMailDomainValidator();
 
 const corsHeaders = {
@@ -199,6 +200,13 @@ Deno.serve(async(req:Request)=>{
     const publicClient=createClient(url,anonKey,{auth:{persistSession:false}});
 
     const username=String(metadata.username||"").trim();
+    // The same person (name and date of birth) must not sign up again while a registration waits
+    // for approval, or after their account exists, even with another email or ID number.
+    const {data:sameBirthday,error:sameBirthdayError}=await adminClient.from("patients")
+      .select("users(first_name,last_name,role,status)").eq("birth_date",String(metadata.birth_date)).limit(500);
+    if(sameBirthdayError)throw sameBirthdayError;
+    const existing=existingRegistrationFor((sameBirthday||[]).map((row:any)=>row.users).filter(Boolean),{first_name:metadata.first_name,last_name:metadata.last_name});
+    if(existing)return json({error:existing.error,code:existing.code},409);
     const {data:existingEmail}=await adminClient.from("users").select("user_id").ilike("email",email).limit(1);
     if(existingEmail?.length) return json({error:"This email address is already registered.",field_errors:{email:"This email address is already registered. Log in or use Forgot password."}},409);
     const {data:existingId}=await adminClient.from("users").select("user_id").eq("id_number",schoolId).limit(1);

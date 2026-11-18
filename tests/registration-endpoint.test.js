@@ -3,21 +3,22 @@ import {emailValidationError,normalizePhilippineMobile} from '../supabase/functi
 import {createMailDomainValidator} from '../supabase/functions/_shared/mail-domain.js';
 import {registrationDetailErrors,registrationHealthErrors} from '../supabase/functions/_shared/registration-validation.js';
 import {authRedirect} from '../supabase/functions/_shared/app-url.js';
+import {existingRegistrationFor,normalizePersonName} from '../supabase/functions/_shared/registration-duplicates.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
-async function fixture({requireEmail=false,confirmationFailure=false,uploadFailure=false,captcha=false,env={},rateFailure=false,providerFailure=false,verdict={},mailResponse={Status:0,Answer:[{type:15,data:'10 mail.example.test.'}]}}={}){
+async function fixture({requireEmail=false,confirmationFailure=false,uploadFailure=false,captcha=false,env={},rateFailure=false,providerFailure=false,verdict={},mailResponse={Status:0,Answer:[{type:15,data:'10 mail.example.test.'}]},sameBirthday=[]}={}){
   let handler;const creates=[],signups=[],uploads=[],updates=[],deletes=[],removes=[],limits=[],verifications=[],buckets=new Map(),usedTokens=new Set();
   const client={rpc:async(name,args)=>{
     assert.equal(name,'consume_registration_limit');limits.push(args);if(rateFailure)return {error:new Error('Unavailable')};
     const key=args.p_scope+args.p_subject_hash,count=(buckets.get(key)||0)+1;buckets.set(key,count);
     return {data:{allowed:count<=(args.p_scope==='ip'?30:5),retry_after:120}};
   },auth:{resend:async body=>{signups.push(body);return {error:confirmationFailure?new Error("Mail failed"):null};},admin:{createUser:async body=>{creates.push(body);return {data:{user:{id:'fixture'}}};},deleteUser:async id=>{deletes.push(id);return {};}}},
-    from(table){return {select(){return this;},delete(){return this;},ilike(){return this;},limit:async()=>({data:[]}),update(body){updates.push(body);return this;},eq(){return this;},maybeSingle:async()=>({data:{user_id:1}}),insert:async()=>({error:null})};},
+    from(table){return {select(){return this;},delete(){return this;},ilike(){return this;},limit:async()=>({data:table==='patients'?sameBirthday.map(users=>({users})):[]}),update(body){updates.push(body);return this;},eq(){return this;},maybeSingle:async()=>({data:{user_id:1}}),insert:async()=>({error:null})};},
     storage:{from(bucket){return {upload:async(path,file)=>{uploads.push({bucket,path,size:file.size});return {error:uploadFailure&&uploads.length===2?new Error('Fixture upload failed'):null};},remove:async paths=>{removes.push(paths);return {};}};}}};
   globalThis.__registrationClient=()=>client;
-  globalThis.__registrationContact={emailValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,registrationHealthErrors,authRedirect};
+  globalThis.__registrationContact={emailValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,registrationHealthErrors,authRedirect,existingRegistrationFor};
   const environment={SUPABASE_URL:'https://fixture.test',SUPABASE_ANON_KEY:'fixture',SUPABASE_SERVICE_ROLE_KEY:'fixture-private-key',CAMPUSCARE_REQUIRE_EMAIL_CONFIRMATION:String(requireEmail),...(captcha?{TURNSTILE_SITE_KEY:'0x4-fixture-site-key',TURNSTILE_SECRET_KEY:'fixture-secret'}:{}),...env};
   globalThis.Deno={env:{get:name=>environment[name]},serve:fn=>{handler=fn;}};
   globalThis.__registrationFetch=async(url,options)=>{
@@ -28,7 +29,7 @@ async function fixture({requireEmail=false,confirmationFailure=false,uploadFailu
     return Response.json({success:!duplicate,hostname:'campuscare-brown-two.vercel.app',action:'campuscare_register',...verdict});
   };
   const source=readFileSync('supabase/functions/register-patient/index.ts','utf8').replace(/^import[^\n]+\n/gm,'');
-  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const {emailValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,registrationHealthErrors,authRedirect}=globalThis.__registrationContact;const createClient=globalThis.__registrationClient;const fetch=globalThis.__registrationFetch;\n'+source)+'\n// '+Math.random()).toString('base64'));
+  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const {emailValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,registrationHealthErrors,authRedirect,existingRegistrationFor}=globalThis.__registrationContact;const createClient=globalThis.__registrationClient;const fetch=globalThis.__registrationFetch;\n'+source)+'\n// '+Math.random()).toString('base64'));
   const call=async({details={},source='camera',consent=true,back=true,same=false,type='image/png',documentType='Student ID',token='fixture-captcha',ip='198.51.100.1',xff='',email='fixture@example.test',contact='',id='1234567',size=null}={})=>{
     const form=new FormData();form.set('email',email);form.set('captcha_token',token);form.set('password',details.password||'Clinic-Pass1!');form.set('selfie_capture_source',source);
     form.set('metadata',JSON.stringify({first_name:'Ana',last_name:'Reyes',username:'fixture',college:'COE',date_of_birth:'2004-05-06',sex:'Female',blood_type:'O+',height_cm:158,weight_kg:52.5,allergies:'None',emergency_contact_name:'Maria Reyes',emergency_contact_number:'09998887777',...details,contact_no:contact,id_number:id,person_type:'Student',verification_document_type:documentType,privacy_consent:consent,role:'Administrator',registration_context:'internal'}));
@@ -156,4 +157,27 @@ test('registration refuses missing or impossible health and emergency details be
   }
   const f=await fixture();const r=await f.call({contact:'09998887777'});
   assert.equal(r.status,400);assert.match((await r.json()).field_errors.emergency_contact_number,/someone else/);
+});
+
+test('the same person cannot register again while a registration waits, even with another email or ID',async()=>{
+  // Same name (different spacing and case) and the same date of birth as the applicant (Ana Reyes, 2004-05-06).
+  const waiting=await fixture({sameBirthday:[{first_name:' ana ',last_name:'REYES',role:'Patient',status:'Pending'}]});
+  const r=await waiting.call({email:'another@example.test',id:'7654321'});
+  assert.equal(r.status,409);const body=await r.json();
+  assert.equal(body.code,'registration_pending');assert.match(body.error,/waiting for clinic approval/);
+  assert.equal(waiting.creates.length,0);assert.equal(waiting.uploads.length,0);
+  const active=await fixture({sameBirthday:[{first_name:'Ana',last_name:'Reyes',role:'Patient',status:'Active'}]});
+  const again=await active.call();assert.equal(again.status,409);assert.equal((await again.json()).code,'account_exists');assert.equal(active.creates.length,0);
+  // A different person born the same day, or an archived/rejected record, does not block registration.
+  for(const other of [{first_name:'Ana',last_name:'Santos',status:'Pending'},{first_name:'Ana',last_name:'Reyes',status:'Archived'},{first_name:'Ana',last_name:'Reyes',role:'Staff',status:'Active'}]){
+    const f=await fixture({sameBirthday:[other]});assert.equal((await f.call()).status,200,JSON.stringify(other));
+  }
+});
+test('name matching ignores case, spacing, punctuation and accents; messages never reveal the other email',()=>{
+  assert.equal(normalizePersonName('  Ma. Clara   DELA-CRUZ '),'ma clara dela cruz');
+  assert.equal(normalizePersonName('José Peña'),'jose pena');
+  const found=existingRegistrationFor([{first_name:'Jose',last_name:'Pena',status:'Active',email:'secret.person@gmail.com'},{first_name:'José',last_name:'Peña',status:'Pending',email:'secret.person@gmail.com'}],{first_name:'josé',last_name:'peña'});
+  assert.equal(found.status,'Pending','a waiting registration is reported first');
+  assert.doesNotMatch(found.error,/secret|gmail/);
+  assert.equal(existingRegistrationFor([],{first_name:'Ana',last_name:'Reyes'}),null);
 });

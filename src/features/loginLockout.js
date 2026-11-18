@@ -367,7 +367,7 @@ export async function doRegister() {
     });
     const result=await response.json().catch(()=>({}));
     if(!response.ok||!result.ok){
-      throw Object.assign(new Error(result.error||'Registration failed. Please try again.'),{fieldErrors:result.field_errors});
+      throw Object.assign(new Error(result.error||'Registration failed. Please try again.'),{fieldErrors:result.field_errors,code:result.code});
     }
 
     // The pending screen itself confirms the submission and lists the next steps.
@@ -391,7 +391,8 @@ export async function doRegister() {
     const fields=Object.entries(e?.fieldErrors||{}).filter(([key])=>REGISTRATION_SERVER_FIELDS[key]);
     fields.forEach(([key,message])=>setRegistrationFieldError(REGISTRATION_SERVER_FIELDS[key],String(message)));
     if(fields.length)document.getElementById(REGISTRATION_SERVER_FIELDS[fields[0][0]])?.focus();
-    registrationToast(fields.length?'Please fix the highlighted fields.':e?.message||'Registration failed. Please try again.','error',6000);
+    // "Already registered" messages explain what to do next, so they stay on screen longer.
+    registrationToast(fields.length?'Please fix the highlighted fields.':e?.message||'Registration failed. Please try again.','error',e?.code?12000:6000);
   }finally{
     // Tokens are one-time use, including failed submissions that reached verification.
     resetRegistrationCaptcha();
