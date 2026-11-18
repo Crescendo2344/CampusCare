@@ -40,11 +40,24 @@ Deno.serve(async(req)=>{
     const {data:{user},error:userErr}=await admin.auth.getUser(auth.slice(7));
     if(userErr||!user)return json({error:"Invalid session."},401);
 
-    const {data:actor}=await admin.from("users").select("user_id,status,contact_number,email,first_name").eq("auth_user_id",user.id).maybeSingle();
+    const {data:actor}=await admin.from("users").select("user_id,role,status,contact_number,email,first_name").eq("auth_user_id",user.id).maybeSingle();
     if(!actor||actor.status!=="Active")return json({error:"Active CampusCare account required."},403);
 
     const body=await req.json();
     const action=String(body.action||"").toLowerCase();
+
+    // A doctor's e-signature: drawn once, then placed on the certificates and dental records they issue.
+    // An empty value removes it. Only a PNG drawing is accepted, and it is kept small.
+    if(action==="save_signature"){
+      if(actor.role!=="Doctor")return json({error:"Only doctors keep an e-signature."},403);
+      const data=String(body.signature_data??"").trim();
+      if(data&&(!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(data)||data.length>180000))
+        return json({error:"Draw your signature again. It must be a small PNG image."},400);
+      const {error}=await admin.from("users").update({saved_signature_data:data||null}).eq("user_id",actor.user_id);
+      if(error)throw error;
+      await admin.from("audit_logs").insert({user_id:actor.user_id,action:data?"USER_SIGNATURE_SAVED":"USER_SIGNATURE_REMOVED",entity_type:"users",entity_id:actor.user_id,details:{}});
+      return json({ok:true,saved:Boolean(data)});
+    }
 
     if(action==="update_contact"){
       const raw=String(body.contact_number??"").trim();

@@ -12,6 +12,7 @@ import {openPrivacyNotice} from './loginLockout.js';
 import {openPrivacyRequestModal} from './privacy.js';
 import {openCookiePolicy,openTermsOfService} from './legalPages.js';
 import {hideAlert,setThemePreference,showConfirmDialog,themePreference,toast} from './theme.js';
+import {signatureCardHtml} from './eSignature.js';
 import {bindAction} from '../dependencies.js';
 import {patientDisplayId} from './patientService.js';
 import {healthDetailsCard,programEditFields,programViewTiles,registrationDetailsCard} from './profileDetails.js';
@@ -216,6 +217,7 @@ export function renderMyAccount(){
             ${statusTile('Last login',escapeHtml(formatLastLogin(u.lastLogin)),true)}
           </div>
         </div>
+        ${signatureCardHtml()}
         <div class="card">
           <div class="card-header">
             <div>

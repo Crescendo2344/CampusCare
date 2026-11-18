@@ -258,7 +258,7 @@ export function healthHistoryPrintPages(p,h){
   const twoColumns=new Set(['II','III','IV','V']);
   const section=s=>`<div class="dhh-p-sec">${s.id}. ${escapeHtml(s.id==='I'?'Encircle appropriate answer (leave blank if you do not understand question).':s.id==='VI'?'Women only:':s.id==='VII'?'All patients:':s.title)}</div>
     <div class="dhh-p-body">${twoColumns.has(s.id)?`<div class="dhh-p-cols">${half(s.questions).map(col=>`<div>${col.map(q).join('')}</div>`).join('')}</div>`:s.questions.map(q).join('')}</div>`;
-  const signed=fmtDate(String(h.created_at).slice(0,10));
+  const signed=h.created_at?fmtDate(String(h.created_at).slice(0,10)):'';
   const page1=`<div class="dhh-p"><div class="dhh-p-title">Dental Health History Form</div>
     <div class="dhh-p-line"><span>Patient Name: ${fill(p.name,360)}</span></div>
     <div class="dhh-p-line"><span>Age: ${fill(String(ageOn(p.birth_date)),50)}</span><span>Height: ${fill(h.height_cm?`${h.height_cm} cm`:'',70)}</span><span>Weight: ${fill(h.weight_kg?`${h.weight_kg} kg`:'',70)}</span><span>Birth Date: ${fill(p.birth_date?fmtDate(p.birth_date):'',110)}</span></div>
@@ -267,8 +267,21 @@ export function healthHistoryPrintPages(p,h){
     <p>If so, please explain: ${fill(details.other_explain)}</p>
     <div class="dhh-p-declare">${escapeHtml(DHH_DECLARATION)}</div>
     <div class="dhh-p-sign"><div>Patient's Signature: ${fill('')}</div><div>Date: ${fill(signed,150)}</div></div>
-    <p style="font-size:10px;color:#555;margin-top:22px">Answered ${h.source==='check-in'?'at check-in':'online'} in CampusCare on ${escapeHtml(signed)}; the patient confirmed the declaration.</p></div>`;
+    ${signed?`<p style="font-size:10px;color:#555;margin-top:22px">Answered ${h.source==='check-in'?'at check-in':'online'} in CampusCare on ${escapeHtml(signed)}; the patient confirmed the declaration.</p>`:''}</div>`;
   return {css:PRINT_CSS,pages:[page1,page2]};
+}
+// The Dental Health History answered for a visit (database appointment id), for the dentist's printed
+// dental record. Staff and other roles never receive the answers, so they get null.
+export async function healthHistoryForAppointment(dbAppointmentId){
+  if(!isDentist()||!viewer()._realSupabase||!dbAppointmentId)return null;
+  try{
+    const data=await dhhRequest({action:'get',appointment_id:dbAppointmentId});
+    return data.history&&data.history.source!=='paper'?{patient:data.patient||{},history:data.history}:null;
+  }catch(error){console.warn('Dental health history for the record:',error);return null;}
+}
+// The blank paper form (no answers), for the printed record when the answers are not available.
+export function blankHealthHistoryPages(patientName=''){
+  return healthHistoryPrintPages({name:patientName},{answers:{},details:{},created_at:''});
 }
 export function printHealthHistory(p,h){
   printCtuDocument({title:`Dental Health History ${p.name||''}`.trim(),clinic:'Dental Clinic',...healthHistoryPrintPages(p,h)});

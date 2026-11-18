@@ -29,14 +29,43 @@ export const DENTAL_RECORD_CSS=`
 .drd-rec div{border-bottom:1px solid #111;min-height:20px;padding:2px 0;font-size:12px}
 .drd-sign{display:flex;justify-content:flex-end;margin:26px 0 8px}
 .drd-sign>div{text-align:center;min-width:230px}
-.drd-sign strong{display:block;font-size:12.5px}
+.drd-sign img{display:block;max-height:52px;max-width:220px;margin:0 auto -6px}
+.drd-sign strong{display:block;font-size:12.5px;border-top:1px solid #111;padding-top:2px}
+.drd-page+.drd-page{break-before:page;page-break-before:always}
+.drd-log{width:100%;border-collapse:collapse;margin-top:4px}
+.drd-log th{border:1px solid #111;font-weight:400;font-size:12px;padding:4px 6px;text-align:left}
+.drd-log td{border:1px solid #111;font-size:11.5px;padding:3px 6px;height:24px;vertical-align:middle}
+.drd-log td.sig{text-align:center;padding:1px 4px}
+.drd-log td.sig img{display:block;max-height:22px;max-width:150px;margin:0 auto}
+.drd-log td.sig small{display:block;font-size:9px;line-height:1.1}
 .drd .ctu-lh-foot{margin-top:14px}
 `;
 
 /**
+ * The paper form's TREATMENT/REMARKS page: one row per dental visit with its date, what was done and the
+ * dentist's signature, followed by blank ruled rows like the printed sheet.
+ * @param {{date:string,remarks:string,signature?:string,dentistName?:string}[]} rows
+ */
+export function treatmentRemarksSheetHtml(rows=[],{minRows=28}={}){
+  const filled=rows.map(row=>`<tr><td>${esc(row.date)}</td><td>${esc(row.remarks)}</td><td class="sig">${row.signature?`<img src="${esc(row.signature)}" alt="Signature of ${esc(row.dentistName||'the dentist')}">`:''}${row.dentistName?`<small>${esc(row.dentistName)}</small>`:''}</td></tr>`);
+  const blank=Array.from({length:Math.max(0,minRows-rows.length)},()=>'<tr><td></td><td></td><td class="sig"></td></tr>');
+  return `<div class="drd">
+    ${ctuHeaderHtml({clinic:'Dental Clinic'})}
+    <table class="drd-log"><thead><tr><th style="width:18%">Date</th><th>Treatment/Remarks</th><th style="width:24%">Signature</th></tr></thead>
+      <tbody>${filled.join('')}${blank.join('')}</tbody></table>
+    ${ctuFooterHtml()}
+  </div>`;
+}
+
+// Any page (such as the Dental Health History Form) in the same frame as the dental record.
+export function dentalPageHtml(content,css=''){
+  return `<div class="drd">${css?`<style>${css}</style>`:''}${ctuHeaderHtml({clinic:'Dental Clinic'})}${content}${ctuFooterHtml()}</div>`;
+}
+
+/**
  * @param {{name?:string,age?:string|number,date?:string,courseMajor?:string,yearSection?:string,cellNo?:string,idNo?:string,
  *   messenger?:string,odontogram?:object,oral?:object,operations?:{tooth_no?:string,nature?:string}[],workStatus?:string,
- *   recommendation?:string,dentistName?:string,dentistTitle?:string}} r
+ *   recommendation?:string,dentistName?:string,dentistTitle?:string,dentistSignature?:string}} r
  */
 export function dentalRecordSheetHtml(r){
   const fill=(value,width)=>`<span class="drd-fill" style="min-width:${width}px">${esc(value)}</span>`;
@@ -73,7 +102,7 @@ export function dentalRecordSheetHtml(r){
       </div>
     </div>
     <div class="drd-rec"><h4>RECOMMENDATION</h4>${recLines.map(text=>`<div>${esc(text)||'&nbsp;'}</div>`).join('')}</div>
-    <div class="drd-sign"><div><strong>${esc(r.dentistName||'')}</strong><span>${esc(r.dentistTitle||'Dentist')}</span></div></div>
+    <div class="drd-sign"><div>${r.dentistSignature?`<img src="${esc(r.dentistSignature)}" alt="Dentist's signature">`:''}<strong>${esc(r.dentistName||'')}</strong><span>${esc(r.dentistTitle||'Dentist')}</span></div></div>
     ${ctuFooterHtml()}
   </div>`;
 }

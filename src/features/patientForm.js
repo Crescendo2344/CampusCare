@@ -576,16 +576,35 @@ function operationRowHtml(row={}){
   return `<div class="dr-op"><input class="tm-dental-op-tooth" maxlength="20" placeholder="Tooth" aria-label="Tooth number" value="${escapeHtml(row.tooth_no||'')}"><input class="tm-dental-op-nature" maxlength="255" list="dr-procedure-list" placeholder="Procedure done" aria-label="Procedure done" value="${escapeHtml(row.nature||'')}"><button type="button" class="dr-op-remove" aria-label="Remove procedure" ${bindAction('click',(event,element)=>{const list=element.closest('.dr-ops');element.closest('.dr-op').remove();if(list&&!list.querySelector('.dr-op'))list.insertAdjacentHTML('beforeend',operationRowHtml());})}><i class="bi bi-x-lg" aria-hidden="true"></i></button></div>`;
 }
 
-export function dentalRecordFormHtml(existing={},pt=null,defaultDate=appState.clinicInformation.TODAY){
+// `inVisit`: shown inside the visit form, whose own Recommendation box fills the record's recommendation.
+export function dentalRecordFormHtml(existing={},pt=null,defaultDate=appState.clinicInformation.TODAY,{inVisit=false}={}){
   const oral=existing?.oralHealth||{};
   // Older records drew the check on the centre of the picture; it now shows in the mark box.
   const odontogram=normalizeOdontogram(existing?.odontogram||{});
   const operations=Array.isArray(existing?.accomplishment)&&existing.accomplishment.length?existing.accomplishment:[{}];
   const key=v=>v.toLowerCase().replace(/\s+/g,'_');
+  // The record's patient lines start from the patient's profile and can be corrected for the form.
+  const p=pt||{};
+  const lines={
+    course:existing?.courseMajor??[p.course,p.major].filter(Boolean).join(' – '),
+    year:existing?.yearSection??(p.personType==='Student'?yearLevelLabel(p.yearLevel):''),
+    cell:existing?.cellNo??(p.contact||getUserById(p.userId)?.contact||''),
+    messenger:existing?.messengerAccount??''
+  };
+  const status=existing?.workStatus||'';
   const chip=(v,group)=>`<label class="dr-chip"><input type="checkbox" class="tm-dental-oral" value="${escapeHtml(v)}" ${oral?.[key(v)]?'checked':''} ${group?bindAction('change',(event,element)=>{if(element.checked)element.closest('.dr-chips').querySelectorAll('input').forEach(other=>{if(other!==element)other.checked=false;});}):''}><span>${escapeHtml(v)}</span></label>`;
 
   return `<div class="dental-record-section dr" id="tm-dental-section">
     <div class="dr-head"><h4><i class="bi bi-emoji-smile" aria-hidden="true"></i> Dental record</h4></div>
+
+    <div class="dr-block"><h5>Patient details on the record</h5>
+      <div class="form-row">
+        <div class="form-group"><label for="tm-dental-course">Course &amp; Major</label><input id="tm-dental-course" maxlength="180" value="${escapeHtml(lines.course||'')}"></div>
+        <div class="form-group"><label for="tm-dental-year">Yr. &amp; Section</label><input id="tm-dental-year" maxlength="120" value="${escapeHtml(lines.year||'')}" placeholder="e.g. 3rd Year – A"></div>
+        <div class="form-group"><label for="tm-dental-cell">Cel No.</label><input id="tm-dental-cell" maxlength="80" inputmode="tel" value="${escapeHtml(lines.cell||'')}"></div>
+        <div class="form-group"><label for="tm-dental-messenger">Messenger Account</label><input id="tm-dental-messenger" maxlength="180" value="${escapeHtml(lines.messenger||'')}"></div>
+      </div>
+    </div>
 
     <div class="dr-block"><h5>Tooth chart</h5>
       <p class="dr-how"><b>Box above or below the number:</b> click once for a check mark (<span class="dr-legend-check">${TOOTH_CHECK}</span>); double-click (or right-click) to choose a code. <b>Tooth picture:</b> click a side (frontal, lingual, mesial or distal) to shade it.</p>
@@ -614,11 +633,18 @@ export function dentalRecordFormHtml(existing={},pt=null,defaultDate=appState.cl
       <div class="form-group"><label for="tm-dental-oral-other">Other findings</label><input id="tm-dental-oral-other" maxlength="255" value="${escapeHtml(oral?.others||'')}"></div>
     </div>
 
-    <div class="dr-block"><h5>Procedures done</h5>
+    <div class="dr-block"><h5>Accomplishment</h5>
+      <div class="dr-op-head" aria-hidden="true"><span>Tooth No.</span><span>Nature of Operation</span></div>
       <div class="dr-ops">${operations.map(op=>operationRowHtml(op)).join('')}</div>
-      <button type="button" class="btn btn-xs" ${bindAction('click',(event,element)=>element.previousElementSibling.insertAdjacentHTML('beforeend',operationRowHtml()))}><i class="bi bi-plus-lg" aria-hidden="true"></i> Add procedure</button>
+      <button type="button" class="btn btn-xs" ${bindAction('click',(event,element)=>element.previousElementSibling.insertAdjacentHTML('beforeend',operationRowHtml()))}><i class="bi bi-plus-lg" aria-hidden="true"></i> Add operation</button>
       <datalist id="dr-procedure-list">${DENTAL_PROCEDURES.map(v=>`<option value="${v}">`).join('')}</datalist>
+      <div class="dr-row dr-work"><span class="dr-label" id="dr-work-label">Work status</span><div class="dr-chips" role="radiogroup" aria-labelledby="dr-work-label">
+        ${[['Completed','All necessary dental work has been completed'],['In Progress','Treatment is in progress'],['No Dental Work Necessary','No dental work is necessary']].map(([value,label])=>`<label class="dr-chip"><input type="radio" name="tm-dental-status" value="${value}" ${status===value?'checked':''}><span>${label}</span></label>`).join('')}
+      </div></div>
     </div>
+    ${inVisit?'':`<div class="dr-block"><h5>Recommendation</h5>
+      <div class="form-group"><label for="tm-dental-recommendation" class="sr-only">Recommendation</label><textarea id="tm-dental-recommendation" rows="3" maxlength="5000" placeholder="e.g. Oral prophylaxis every 6 months">${escapeHtml(existing?.recommendation||'')}</textarea></div>
+    </div>`}
   </div>`;
 }
 
@@ -657,7 +683,7 @@ export function collectDentalRecordForm(){
     oral_health:oralHealth,
     accomplishment,
     work_status:document.querySelector('input[name="tm-dental-status"]:checked')?.value||'',
-    recommendation:document.getElementById('tm-dental-recommendation')?.value.trim()||''
+    recommendation:(document.getElementById('tm-dental-recommendation')||document.getElementById('tm-notes'))?.value.trim()||''
   };
 }
 

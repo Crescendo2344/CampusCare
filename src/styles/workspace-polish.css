@@ -1909,3 +1909,34 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .privacy-version-why{margin:0 0 .75rem;line-height:1.55}
 .privacy-changes-current{margin:0 0 .75rem;padding:.65rem .8rem;border:1px solid var(--info-border);border-left:4px solid var(--info);border-radius:10px;background:var(--info-bg);color:var(--ink)}
 .privacy-changes-current p{margin:.25rem 0 0;white-space:pre-line;font-size:.85rem;line-height:1.5}
+
+/* Floating layers (dialogs, pop-up pickers, menus, panels) are solid, not see-through glass: browsers
+   do not blur what is behind a layer opened inside another one, so the content underneath showed through. */
+:root{--surface-solid:#f2f4f7;--surface-solid-raised:#ffffff}
+[data-theme="dark"]{--surface-solid:#1c2027;--surface-solid-raised:#242932}
+@media screen{.modal,.notif-panel,#ai-panel,.dr-mark-picker,.row-menu-list,.fi-saved-menu{background:var(--surface-solid)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}}
+.dr-mark-picker .dr-mark-option{background:var(--surface-solid-raised)}
+.dr-mark-picker .dr-mark-option.dr-mark-clear{background:transparent}
+.dr-mark-picker .dr-mark-option:hover{background:color-mix(in srgb,var(--primary) 10%,var(--surface-solid-raised))}
+.dr-mark-picker .dr-mark-option.dr-mark-check{background:color-mix(in srgb,#22c55e 12%,var(--surface-solid-raised))}
+.dr-mark-picker .dr-mark-option.active{background:color-mix(in srgb,var(--primary) 22%,var(--surface-solid-raised))}
+
+/* E-signature: drawing pad and saved signature preview */
+.sig-modal{max-width:640px}
+.sig-note{margin:0 0 .6rem;font-size:.85rem}
+.sig-pad{position:relative;border:1px dashed var(--line);border-radius:12px;background:#fff;overflow:hidden}
+.sig-pad canvas{display:block;width:100%;height:auto;aspect-ratio:3/1;touch-action:none;cursor:crosshair}
+.sig-line{position:absolute;left:8%;right:8%;bottom:24%;border-bottom:1px solid #b8c2cc;pointer-events:none}
+.sig-preview{display:flex;align-items:center;justify-content:center;min-height:90px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:.5rem}
+.sig-preview img{max-height:80px;max-width:100%}
+.sig-preview .text-muted{color:#5b6b75}
+.cert-sign-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;margin-top:.8rem;padding:.6rem .8rem;border:1px solid var(--line);border-radius:12px}
+.cert-sign-bar img{max-height:44px;background:#fff;border-radius:6px;padding:2px 6px}
+
+/* Dental record form: accomplishment table head and work status */
+.dr-op-head{display:grid;grid-template-columns:90px 1fr 32px;gap:.4rem;font-size:.72rem;font-weight:700;color:var(--ink-muted);margin-bottom:.25rem}
+
+/* Dental record preview: the official pages one under another, scrolling sideways on narrow screens */
+.dental-record-pages{display:flex;flex-direction:column;align-items:center;gap:1rem;overflow-x:auto;padding:.5rem 0}
+.dental-record-page{flex:none;box-shadow:0 2px 14px rgba(0,0,0,.18);background:#fff}
+.dr-work{margin-top:.7rem;align-items:flex-start}

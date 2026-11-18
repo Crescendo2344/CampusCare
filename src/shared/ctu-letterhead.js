@@ -62,24 +62,29 @@ export function ctuFooterHtml({width=0}={}){
   return `<div class="ctu-lh-foot" data-ctu-letterhead="footer" style="margin-top:18px;padding-top:6px"><img src="${absolute(CTU_FOOTER_SRC)}" alt="University rankings and accreditations"${size} style="display:block;${width?`width:${width}px;height:${Math.round(width*91/1332)}px`:'width:100%;height:auto'}"></div>`;
 }
 
-// A complete printable page. The header and footer sit in a table's thead/tfoot, which browsers
-// repeat on every printed page, so long documents keep the letterhead on each page.
-// A zero page margin keeps the browser from printing its own date, title and address lines; the page
-// spacing comes from the side padding and the repeated header and footer cells instead.
+// A complete printable document: the letterhead, the content, then the footer, in normal page flow.
+// (A page-wide table with a repeating header and footer made some browsers draw long content on top
+// of itself when it broke across pages, so the letterhead is printed once per document instead.)
+// A zero page margin keeps the browser from printing its own date, title and address lines.
 // `pages` prints several documents in one job, each starting on a new sheet with its own letterhead.
 export function ctuPrintDocument({title='CampusCare document',body='',pages=null,css='',head='',landscape=false,clinic,unit=true}={}){
-  const page=content=>`<table class="ctu-page"><thead><tr><td>${ctuHeaderHtml({clinic,unit})}</td></tr></thead>
-    <tfoot><tr><td>${ctuFooterHtml()}</td></tr></tfoot>
-    <tbody><tr><td><div class="ctu-page-body">${content}</div></td></tr></tbody></table>`;
+  const page=content=>`<section class="ctu-page"><header class="ctu-page-head">${ctuHeaderHtml({clinic,unit})}</header>
+    <div class="ctu-page-body">${content}</div>
+    <footer class="ctu-page-foot">${ctuFooterHtml()}</footer></section>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>${head}<style>
-    @page{size:A4 ${landscape?'landscape':'portrait'};margin:0}
+    @page{size:A4 ${landscape?'landscape':'portrait'};margin:10mm 0 8mm}
+    @page:first{margin-top:0}
     body{margin:0;padding:0 12mm;background:#fff;color:#111;font:12px/1.5 Arial,Helvetica,sans-serif}
-    table.ctu-page{width:100%;border-collapse:collapse}
-    table.ctu-page>thead>tr>td,table.ctu-page>tfoot>tr>td,table.ctu-page>tbody>tr>td{padding:0;border:0}
-    table.ctu-page>thead>tr>td{padding-top:10mm}
-    table.ctu-page>tfoot>tr>td{padding-bottom:8mm}
-    table.ctu-page+table.ctu-page{break-before:page;page-break-before:always}
+    .ctu-page{display:block}
+    .ctu-page-head{padding-top:10mm}
+    .ctu-page+.ctu-page{break-before:page;page-break-before:always}
+    .ctu-page+.ctu-page .ctu-page-head{padding-top:0}
     .ctu-page-body{padding:4px 0}
+    .ctu-page-body table{break-inside:auto}
+    .ctu-page-body tr,.ctu-page-body img{break-inside:avoid;page-break-inside:avoid}
+    .ctu-page-body thead{display:table-header-group}
+    .ctu-page-body h2,.ctu-page-body h3,.ctu-page-body h4{break-after:avoid;page-break-after:avoid}
+    .ctu-page-foot{break-inside:avoid;page-break-inside:avoid}
     ${css}
   </style></head><body>${(Array.isArray(pages)&&pages.length?pages:[body]).map(page).join('')}</body></html>`;
 }
