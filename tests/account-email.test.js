@@ -7,7 +7,7 @@ function fixture(action,overrides={}){
   const account={user_id:7,first_name:'Ana',auth_user_id:'fixture',email:'fixture@example.test',status:'Active',...overrides.account};
   const user={email:account.email,email_confirmed_at:action==='reset'?'2026-01-01':null,...overrides.user};
   const table=name=>{
-    const q={select(){return q;},eq(){return q;},gte(){return q;},
+    const q={select(){return q;},eq(){return q;},gte(){return q;},in(){return q;},
       ilike(...args){lookups.push(args);return q;},
       insert(row){queued.push(row);return Promise.resolve({error:overrides.queueError||null});},
       maybeSingle:async()=>name==='email_dispatch_config'?{data:{dispatch_key:'fixture-key'}}:{data:overrides.missing?null:account,error:overrides.lookupError},
@@ -51,9 +51,9 @@ test('eligible password resets send a CampusCare email whose link carries the on
   assert.ok(mail.html_body.includes('https://campuscare-brown-two.vercel.app/?auth=recovery&amp;type=recovery&amp;token_hash=fixture-hash'));
   assert.ok(mail.html_body.includes('cid:campuscare-logo')&&mail.html_body.includes('Hello Ana'));
   assert.equal(f.dispatched.length,1,'the email is sent right away');
-  for(const options of [{account:{status:'Pending'}},{user:{email_confirmed_at:null}}]){
-    const blocked=fixture('reset',options);assert((await blocked.call('fixture')).status>=400);assert.equal(blocked.queued.length,0);
-  }
+  const pending=fixture('reset',{account:{status:'Pending'}});assert((await pending.call('fixture')).status>=400);assert.equal(pending.queued.length,0);
+  // An active account the clinic created, whose first link expired, can still get a new one.
+  const assisted=fixture('reset',{user:{email_confirmed_at:null}});assert.equal((await assisted.call('fixture')).status,200);assert.equal(assisted.queued.length,1);
   // A forgotten password is never on the 7-day cooldown, even right after a change.
   const recent=fixture('reset',{account:{password_changed_at:new Date().toISOString()}});
   assert.equal((await recent.call('fixture')).status,200);assert.equal(recent.queued.length,1);
@@ -67,4 +67,16 @@ test('a second reset request within a minute is refused, and failures never repo
   for(const [error,status] of [[{message:'Provider unavailable'},502],[{status:429,message:'Rate limited'},429]]){
     const f=fixture('resend',{sendError:error,account:{status:'Pending'}});const res=await f.call('fixture');assert.equal(res.status,status);assert.equal((await res.json()).ok,undefined);
   }
+});
+
+test('the clinic-assisted first-password email uses the CampusCare layout and its own subject',async()=>{
+  const {queuePasswordEmail,SETUP_SUBJECT}=await import('../supabase/functions/_shared/password-email.js');
+  const queued=[],links=[];
+  const admin={auth:{admin:{generateLink:async args=>{links.push(args);return {data:{properties:{hashed_token:'setup-hash'}},error:null};}}},
+    from:()=>{const q={select(){return q;},eq(){return q;},insert(row){queued.push(row);return Promise.resolve({error:null});},maybeSingle:async()=>({data:null})};return q;}};
+  assert.equal(await queuePasswordEmail(admin,{email:'new@example.test',userId:3,firstName:'Ana',setup:true}),true);
+  assert.deepEqual(links,[{type:'recovery',email:'new@example.test'}]);
+  assert.equal(queued[0].subject,SETUP_SUBJECT);
+  assert.ok(queued[0].html_body.includes('Set my password')&&queued[0].html_body.includes('token_hash=setup-hash'));
+  assert.ok(!/supabase/i.test(queued[0].html_body));
 });

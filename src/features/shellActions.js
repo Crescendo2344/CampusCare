@@ -6,7 +6,7 @@ import {sanitizeInput,validateRegistrationContact,validateRegistrationField} fro
 import {openCookiePolicy,openTermsOfService} from './legalPages.js';
 import {ringBell} from './notifications.js';
 import {closePendingPanel,doLogin,doRegister,hidePasswordChecklist,openPrivacyNotice,openResendVerification,showPasswordChecklist,updatePasswordStrength} from './loginLockout.js';
-import {closeForgotPassword,hideRecoveryPasswordChecklist,logout,openForgotPassword,sendPasswordResetEmail,showForgotStep,showRecoveryPasswordChecklist,submitNewPassword,updateRecoveryPasswordStrength} from './passwordRecovery.js';
+import {closeForgotPassword,hideRecoveryPasswordChecklist,logout,openForgotPassword,requestNewResetLink,sendPasswordResetEmail,showRecoveryPasswordChecklist,submitNewPassword,updateRecoveryPasswordStrength} from './passwordRecovery.js';
 import {recheckNameMatch,sanitizeRegistrationId,updateRegistrationIdentityFields} from './documentScanner.js';
 import {openCampusDatePicker} from './datePicker.js';
 import {openCamera} from '../app/optional-features.js';
@@ -78,7 +78,7 @@ export function initializeFeature(){
   registerNamedAction('shell-44',(event,element)=>{hideRecoveryPasswordChecklist()});
   registerNamedAction('shell-45',(event,element)=>{sanitizeInput(element,'password')});
   registerNamedAction('shell-46',(event,element)=>{submitNewPassword()});
-  registerNamedAction('shell-47',(event,element)=>{showForgotStep(1)});
+  registerNamedAction('shell-47',(event,element)=>{requestNewResetLink()});
   registerNamedAction('shell-48',(event,element)=>{toggleSidebar(false)});
   registerNamedAction('shell-49',(event,element)=>{openProfileDetails()});
   registerNamedAction('shell-50',(event,element)=>{logout()});

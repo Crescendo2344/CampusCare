@@ -144,7 +144,7 @@ const certSignatureArea=(name,title,signature)=>`<div class="cert-signature-area
       <img id="cert-signature-img" src="${signature||''}" style="${signature?'':'display:none'}" alt="Signature">
       <div class="cert-sign-line"><strong id="cert-doctor-name">${escapeHtml(name)}</strong><br><span>${escapeHtml(title)}</span><br><span class="cert-license">Lic. No.: ____________________</span></div>
     </div>`;
-const letterheadTop=()=>ctuHeaderHtml();
+const letterheadTop=clinic=>ctuHeaderHtml({clinic});
 const letterheadBottom=()=>`<div class="dc-foot"><img src="${CTU_FOOTER_SRC}" alt="University rankings and accreditations"></div>`;
 
 // The details the doctor confirmed in step 1. Anything not given falls back to the patient's records.
@@ -168,7 +168,7 @@ export function buildCertificateDocument(r,doctorId,findings,remarks,signature='
   const f={...certificateFieldsFor(r,dental),findings,remarks};
   const certDate=r.issuedAt||appState.clinicInformation.TODAY;
   const doctorName=`Dr. ${((doctor.fname||'')+' '+(doctor.lname||'')).trim()}`;
-  return `<div class="dc-doc">${letterheadTop()}
+  return `<div class="dc-doc">${letterheadTop('Dental Clinic')}
     <div class="dc-title">DENTAL CERTIFICATE</div>
     <div class="dc-info"><div>Name: ${certFill(f.name,150)} Age: ${certFill(f.age,30)} Date: ${certFill(fmtDate(certDate),80,'cert-date-display')} </div><div>Course &amp; Major: ${certFill(f.course,100)} Yr. &amp; Section: ${certFill(f.yearSection,40)} Cel No.: ${certFill(f.contact,70)}</div><div>ID No.: ${certFill(f.idNo,100)} Messenger Account: ${certFill(f.messenger,200)}</div></div>
     ${toothBlockHtml(TOOTH_ROWS[0],dental.odontogram)}
@@ -193,7 +193,7 @@ export function buildMedicalCertificateDocument(r,doctorId,findings,remarks,sign
   const certDate=r.issuedAt||appState.clinicInformation.TODAY;
   const doctorName=`Dr. ${((doctor.fname||'')+' '+(doctor.lname||'')).trim()}`;
   const who=[f.age?`${f.age} years old`:'',f.sex,f.course,f.yearSection,f.idNo?`ID No. ${f.idNo}`:''].filter(Boolean).join(', ');
-  return `<div class="dc-doc mc-doc">${letterheadTop()}
+  return `<div class="dc-doc mc-doc">${letterheadTop('Medical Clinic')}
     <div class="dc-title mc-title">MEDICAL CERTIFICATE</div>
     <div class="mc-meta"><span>Certificate No.: <strong id="cert-number-display">${escapeHtml(r.certNo||'To be assigned upon issue')}</strong></span><span>Date: <strong id="cert-date-display">${escapeHtml(fmtDate(certDate))}</strong></span></div>
     <p class="mc-salute"><strong>TO WHOM IT MAY CONCERN:</strong></p>

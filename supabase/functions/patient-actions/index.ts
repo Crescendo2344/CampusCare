@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.3";
-import {authRedirect} from "../_shared/app-url.js";
+import {queuePasswordEmail} from "../_shared/password-email.js";
 import {registrationDetailErrors} from "../_shared/registration-validation.js";
 import {normalizePhilippineMobile} from "../_shared/contact-validation.js";
 
@@ -287,13 +287,11 @@ Deno.serve(async(req)=>{
         details:{user_id:appUser.user_id,id_number:idNumber,email}
       });
 
-      // Opening this link verifies the email address and lets the patient set a password.
+      // CampusCare's own "set your password" email. Using its link confirms the email address too.
       let verificationEmailSent=false;
       try{
-        const {error:resetErr}=await anon.auth.resetPasswordForEmail(email,{
-          redirectTo:authRedirect("recovery",(name:string)=>Deno.env.get(name)||"")
-        });
-        verificationEmailSent=!resetErr;
+        verificationEmailSent=await queuePasswordEmail(admin,{email,userId:appUser.user_id,firstName:first,setup:true,
+          env:(name:string)=>Deno.env.get(name)||""});
       }catch(_){}
 
       cleanupAuthId=null;

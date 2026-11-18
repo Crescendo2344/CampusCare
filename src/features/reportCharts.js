@@ -2,6 +2,7 @@ import {ctuFooterHtml,ctuHeaderHtml,printCtuDocument} from '../shared/ctu-letter
 import {buildCustomReport,customReportControls} from '../reports/custom-report.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {generateStudentReport} from '../reports/student-report.js';
+import {generateSaturdayReport} from '../reports/saturday-report.js';
 // reportCharts: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
@@ -18,6 +19,8 @@ export function updateReportMetricOptions(){
   const type=document.getElementById('rpt-type').value;
   const filters=document.getElementById('student-report-filters');
   if(filters)filters.hidden=type!=='students';
+  const saturday=document.getElementById('saturday-report-filters');
+  if(saturday)saturday.hidden=type!=='saturday';
   customReportControls();
   document.querySelector('[data-report-view="builder"]')?.click();
   document.getElementById('rpt-result').innerHTML='';
@@ -414,7 +417,7 @@ export function exportReportPDF(){
 
 export async function generateReport(){
   const type=document.getElementById('rpt-type').value;
-  if(type!=='students')appState.reportCharts.studentReportToken=(appState.reportCharts.studentReportToken||0)+1;
+  if(!['students','saturday'].includes(type))appState.reportCharts.studentReportToken=(appState.reportCharts.studentReportToken||0)+1;
   const from=document.getElementById('rpt-from').value;
   const to=document.getElementById('rpt-to').value;
   const college=document.getElementById('rpt-college').value;
@@ -427,6 +430,14 @@ export async function generateReport(){
     try{await generateStudentReport(exportToolbarHtml,downloadBlob);}catch(error){
       if(appState.auth.currentUser!==reportAccount||!isCampusPageCurrent('reports',reportToken)||appState.reportCharts.studentReportToken!==studentToken)return;
       document.getElementById('rpt-result').innerHTML=`<div class="alert alert-danger show">${escapeHtml(error.message||'Report failed.')}</div>`;
+    }
+    return;
+  }
+  if(type==='saturday'){
+    const reportAccount=appState.auth.currentUser,reportToken=captureCampusPageToken(),requestToken=(appState.reportCharts.studentReportToken||0)+1;
+    try{await generateSaturdayReport();}catch(error){
+      if(appState.auth.currentUser!==reportAccount||!isCampusPageCurrent('reports',reportToken)||appState.reportCharts.studentReportToken!==requestToken)return;
+      el.innerHTML=`<div class="alert alert-danger show" role="alert">${escapeHtml(error.message||'Unable to generate the Saturday visit log.')}</div>`;
     }
     return;
   }
