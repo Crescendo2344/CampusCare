@@ -408,6 +408,13 @@ nav svg{width:15px;height:15px;flex-shrink:0;stroke-width:1.8}
 .form-group input::placeholder,.form-group textarea::placeholder{color:var(--ink-muted);opacity:.7}
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--primary);background:var(--overlay-strong);box-shadow:0 0 0 3px rgba(10,126,168,.18)}
 .form-group input:disabled,.form-group select:disabled{background:var(--glass-surface-soft);color:var(--ink-muted)}
+/* Every other text, number, date and select field in the app and its dialogs gets the same look as form
+   fields, instead of the browser's default box. Zero specificity: any component that styles its own fields wins. */
+:where(#app,#modals) :where(input:not([type=checkbox],[type=radio],[type=range],[type=file],[type=color],[type=hidden],[type=submit],[type=button],[type=reset],[type=image]),select,textarea):where(:not(.form-group *)){padding:.45rem .75rem;min-height:2.3rem;border:1px solid var(--line);border-radius:9px;font-size:.87rem;font-family:inherit;line-height:1.3;background:var(--overlay);color:var(--ink);color-scheme:light dark;transition:border-color .15s,box-shadow .15s,background .15s}
+:where(#app,#modals) :where(textarea):where(:not(.form-group *)){min-height:4.5rem}
+:where(#app,#modals) :where(input,textarea):where(:not(.form-group *))::placeholder{color:var(--ink-muted);opacity:.7}
+:where(#app,#modals) :where(input:not([type=checkbox],[type=radio],[type=range],[type=file],[type=color]),select,textarea):where(:not(.form-group *)):focus{outline:none;border-color:var(--primary);background:var(--overlay-strong);box-shadow:0 0 0 3px rgba(10,126,168,.18)}
+:where(#app,#modals) :where(input,select,textarea):where(:not(.form-group *)):disabled{background:var(--glass-surface-soft);color:var(--ink-muted)}
 .form-group.full{grid-column:1/-1}
 .form-note{font-size:.75rem;color:var(--ink-muted);margin-top:2px}
 /* Registration password requirement checklist */

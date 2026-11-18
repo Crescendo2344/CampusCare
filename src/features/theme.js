@@ -1,7 +1,7 @@
 // theme: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
 import {persistDB} from './persistence.js';
-import {closeAllModals,openModal} from './modals.js';
+import {closeAllModals,closeTopModal,openModal} from './modals.js';
 import {bindAction} from '../dependencies.js';
 // ================================================================
 // THEME (light / dark)
@@ -164,13 +164,16 @@ export function showConfirmDialog(opts){
     cancelLabel='Cancel',
     danger=false,
     onConfirm,
-    onCancel
+    onCancel,
+    layered=false
   }=opts;
+  // A layered confirmation sits on top of the dialog it was opened from and closes back to it.
+  const close=layered?closeTopModal:closeAllModals;
 
   openModal(`<div class="modal modal-sm">
     <div class="modal-header">
       <h3>${danger?'<span class="confirm-danger-icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span> ':''}${title}</h3>
-      <button class="close-btn" ${bindAction('click',(event,element)=>{closeAllModals();if(onCancel)onCancel()})}>✕</button>
+      <button class="close-btn" ${bindAction('click',(event,element)=>{close();if(onCancel)onCancel()})}>✕</button>
     </div>
     <div class="modal-body">
       <p style="font-size:.87rem;line-height:1.55;color:var(--ink)">${message}</p>
@@ -179,15 +182,15 @@ export function showConfirmDialog(opts){
       <button class="btn" id="cc-confirm-cancel-btn">${cancelLabel}</button>
       <button class="btn ${danger?'btn-danger':'btn-primary'}" id="cc-confirm-ok-btn">${confirmLabel}</button>
     </div>
-  </div>`);
+  </div>`,{preserveParent:layered});
 
   document.getElementById('cc-confirm-ok-btn').onclick=()=>{
-    closeAllModals();
+    close();
     if(onConfirm) onConfirm();
   };
   const cancelButton=document.getElementById('cc-confirm-cancel-btn');
   if(cancelButton)cancelButton.onclick=()=>{
-    closeAllModals();
+    close();
     if(onCancel) onCancel();
   };
 }

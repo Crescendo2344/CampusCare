@@ -396,11 +396,14 @@ try{
     await page.waitForFunction(()=>Boolean(window.__fixtureApp.state.camera.capturedSelfieDataUrl));
     assert(await page.locator('#r-selfie-preview-wrap img').isVisible());
     assert(await page.evaluate(()=>!window.__fixtureApp.state.camera._cameraStream),'Capture must stop the camera');
-    // Retake may be canceled without losing the first capture; closing the backdrop must release tracks.
+    // Retake may be canceled without losing the first capture; a click outside keeps the camera open, closing it releases tracks.
     await page.locator('#selfie-camera-button').click();
     await page.getByRole('button',{name:'Start Camera',exact:true}).click();
     await page.waitForFunction(()=>document.getElementById('camera-video')?.readyState>=2);
-    await page.evaluate(()=>{window.__fixtureCameraTracks=window.__fixtureApp.state.camera._cameraStream.getTracks();document.getElementById('active-modal').click();});
+    await page.evaluate(()=>{window.__fixtureCameraTracks=window.__fixtureApp.state.camera._cameraStream.getTracks();});
+    await page.mouse.click(4,4);
+    assert(await page.locator('#camera-video').isVisible(),'A click outside the dialog must not close it');
+    await page.locator('#active-modal .close-btn').click();
     await page.waitForFunction(()=>window.__fixtureCameraTracks.every(track=>track.readyState==='ended'));
     // A denied permission offers browser guidance without exposing a selfie upload fallback.
     await page.evaluate(()=>{window.__fixtureGetUserMedia=navigator.mediaDevices.getUserMedia;navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException('Permission denied','NotAllowedError');};});
@@ -945,7 +948,7 @@ try{
       await page.locator('#preview-img').waitFor();
       if(method==='close')await page.locator('#active-modal .close-btn').click();
       if(method==='escape')await page.keyboard.press('Escape');
-      if(method==='backdrop')await page.locator('#active-modal').evaluate(el=>el.click());
+      if(method==='backdrop'){await page.mouse.click(4,4);assert(await page.locator('#preview-img').isVisible(),'A click outside keeps the preview open');await page.locator('#active-modal .close-btn').click();}
       await page.locator('.approval-review-modal').waitFor();
       assert(await page.evaluate(()=>document.getElementById('active-modal')===window.__reviewNode),'Preview must return to the original review dialog');
       assert(await page.getByRole('button',{name:'Approve Registration',exact:true}).isVisible());
@@ -1567,9 +1570,15 @@ try{
     for(let n=2;n<=48;n++)if(n!==3)await page.locator(`.dhh-q[data-q="${n}"]`).getByRole('button',{name:'No'}).click();
     await page.locator('#dhh-submit').click();
     assert.equal(await page.locator('.dhh-modal').count(),1,'The declaration must be ticked first');
+    // A click outside the form keeps it open; only its close button closes it.
+    await page.mouse.click(4,4);
+    assert.equal(await page.locator('.dhh-modal').isVisible(),true,'A click outside must not close the form');
     await page.locator('#dhh-attest').check();
     await page.locator('#dhh-submit').click();
     await page.waitForFunction(()=>!document.querySelector('.dhh-modal'));
+    // Back to the appointment the form was opened from, not closed altogether.
+    await page.locator('.dhh-panel').waitFor();
+    assert.match(await page.locator('#active-modal').innerText(),/Dental Health History/);
     const submitted=requests.filter(r=>r.path.endsWith('/dental-health-history')&&r.body?.action==='submit').at(-1);
     assert.equal(submitted.body.answers['3'],'Yes');assert.equal(submitted.body.details.hospitalized_why,'Dengue fever');assert.equal(submitted.body.mode,'online');
     assert.equal(Object.keys(submitted.body.answers).length,48);
