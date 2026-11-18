@@ -1160,9 +1160,9 @@ try{
     await page.locator('.inv-stat:not([disabled])').first().click();
     assert(await page.locator('#inv-panel-items').isVisible(),'A summary card opens the filtered item list');
     if(process.env.CAMPUSCARE_VISUAL_DIR&&!mobile)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/inventory-tabs-${role}.png`});
-    // Purchase orders: the medicine is typed; a name not in stock is a new item that asks for its unit.
+    // Supply replenishment: the medicine is typed; a name not in stock is a new item that asks for its unit.
     await page.locator('#inv-tab-orders').click();
-    await page.getByRole('button',{name:'+ New purchase order'}).click();
+    await page.getByRole('button',{name:'+ New supply replenishment'}).click();
     const poName=page.locator('#so-po-lines input[data-field="name"]').first();
     await poName.fill('Tranexamic Acid 500 mg Capsule');await poName.dispatchEvent('change');
     await page.locator('#so-po-lines .badge',{hasText:'New item'}).waitFor();

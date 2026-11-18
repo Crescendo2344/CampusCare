@@ -39,7 +39,7 @@ export async function renderInventory(){
   const ui=appState.inventoryList??={};ui.txLimit=20;
   const stat=(label,value,tone='',filter='')=>`<button type="button" class="approval-stat inv-stat ${tone}" ${filter?bindAction('click',()=>{switchInventoryView('items');const el=document.getElementById('inv-stock');if(el){el.value=filter;renderInvTable();}}):'disabled'}><span>${label}</span><strong>${value}</strong></button>`;
   ui.view??='items';if(ui.view==='requests')ui.view='items';
-  const views=[['items','Items','bi-box-seam'],['orders','Purchase orders','bi-cart'],['movements','Stock movements','bi-arrow-left-right'],['forecast','Forecast & reorder','bi-graph-up-arrow']];
+  const views=[['items','Items','bi-box-seam'],['orders','Supply Replenishment','bi-cart'],['movements','Stock movements','bi-arrow-left-right'],['forecast','Forecast & reorder','bi-graph-up-arrow']];
 
   c.innerHTML=`
     <div class="approval-summary inv-summary">

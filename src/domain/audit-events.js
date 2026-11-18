@@ -27,7 +27,7 @@ export function friendlyAuditAction(action=''){
   return text?text.charAt(0).toUpperCase()+text.slice(1):'';
 }
 
-const RECORD_NAMES={appointments:'appointment',patients:'patient record',treatments:'treatment',dental_records:'dental record',medical_certificates:'medical certificate',fitness_assessments:'fitness assessment',inventory_items:'inventory item',inventory_transactions:'stock movement',inventory_requests:'medicine request',purchase_orders:'purchase order',users:'account',workflow_requests:'request',doctor_leaves:'day off',issue_reports:'report',health_resources:'health article',audit_logs:'activity log',system_settings:'settings',session:'session'};
+const RECORD_NAMES={appointments:'appointment',patients:'patient record',treatments:'treatment',dental_records:'dental record',medical_certificates:'medical certificate',fitness_assessments:'fitness assessment',inventory_items:'inventory item',inventory_transactions:'stock movement',inventory_requests:'medicine request',purchase_orders:'supply replenishment',users:'account',workflow_requests:'request',doctor_leaves:'day off',issue_reports:'report',health_resources:'health article',audit_logs:'activity log',system_settings:'settings',session:'session'};
 export const recordName=entity=>RECORD_NAMES[String(entity||'').toLowerCase()]||String(entity||'record').replace(/_/g,' ');
 
 // A short sentence after the person's name: "cancelled appointment #42".

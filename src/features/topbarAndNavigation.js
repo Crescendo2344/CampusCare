@@ -382,7 +382,7 @@ export function initializeFeature(){
   approvals:['approval','registration','pending account'],
   'cert-requests':['certificate','medical certificate','signature'],
   treatments:['treatment','diagnosis','medical notes'],
-  inventory:['stock','medicine','supplies','predictive inventory','stock forecast','reorder prediction','purchase order'],
+  inventory:['stock','medicine','supplies','predictive inventory','stock forecast','reorder prediction','supply replenishment','purchase order'],
   reports:['report','analytics','statistics','campus health intelligence','predictive health','health trends'],
   users:['user','account','management'],
   settings:['settings','configuration'],

@@ -1,5 +1,5 @@
-// Purchase orders.
-// Staff order stock before it runs out: they print the purchase order for the person or office that buys,
+// Supply replenishment (stored as purchase orders).
+// Staff order stock before it runs out: they print the supply replenishment request for the person or office that buys,
 // mark it sent, and record the delivery (stock goes up). Purchasing is a staff task; there is no approval step.
 import {printCtuDocument} from '../shared/ctu-letterhead.js';
 import {state as appState} from '../app/state.js';
@@ -61,8 +61,8 @@ function askReason({title,label,confirm,danger=true,onSubmit}){
   </div>`);
 }
 
-// Staff: Purchase orders tab inside Inventory -------------------------------------------------------
-export function ordersPanelHtml(){return `<div class="card"><div class="card-header"><h3>Purchase orders</h3><button class="btn btn-primary btn-sm" ${bindAction('click',()=>openPurchaseOrderModal())}>+ New purchase order</button></div><div id="so-reorder"></div><div id="so-orders"><p class="text-muted">Loading…</p></div></div>`;}
+// Staff: Supply Replenishment tab inside Inventory -------------------------------------------------------
+export function ordersPanelHtml(){return `<div class="card"><div class="card-header"><h3>Supply Replenishment</h3><button class="btn btn-primary btn-sm" ${bindAction('click',()=>openPurchaseOrderModal())}>+ New supply replenishment</button></div><div id="so-reorder"></div><div id="so-orders"><p class="text-muted">Loading…</p></div></div>`;}
 
 // Items to order now: they run out within a month at the recent rate (or are at the reorder level)
 // and nothing is on order yet. Ordering a month ahead leaves time for delivery.
@@ -97,7 +97,7 @@ export function renderOrdersTable(){
   }
   const el=document.getElementById('so-orders');if(!el)return;
   const rows=st().orders||[];
-  if(!rows.length){el.innerHTML='<div class="empty-state"><p>No purchase orders yet.</p></div>';return;}
+  if(!rows.length){el.innerHTML='<div class="empty-state"><p>No supply replenishments yet.</p></div>';return;}
   el.innerHTML=ordersTableHtml(rows);
 }
 function ordersTableHtml(rows){
@@ -105,7 +105,7 @@ function ordersTableHtml(rows){
   <tbody>${rows.map(po=>{
     const lines=po.purchase_order_items||[];
     return `<tr>
-      <td data-label="Order"><strong>${escapeHtml(po.po_no||`PO #${po.po_id}`)}</strong><div class="text-muted">${fmtDate(manilaDate(po.created_at))} · ${escapeHtml(personName(po.created_by))}</div>${po.needed_by?`<div class="text-muted">Needed by ${fmtDate(po.needed_by)}</div>`:''}</td>
+      <td data-label="Order"><strong>${escapeHtml(po.po_no||`SR #${po.po_id}`)}</strong><div class="text-muted">${fmtDate(manilaDate(po.created_at))} · ${escapeHtml(personName(po.created_by))}</div>${po.needed_by?`<div class="text-muted">Needed by ${fmtDate(po.needed_by)}</div>`:''}</td>
       <td data-label="Items">${lines.map(l=>`<div>${escapeHtml(itemLabel(l.item_id))} × ${l.quantity} ${escapeHtml(itemById(l.item_id)?.unit||'')}</div>`).join('')}${po.notes?`<div class="text-muted">${escapeHtml(po.notes)}</div>`:''}</td>
       <td data-label="Status"><span class="badge ${PO_BADGE[po.status]||'badge-gray'}">${escapeHtml(PO_LABEL[po.status]||po.status)}</span>${po.status==='Sent'&&po.sent_at?`<div class="text-muted">${fmtDate(manilaDate(po.sent_at))}</div>`:''}${po.status==='Cancelled'&&po.cancel_reason?`<div class="text-muted">${escapeHtml(po.cancel_reason)}</div>`:''}${po.status==='Received'?(()=>{const short=(po.purchase_order_items||[]).reduce((n,l)=>n+(l.received_quantity==null?0:Number(l.quantity)-Number(l.received_quantity)),0);return `<div class="text-muted">${po.received_at?fmtDate(manilaDate(po.received_at)):''}${short?` · <span class="text-danger">${short} short</span>`:''}</div>${po.receive_note?`<div class="text-muted">${escapeHtml(po.receive_note)}</div>`:''}`;})():''}</td>
       <td data-label="Actions"><div class="td-actions">
@@ -120,7 +120,7 @@ export function openPurchaseOrderModal(prefill=[]){
   const items=inventoryRecords().filter(i=>!i.archived);
   const s=st();s.draft=prefill.length?prefill.map(l=>({...l,name:l.name||inventoryRecords().find(i=>i.dbItemId===Number(l.item_id))?.name||''})):[{name:'',quantity:''}];
   openModal(`<div class="modal so-po-modal" role="dialog" aria-labelledby="so-po-title">
-    <div class="modal-header"><h3 id="so-po-title">${prefill.length?'Re-order':'New purchase order'}</h3><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-header"><h3 id="so-po-title">${prefill.length?'Re-order':'New supply replenishment'}</h3><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body"><div id="so-po-msg"></div>
       <div class="form-row">
         <div class="form-group"><label for="so-po-needed">Needed by</label>${campusDateFieldHtml('so-po-needed','','Needed by',appState.clinicInformation.TODAY)}</div>
@@ -184,7 +184,7 @@ async function submitPurchaseOrder(){
     const res=await inventoryAction({action:'create_po',items:lines.map(({key,...l})=>l),needed_by:document.getElementById('so-po-needed').value||null,notes:document.getElementById('so-po-notes').value.trim()});
     closeAllModals();
     const added=res.new_items?.length?` ${res.new_items.length} new item${res.new_items.length===1?' was':'s were'} added to the stock list.`:'';
-    toast(`${res.purchase_order?.po_no||'Purchase order'} is ready. Print it for the person who buys.${added}`,'success');
+    toast(`${res.purchase_order?.po_no||'Supply replenishment'} is ready. Print it for the person who buys.${added}`,'success');
     await refreshInventoryAfterOrderChange();
     if(res.purchase_order?.po_id)printPurchaseOrder(res.purchase_order.po_id);
   }catch(e){fail(e?.message||'The order could not be sent.');btn.disabled=false;btn.textContent='Prepare order';}
@@ -241,14 +241,14 @@ function orderStep(po,action){
   }});
 }
 
-// A one-page purchase order the purchasing office can act on; the browser's print dialog also saves it as PDF.
+// A one-page supply replenishment request the purchasing office can act on; the browser's print dialog also saves it as PDF.
 export function printPurchaseOrder(poId){
   const po=(st().orders||[]).find(p=>Number(p.po_id)===Number(poId));
-  if(!po){toast('Purchase order not found. Refresh and try again.','error');return;}
+  if(!po){toast('Supply replenishment not found. Refresh and try again.','error');return;}
   const lines=po.purchase_order_items||[];
   const rows=lines.map((l,i)=>{const it=itemById(l.item_id);
     return `<tr><td>${i+1}</td><td>${escapeHtml(it?.item_name||itemLabel(l.item_id))}</td><td>${escapeHtml(it?.category||'')}</td><td class="n">${l.quantity}</td><td>${escapeHtml(it?.unit||'')}</td></tr>`;}).join('');
-  printCtuDocument({title:po.po_no||'Purchase order',css:`
+  printCtuDocument({title:po.po_no||'Supply replenishment',css:`
     body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;margin:0}
     h1{font-size:20px;margin:0}h2{font-size:13px;margin:0 0 2px;font-weight:normal;color:#444}
     .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0a7ea8;padding-bottom:10px;margin-bottom:14px}
@@ -257,7 +257,7 @@ export function printPurchaseOrder(poId){
     .n{text-align:right}.sign{display:flex;gap:40px;margin-top:48px}.sign div{flex:1;border-top:1px solid #333;padding-top:4px;text-align:center}
     .note{margin-top:12px;white-space:pre-wrap}
   `,body:`
-    <div class="head"><div><h1>Purchase Order</h1><h2>CTU Main Medical &amp; Dental Clinic</h2></div><div style="text-align:right"><strong style="font-size:15px">${escapeHtml(po.po_no||'')}</strong><div>Date: ${escapeHtml(fmtDate(manilaDate(po.created_at)))}</div></div></div>
+    <div class="head"><div><h1>Supply Replenishment</h1><h2>CTU Main Medical &amp; Dental Clinic</h2></div><div style="text-align:right"><strong style="font-size:15px">${escapeHtml(po.po_no||'')}</strong><div>Date: ${escapeHtml(fmtDate(manilaDate(po.created_at)))}</div></div></div>
     <table class="meta"><tr><td>Needed by</td><td>${po.needed_by?escapeHtml(fmtDate(po.needed_by)):'As soon as possible'}</td></tr>
       <tr><td>Prepared by</td><td>${escapeHtml(personName(po.created_by))}</td></tr></table>
     <table class="items"><thead><tr><th>#</th><th>Item</th><th>Category</th><th class="n">Qty</th><th>Unit</th></tr></thead>
