@@ -62,7 +62,7 @@ export async function promptPrivacyAcknowledgement({tries=0}={}){
   if(appState.auth.currentUser!==account||!status?.needs_acknowledgement)return;
   openModal(`<div class="modal modal-sm" role="dialog" aria-labelledby="pa-title">
     <div class="modal-header"><div><h3 id="pa-title">Updated Privacy Notice</h3><div class="text-muted">Version ${escapeHtml(status.current_version)}${status.policy_updated?` · ${escapeHtml(fmtDate(String(status.policy_updated).slice(0,10)))}`:''}</div></div></div>
-    <div class="modal-body"><p>CampusCare's Privacy Notice was updated. Please read it and acknowledge it to continue.</p><div id="pa-msg"></div></div>
+    <div class="modal-body"><p>CampusCare's Privacy Notice was updated. Please read it and acknowledge it to continue.</p>${appState.data.DB.settings?.privacyPolicyChanges?`<div class="privacy-changes-current"><strong>What changed</strong><p>${escapeHtml(appState.data.DB.settings.privacyPolicyChanges)}</p></div>`:''}<div id="pa-msg"></div></div>
     <div class="modal-footer">
       <button type="button" class="btn" ${bindAction('click',()=>openPrivacyNotice())}>Read the notice</button>
       <button type="button" class="btn" ${bindAction('click',()=>openPrivacyRequestModal())}>I have a concern</button>

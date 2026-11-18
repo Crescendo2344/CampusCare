@@ -65,7 +65,7 @@ export function openProfileDetails(){
         </div>
       </div>
       ${section('Account',[
-        row('Username',`@${escapeHtml(u.username||'')}`,u.username||''),
+        row('Username',escapeHtml(u.username||''),u.username||''),
         row('Email',`${escapeHtml(u.email||'—')} ${verified}`,u.email||''),
         row('Contact',u.contact?escapeHtml(u.contact):'<span class="text-muted">Not added</span>'),
         row('Last sign-in',escapeHtml(formatLastLogin(u.lastLogin)))
@@ -109,7 +109,7 @@ function setPasswordEditing(editing,reset=false){
 }
 
 // Same tile as userDetailField, but the value is trusted HTML (badges) rather than escaped text.
-const statusTile=(label,html,wide=false)=>`<div class="user-detail-field ${wide?'wide':''}"><span>${label}</span><strong>${html}</strong></div>`;
+const statusTile=(label,html,wide=false)=>`<div class="user-detail-field acc-status-tile ${wide?'wide':''}"><span>${label}</span><strong>${html}</strong></div>`;
 
 export function renderMyAccount(){
   const c=document.getElementById('app-content');

@@ -20,6 +20,7 @@ import {docName} from './displayNames.js';
 import {downloadPatientFHIR,openClinicalCopilot,viewPatientFHIR} from './inventoryService.js';
 import {openNewCertificateModal} from './certificateService.js';
 import {bindAction,patientData} from '../dependencies.js';
+import {YEAR_LEVELS,yearLevelLabel} from './profileDetails.js';
 import {normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {PATIENT_FORM_SERVER_FIELDS,resetRegistrationFieldErrors,sanitizeInput,setRegistrationFieldError,validateRegistrationField,validateRegistrationForm} from './inputValidation.js';
 import {handleRegistrationIdUpload,renderRegistrationIds,resetVerificationState,selectRegistrationIdSide,setVerificationScope,verificationState,verificationStepsHtml} from './idVerification.js';
@@ -56,7 +57,7 @@ export function syncPatientFormType(){
   }
   const session=document.getElementById('pm-session-group');
   if(session)session.hidden=type!=='Student';
-  for(const id of ['pm-course-group','pm-major-group']){const group=document.getElementById(id);if(group)group.hidden=type!=='Student';}
+  for(const id of ['pm-year-group','pm-course-group','pm-major-group']){const group=document.getElementById(id);if(group)group.hidden=type!=='Student';}
   for(const id of ['pm-idno','pm-college','pm-class-session'])validateRegistrationField(id,false);
 }
 
@@ -118,10 +119,13 @@ export function openPatientModal(id=null){
             <select id="pm-class-session" ${live()}>${options([['Morning'],['Evening']],['Morning','Evening'].includes(pt?.classSession)?pt.classSession:'','Select session')}</select>
             <p class="registration-field-error" id="pm-class-session-error" aria-live="polite" hidden></p>
           </div>
+          <div class="form-group" id="pm-year-group">
+            <label for="pm-year">Year Level</label>
+            <select id="pm-year"><option value="">Select year</option>${YEAR_LEVELS.map(([n,label])=>`<option value="${n}" ${Number(pt?.yearLevel)===n?'selected':''}>${label}</option>`).join('')}</select>
+          </div>
           <div class="form-group" id="pm-course-group">
             <label for="pm-course">Course</label>
             <input id="pm-course" maxlength="120" autocomplete="off" placeholder="e.g. BS Information Technology" value="${escapeHtml(pt?.course||'')}">
-            <p class="form-note field-hint">Update this when the student shifts to another program.</p>
           </div>
           <div class="form-group" id="pm-major-group">
             <label for="pm-major">Major</label>
@@ -226,6 +230,7 @@ export async function savePatient(id){
     college:value('pm-college'),
     person_type:personType,
     class_session:personType==='Student'?value('pm-class-session'):null,
+    year_level:personType==='Student'?value('pm-year'):'',
     course:personType==='Student'?value('pm-course'):'',
     major:personType==='Student'?value('pm-major'):'',
     height_cm:value('pm-height')||null,
@@ -273,7 +278,7 @@ export async function savePatient(id){
         fname:payload.first_name,lname:payload.last_name,age,birthDate:payload.birth_date,
         gender:payload.sex,blood:payload.blood_type,
         contact:payload.contact_number,college:payload.college,
-        personType,classSession:payload.class_session||'',course:payload.course||'',major:payload.major||'',
+        personType,classSession:payload.class_session||'',yearLevel:payload.year_level?Number(payload.year_level):'',course:payload.course||'',major:payload.major||'',
         height:payload.height_cm?`${payload.height_cm}cm`:'',
         weight:payload.weight_kg?`${payload.weight_kg}kg`:'',
         address:payload.address,allergies:payload.allergies,
@@ -374,6 +379,7 @@ export async function viewPatient(id){
             <span><strong>${val(pt.age)}</strong> yrs · ${val(pt.gender)}</span>
             <span>DOB <strong>${pt.birthDate?fmtDate(pt.birthDate):'—'}</strong></span>
             <span>Blood <strong>${val(pt.blood)}</strong></span>
+            ${pt.personType==='Student'&&pt.yearLevel?`<span>Year <strong>${escapeHtml(yearLevelLabel(pt.yearLevel))}</strong></span>`:''}
             ${pt.personType==='Student'&&pt.course?`<span class="pt-fact-wide">Course <strong>${escapeHtml(pt.course)}${pt.major?` · ${escapeHtml(pt.major)}`:''}</strong></span>`:''}
           </div>
         </div>

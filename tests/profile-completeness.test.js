@@ -12,9 +12,10 @@ test('a complete student profile is fully verified',()=>{
 });
 test('missing details lower the level and say who completes them',()=>{
   const r=profileCompleteness({...user,profilePhoto:''},{...full,blood:'Unknown',emergencyContact:''});
-  assert.deepEqual(r.missing.map(s=>s.id),['photo','emergency','blood']);
+  // The emergency contact is optional, so leaving it out does not lower the profile.
+  assert.deepEqual(r.missing.map(s=>s.id),['photo','blood']);
   assert.equal(r.missing.find(s=>s.id==='blood').by,'patient');
-  assert.equal(r.missing.find(s=>s.id==='emergency').by,'patient');
+  assert(!r.steps.some(s=>s.id==='emergency'),'The emergency contact is not a required step');
   assert.equal(r.level.label,'Almost there');
 });
 test('personnel are not asked for course or class session',()=>{

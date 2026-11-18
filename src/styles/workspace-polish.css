@@ -1896,3 +1896,16 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .cq-cancelled summary{cursor:pointer;font-size:.85rem;color:var(--ink-muted);margin-bottom:.5rem}
 @media (max-width:900px){.cq-layout{grid-template-columns:1fr}.cq-calendar{max-width:520px;width:100%;margin:0 auto}}
 @media (max-width:560px){.cq-cell{min-height:48px}.cq-item{grid-template-columns:3rem 1fr}.cq-side{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start}}
+
+/* Account Status: each value sits centred in its tile, and badges keep their natural width. */
+.acc-status-tile{text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.acc-status-tile strong{display:flex;justify-content:center;align-items:center;width:100%}
+.acc-status-tile .badge{display:inline-flex;width:auto;max-width:100%;justify-content:center}
+
+/* Camera: switch between the front and back camera */
+.camera-switch{margin:.5rem .25rem 0}
+
+/* Privacy Notice versions: why publish, and what changed */
+.privacy-version-why{margin:0 0 .75rem;line-height:1.55}
+.privacy-changes-current{margin:0 0 .75rem;padding:.65rem .8rem;border:1px solid var(--info-border);border-left:4px solid var(--info);border-radius:10px;background:var(--info-bg);color:var(--ink)}
+.privacy-changes-current p{margin:.25rem 0 0;white-space:pre-line;font-size:.85rem;line-height:1.5}

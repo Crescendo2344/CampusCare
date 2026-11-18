@@ -9,6 +9,7 @@ import {openPatientModal,restorePatient,viewPatient} from './patientForm.js';
 import {getUserById} from './documentScanner.js';
 import {showFilePreview} from './modals.js';
 import {collegeBadge,fmtDate,priorityBadge} from './inputValidation.js';
+import {yearLevelLabel} from './profileDetails.js';
 import {bindAction,patientData} from '../dependencies.js';
 import {appointmentRecords,syncRealAppointments} from './appointmentService.js';
 import {readTreatmentFactPages} from '../services/report-snapshot.js';
@@ -184,7 +185,7 @@ export function renderPatientTable(){
       const last=patientLastVisit(p);
       const allergy=patientData.hasAllergyAlert(p.allergies);
       const ageSex=`${p.age===''||p.age==null?'—':escapeHtml(String(p.age))}${p.gender?' · '+escapeHtml(p.gender.charAt(0)):''}`;
-      const session=p.personType==='Student'&&p.classSession?`${p.classSession} class`:'';
+      const session=p.personType==='Student'?[yearLevelLabel(p.yearLevel),p.classSession?`${p.classSession} class`:''].filter(Boolean).join(' · '):'';
       // On narrower screens hidden columns move under the name instead of making the table scroll.
       const folded=`<div class="pt-sub pt-fold-age">${ageSex}</div><div class="pt-sub pt-fold-college">${escapeHtml(p.college||'No college / department')}</div><div class="pt-sub pt-fold-type">${escapeHtml([p.personType,session].filter(Boolean).join(' · '))}</div>`;
       return `<tr ${p.archived?'style="opacity:.6;cursor:pointer"':'style="cursor:pointer"'} ${bindAction('click',(event,element)=>{viewPatient((p.id))})} title="Click to view patient record">

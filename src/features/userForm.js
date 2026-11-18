@@ -115,7 +115,7 @@ export function reviewNewUser(){
     ${row('Role',escapeHtml(v.role)+(v.specialty?' · '+escapeHtml(clinicForSpecialization(v.specialty)):'')+(v.clinic?' · '+escapeHtml(v.clinic):''))}
     ${v.role==='Doctor'?row('Services rendered',escapeHtml(v.services_rendered.join(', '))):''}
     ${row('Employee ID No.',escapeHtml(v.id_number))}
-    ${row('Username','@'+escapeHtml(v.username))}${row('Email',escapeHtml(v.email))}
+    ${row('Username',escapeHtml(v.username))}${row('Email',escapeHtml(v.email))}
     ${row('Mobile',v.contact_number?escapeHtml(v.contact_number):'<span class="text-muted">Not provided</span>')}
     ${row('Password','Generated and emailed to them only')}
     <p class="form-note au-note"><i class="bi bi-info-circle" aria-hidden="true"></i> The account is active right away. They must change the emailed password when they first sign in.</p>`;
@@ -156,7 +156,7 @@ function showCreatedAccount(){
   document.getElementById('au-review').innerHTML=`<div class="au-done"><span class="au-done-icon" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
     <h4>${escapeHtml(c.first_name+' '+c.last_name)}'s account is ready</h4>
     <p class="form-note">${escapeHtml(status)} <strong>${escapeHtml(c.email)}</strong>. The password is not shown here; they change it when they first sign in.</p>
-    <dl class="au-creds"><div><dt>Username</dt><dd>@${escapeHtml(c.username)}</dd></div><div><dt>Email</dt><dd>${escapeHtml(c.email)}</dd></div><div><dt>Employee No.</dt><dd>${escapeHtml(c.id_number)}</dd></div></dl></div>`;
+    <dl class="au-creds"><div><dt>Username</dt><dd>${escapeHtml(c.username)}</dd></div><div><dt>Email</dt><dd>${escapeHtml(c.email)}</dd></div><div><dt>Employee No.</dt><dd>${escapeHtml(c.id_number)}</dd></div></dl></div>`;
   document.getElementById('au-actions').innerHTML=`<button type="button" class="btn" ${bindAction('click',()=>openAddUserModal())}>Add another</button>
     ${c.role==='Doctor'?`<button type="button" class="btn" ${bindAction('click',()=>openCreatedDoctorSchedule())}>Set schedule</button>`:''}
     <button type="button" class="btn btn-primary" ${bindAction('click',()=>closeAllModals())}>Done</button>`;
@@ -202,7 +202,7 @@ export function openEditUserModal(id){
   openModal(`<div class="modal modal-lg eu-modal">
     <div class="modal-header"><div><h3>Edit user</h3><ol class="eu-steps" aria-label="Steps"><li class="active" id="eu-step-1">Edit details</li><li id="eu-step-2">Review &amp; confirm</li></ol></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body"><div id="edituser-msg"></div>
-      <div class="eu-identity">${userAvatarHtml(u,44)}<div><strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong><span>@${escapeHtml(u.username||'—')} · ${escapeHtml(u.role)} · ${escapeHtml(u.status)}</span></div></div>
+      <div class="eu-identity">${userAvatarHtml(u,44)}<div><strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong><span>${escapeHtml(u.username||'—')} · ${escapeHtml(u.role)} · ${escapeHtml(u.status)}</span></div></div>
       <div id="edituser-fields" ${bindAction('input',()=>markEditChanges(u.id))} ${bindAction('change',()=>markEditChanges(u.id))}>
         <section class="eu-section"><h4>Profile</h4><div class="form-row">
           ${field('eu-fname','first_name','First name',`<input id="eu-fname" maxlength="100" autocomplete="off" value="${escapeHtml(u.fname)}">`)}
@@ -216,7 +216,7 @@ export function openEditUserModal(id){
         ${u.role==='Staff'?`<section class="eu-section"><h4>Clinic</h4><div class="form-row">${field('eu-clinic','clinic','Clinic',`<select id="eu-clinic">${['Medical Clinic','Dental Clinic'].map(value=>`<option ${u.clinic===value?'selected':''}>${value}</option>`).join('')}</select>`)}</div></section>`:''}
         ${u.role==='Doctor'?`<section class="eu-section"><h4>Professional</h4><div class="form-row">${field('eu-spec','specialty','Clinic',`<select id="eu-spec" ${bindAction('change',()=>renderEditServices(u))}>${specialties().map(value=>`<option value="${value}" ${u.specialty===value?'selected':''}>${clinicForSpecialization(value)}</option>`).join('')}</select>`)}</div>
           <fieldset class="au-services"><legend>Services rendered</legend><div id="eu-services">${editServicesHtml(u.specialty,u.servicesRendered)}</div></fieldset></section>`:''}
-        <dl class="eu-locked"><div><dt>Username</dt><dd>@${escapeHtml(u.username||'—')}</dd></div><div><dt>Role</dt><dd>${escapeHtml(u.role)}</dd></div><div><dt>Account status</dt><dd>${escapeHtml(u.status)}</dd></div></dl>
+        <dl class="eu-locked"><div><dt>Username</dt><dd>${escapeHtml(u.username||'—')}</dd></div><div><dt>Role</dt><dd>${escapeHtml(u.role)}</dd></div><div><dt>Account status</dt><dd>${escapeHtml(u.status)}</dd></div></dl>
       </div>
       <section id="edituser-review" hidden></section>
     </div>

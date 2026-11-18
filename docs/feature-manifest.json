@@ -802,6 +802,7 @@
       "openPatientHealthHistory",
       "openHealthHistoryForm",
       "openDentistHealthHistory",
+      "healthHistoryPrintPages",
       "printHealthHistory",
       "healthHistoryNextStepHtml"
     ],
@@ -1769,6 +1770,7 @@
       "./inventoryService.js",
       "./certificateService.js",
       "../dependencies.js",
+      "./profileDetails.js",
       "../../supabase/functions/_shared/contact-validation.js",
       "./inputValidation.js",
       "./idVerification.js",
@@ -1800,6 +1802,7 @@
       "./documentScanner.js",
       "./modals.js",
       "./inputValidation.js",
+      "./profileDetails.js",
       "../dependencies.js",
       "./appointmentService.js",
       "../services/report-snapshot.js",
@@ -1812,7 +1815,8 @@
     "name": "patientRecords",
     "path": "src/features/patientRecords.js",
     "functions": [
-      "renderMyRecords"
+      "renderMyRecords",
+      "openHealthEditModal"
     ],
     "state": [],
     "imports": [
@@ -1828,7 +1832,8 @@
       "../ui/pager.js",
       "../dependencies.js",
       "./patientService.js",
-      "./theme.js"
+      "./theme.js",
+      "./modals.js"
     ]
   },
   {
@@ -1926,6 +1931,7 @@
     "functions": [
       "registrationDetailsCard",
       "healthDetailsCard",
+      "yearLevelLabel",
       "programViewTiles",
       "programEditFields",
       "readProgramFields",

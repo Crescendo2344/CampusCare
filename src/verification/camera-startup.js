@@ -1,7 +1,10 @@
 // Retry unsupported constraints, but never hide a denied permission behind repeated prompts.
 export async function requestCamera(mediaDevices,front){
  if(!mediaDevices?.getUserMedia)throw Object.assign(new Error('Camera unavailable'),{name:'NotSupportedError'});
- const attempts=[{facingMode:{ideal:front?'user':'environment'},width:{ideal:1280},height:{ideal:960}},{facingMode:{ideal:front?'user':'environment'}},true];
+ // A front (selfie) request first insists on the front camera, so phones that ignore a mere preference
+ // still open the selfie camera; devices without one fall back to whatever camera exists.
+ const facing=front?'user':'environment';
+ const attempts=[...(front?[{facingMode:{exact:'user'},width:{ideal:1280},height:{ideal:960}}]:[]),{facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:960}},{facingMode:{ideal:facing}},true];
  for(let index=0;index<attempts.length;index++){
   try{return await mediaDevices.getUserMedia({video:attempts[index],audio:false});}
   catch(error){if(!['OverconstrainedError','ConstraintNotSatisfiedError','NotFoundError','NotReadableError','AbortError'].includes(error.name)||index===attempts.length-1)throw error;}

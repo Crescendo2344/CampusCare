@@ -23,7 +23,7 @@ export function registrationDetailsCard(u,pt){
     return `<div class="card" id="acc-registration">
       <div class="card-header"><div><h3>Registration Details</h3><div class="tech-note">From your verified registration. Ask the clinic to correct anything that is wrong.</div></div></div>
       <div class="user-detail-fields">
-        ${userDetailField('Username',u.username?'@'+u.username:'')}
+        ${userDetailField('Username',u.username||'')}
         ${userDetailField('Patient type',type)}
         ${userDetailField(unitLabel(type),u.college||pt?.college)}
         ${userDetailField(idLabel(type),u.idNo||pt?.idNo)}
@@ -32,7 +32,7 @@ export function registrationDetailsCard(u,pt){
       </div>
     </div>`;
   }
-  const fields=[userDetailField('Username',u.username?'@'+u.username:''),userDetailField(u.role==='Patient'&&u.personType==='Student'?'Student ID No.':'Employee ID No.',u.idNo)];
+  const fields=[userDetailField('Username',u.username||''),userDetailField(u.role==='Patient'&&u.personType==='Student'?'Student ID No.':'Employee ID No.',u.idNo)];
   if(u.role==='Staff')fields.push(userDetailField('Clinic',u.clinic||'Not set'));
   if(u.role==='Doctor'){
     fields.push(userDetailField('Clinic',clinicForSpecialization(u.specialty)));
@@ -47,10 +47,10 @@ export function registrationDetailsCard(u,pt){
 export function healthDetailsCard(pt){
   if(!pt)return '';
   const val=v=>escapeHtml(v||'');
-  const missing=!pt.emergencyName||!pt.emergencyContact||!pt.address;
+  const missing=!pt.address;
   return `<div class="card" id="acc-health">
     <div class="card-header"><div><h3>Emergency Details</h3><div class="tech-note">Who the clinic should contact in an emergency. Keep them up to date.</div></div></div>
-    ${missing?'<div class="alert alert-warning show" style="display:block">Please complete your address and emergency contact.</div>':''}
+    ${missing?'<div class="alert alert-warning show" style="display:block">Please add your home address. The emergency contact is optional.</div>':''}
     <div id="acc-health-msg"></div>
     <div id="hd-view-fields">
       <div class="user-detail-fields">
@@ -63,8 +63,8 @@ export function healthDetailsCard(pt){
     <div id="hd-edit-fields" hidden>
       <div class="form-row">
         <div class="form-group full"><label for="hd-address">Home address</label><input id="hd-address" maxlength="300" autocomplete="street-address" value="${val(pt.address)}" placeholder="House no., street, barangay, city"></div>
-        <div class="form-group"><label for="hd-ename">Emergency contact name</label><input id="hd-ename" maxlength="100" value="${val(pt.emergencyName)}" placeholder="e.g. parent or guardian"></div>
-        <div class="form-group"><label for="hd-econtact">Emergency contact no.</label><input id="hd-econtact" type="tel" inputmode="tel" maxlength="13" value="${val(pt.emergencyContact)}" placeholder="09XXXXXXXXX"></div>
+        <div class="form-group"><label for="hd-ename">Emergency contact name <span class="text-muted">(optional)</span></label><input id="hd-ename" maxlength="100" value="${val(pt.emergencyName)}" placeholder="e.g. parent or guardian"></div>
+        <div class="form-group"><label for="hd-econtact">Emergency contact no. <span class="text-muted">(optional)</span></label><input id="hd-econtact" type="tel" inputmode="tel" maxlength="13" value="${val(pt.emergencyContact)}" placeholder="09XXXXXXXXX"></div>
       </div>
       <button class="btn btn-primary btn-sm" id="hd-save" ${bindAction('click',()=>saveHealthDetails())}>Save Changes</button>
       <button class="btn btn-sm" ${bindAction('click',()=>setHealthEditing(false))}>Cancel</button>
@@ -85,34 +85,38 @@ function setHealthEditing(editing){
 // Course and major live in the Profile Information card and save together with email and contact.
 const isStudentRecord=pt=>pt?.personType==='Student';
 
+// "1st Year" … "4th Year" for a student's year level (1–4), or '' when not given.
+export const YEAR_LEVELS=[[1,'1st Year'],[2,'2nd Year'],[3,'3rd Year'],[4,'4th Year']];
+export function yearLevelLabel(level){return (YEAR_LEVELS.find(([n])=>n===Number(level))||[])[1]||'';}
 export function programViewTiles(pt){
-  return isStudentRecord(pt)?`${userDetailField('Course',pt.course)}${userDetailField('Major',pt.major)}`:'';
+  return isStudentRecord(pt)?`${userDetailField('Year level',yearLevelLabel(pt.yearLevel))}${userDetailField('Course',pt.course)}${userDetailField('Major',pt.major)}`:'';
 }
 
 export function programEditFields(pt){
   if(!isStudentRecord(pt))return '';
   const val=v=>escapeHtml(v||'');
-  return `<div class="form-group"><label for="hd-course">Course</label><input id="hd-course" maxlength="120" value="${val(pt.course)}" placeholder="e.g. BS Information Technology"></div>
+  return `<div class="form-group"><label for="hd-year">Year level</label><select id="hd-year"><option value="">Select year</option>${YEAR_LEVELS.map(([n,label])=>`<option value="${n}" ${Number(pt.yearLevel)===n?'selected':''}>${label}</option>`).join('')}</select></div>
+    <div class="form-group"><label for="hd-course">Course</label><input id="hd-course" maxlength="120" value="${val(pt.course)}" placeholder="e.g. BS Information Technology"></div>
     <div class="form-group"><label for="hd-major">Major</label><input id="hd-major" maxlength="120" value="${val(pt.major)}" placeholder="If any"></div>`;
 }
 
 // The course and major typed into the profile form, or null when the form has none (not a student).
 export function readProgramFields(){
-  const course=document.getElementById('hd-course'),major=document.getElementById('hd-major');
-  return course&&major?{course:course.value.trim(),major:major.value.trim()}:null;
+  const course=document.getElementById('hd-course'),major=document.getElementById('hd-major'),year=document.getElementById('hd-year');
+  return course&&major?{course:course.value.trim(),major:major.value.trim(),yearLevel:year?.value?Number(year.value):''}:null;
 }
 
 export function programChanged(program){
   const pt=appState.auth.currentPatient||{};
-  return !!program&&(program.course!==String(pt.course||'')||program.major!==String(pt.major||''));
+  return !!program&&(program.course!==String(pt.course||'')||program.major!==String(pt.major||'')||String(program.yearLevel||'')!==String(pt.yearLevel||''));
 }
 
-export async function savePatientProgram({course,major}){
+export async function savePatientProgram({course,major,yearLevel=''}){
   const pt=appState.auth.currentPatient||{};
   // self_update overwrites every field, so resend the health details unchanged.
   await patientAction({action:'self_update',address:pt.address||'',emergency_contact_name:pt.emergencyName||'',emergency_contact_number:pt.emergencyContact||'',
     blood_type:pt.blood||'Unknown',height_cm:numeric(pt.height),weight_kg:numeric(pt.weight),allergies:pt.allergies||'',
-    medical_history:pt.medHistory||'',course,major});
+    medical_history:pt.medHistory||'',course,major,year_level:yearLevel||''});
   await syncCurrentPatientFromSupabase();
 }
 

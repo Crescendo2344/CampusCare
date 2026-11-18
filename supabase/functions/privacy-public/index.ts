@@ -21,7 +21,7 @@ Deno.serve(async(req)=>{
     );
 
     const {data,error}=await admin.from("system_settings")
-      .select("privacy_policy_version,privacy_policy_updated")
+      .select("privacy_policy_version,privacy_policy_updated,privacy_policy_changes")
       .order("settings_id",{ascending:true})
       .limit(1)
       .maybeSingle();
@@ -31,7 +31,8 @@ Deno.serve(async(req)=>{
     return json({
       ok:true,
       privacy_policy_version:String(data?.privacy_policy_version||"1.0"),
-      privacy_policy_updated:data?.privacy_policy_updated||null
+      privacy_policy_updated:data?.privacy_policy_updated||null,
+      privacy_policy_changes:data?.privacy_policy_changes||""
     });
   }catch(e){
     return json({error:e instanceof Error?e.message:"Unable to load privacy notice information."},500);

@@ -1616,12 +1616,15 @@ try{
     const form=page.locator('.fv-modal');await form.waitFor();
     await form.getByRole('button',{name:'Save',exact:true}).click();
     // Details already on file are prefilled; blank boxes may stay blank, and a bad value keeps the form open.
-    await form.locator('#fv-econtact').fill('');
+    // The emergency contact is optional, so it is not one of the details left to finish.
+    assert.equal(await form.locator('#fv-econtact').count(),0,'The optional emergency contact is not asked for here');
+    await form.locator('#fv-contact').fill('0912');
     await form.getByRole('button',{name:'Save',exact:true}).click();
-    assert(await form.isVisible(),'An incomplete emergency contact is not saved');
+    assert(await form.isVisible(),'An incomplete mobile number is not saved');
     // Phone boxes take digits only, 11 at most.
-    await form.locator('#fv-econtact').pressSequentially('0890-789677856756');
-    assert.equal(await form.locator('#fv-econtact').inputValue(),'08907896778');
+    await form.locator('#fv-contact').fill('');
+    await form.locator('#fv-contact').pressSequentially('0890-789677856756');
+    assert.equal(await form.locator('#fv-contact').inputValue(),'08907896778');
     if(await form.locator('#fv-height-unit').count()){await form.locator('#fv-height-unit').selectOption('in');}
     if(process.env.CAMPUSCARE_VISUAL_DIR)await form.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/finish-verification-${mobile?'mobile':'desktop'}.png`});
     await form.getByRole('button',{name:'Later'}).click();

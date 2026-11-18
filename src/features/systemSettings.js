@@ -45,7 +45,8 @@ export async function saveRealSystemSettings(s=appState.data.DB.settings,confirm
     lunch_end:s.lunchBreakEnd||'13:00',
     schedule_change_notice_days:Number(s.scheduleChangeNoticeDays??3),
     privacy_policy_version:s.privacyPolicyVersion||'1.0',
-    privacy_policy_updated:s.privacyPolicyUpdated||appState.clinicInformation.TODAY
+    privacy_policy_updated:s.privacyPolicyUpdated||appState.clinicInformation.TODAY,
+    privacy_policy_changes:s.privacyPolicyChanges||''
   });
 
   if(result.settings)await syncRealSystemSettings();

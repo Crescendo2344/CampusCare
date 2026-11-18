@@ -207,6 +207,9 @@ export function updateRegistrationIdentityFields(){
 
   const isStudent=pt==='Student';
   const isTeaching=pt==='Teaching Personnel';
+  // Only students have a year level.
+  const yearGroup=document.getElementById('r-year-group');
+  if(yearGroup){yearGroup.hidden=!isStudent;if(!isStudent){const year=document.getElementById('r-year');if(year)year.value='';}}
   const units=isStudent||isTeaching
     ? appState.documentScanner.REGISTRATION_ACADEMIC_UNITS
     : appState.documentScanner.REGISTRATION_NONTEACHING_DEPARTMENTS;

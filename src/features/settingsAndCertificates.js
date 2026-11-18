@@ -248,12 +248,15 @@ function privacyPanelHtml(s){
       </div>
     </div>
     <div class="card" id="privacy-version-card">
-      <div class="card-header"><h3>Notice version</h3><button type="button" class="btn btn-sm" id="privacy-version-edit" ${bindAction('click',()=>setPrivacyVersionEditing(true))}><i class="bi bi-pencil" aria-hidden="true"></i> Edit</button></div>
-      <fieldset class="settings-group" id="privacy-version-fields" disabled><legend><i class="bi bi-file-earmark-text" aria-hidden="true"></i> Published notice</legend>
+      <div class="card-header"><h3>Notice version</h3><button type="button" class="btn btn-sm" id="privacy-version-edit" ${bindAction('click',()=>setPrivacyVersionEditing(true))}><i class="bi bi-pencil" aria-hidden="true"></i> Publish a new version</button></div>
+      <p class="form-note privacy-version-why">The version number tracks who has agreed to which notice. Publishing a new version asks <strong>every user to read the notice and acknowledge it again</strong> at their next sign-in, and records each acknowledgement against that version. Use it whenever the clinic changes how personal data is collected, used, shared or kept, and describe the change below so people know what to look for.</p>
+      ${s.privacyPolicyChanges?`<div class="privacy-changes-current"><strong>What changed in version ${escapeHtml(s.privacyPolicyVersion||'1.0')}</strong><p>${escapeHtml(s.privacyPolicyChanges)}</p></div>`:''}
+      <fieldset class="settings-group" id="privacy-version-fields" disabled><legend><i class="bi bi-file-earmark-text" aria-hidden="true"></i> New version</legend>
         <div class="form-row">
-          <div class="form-group"><label for="set-privacy-version">Version</label><input id="set-privacy-version" maxlength="40" value="${escapeHtml(s.privacyPolicyVersion||'1.0')}"></div>
+          <div class="form-group"><label for="set-privacy-version">Version</label><input id="set-privacy-version" maxlength="40" value="${escapeHtml(s.privacyPolicyVersion||'1.0')}" data-current="${escapeHtml(s.privacyPolicyVersion||'1.0')}"></div>
           <div class="form-group"><label for="set-privacy-updated">Updated on</label>${campusDateFieldHtml('set-privacy-updated',s.privacyPolicyUpdated||appState.clinicInformation.TODAY,'Privacy Notice Updated')}</div>
         </div>
+        <div class="form-group"><label for="set-privacy-changes">What changed <span class="required">*</span></label><textarea id="set-privacy-changes" rows="4" maxlength="2000" placeholder="e.g. We now keep verification selfies for 30 days after approval instead of 90 days."></textarea></div>
       </fieldset>
       <div class="settings-edit-actions" id="privacy-version-actions" hidden>
         <button type="button" class="btn btn-sm" ${bindAction('click',()=>renderSettings())}>Cancel</button>
@@ -277,7 +280,13 @@ function setPrivacyVersionEditing(on){
   const fields=document.getElementById('privacy-version-fields');if(fields)fields.disabled=!on;
   const edit=document.getElementById('privacy-version-edit');if(edit)edit.hidden=on;
   const actions=document.getElementById('privacy-version-actions');if(actions)actions.hidden=!on;
-  if(on)document.getElementById('set-privacy-version')?.focus();
+  if(on){
+    // Suggest the next version number (1.0 → 1.1) and today's date for a new publication.
+    const input=document.getElementById('set-privacy-version');
+    if(input&&input.value===input.dataset.current){const m=input.value.match(/^(\d+)\.(\d+)$/);if(m)input.value=`${m[1]}.${Number(m[2])+1}`;}
+    const date=document.getElementById('set-privacy-updated');if(date)date.value=appState.clinicInformation.TODAY;
+    input?.focus();
+  }
 }
 function openResolvePrivacyRequest(r){
   openModal(`<div class="modal modal-sm" role="dialog" aria-labelledby="pr-title">
@@ -310,9 +319,21 @@ export async function syncPrivacyRequests(){
 export async function savePrivacySettings(){
   const version=document.getElementById('set-privacy-version')?.value.trim()||'';
   const updated=document.getElementById('set-privacy-updated')?.value||appState.clinicInformation.TODAY;
+  const changes=document.getElementById('set-privacy-changes')?.value.trim()||'';
+  const current=appState.data.DB.settings?.privacyPolicyVersion||'1.0';
 
   if(!version){
     toast('Privacy notice version is required.','warning');
+    return;
+  }
+  if(version===current){
+    toast(`Version ${current} is already published. Use a new version number so everyone is asked to acknowledge the change.`,'warning');
+    document.getElementById('set-privacy-version')?.focus();
+    return;
+  }
+  if(changes.length<10){
+    toast('Describe what changed in this version (at least 10 characters).','warning');
+    document.getElementById('set-privacy-changes')?.focus();
     return;
   }
 
@@ -321,17 +342,18 @@ export async function savePrivacySettings(){
     message:`Publish <strong>version ${escapeHtml(version)}</strong> of the Privacy Notice? Everyone will be asked to acknowledge it at their next sign-in.`,
     confirmLabel:'Publish',
     onConfirm:async()=>{
-      const settings=appState.data.DB.settings,previous={version:settings.privacyPolicyVersion,updated:settings.privacyPolicyUpdated};
-      const apply=async(v,u)=>{
+      const settings=appState.data.DB.settings,previous={version:settings.privacyPolicyVersion,updated:settings.privacyPolicyUpdated,changes:settings.privacyPolicyChanges||''};
+      const apply=async(v,u,c)=>{
         settings.privacyPolicyVersion=v;
         settings.privacyPolicyUpdated=u;
+        settings.privacyPolicyChanges=c;
         await saveRealSystemSettings();
         await syncPrivacyAdminSummary();
         await renderSettings();
       };
       try{
-        await apply(version,updated);
-        toastWithUndo(`Privacy Notice version ${version} published.`,()=>apply(previous.version,previous.updated),{undoneMessage:'Previous privacy notice version restored.'});
+        await apply(version,updated,changes);
+        toastWithUndo(`Privacy Notice version ${version} published.`,()=>apply(previous.version,previous.updated,previous.changes),{undoneMessage:'Previous privacy notice version restored.'});
       }catch(e){
         toast(e?.message||'Unable to update the privacy notice version.','error');
       }
