@@ -16,10 +16,18 @@ export async function queueConfirmationEmail(admin,{email,userId=null,firstName=
   // Supabase may issue a signup token instead for an unconfirmed account; the link says which.
   const linkType=['signup','magiclink'].includes(link?.properties?.verification_type)?link.properties.verification_type:'magiclink';
   const url=authRedirect('confirmed',read)+'&type='+linkType+'&token_hash='+encodeURIComponent(tokenHash);
+  // With automatic verification on (the default), confirming the email also verifies the account.
+  let autoVerify=true;
+  try{
+    const {data:settings}=await admin.from('system_settings').select('auto_verify_registrations').order('settings_id',{ascending:true}).limit(1).maybeSingle();
+    autoVerify=settings?.auto_verify_registrations!==false;
+  }catch{ /* keep the default wording */ }
   const queued=await queueEmail(admin,{to:email,userId,subject:CONFIRM_SUBJECT,template:'verification',
     title:'Confirm your email',label:'Welcome',tone:'success',name:firstName||'there',
     paragraphs:['Thank you for registering with CampusCare, the CTU Main Campus clinic system. Use the button below to confirm your email address.',
-      'After that, the clinic reviews your ID and selfie. You can log in once your registration is approved.'],
+      autoVerify
+        ?'Confirming your email also verifies your account, so you can log in and book appointments right away. The clinic may still check your ID photos.'
+        :'After that, the clinic reviews your ID and selfie. You can log in once your registration is approved.'],
     button:{label:'Confirm my email',url},
     note:'This link works once and only for a short time. If it has expired, open CampusCare and choose "Resend verification email". If you did not register, ignore this email.'});
   if(!queued)return false;

@@ -6,6 +6,7 @@ import {escapeHtml} from './issueReports.js';
 import {applyNavBadges} from './topbarAndNavigation.js';
 import {appointmentRecords} from './appointmentService.js';
 import {inventoryRecords} from './inventoryService.js';
+import {detectUnit,extractIdName,extractIdNumber,scanMatches} from '../domain/id-scan.js';
 // ================================================================
 // REGISTRATION DOCUMENT SCANNER
 // Reads Student and Employee ID front photos locally in the browser.
@@ -36,59 +37,65 @@ export function loadTesseract(){
 // Invalidate in-flight recognition when an ID is replaced or the person type changes.
 export function clearRegistrationScan(){
   appState.documentScanner.scanVersion=(appState.documentScanner.scanVersion||0)+1;
-  Object.assign(appState.documentScanner,{lastOcrRawText:'',lastOcrCleanText:'',lastOcrConfidence:0,lastOcrDocumentType:'',lastOcrDetectedId:''});
+  Object.assign(appState.documentScanner,{lastOcrRawText:'',lastOcrBackText:'',lastOcrCleanText:'',lastOcrConfidence:0,lastOcrDocumentType:'',lastOcrDetectedId:'',scanSummary:null,lastFilled:[]});
   scannerStatus();
+  const note=document.getElementById('r-id-scan-note');if(note)note.hidden=true;
 }
 
-export async function analyzeIdImage(dataUrl,fallbackDataUrl=''){
-  clearRegistrationScan();
+// A clearer copy for OCR: at least 1600 px wide, greyscale, with the contrast stretched so faint
+// print on a glossy card reads better. The original is used too if it reads better.
+export async function enhanceIdImage(dataUrl){
+  const img=await new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=reject;i.src=dataUrl;});
+  const scale=Math.min(2.5,Math.max(1,1600/Math.max(1,img.naturalWidth)));
+  const w=Math.round(img.naturalWidth*scale),h=Math.round(img.naturalHeight*scale);
+  const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0,w,h);
+  const data=ctx.getImageData(0,0,w,h),px=data.data,hist=new Array(256).fill(0);
+  for(let i=0;i<px.length;i+=4){const g=Math.round(.299*px[i]+.587*px[i+1]+.114*px[i+2]);px[i]=g;hist[g]++;}
+  // Ignore the darkest and brightest 1% when stretching.
+  const total=w*h;let lo=0,hi=255,acc=0;
+  for(;lo<255&&(acc+=hist[lo])<total*.01;lo++);
+  acc=0;for(;hi>0&&(acc+=hist[hi])<total*.01;hi--);
+  const range=Math.max(1,hi-lo);
+  for(let i=0;i<px.length;i+=4){const v=Math.max(0,Math.min(255,(px[i]-lo)*255/range));px[i]=px[i+1]=px[i+2]=v;}
+  ctx.putImageData(data,0,0);
+  return canvas.toDataURL('image/jpeg',.92);
+}
+
+// side: 'front' reads everything; 'back' only fills what the front did not give (usually the ID number).
+export async function analyzeIdImage(dataUrl,{side='front'}={}){
+  if(side==='front')clearRegistrationScan();
   const version=appState.documentScanner.scanVersion,current=()=>version===appState.documentScanner.scanVersion;
-  scannerStatus('Scanning text and checking the document…','',18);
+  showScanNote('Reading your ID…','busy');
   try{
     const Tesseract=await loadTesseract();
-    const run=async source=>{
-      const result=await Tesseract.recognize(source,'eng',{
-        logger:m=>{
-          if(current()&&m.status==='recognizing text'&&Number.isFinite(m.progress)){
-            scannerStatus('Scanning text and checking the document…','',20+Math.round(m.progress*68));
-          }
-        }
-      });
-      return result?.data||{};
-    };
-
-    let data=await run(dataUrl);
+    const run=async source=>(await Tesseract.recognize(source,'eng'))?.data||{};
+    let data={};
+    try{data=await run(await enhanceIdImage(dataUrl));}catch{ /* fall back to the original below */ }
     if(!current())return;
-    // One fallback OCR pass is used only when the enhanced image scored poorly.
-    if((Number(data.confidence)||0)<42&&fallbackDataUrl){
-      scannerStatus('Trying the original image for a clearer read…','',72);
-      const fallback=await run(fallbackDataUrl);
-      if((Number(fallback.confidence)||0)>(Number(data.confidence)||0))data=fallback;
+    if((Number(data.confidence)||0)<60){
+      const original=await run(dataUrl);
+      if((Number(original.confidence)||0)>(Number(data.confidence)||0))data=original;
     }
-
     if(!current())return;
-    appState.documentScanner.lastOcrRawText=String(data.text||'').trim();
-    appState.documentScanner.lastOcrConfidence=Math.round(Number(data.confidence)||0);
-    appState.documentScanner.lastOcrCleanText=appState.documentScanner.lastOcrRawText
-      .replace(/[^\p{L}\p{N}\s.'\-:/]/gu,' ')
-      .replace(/\s+/g,' ')
-      .trim();
-
-    handleOcrResult();
+    const text=String(data.text||'').trim();
+    if(side==='back'){
+      appState.documentScanner.lastOcrBackText=text;
+    }else{
+      appState.documentScanner.lastOcrRawText=text;
+      appState.documentScanner.lastOcrConfidence=Math.round(Number(data.confidence)||0);
+      appState.documentScanner.lastOcrCleanText=text.replace(/[^\p{L}\p{N}\s.'\-:/]/gu,' ').replace(/\s+/g,' ').trim();
+    }
+    handleOcrResult(side);
   }catch(e){
     if(!current())return;
-    appState.documentScanner.lastOcrRawText='';
-    appState.documentScanner.lastOcrCleanText='';
-    scannerStatus(
-      `Automatic scanning was unavailable or the document was too unclear. Your upload is still accepted; please double-check the typed details yourself.`,
-      'warning'
-    );
+    showScanNote('Your ID could not be read automatically. That is fine: type your details yourself.','warn');
   }
 }
 
 export function normalizeOcrText(value=''){
   return String(value||'')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g,' ')
     .replace(/\s+/g,' ')
@@ -103,82 +110,75 @@ export function detectRegistrationDocumentType(rawText=''){
   return 'Document';
 }
 
-export function extractRegistrationId(rawText='',personType='Student'){
-  const expected=personType==='Student'?7:5;
-  const normalized=String(rawText||'').replace(/[Oo]/g,'0');
-
-  // Allow OCR spaces/hyphens between digits, then normalize.
-  const flexible=new RegExp(`(?:\\d[\\s\\-:]*){${expected}}`,'g');
-  const candidates=(normalized.match(flexible)||[])
-    .map(v=>v.replace(/\D/g,''))
-    .filter(v=>v.length===expected);
-
-  const unique=[...new Set(candidates)];
-  if(!unique.length)return '';
-
-  // Prefer a candidate near ID-related wording.
-  const lines=normalized.split(/\r?\n/);
-  for(const line of lines){
-    if(!/\b(id|student|employee|number|no\.?)\b/i.test(line))continue;
-    for(const id of unique){
-      if(line.replace(/\D/g,'').includes(id))return id;
-    }
-  }
-  return unique[0];
-}
-
-export function extractOcrName(rawText=''){
-  const lines=String(rawText||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  for(const line of lines){
-    const m=line.match(/(?:student\s+name|employee\s+name|name)\s*[:\-]\s*([A-Za-zÀ-ÿ.'\- ]{4,80})/i);
-    if(m){
-      const cleaned=m[1].replace(/\s+/g,' ').trim();
-      const parts=cleaned.split(' ').filter(Boolean);
-      if(parts.length>=2)return {first:parts[0],last:parts[parts.length-1]};
-    }
-  }
-  return null;
-}
+export function extractRegistrationId(rawText='',personType='Student'){return extractIdNumber(rawText,personType);}
+export function extractOcrName(rawText=''){return extractIdName(rawText);}
 
 export function capitalizeName(s){
   return String(s||'').split(/([ '-])/).map(part=>{
     if(/^[A-Za-zÀ-ÿ]/.test(part))return part.charAt(0).toUpperCase()+part.slice(1).toLowerCase();
     return part;
   }).join('');
-  applyNavBadges();
 }
 
-export function handleOcrResult(){
+// A short note under the ID photos: what was read and filled, or what does not match. Never the raw text.
+function showScanNote(text,tone=''){
+  let note=document.getElementById('r-id-scan-note');
+  const anchor=document.getElementById('r-id-status');
+  if(!note&&anchor){note=document.createElement('p');note.id='r-id-scan-note';note.setAttribute('aria-live','polite');anchor.after(note);}
+  if(!note)return;
+  note.className=`registration-scan-note ${tone}`;note.hidden=!text;
+  note.innerHTML=text?`<i class="bi ${tone==='busy'?'bi-hourglass-split':tone==='warn'?'bi-exclamation-triangle':'bi-upc-scan'}" aria-hidden="true"></i> <span>${text}</span>`:'';
+}
+// Fill a field the applicant left empty, or one the scan filled before (a new photo replaces it).
+function fillFromScan(input,value,key){
+  if(!input||!value)return false;
+  const filled=appState.documentScanner.autofilled??={};
+  const current=input.value.trim();
+  if(current&&current!==filled[key])return false;
+  if(current===value)return false;
+  input.value=value;filled[key]=value;
+  input.classList.add('scan-filled');setTimeout(()=>input.classList.remove('scan-filled'),4000);
+  input.dispatchEvent(new window.Event('input',{bubbles:true}));
+  return true;
+}
+
+export function handleOcrResult(side='front'){
   const fnameInput=document.getElementById('r-fname');
   const lnameInput=document.getElementById('r-lname');
   const idInput=document.getElementById('r-idno');
+  const collegeInput=document.getElementById('r-college');
   const pt=document.getElementById('r-ptype')?.value||'Student';
-  if(!fnameInput||!lnameInput||!idInput||!appState.documentScanner.lastOcrRawText)return;
+  const text=[appState.documentScanner.lastOcrRawText,appState.documentScanner.lastOcrBackText].filter(Boolean).join('\n');
+  if(!fnameInput||!lnameInput||!idInput||!text){if(side==='front')showScanNote('Nothing readable was found on the ID photo. Type your details yourself, or retake a sharper photo.','warn');return;}
 
-  appState.documentScanner.lastOcrDocumentType=detectRegistrationDocumentType(appState.documentScanner.lastOcrRawText);
-  appState.documentScanner.lastOcrDetectedId=extractRegistrationId(appState.documentScanner.lastOcrRawText,pt);
-
-  const name=extractOcrName(appState.documentScanner.lastOcrRawText);
-  let autoFilledName=false;
-  let autoFilledId=false;
-
-  if(name&&!fnameInput.value.trim()&&!lnameInput.value.trim()){
-    fnameInput.value=capitalizeName(name.first).slice(0,50);
-    lnameInput.value=capitalizeName(name.last).slice(0,50);
-    autoFilledName=true;
+  appState.documentScanner.lastOcrDocumentType=detectRegistrationDocumentType(appState.documentScanner.lastOcrRawText||text);
+  appState.documentScanner.lastOcrDetectedId=extractIdNumber(text,pt);
+  const filled=[];
+  const name=extractIdName(appState.documentScanner.lastOcrRawText||text);
+  if(name){
+    if(fillFromScan(fnameInput,name.first.slice(0,50),'first'))filled.push('first name');
+    if(fillFromScan(lnameInput,name.last.slice(0,50),'last'))filled.push('last name');
   }
-
-  if(appState.documentScanner.lastOcrDetectedId&&!idInput.value.trim()){
-    idInput.value=appState.documentScanner.lastOcrDetectedId;
-    sanitizeRegistrationId(idInput);
-    autoFilledId=true;
-  }
-
-  recheckNameMatch(autoFilledName||autoFilledId);
+  if(fillFromScan(idInput,appState.documentScanner.lastOcrDetectedId,'id')){sanitizeRegistrationId(idInput);filled.push(pt==='Student'?'Student ID number':'Employee ID number');}
+  const units=pt==='Non-Teaching Personnel'?appState.documentScanner.REGISTRATION_NONTEACHING_DEPARTMENTS:appState.documentScanner.REGISTRATION_ACADEMIC_UNITS;
+  const unit=detectUnit(text,units||[]);
+  if(collegeInput&&unit&&!collegeInput.value){collegeInput.value=unit;collegeInput.dispatchEvent(new window.Event('change',{bubbles:true}));filled.push(pt==='Non-Teaching Personnel'?'department':'college');}
+  appState.documentScanner.lastFilled=filled;
+  recheckNameMatch();
 }
 
+// Compares what the applicant typed with the ID text, keeps a summary for the registration, and says so.
 export function recheckNameMatch(){
-  // Staff compare the submitted details and original evidence during account approval.
+  const text=[appState.documentScanner.lastOcrRawText,appState.documentScanner.lastOcrBackText].filter(Boolean).join('\n');
+  if(!text){appState.documentScanner.scanSummary=null;return;}
+  const typed={first:document.getElementById('r-fname')?.value||'',last:document.getElementById('r-lname')?.value||'',idNo:document.getElementById('r-idno')?.value||''};
+  const match=scanMatches(text,typed);
+  appState.documentScanner.scanSummary={...match,confidence:appState.documentScanner.lastOcrConfidence||0,
+    document_type:appState.documentScanner.lastOcrDocumentType||'',filled:appState.documentScanner.lastFilled||[]};
+  const filled=appState.documentScanner.lastFilled||[];
+  const problems=[typed.last&&!match.name_match&&'the name you typed',typed.idNo&&!match.id_match&&'the ID number you typed'].filter(Boolean);
+  const lead=filled.length?`Filled from your ID: ${filled.join(', ')}. Please check them.`:'Your ID was read.';
+  showScanNote(problems.length?`${lead} We could not find ${problems.join(' or ')} on the ID photo. Check the spelling, or retake a clearer photo.`:lead,problems.length?'warn':'ok');
 }
 
 export function sanitizeRegistrationId(el){

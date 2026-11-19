@@ -1958,3 +1958,16 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .dental-visit-summary .dvs-recent li[aria-current] strong{color:var(--primary)}
 .dental-visit-summary .dvs-note{margin-top:1rem;display:flex;gap:.45rem;align-items:flex-start}
 .reappoint-modal #ra-slots .slot.selected{background:var(--primary);border-color:var(--primary);color:var(--on-primary,#fff)}
+/* Approvals: waiting / auto-verified lists and the automatic verification switch. */
+.approval-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap;margin-bottom:.75rem}
+.approval-auto-switch{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .8rem;border:1px solid var(--line);border-radius:999px;background:var(--glass-surface-soft);font-size:.84rem;font-weight:600;cursor:pointer}
+.approval-auto-switch input{width:1.05rem;height:1.05rem;accent-color:var(--primary)}
+.approval-auto-intro{font-size:.86rem;color:var(--ink-muted);margin:0 0 .6rem;display:flex;gap:.45rem;align-items:flex-start}
+.approval-flag.ok{background:var(--success-bg,#e7f6ec);color:var(--success,#0b6b3a)}
+.approval-flag.info{background:var(--overlay);color:var(--ink-muted)}
+/* Registration: what the ID scan read and filled. */
+.registration-scan-note{display:flex;gap:.4rem;align-items:flex-start;margin:.45rem 0 0;padding:.5rem .7rem;border-radius:10px;font-size:.8rem;line-height:1.45;background:var(--info-bg,var(--overlay));color:var(--ink)}
+.registration-scan-note.ok{background:var(--success-bg,#e7f6ec)}
+.registration-scan-note.warn{background:var(--warning-bg,#fff4e0)}
+.registration-scan-note.busy{color:var(--ink-muted)}
+input.scan-filled,select.scan-filled{box-shadow:0 0 0 2px var(--primary);transition:box-shadow .4s}

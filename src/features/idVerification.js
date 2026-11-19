@@ -74,6 +74,8 @@ export function saveRegistrationId(side,dataUrl,file=null,scope=activeVerificati
   selectRegistrationIdSide(side==='front'?'back':side,scope);
   // Name matching against the typed registration details applies to public sign-ups only.
   if(side==='front'&&scope==='r')analyzeIdImage(dataUrl).catch(()=>{});
+  // The back often carries the ID number; it only fills what the front did not give.
+  if(side==='back'&&scope==='r')analyzeIdImage(dataUrl,{side:'back'}).catch(()=>{});
   return true;
 }
 export async function handleRegistrationIdUpload(input,side,scope=activeVerificationScope()){

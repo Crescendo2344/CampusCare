@@ -444,7 +444,7 @@ export async function handleCampusCareAuthCallback(){
     }
     resetAuthUiToLogin();
     toast(session?.user
-      ? (pending?'Email confirmed successfully. Your registration is still pending administrator approval.':'Email confirmed successfully. Please log in to CampusCare.')
+      ? (pending?'Email confirmed successfully. Your registration is still pending administrator approval.':'Email confirmed. Your account is verified, so you can log in to CampusCare now.')
       : 'Please log in to CampusCare. If your confirmation link expired, request a new verification email.',
       session?.user?'success':'info',6500);
     return pending?'confirmed-pending':'confirmed';

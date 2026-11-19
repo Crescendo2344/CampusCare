@@ -21,7 +21,7 @@ Deno.serve(async(req)=>{
     );
 
     const {data,error}=await admin.from("system_settings")
-      .select("privacy_policy_version,privacy_policy_updated,privacy_policy_changes")
+      .select("privacy_policy_version,privacy_policy_updated,privacy_policy_changes,auto_verify_registrations")
       .order("settings_id",{ascending:true})
       .limit(1)
       .maybeSingle();
@@ -32,7 +32,9 @@ Deno.serve(async(req)=>{
       ok:true,
       privacy_policy_version:String(data?.privacy_policy_version||"1.0"),
       privacy_policy_updated:data?.privacy_policy_updated||null,
-      privacy_policy_changes:data?.privacy_policy_changes||""
+      privacy_policy_changes:data?.privacy_policy_changes||"",
+      // Whether confirming the email also verifies a new registration (shown on the sign-up screens).
+      auto_verify_registrations:data?.auto_verify_registrations!==false
     });
   }catch(e){
     return json({error:e instanceof Error?e.message:"Unable to load privacy notice information."},500);

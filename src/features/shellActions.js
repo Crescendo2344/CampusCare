@@ -33,7 +33,11 @@ export function initializeFeature(){
   registerNamedAction('landing-book-appointment',()=>showAuthPage('login'));
   registerNamedAction('registration-contact-blur',(event,element)=>validateRegistrationContact(element));
   // Fields report their own error after the person leaves them, then update live while being corrected.
-  registerNamedAction('registration-field-blur',(event,element)=>{validateRegistrationField(element.id)});
+  registerNamedAction('registration-field-blur',(event,element)=>{
+    validateRegistrationField(element.id);
+    // A corrected name or ID number is compared with the ID photo again.
+    if(['r-fname','r-lname','r-idno'].includes(element.id))recheckNameMatch();
+  });
   registerNamedAction('registration-confirm-input',(event,element)=>{sanitizeInput(element,'password');validateRegistrationField(element.id,false)});
   registerNamedAction('shell-7',(event,element)=>{document.querySelector('.landing-nav-links').classList.toggle('mobile-show')});
   registerNamedAction('shell-8',(event,element)=>{showAuthPage('login')});
