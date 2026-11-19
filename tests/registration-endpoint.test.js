@@ -18,7 +18,9 @@ async function fixture({requireEmail=false,confirmationFailure=false,uploadFailu
     from(table){return {select(){return this;},delete(){return this;},ilike(){return this;},limit:async()=>({data:table==='patients'?sameBirthday.map(users=>({users})):[]}),update(body){updates.push(body);return this;},eq(){return this;},maybeSingle:async()=>({data:{user_id:1}}),insert:async()=>({error:null})};},
     storage:{from(bucket){return {upload:async(path,file)=>{uploads.push({bucket,path,size:file.size});return {error:uploadFailure&&uploads.length===2?new Error('Fixture upload failed'):null};},remove:async paths=>{removes.push(paths);return {};}};}}};
   globalThis.__registrationClient=()=>client;
-  globalThis.__registrationContact={emailValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,registrationHealthErrors,authRedirect,existingRegistrationFor};
+  // CampusCare's own mailer sends the confirmation; the fake records what would be emailed.
+  const queueConfirmationEmail=async(admin,options)=>{signups.push(options);return !confirmationFailure;};
+  globalThis.__registrationContact={emailValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,registrationHealthErrors,authRedirect,existingRegistrationFor,queueConfirmationEmail};
   const environment={SUPABASE_URL:'https://fixture.test',SUPABASE_ANON_KEY:'fixture',SUPABASE_SERVICE_ROLE_KEY:'fixture-private-key',CAMPUSCARE_REQUIRE_EMAIL_CONFIRMATION:String(requireEmail),...(captcha?{TURNSTILE_SITE_KEY:'0x4-fixture-site-key',TURNSTILE_SECRET_KEY:'fixture-secret'}:{}),...env};
   globalThis.Deno={env:{get:name=>environment[name]},serve:fn=>{handler=fn;}};
   globalThis.__registrationFetch=async(url,options)=>{
@@ -29,7 +31,7 @@ async function fixture({requireEmail=false,confirmationFailure=false,uploadFailu
     return Response.json({success:!duplicate,hostname:'campuscare-brown-two.vercel.app',action:'campuscare_register',...verdict});
   };
   const source=readFileSync('supabase/functions/register-patient/index.ts','utf8').replace(/^import[^\n]+\n/gm,'');
-  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const {emailValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,registrationHealthErrors,authRedirect,existingRegistrationFor}=globalThis.__registrationContact;const createClient=globalThis.__registrationClient;const fetch=globalThis.__registrationFetch;\n'+source)+'\n// '+Math.random()).toString('base64'));
+  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const {emailValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,registrationHealthErrors,authRedirect,existingRegistrationFor,queueConfirmationEmail}=globalThis.__registrationContact;const createClient=globalThis.__registrationClient;const fetch=globalThis.__registrationFetch;\n'+source)+'\n// '+Math.random()).toString('base64'));
   const call=async({details={},source='camera',consent=true,back=true,same=false,type='image/png',documentType='Student ID',token='fixture-captcha',ip='198.51.100.1',xff='',email='fixture@example.test',contact='',id='1234567',size=null}={})=>{
     const form=new FormData();form.set('email',email);form.set('captcha_token',token);form.set('password',details.password||'Clinic-Pass1!');form.set('selfie_capture_source',source);
     form.set('metadata',JSON.stringify({first_name:'Ana',last_name:'Reyes',username:'fixture',college:'COE',date_of_birth:'2004-05-06',sex:'Female',blood_type:'O+',height_cm:158,weight_kg:52.5,allergies:'None',emergency_contact_name:'Maria Reyes',emergency_contact_number:'09998887777',...details,contact_no:contact,id_number:id,person_type:'Student',verification_document_type:documentType,privacy_consent:consent,role:'Administrator',registration_context:'internal'}));
@@ -50,9 +52,12 @@ test('registration rejects missing camera-source evidence and consent before cre
     const f=await fixture();assert.equal((await f.call(options)).status,400);assert.equal(f.creates.length,0);assert.equal(f.uploads.length,0);
   }
 });
-test('email confirmation uses a provider-managed link even when the old bypass flag is false',async()=>{
+test('email confirmation is sent by CampusCare\'s own mailer, not Supabase\'s rate-limited one',async()=>{
   const f=await fixture({requireEmail:true});const r=await f.call();assert.equal(r.status,200);assert.equal((await r.json()).email_confirmation_required,true);
-  assert.equal(f.creates.length,1);assert.equal(f.creates[0].email_confirm,false);assert.equal(f.signups[0].options.emailRedirectTo,'https://campuscare-brown-two.vercel.app/?auth=confirmed');
+  assert.equal(f.creates.length,1);assert.equal(f.creates[0].email_confirm,false);
+  assert.equal(f.signups[0].email,'fixture@example.test');assert.equal(f.signups[0].userId,1);assert.equal(f.signups[0].firstName,'Ana');
+  const source=readFileSync('supabase/functions/register-patient/index.ts','utf8');
+  assert(!source.includes('auth.resend('),'no Supabase mailer call during registration');
 });
 test('partial verification upload failure removes evidence and the newly created account',async()=>{
   const f=await fixture({uploadFailure:true});assert.equal((await f.call()).status,500);assert.deepEqual(f.deletes,['fixture']);assert.deepEqual(f.removes,[['fixture/selfie-verification.jpg']]);

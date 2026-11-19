@@ -419,6 +419,20 @@ export async function handleCampusCareAuthCallback(){
   }
 
   if(mode==='confirmed'){
+    // CampusCare's own confirmation email carries ?token_hash=…: verifying it confirms the address.
+    const confirmHash=params.get('token_hash');
+    if(confirmHash){
+      const auth=appState.supabaseClient.supabaseClient.auth;
+      const first=params.get('type')==='signup'?'signup':'magiclink';
+      let {error:verifyError}=await auth.verifyOtp({token_hash:confirmHash,type:first});
+      // "email" accepts either kind of email token on current Supabase versions.
+      if(verifyError)({error:verifyError}=await auth.verifyOtp({token_hash:confirmHash,type:'email'}));
+      if(verifyError){
+        resetAuthUiToLogin();cleanAuthCallbackUrl();
+        toast('This confirmation link has already been used or has expired. Log in, or choose "Resend verification email" for a new link.','error',8000);
+        return 'auth-error';
+      }
+    }
     const {data:{session}}=await appState.supabaseClient.supabaseClient.auth.getSession();
     let pending=false;
     if(session?.user){

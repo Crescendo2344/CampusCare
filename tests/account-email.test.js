@@ -33,7 +33,11 @@ test('existing pending registrations can resend expired confirmations to the liv
   const f=fixture('resend',{account:{status:'Pending'}});
   assert.equal((await f.call(' FIXTURE@EXAMPLE.TEST ')).status,200);
   assert.deepEqual(f.lookups[0],['email','fixture@example.test']);
-  assert.deepEqual(f.sent,[{type:'signup',email:'fixture@example.test',options:{emailRedirectTo:'https://campuscare-brown-two.vercel.app/?auth=confirmed'}}]);
+  // CampusCare's own mailer sends it (Supabase's built-in one allows only a few emails an hour).
+  assert.deepEqual(f.sent,[{type:'magiclink',email:'fixture@example.test'}]);
+  assert.equal(f.queued.length,1);assert.equal(f.queued[0].subject,'CampusCare · Confirm your email');
+  assert.ok(f.queued[0].html_body.includes('https://campuscare-brown-two.vercel.app/?auth=confirmed&amp;type=magiclink&amp;token_hash=fixture-hash'));
+  assert.equal(f.dispatched.length,1,'the email is sent right away');
 });
 test('confirmed, missing Auth, suspended and changed-email accounts cannot request verification',async()=>{
   for(const options of [{user:{email_confirmed_at:'2026-01-01'}},{noAuth:true},{account:{status:'Suspended'}},{user:{email:'different@example.test'}}]){
@@ -64,8 +68,8 @@ test('a second reset request within a minute is refused, and failures never repo
   for(const options of [{linkError:{message:'down'}},{queueError:{message:'down'}}]){
     const f=fixture('reset',options);const res=await f.call('fixture');assert.equal(res.status,502);assert.equal((await res.json()).ok,undefined);
   }
-  for(const [error,status] of [[{message:'Provider unavailable'},502],[{status:429,message:'Rate limited'},429]]){
-    const f=fixture('resend',{sendError:error,account:{status:'Pending'}});const res=await f.call('fixture');assert.equal(res.status,status);assert.equal((await res.json()).ok,undefined);
+  for(const [options,status] of [[{linkError:{message:'down'}},502],[{queueError:{message:'down'}},502],[{recent:1},429]]){
+    const f=fixture('resend',{...options,account:{status:'Pending'}});const res=await f.call('fixture');assert.equal(res.status,status);assert.equal((await res.json()).ok,undefined);
   }
 });
 
