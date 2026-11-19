@@ -29,7 +29,8 @@ test('older records: a check on the centre moves to the mark box and the centre 
 test('printed tooth pictures shade the marked sides and never draw a check',()=>{
   const svg=toothIconSvg(['T','B']);
   assert.equal((svg.match(/fill="#000"/g)||[]).length,2);
-  assert.doesNotMatch(svg,/<path/);
+  assert.doesNotMatch(svg,/<path[^>]*stroke/,'no check mark is drawn on the picture');
+  assert.doesNotMatch(svg,/clipPath|clip-path/,'no clip path: phone PDF renderers draw it wrongly');
   const chart=dentalChartTableHtml(PERMANENT_TEETH,{36:TOOTH_CHECK,37:'CL2','36-surfaces':'T'});
   assert.match(chart,/data-tooth="36"[^>]*>✓</);assert.match(chart,/data-tooth="37"[^>]*>CL2</);
   assert.match(chart,/>LEFT</);assert.match(chart,/>RIGHT</);
