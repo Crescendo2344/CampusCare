@@ -8,7 +8,7 @@ import {buildSaturdayVisitLog,saturdayLogFilterError,saturdayLabel,clockTime,age
 // 2026-11-14 and 2026-11-21 are Saturdays; 2026-11-16 is a Monday.
 const data=()=>({
   users:[
-    {user_id:1,first_name:'Cheika Mikaela',last_name:'Panot',person_type:'Student',college:'College of Technology',contact_number:'09171234567'},
+    {user_id:1,first_name:'Cheika Mikaela',last_name:'Panot',person_type:'Student',college:'College of Technology',contact_number:'09175823461'},
     {user_id:2,first_name:'Juan',last_name:'Dela Cruz',person_type:'Student',college:'College of Engineering',contact_number:'09181112222'},
     {user_id:3,first_name:'Ana',last_name:'Reyes',person_type:'Teaching Personnel',college:'College of Education',contact_number:'09190000000'},
     {user_id:9,first_name:'Dent',last_name:'Ist',role:'Doctor',specialty:'Dental'},
@@ -59,7 +59,7 @@ test('lists completed Saturday visits and walk-ins once each, by Saturday and ti
   assert.deepEqual(first.rows.map(r=>r.time),['8:00 AM','9:30 AM']);
   const panot=first.rows[1];
   assert.equal(panot.name,'Panot, Cheika Mikaela');assert.equal(panot.course,'BSIT 3-A');assert.equal(panot.age,21);assert.equal(panot.gender,'F');
-  assert.equal(panot.contact,'09171234567');assert.equal(panot.treatment,'Tooth extraction #36');
+  assert.equal(panot.contact,'09175823461');assert.equal(panot.treatment,'Tooth extraction #36');
   assert.equal(first.rows[0].course,'BSCE – Structural');assert.equal(first.rows[0].treatment,'Dental Checkup');assert.equal(first.rows[0].gender,'M');
   assert.equal(second.date,'2026-11-21');assert.equal(second.rows.length,1);
   assert.equal(second.rows[0].time,'10:05 AM');assert.equal(second.rows[0].treatment,'Oral prophylaxis');assert.equal(second.rows[0].course,'BSIT');

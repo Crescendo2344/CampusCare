@@ -1,4 +1,5 @@
 import {isDentalTreatment} from './treatmentForm.js';
+import {latestBirthDate} from '../../supabase/functions/_shared/registration-validation.js';
 import {clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
 // patientForm: imported feature APIs; state belongs to explicit application namespaces.
 import {printCtuDocument} from '../shared/ctu-letterhead.js';
@@ -103,7 +104,7 @@ export function openPatientModal(id=null){
         <div class="form-row">
           ${field('pm-fname','First Name',`<input id="pm-fname" maxlength="50" autocomplete="off" value="${escapeHtml(pt?.fname||'')}" ${live('name')}>`,{required:true})}
           ${field('pm-lname','Last Name',`<input id="pm-lname" maxlength="50" autocomplete="off" value="${escapeHtml(pt?.lname||'')}" ${live('name')}>`,{required:true})}
-          ${field('pm-birth','Date of Birth',campusDateFieldHtml('pm-birth',pt?.birthDate||'','Date of Birth','',appState.clinicInformation.TODAY),{required:true,hint:'Must match the birth date on the patient\'s ID.'})}
+          ${field('pm-birth','Date of Birth',campusDateFieldHtml('pm-birth',pt?.birthDate||'','Date of Birth','',latestBirthDate(appState.clinicInformation.TODAY)),{required:true,hint:'Must match the birth date on the patient\'s ID.'})}
           ${field('pm-gender','Sex',`<select id="pm-gender" ${live()}>${options([['Male'],['Female']],pt?.gender||'','Select')}</select>`,{required:true})}
         </div>
       </fieldset>

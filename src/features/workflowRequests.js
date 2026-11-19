@@ -1,4 +1,4 @@
-import {emailValidationError,normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
+import {emailValidationError,mobileValidationError,normalizePhilippineMobile} from '../../supabase/functions/_shared/contact-validation.js';
 import {createFeatureSyncService} from '../services/feature-sync.js';
 // workflowRequests: imported feature APIs; state belongs to explicit application namespaces.
 import {state as appState} from '../app/state.js';
@@ -298,7 +298,7 @@ export async function saveAccount(){
 
   // Apply the registration rules to profile edits without truncating an international number.
   if(contactRaw&&!contact){
-    showAlert(msg,'Use a Philippine mobile number starting with 09 or +639.');
+    showAlert(msg,mobileValidationError(contactRaw));
     return;
   }
 

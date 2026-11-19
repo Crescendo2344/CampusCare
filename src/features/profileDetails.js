@@ -1,5 +1,6 @@
 // profileDetails: what a person gave at registration, shown back on their profile, and the health and
 // emergency details a patient fills in afterwards (registration does not ask for them).
+import {mobileValidationError} from '../../supabase/functions/_shared/contact-validation.js';
 import {clinicForSpecialization} from '../../supabase/functions/_shared/clinic-services.js';
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
@@ -126,8 +127,9 @@ export async function saveHealthDetails(){
   const msg=document.getElementById('acc-health-msg');
   const pt=appState.auth.currentPatient||{};
   const phone=v('hd-econtact').replace(/[\s()-]/g,'');
-  if(phone&&!/^(09\d{9}|\+639\d{9})$/.test(phone)){
-    msg.innerHTML='<div class="alert alert-danger show">Enter the emergency contact number as 09XXXXXXXXX or +639XXXXXXXXX.</div>';
+  const phoneError=phone?mobileValidationError(phone):'';
+  if(phoneError){
+    msg.innerHTML=`<div class="alert alert-danger show">Emergency contact number: ${phoneError}</div>`;
     document.getElementById('hd-econtact')?.focus();return;
   }
   msg.innerHTML='';

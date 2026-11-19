@@ -57,10 +57,27 @@ export function emailValidationError(value){
   if(!local||local.length>64||local.startsWith('.')||local.endsWith('.')||local.includes('..')||!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(local)||labels.length<2||labels.some(label=>!label||label.length>63||!(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)))||!(/^(?:[a-z]{2,63}|xn--[a-z0-9-]+)$/.test(labels.at(-1))))return 'Enter a valid email address with a complete domain.';
   return '';
 }
+// Numbers made of one repeated digit, long runs or straight sequences (09999999999, 09111100001,
+// 09123456789) are placeholders, not someone's phone.
+export function isPlaceholderMobile(local){
+  const digits=String(local||'');
+  if(!/^09\d{9}$/.test(digits))return false;
+  const rest=digits.slice(2),line=digits.slice(4);
+  if(/(\d)\1{5,}/.test(rest))return true;
+  if(new Set(line).size<=2)return true;
+  const steps=[...line].slice(1).map((d,i)=>Number(d)-Number(line[i]));
+  return steps.every(step=>step===1)||steps.every(step=>step===-1);
+}
+export function mobileValidationError(value){
+  const phone=String(value||'').trim().replace(/[\s()-]/g,'');
+  const local=/^09\d{9}$/.test(phone)?phone:/^\+639\d{9}$/.test(phone)?'0'+phone.slice(3):'';
+  if(!local)return 'Use 09 followed by 9 digits, or +63 followed by 10 digits starting with 9.';
+  if(isPlaceholderMobile(local))return 'This does not look like a real mobile number. Enter a number that can receive calls and texts.';
+  return '';
+}
 export function normalizePhilippineMobile(value){
   // Store one canonical local format while accepting either Philippine dialling notation.
   const phone=String(value||'').trim().replace(/[\s()-]/g,'');
-  if(/^09\d{9}$/.test(phone))return phone;
-  if(/^\+639\d{9}$/.test(phone))return '0'+phone.slice(3);
-  return '';
+  const local=/^09\d{9}$/.test(phone)?phone:/^\+639\d{9}$/.test(phone)?'0'+phone.slice(3):'';
+  return local&&!isPlaceholderMobile(local)?local:'';
 }

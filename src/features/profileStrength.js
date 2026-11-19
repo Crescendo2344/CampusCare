@@ -10,7 +10,7 @@ import {patientAction,syncCurrentPatientFromSupabase} from './patientService.js'
 import {profileAction,refreshCurrentProfileContact} from './workflowRequests.js';
 import {renderPage} from './loadingSkeletons.js';
 import {toast} from './theme.js';
-import {BLOOD_TYPES,allergiesValidationError,birthDateValidationError,emergencyContactNameError,emergencyContactNumberError,
+import {latestBirthDate,BLOOD_TYPES,allergiesValidationError,birthDateValidationError,emergencyContactNameError,emergencyContactNumberError,
   heightValidationError,weightValidationError,contactValidationError} from '../../supabase/functions/_shared/registration-validation.js';
 
 const ring=(percent,tone)=>`<div class="ps-ring ps-${tone}" style="--ps:${percent}" role="img" aria-label="Profile ${percent}% complete"><span>${percent}%</span></div>`;
@@ -44,7 +44,7 @@ export function openFinishVerification(){
   const today=appState.clinicInformation.TODAY;
   const sections=[
     missing.has('contact')&&field('contact','Mobile number',`<input id="fv-contact" type="tel" inputmode="tel" maxlength="13" placeholder="09XXXXXXXXX">`),
-    missing.has('personal')&&`<div class="form-row">${!pt.birthDate?field('birth','Date of birth',`<input id="fv-birth" type="date" max="${today}">`):''}${!pt.gender?field('sex','Sex',`<select id="fv-sex"><option value="">Select</option><option>Male</option><option>Female</option></select>`):''}</div>`,
+    missing.has('personal')&&`<div class="form-row">${!pt.birthDate?field('birth','Date of birth',`<input id="fv-birth" type="date" max="${latestBirthDate(today)}">`):''}${!pt.gender?field('sex','Sex',`<select id="fv-sex"><option value="">Select</option><option>Male</option><option>Female</option></select>`):''}</div>`,
     missing.has('program')&&field('course','Course',`<input id="fv-course" maxlength="120" placeholder="e.g. BS Information Technology">`),
     missing.has('session')&&field('session','Class session',`<select id="fv-session"><option value="">Select</option><option value="Morning">Morning class</option><option value="Evening">Evening class</option></select>`),
     missing.has('address')&&field('address','Home address',`<input id="fv-address" maxlength="300" placeholder="House no., street, barangay, city">`),

@@ -27,7 +27,7 @@ test('ID numbers and birth dates follow the person type and a realistic age rang
   for(const date of ['','2030-01-01','2020-01-01','1900-01-01','not-a-date'])assert(birthDateValidationError(date,'2026-10-23'),date);
 });
 test('registration details report each invalid field by name',()=>{
-  const valid={first_name:'Ana',last_name:'Reyes',username:'ana.reyes',email:'ana@gmail.com',contact_number:'09171234567',person_type:'Student',college:'COE',id_number:'1350098',birth_date:'2004-05-06',sex:'Female'};
+  const valid={first_name:'Ana',last_name:'Reyes',username:'ana.reyes',email:'ana@gmail.com',contact_number:'09175823461',person_type:'Student',college:'COE',id_number:'1350098',birth_date:'2004-05-06',sex:'Female'};
   assert.deepEqual(registrationDetailErrors(valid,'2026-10-23'),{});
   assert.deepEqual(Object.keys(registrationDetailErrors({...valid,first_name:'4na',sex:'Other',contact_number:'123'},'2026-10-23')).sort(),['contact_number','first_name','sex']);
 });
@@ -40,16 +40,16 @@ test('auth emails return to an HTTPS CampusCare origin',()=>{
 
 test('health and emergency details have the same rules in the browser and on the server',async()=>{
   const {registrationHealthErrors}=await import('../supabase/functions/_shared/registration-validation.js');
-  const valid={blood_type:'Unknown',height_cm:'165.5',weight_kg:'60',allergies:'None',emergency_contact_name:"Ma. Clara O'Neil",emergency_contact_number:'+639171234567',contact_number:'09181234567'};
+  const valid={blood_type:'Unknown',height_cm:'165.5',weight_kg:'60',allergies:'None',emergency_contact_name:"Ma. Clara O'Neil",emergency_contact_number:'+639175823461',contact_number:'09185823461'};
   assert.deepEqual(registrationHealthErrors(valid),{});
   // Every health detail and the emergency contact are optional; half an emergency contact is not.
   assert.deepEqual(registrationHealthErrors({}),{});
   assert.match(registrationHealthErrors({emergency_contact_name:'Maria Reyes'}).emergency_contact_number,/number/);
-  assert.match(registrationHealthErrors({emergency_contact_number:'09171234567'}).emergency_contact_name,/name/);
+  assert.match(registrationHealthErrors({emergency_contact_number:'09175823461'}).emergency_contact_name,/name/);
   assert.match(registrationHealthErrors({...valid,height_cm:'abc'}).height_cm,/number/);
   assert.match(registrationHealthErrors({...valid,weight_kg:'301'}).weight_kg,/between 20 and 300/);
   assert.match(registrationHealthErrors({...valid,allergies:'x'.repeat(301)}).allergies,/300/);
-  assert.match(registrationHealthErrors({...valid,emergency_contact_number:'09181234567'}).emergency_contact_number,/someone else/);
+  assert.match(registrationHealthErrors({...valid,emergency_contact_number:'09185823461'}).emergency_contact_number,/someone else/);
 });
 
 test('the registration form asks for health details under Personal information and an emergency contact after Account details',async()=>{

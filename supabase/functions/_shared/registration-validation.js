@@ -1,5 +1,5 @@
 // Browser and server share these registration rules so inline feedback matches what the endpoint enforces.
-import {emailValidationError,normalizePhilippineMobile} from './contact-validation.js';
+import {emailValidationError,mobileValidationError,normalizePhilippineMobile} from './contact-validation.js';
 
 const letters=/[A-Za-zÀ-ÖØ-öø-ÿ]/g;
 const word="[A-Za-zÀ-ÖØ-öø-ÿ]+(?:['-][A-Za-zÀ-ÖØ-öø-ÿ]+)*\\.?";
@@ -49,7 +49,7 @@ export function confirmPasswordValidationError(password,confirmation){
 export function contactValidationError(value){
   const contact=String(value||'').trim();
   if(!contact)return '';
-  return normalizePhilippineMobile(contact)?'':'Use 09 followed by 9 digits, or +63 followed by 10 digits starting with 9.';
+  return mobileValidationError(contact);
 }
 
 export function schoolIdValidationError(value,personType){
@@ -61,13 +61,24 @@ export function schoolIdValidationError(value,personType){
   return '';
 }
 
+// The latest birth date CampusCare accepts (16 years before today); the calendar stops there.
+export const MIN_PATIENT_AGE=16;
+export function latestBirthDate(today){
+  const [y,m,d]=String(today||'').split('-').map(Number);
+  if(!y)return '';
+  // A 29 February birthday turns into 28 February in a non-leap year.
+  const date=new Date(Date.UTC(y-MIN_PATIENT_AGE,m-1,d));
+  if(date.getUTCMonth()!==m-1)date.setUTCDate(0);
+  return date.toISOString().slice(0,10);
+}
+
 export function birthDateValidationError(value,today){
   const date=String(value||'');
   if(!date)return 'Select your date of birth.';
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date+'T00:00:00Z')))return 'Select a valid date of birth.';
   if(date>today)return 'Date of birth cannot be in the future.';
+  if(date>latestBirthDate(today))return 'Enter the date of birth printed on your ID. Choose a date from the calendar.';
   const age=Math.floor((Date.parse(today+'T00:00:00Z')-Date.parse(date+'T00:00:00Z'))/(365.25*24*60*60*1000));
-  if(age<10)return 'You must be at least 10 years old to register.';
   if(age>100)return 'Check your date of birth. The year looks incorrect.';
   return '';
 }
@@ -124,8 +135,9 @@ export function emergencyContactNameError(value,otherHalf=''){
 export function emergencyContactNumberError(value,ownContact='',otherHalf=''){
   const contact=String(value||'').trim();
   if(!contact)return String(otherHalf||'').trim()?'Add the number of the person to notify, or clear the name.':'';
+  const invalid=mobileValidationError(contact);
+  if(invalid)return invalid;
   const normalized=normalizePhilippineMobile(contact);
-  if(!normalized)return 'Use 09 followed by 9 digits, or +63 followed by 10 digits starting with 9.';
   if(ownContact&&normalized===normalizePhilippineMobile(ownContact))return 'Use the number of someone else, not your own.';
   return '';
 }

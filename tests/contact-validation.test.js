@@ -9,8 +9,8 @@ test('email syntax supports tagged and custom addresses and catches common provi
   for(const email of ['jo','jo@','jo@@gmail.com','.jo@gmail.com','jo..s@gmail.com','jo@-school.com','jo@school..com','jo@school.c','jo@ctu.edu.p'])assert(emailValidationError(email),email);
 });
 test('Philippine mobile numbers accept both dialling formats and reject incomplete or wrong prefixes',()=>{
-  for(const input of ['09171234567','+639171234567','+63 (917) 123-4567'])assert.equal(normalizePhilippineMobile(input),'09171234567');
-  for(const input of ['08171234567','0917123456','+63171234567','639171234567','091712345678','+6391712345678','0917abc4567'])assert.equal(normalizePhilippineMobile(input),'');
+  for(const input of ['09175823461','+639175823461','+63 (917) 582-3461'])assert.equal(normalizePhilippineMobile(input),'09175823461');
+  for(const input of ['08171234567','0917123456','+63171234567','639175823461','091758234618','+6391758234618','0917abc4567'])assert.equal(normalizePhilippineMobile(input),'');
 });
 test('domain routing accepts MX and implicit SMTP, rejects NXDOMAIN and null MX, and distinguishes outages',async()=>{
   let requests=[];
@@ -41,4 +41,19 @@ test('incomplete or misspelled provider and CTU domains get a suggestion; real d
   const cases={'jo@gmel':'gmail.com','jo@gmail':'gmail.com','jo@gmailcom':'gmail.com','jo@gmel.com':'gmail.com','jo@yaho':'yahoo.com','jo@outlok':'outlook.com','jo@ctu':'ctu.edu.ph','jo@ctu.edu':'ctu.edu.ph','jo@ctuedu.ph':'ctu.edu.ph'};
   for(const [email,domain] of Object.entries(cases))assert.equal(emailValidationError(email),`Check the email domain. Did you mean @${domain}?`,email);
   for(const email of ['jo@ctu.edu.ph','jo@ctu.edu.vn','jo@yahoo.de','jo@gmx.com','jo@mail.com','jo@company.io'])assert.equal(emailValidationError(email),'',email);
+});
+test('placeholder mobile numbers are refused with a clear message',async()=>{
+  const {mobileValidationError}=await import('../supabase/functions/_shared/contact-validation.js');
+  for(const input of ['09999999999','09111100001','09123456789','09171234567','09987654321','09181112222','09170000000','+639999999999'])
+    {assert.equal(normalizePhilippineMobile(input),'',input);assert.match(mobileValidationError(input),/real mobile number/,input);}
+  for(const input of ['09175823461','09995550013','09054247230','09281234561'])assert.equal(mobileValidationError(input),'',input);
+});
+test('the birth-date calendar stops 16 years back and the message does not name an age',async()=>{
+  const {latestBirthDate,birthDateValidationError}=await import('../supabase/functions/_shared/registration-validation.js');
+  assert.equal(latestBirthDate('2026-11-19'),'2010-11-19');
+  assert.equal(latestBirthDate('2028-02-29'),'2012-02-29');
+  assert.equal(latestBirthDate('2027-02-28'),'2011-02-28');
+  assert.equal(birthDateValidationError('2010-11-19','2026-11-19'),'');
+  const young=birthDateValidationError('2010-11-20','2026-11-19');
+  assert.ok(young);assert.ok(!/16|sixteen|old|age/i.test(young),young);
 });

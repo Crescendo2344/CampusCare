@@ -1,5 +1,5 @@
 // Execute the real registration handler with fake Auth/Storage clients and no production records.
-import {emailValidationError,normalizePhilippineMobile} from '../supabase/functions/_shared/contact-validation.js';
+import {emailValidationError,mobileValidationError,normalizePhilippineMobile} from '../supabase/functions/_shared/contact-validation.js';
 import {createMailDomainValidator} from '../supabase/functions/_shared/mail-domain.js';
 import {registrationDetailErrors,registrationHealthErrors} from '../supabase/functions/_shared/registration-validation.js';
 import {authRedirect} from '../supabase/functions/_shared/app-url.js';
@@ -20,7 +20,7 @@ async function fixture({requireEmail=false,confirmationFailure=false,uploadFailu
   globalThis.__registrationClient=()=>client;
   // CampusCare's own mailer sends the confirmation; the fake records what would be emailed.
   const queueConfirmationEmail=async(admin,options)=>{signups.push(options);return !confirmationFailure;};
-  globalThis.__registrationContact={emailValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,registrationHealthErrors,authRedirect,existingRegistrationFor,queueConfirmationEmail};
+  globalThis.__registrationContact={emailValidationError,mobileValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,registrationHealthErrors,authRedirect,existingRegistrationFor,queueConfirmationEmail};
   const environment={SUPABASE_URL:'https://fixture.test',SUPABASE_ANON_KEY:'fixture',SUPABASE_SERVICE_ROLE_KEY:'fixture-private-key',CAMPUSCARE_REQUIRE_EMAIL_CONFIRMATION:String(requireEmail),...(captcha?{TURNSTILE_SITE_KEY:'0x4-fixture-site-key',TURNSTILE_SECRET_KEY:'fixture-secret'}:{}),...env};
   globalThis.Deno={env:{get:name=>environment[name]},serve:fn=>{handler=fn;}};
   globalThis.__registrationFetch=async(url,options)=>{
@@ -31,10 +31,10 @@ async function fixture({requireEmail=false,confirmationFailure=false,uploadFailu
     return Response.json({success:!duplicate,hostname:'campuscare-brown-two.vercel.app',action:'campuscare_register',...verdict});
   };
   const source=readFileSync('supabase/functions/register-patient/index.ts','utf8').replace(/^import[^\n]+\n/gm,'');
-  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const {emailValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,registrationHealthErrors,authRedirect,existingRegistrationFor,queueConfirmationEmail}=globalThis.__registrationContact;const createClient=globalThis.__registrationClient;const fetch=globalThis.__registrationFetch;\n'+source)+'\n// '+Math.random()).toString('base64'));
+  await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes('const {emailValidationError,mobileValidationError,normalizePhilippineMobile,createMailDomainValidator,registrationDetailErrors,registrationHealthErrors,authRedirect,existingRegistrationFor,queueConfirmationEmail}=globalThis.__registrationContact;const createClient=globalThis.__registrationClient;const fetch=globalThis.__registrationFetch;\n'+source)+'\n// '+Math.random()).toString('base64'));
   const call=async({details={},source='camera',consent=true,back=true,same=false,type='image/png',documentType='Student ID',token='fixture-captcha',ip='198.51.100.1',xff='',email='fixture@example.test',contact='',id='1234567',size=null}={})=>{
     const form=new FormData();form.set('email',email);form.set('captcha_token',token);form.set('password',details.password||'Clinic-Pass1!');form.set('selfie_capture_source',source);
-    form.set('metadata',JSON.stringify({first_name:'Ana',last_name:'Reyes',username:'fixture',college:'COE',date_of_birth:'2004-05-06',sex:'Female',blood_type:'O+',height_cm:158,weight_kg:52.5,allergies:'None',emergency_contact_name:'Maria Reyes',emergency_contact_number:'09998887777',...details,contact_no:contact,id_number:id,person_type:'Student',verification_document_type:documentType,privacy_consent:consent,role:'Administrator',registration_context:'internal'}));
+    form.set('metadata',JSON.stringify({first_name:'Ana',last_name:'Reyes',username:'fixture',college:'COE',date_of_birth:'2004-05-06',sex:'Female',blood_type:'O+',height_cm:158,weight_kg:52.5,allergies:'None',emergency_contact_name:'Maria Reyes',emergency_contact_number:'09998524713',...details,contact_no:contact,id_number:id,person_type:'Student',verification_document_type:documentType,privacy_consent:consent,role:'Administrator',registration_context:'internal'}));
     form.set('selfie',new File(['selfie'],'camera.jpg',{type:'image/jpeg'}));form.set('verification',new File(['document'],'id.png',{type}));if(back)form.set('verification_back',new File([same?'document':'back-document'],'id-back.png',{type:'image/png'}));
     return handler(new Request('https://fixture.test',{method:'POST',headers:{'cf-connecting-ip':ip,'x-forwarded-for':xff,...(size?{'content-length':String(size)}:{})},body:form}));
   };
@@ -109,7 +109,7 @@ test('registration rejects mistyped domains and normalizes international contact
     const f=await fixture();assert.equal((await f.call({email})).status,400);assert.equal(f.creates.length,0);
   }
   let f=await fixture();assert.equal((await f.call({contact:'08123456789'})).status,400);assert.equal(f.creates.length,0);
-  f=await fixture();assert.equal((await f.call({contact:'+63 917 123 4567'})).status,200);assert.equal(f.creates[0].user_metadata.contact_number,'09171234567');
+  f=await fixture();assert.equal((await f.call({contact:'+63 917 582 3461'})).status,200);assert.equal(f.creates[0].user_metadata.contact_number,'09175823461');
 });
 
 test('unroutable mail domains and DNS outages cannot create accounts',async()=>{
@@ -142,10 +142,10 @@ test('availability checks answer for well-formed values only and use their own l
 });
 
 test('registration saves blood type, height, weight, allergies and the emergency contact to the patient record',async()=>{
-  const f=await fixture();const r=await f.call({details:{emergency_contact_number:'+639181234567',emergency_contact_name:'  Maria Reyes '}});
+  const f=await fixture();const r=await f.call({details:{emergency_contact_number:'+639185823461',emergency_contact_name:'  Maria Reyes '}});
   assert.equal(r.status,200);
-  assert.deepEqual(f.updates[1],{blood_type:'O+',height_cm:158,weight_kg:52.5,allergies:'None',emergency_contact_name:'Maria Reyes',emergency_contact_number:'09181234567'});
-  assert.equal(f.creates[0].user_metadata.emergency_contact_number,'09181234567','The sign-up trigger stores the normalized number');
+  assert.deepEqual(f.updates[1],{blood_type:'O+',height_cm:158,weight_kg:52.5,allergies:'None',emergency_contact_name:'Maria Reyes',emergency_contact_number:'09185823461'});
+  assert.equal(f.creates[0].user_metadata.emergency_contact_number,'09185823461','The sign-up trigger stores the normalized number');
 });
 
 test('registration accepts blank health details and saves the emergency contact given',async()=>{
@@ -166,7 +166,7 @@ test('registration refuses half an emergency contact, or impossible health and e
     const f=await fixture();const r=await f.call({details});assert.equal(r.status,400,JSON.stringify(details));
     assert.ok((await r.json()).field_errors[field],field);assert.equal(f.creates.length,0);
   }
-  const f=await fixture();const r=await f.call({contact:'09998887777'});
+  const f=await fixture();const r=await f.call({contact:'09998524713'});
   assert.equal(r.status,400);assert.match((await r.json()).field_errors.emergency_contact_number,/someone else/);
 });
 
