@@ -6,7 +6,7 @@ import {escapeHtml} from './issueReports.js';
 import {applyNavBadges} from './topbarAndNavigation.js';
 import {appointmentRecords} from './appointmentService.js';
 import {inventoryRecords} from './inventoryService.js';
-import {detectUnit,extractIdName,extractIdNumber,scanMatches,voteReadings} from '../domain/id-scan.js';
+import {detectUnit,extractIdName,extractIdNumber,namesAgree,scanMatches,voteReadings} from '../domain/id-scan.js';
 // ================================================================
 // REGISTRATION DOCUMENT SCANNER
 // Reads Student and Employee ID front photos locally in the browser.
@@ -219,13 +219,14 @@ export function capitalizeName(s){
 }
 
 // A short note under the ID photos: what was read and filled, or what does not match. Never the raw text.
-function showScanNote(text,tone=''){
+function showScanNote(text,tone='',action=null){
   let note=document.getElementById('r-id-scan-note');
   const anchor=document.getElementById('r-id-status');
   if(!note&&anchor){note=document.createElement('p');note.id='r-id-scan-note';note.setAttribute('aria-live','polite');anchor.after(note);}
   if(!note)return;
   note.className=`registration-scan-note ${tone}`;note.hidden=!text;
-  note.innerHTML=text?`<i class="bi ${tone==='busy'?'bi-hourglass-split':tone==='warn'?'bi-exclamation-triangle':'bi-upc-scan'}" aria-hidden="true"></i> <span>${text}</span>`:'';
+  note.innerHTML=text?`<i class="bi ${tone==='busy'?'bi-hourglass-split':tone==='warn'?'bi-exclamation-triangle':'bi-upc-scan'}" aria-hidden="true"></i> <span>${text}${action?`<br><button type="button" class="btn btn-sm btn-primary registration-scan-fix">${escapeHtml(action.label)}</button>`:''}</span>`:'';
+  if(action)note.querySelector('.registration-scan-fix').onclick=()=>action.run();
 }
 // Fill a field the applicant left empty, or one the scan filled before (a new photo replaces it).
 function fillFromScan(input,value,key){
@@ -251,7 +252,7 @@ export function handleOcrResult(side='front'){
 
   appState.documentScanner.lastOcrDocumentType=detectRegistrationDocumentType(appState.documentScanner.lastOcrRawText||text);
   const vote=appState.documentScanner.lastOcrVote;
-  appState.documentScanner.lastOcrDetectedId=vote?.idNumber||extractIdNumber(text,pt);
+  appState.documentScanner.lastOcrDetectedId=vote?(vote.idVotes>=2||vote.readings===1?vote.idNumber:''):extractIdNumber(text,pt);
   const filled=[];
   const name=vote?(vote.nameVotes>=2||vote.readings===1?vote.name:null):extractIdName(appState.documentScanner.lastOcrRawText||text);
   if(name){
@@ -267,17 +268,65 @@ export function handleOcrResult(side='front'){
 }
 
 // Compares what the applicant typed with the ID text, keeps a summary for the registration, and says so.
+// After each scan and each edit of the name or ID number: say what the ID shows, fill what was
+// empty, and point out every field that differs from the ID, with a button to use the ID's details.
 export function recheckNameMatch(){
-  const text=[appState.documentScanner.lastOcrAllText||appState.documentScanner.lastOcrRawText,appState.documentScanner.lastOcrBackText].filter(Boolean).join('\n');
-  if(!text){appState.documentScanner.scanSummary=null;return;}
-  const typed={first:document.getElementById('r-fname')?.value||'',last:document.getElementById('r-lname')?.value||'',idNo:document.getElementById('r-idno')?.value||''};
+  const scanner=appState.documentScanner;
+  const text=[scanner.lastOcrAllText||scanner.lastOcrRawText,scanner.lastOcrBackText].filter(Boolean).join('\n');
+  const inputs={first:document.getElementById('r-fname'),last:document.getElementById('r-lname'),idNo:document.getElementById('r-idno')};
+  Object.values(inputs).forEach(input=>input?.classList.remove('scan-mismatch'));
+  if(!text&&!scanner.lastOcrVote){scanner.scanSummary=null;return;}
+  const typed={first:inputs.first?.value.trim()||'',last:inputs.last?.value.trim()||'',idNo:inputs.idNo?.value.trim()||''};
   const match=scanMatches(text,typed);
-  appState.documentScanner.scanSummary={...match,confidence:appState.documentScanner.lastOcrConfidence||0,
-    document_type:appState.documentScanner.lastOcrDocumentType||'',filled:appState.documentScanner.lastFilled||[]};
-  const filled=appState.documentScanner.lastFilled||[];
-  const problems=[typed.last&&!match.name_match&&'the name you typed',typed.idNo&&!match.id_match&&'the ID number you typed'].filter(Boolean);
-  const lead=filled.length?`Filled from your ID: ${filled.join(', ')}. Please check them.`:'Your ID was read.';
-  showScanNote(problems.length?`${lead} We could not find ${problems.join(' or ')} on the ID photo. Check the spelling, or retake a clearer photo.`:lead,problems.length?'warn':'ok');
+  const filled=scanner.lastFilled||[];
+  scanner.scanSummary={...match,confidence:scanner.lastOcrConfidence||0,document_type:scanner.lastOcrDocumentType||'',filled};
+  const vote=scanner.lastOcrVote||{};
+  // Only what at least two readings agree on counts as "the ID shows"; one garbled reading does not.
+  const idName=vote.nameVotes>=2||vote.readings===1?vote.name||null:null;
+  const idNumber=vote.idVotes>=2||vote.readings===1?vote.idNumber||'':'';
+  if(!idName&&!idNumber){
+    showScanNote('We could not read the name or ID number on this photo. Hold the ID closer so it fills the frame, in good light without glare, then choose Retake.','warn');
+    return;
+  }
+  const shown=[idName&&`${escapeHtml(idName.first)} ${escapeHtml(idName.last)}`,idNumber&&`ID No. ${escapeHtml(idNumber)}`].filter(Boolean).join(' · ');
+  // A field differs when the ID clearly shows something else; a name the scan could not read is not a mismatch.
+  const differs=[];
+  if(typed.last&&!match.name_match&&idName){
+    if(typed.first&&!namesAgree(typed.first,idName.first))differs.push(['first','first name',idName.first]);
+    if(!namesAgree(typed.last,idName.last))differs.push(['last','last name',idName.last]);
+  }
+  if(typed.idNo&&!match.id_match&&idNumber&&typed.idNo!==idNumber)differs.push(['idNo','ID number',idNumber]);
+  // Empty fields the scan did not fill on its own (it was not sure enough) can be filled on request.
+  const offers=[[!typed.first&&idName?.first,'first',idName?.first],[!typed.last&&idName?.last,'last',idName?.last],[!typed.idNo&&idNumber,'idNo',idNumber]].filter(([show])=>show);
+  scanner.pendingCorrections=Object.fromEntries([...differs.map(([key,,value])=>[key,value]),...offers.map(([,key,value])=>[key,value])]);
+  if(differs.length){
+    differs.forEach(([key])=>inputs[key]?.classList.add('scan-mismatch'));
+    const list=differs.map(([key,label,value])=>`your ${label} is <b>${escapeHtml(typed[key])}</b> but the ID shows <b>${escapeHtml(value)}</b>`).join('; ');
+    showScanNote(`Your ID shows: ${shown}. Check your details: ${list}. Correct the field if the ID is right, or retake a clearer photo if it was misread.`,'warn',{label:'Use the ID\'s details',run:applyScanCorrections});
+    return;
+  }
+  const notFound=[typed.last&&!match.name_match&&!idName&&'your name',typed.idNo&&!match.id_match&&!idNumber&&'your ID number'].filter(Boolean);
+  if(notFound.length){
+    showScanNote(`Your ID shows: ${shown}. We could not find ${notFound.join(' or ')} on the photo. Retake a closer photo, or check the spelling.`,'warn');
+    return;
+  }
+  const lead=filled.length?`Filled from your ID: ${filled.join(', ')}. Please check them.`:(typed.last||typed.idNo)?'Your details match your ID.':'Your ID was read.';
+  if(offers.length){showScanNote(`${lead} Your ID shows: ${shown}.`,'ok',{label:'Fill in from my ID',run:applyScanCorrections});return;}
+  showScanNote(`${lead} Your ID shows: ${shown}.`,'ok');
+}
+
+// The applicant chose to replace the differing fields with what the ID shows.
+export function applyScanCorrections(){
+  const corrections=appState.documentScanner.pendingCorrections||{};
+  const ids={first:'r-fname',last:'r-lname',idNo:'r-idno'};
+  for(const [key,value] of Object.entries(corrections)){
+    const input=document.getElementById(ids[key]);if(!input||!value)continue;
+    input.value=value;(appState.documentScanner.autofilled??={})[key]=value;
+    input.classList.add('scan-filled');setTimeout(()=>input.classList.remove('scan-filled'),4000);
+    input.dispatchEvent(new window.Event('input',{bubbles:true}));
+  }
+  appState.documentScanner.pendingCorrections={};
+  recheckNameMatch();
 }
 
 export function sanitizeRegistrationId(el){

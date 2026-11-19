@@ -105,6 +105,11 @@ function closeEnough(a,b){
   }
   return edits+(a.length-i)+(b.length-j)<=1;
 }
+/** Two names agree when each word matches, allowing one misread letter in words of 4+ letters. */
+export function namesAgree(a,b){
+  const x=normalizeForMatch(a).split(' ').filter(Boolean),y=normalizeForMatch(b).split(' ').filter(Boolean);
+  return x.length>0&&x.length===y.length&&x.every((word,i)=>closeEnough(word,y[i]));
+}
 const textHasWord=(text,tokens,word)=>text.includes(word)||tokens.some(token=>closeEnough(token,word));
 
 /** Does the ID text contain the name and ID number the applicant typed? */
