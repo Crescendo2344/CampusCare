@@ -59,12 +59,13 @@ export function normalizeOdontogram(odontogram={}){
   return result;
 }
 
-// A printable tooth picture (black-filled sides), sized in pixels.
+// A printable tooth picture (black-filled sides), sized in pixels. No clip path: PDF renderers on phones
+// draw clipped SVG wrongly, so the corners outside the rounded outline are covered by a white frame instead.
 export function toothIconSvg(sides=[],size=24){
   const on=new Set(sides);
   const parts=TOOTH_SURFACES.map(([q,,points])=>`<polygon points="${points}" fill="${on.has(q)?'#000':'#fff'}" stroke="#111" stroke-width="1" stroke-linejoin="round"/>`).join('');
-  const id='tc'+Math.random().toString(36).slice(2,8);
-  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><defs><clipPath id="${id}"><rect x="2" y="2" width="20" height="20" rx="6"/></clipPath></defs><g clip-path="url(#${id})">${parts}<polygon points="${TOOTH_CENTER}" fill="#fff" stroke="#111" stroke-width="1" stroke-linejoin="round"/></g><rect x="2" y="2" width="20" height="20" rx="6" fill="none" stroke="#111" stroke-width="1.4"/></svg>`;
+  const frame='<path d="M0 0H24V24H0Z M8 2H16A6 6 0 0 1 22 8V16A6 6 0 0 1 16 22H8A6 6 0 0 1 2 16V8A6 6 0 0 1 8 2Z" fill="#fff" fill-rule="evenodd"/>';
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">${parts}<polygon points="${TOOTH_CENTER}" fill="#fff" stroke="#111" stroke-width="1" stroke-linejoin="round"/>${frame}<rect x="2" y="2" width="20" height="20" rx="6" fill="none" stroke="#111" stroke-width="1.4"/></svg>`;
 }
 
 export const PERMANENT_TEETH=[[18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28],[48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38]];
@@ -85,4 +86,19 @@ export function dentalChartTableHtml([upper,lower],odontogram={},{width=672,cell
     <tr>${lower.map(num).join('')}</tr><tr>${lower.map(mark).join('')}</tr>
     <tr class="dc-sides"><td colspan="${half}" style="text-align:left;font:10px Arial,sans-serif;padding-top:3px">LEFT</td><td colspan="${half}" style="text-align:right;font:10px Arial,sans-serif;padding-top:3px">RIGHT</td></tr>
   </tbody></table>`;
+}
+
+// PDF renderers (html2canvas) draw inline SVG unreliably; before a PDF is made, each tooth picture is
+// turned into an image of the same SVG, which they draw exactly.
+export function inlineSvgsAsImages(root){
+  for(const svg of root?.querySelectorAll?.('svg')||[]){
+    const clone=svg.cloneNode(true);clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+    const img=svg.ownerDocument.createElement('img');
+    const w=svg.getAttribute('width')||'24',h=svg.getAttribute('height')||w;
+    img.setAttribute('width',w);img.setAttribute('height',h);img.alt='';
+    img.style.cssText=`display:block;margin:0 auto;width:${w}px;height:${h}px`;
+    img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(clone));
+    svg.replaceWith(img);
+  }
+  return root;
 }

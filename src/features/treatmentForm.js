@@ -1,5 +1,6 @@
 // treatmentForm: imported feature APIs; state belongs to explicit application namespaces.
-import {ctuFooterHtml,ctuHeaderHtml} from '../shared/ctu-letterhead.js';
+import {ctuFooterHtml,ctuHeaderHtml,printInPage} from '../shared/ctu-letterhead.js';
+import {inlineSvgsAsImages} from '../shared/dental-chart.js';
 import {DENTAL_RECORD_CSS,dentalPageHtml,dentalRecordSheetHtml,treatmentRemarksSheetHtml} from '../shared/dental-record-sheet.js';
 import {state as appState} from '../app/state.js';
 import {appointmentDisplayId,appointmentRecords,syncRealAppointments} from './appointmentService.js';
@@ -525,16 +526,8 @@ export async function printDentalRecord(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
   if(patientDentalBlocked(t))return;
   const pages=await dentalRecordPages(t);
-  const frame=document.createElement('iframe');
-  frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
-  frame.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-  document.body.append(frame);
-  const doc=frame.contentDocument;
-  doc.open();
-  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Dental Record</title><style>@page{size:A4 portrait;margin:0}body{margin:0;background:#fff}${DENTAL_RECORD_CSS}.drd{margin:0 auto}</style></head><body>${pages.map(page=>`<div class="drd-page">${page}</div>`).join('')}</body></html>`);
-  doc.close();
-  const run=()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),1500);};
-  waitForDocumentImages(doc.body).then(()=>setTimeout(run,100));
+  printInPage({title:'Dental Record',html:`<style>${DENTAL_RECORD_CSS}</style>${pages.map(page=>`<div class="drd-page">${page}</div>`).join('')}`,
+    css:'#cc-print-root .drd{margin:0 auto}'});
 }
 
 // An A4 PDF with one page per sheet of the record.
@@ -552,7 +545,7 @@ export async function downloadDentalRecordPDF(id){
       stage.style.cssText='position:absolute;left:-10000px;top:0;width:794px;background:#fff';
       stage.innerHTML=`<style>${DENTAL_RECORD_CSS}</style>${page}`;
       document.body.appendChild(stage);
-      const sheet=stage.querySelector('.drd');
+      const sheet=inlineSvgsAsImages(stage.querySelector('.drd'));
       await waitForDocumentImages(sheet);
       const canvas=await html2canvas(sheet,{scale:2,backgroundColor:'#fff',useCORS:true,logging:false,windowWidth:794,scrollX:0,scrollY:0});
       stage.remove();stage=null;

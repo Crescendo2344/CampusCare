@@ -21,7 +21,7 @@ test('issued certificates print and download without a stored document',()=>{
 
 test('the medical certificate uses the CTU form layout of the dental certificate',()=>{
   const source=fs.readFileSync('src/features/certificateService.js','utf8');
-  const medical=source.slice(source.indexOf('export function buildMedicalCertificateDocument'),source.indexOf('export function certificateDocumentFor'));
+  const medical=source.slice(source.indexOf('export function buildMedicalCertificateDocument'),source.indexOf('export function certificateDocumentFor(r)'));
   for(const part of ['dc-info','MEDICAL CERTIFICATE','FINDINGS / DIAGNOSIS','REMARKS / RECOMMENDATION','dc-ruled','letterheadBottom()'])assert.ok(medical.includes(part),part);
   assert.match(source,/const letterheadTop=clinic=>ctuHeaderHtml\(\{clinic,unit:false\}\)/,'no clinic line between the letterhead and the title, as on the paper form');
   assert.match(source,/certSignatureArea\(doctorName,'Dentist II',signature,false\)/,'the dentist signs without a licence line');
@@ -34,4 +34,25 @@ test('printable documents keep black text and are never wrapped as scrolling dat
   assert.match(css,/\.cert-paper,\.cert-paper \*\{color:#111!important/);
   const sheet=fs.readFileSync('src/shared/dental-record-sheet.js','utf8');
   assert.match(sheet,/\.drd table,\.drd thead,\.drd th,\.drd td\{background:transparent!important;position:static!important\}/);
+});
+
+test('the e-signature is kept out of the saved document, and cut-off documents are rebuilt',()=>{
+  const source=fs.readFileSync('src/features/certificateService.js','utf8');
+  assert.match(source,/export function certificateDocumentForStorage\(html\)/);
+  assert.match(source,/const documentHtml=certificateDocumentForStorage\(editor\.innerHTML\);/);
+  assert.match(source,/const finalHtml=certificateDocumentForStorage\(/);
+  assert.match(source,/if\(r\?\.documentHtml&&documentIsComplete\(r\.documentHtml\)\)return r\.documentHtml;/);
+  assert.match(source,/sigEl\.setAttribute\('src',r\.signatureData\)/,'the stored signature is put back when shown');
+});
+
+test('certificates and dental records print from the page, not a hidden frame (phones print the page)',()=>{
+  const cert=fs.readFileSync('src/features/certificateService.js','utf8');
+  const start=cert.indexOf('export function printCertificate(id){');
+  assert.ok(cert.slice(start,start+700).includes('printInPage('));
+  assert.ok(!cert.slice(start,start+700).includes("createElement('iframe')"));
+  const dental=fs.readFileSync('src/features/treatmentForm.js','utf8');
+  const d=dental.indexOf('export async function printDentalRecord(id){');
+  assert.ok(dental.slice(d,d+500).includes('printInPage('));
+  const lh=fs.readFileSync('src/shared/ctu-letterhead.js','utf8');
+  assert.match(lh,/body>\*:not\(#cc-print-root\)\{display:none!important\}/);
 });

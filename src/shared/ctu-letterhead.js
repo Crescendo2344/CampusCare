@@ -104,3 +104,30 @@ export function printCtuDocument(options){
   for(const img of pending){img.addEventListener('load',done,{once:true});img.addEventListener('error',done,{once:true});}
   setTimeout(()=>{if(left>0){left=0;run();}},2500);
 }
+
+// Prints a document from the page itself: the app is hidden for printing and only the document shows.
+// A hidden frame is not used because phones (iPhone and iPad browsers) print the page instead of the frame.
+// `html` is the document; `css` is extra print CSS. The previous print root is replaced on the next print.
+export function printInPage({html='',css='',title=''}={}){
+  document.getElementById('cc-print-root')?.remove();
+  document.getElementById('cc-print-style')?.remove();
+  const style=document.createElement('style');style.id='cc-print-style';
+  style.textContent=`@media screen{#cc-print-root{display:none!important}}
+@media print{@page{size:A4 portrait;margin:0}
+html,body{background:#fff!important;margin:0!important;padding:0!important;height:auto!important;min-height:0!important;overflow:visible!important;display:block!important}
+body>*:not(#cc-print-root){display:none!important}
+#cc-print-root{display:block!important;position:static!important;background:#fff;color:#111}
+#cc-print-root img{max-width:100%}
+${css}}`;
+  const root=document.createElement('div');root.id='cc-print-root';root.innerHTML=html;
+  document.head.append(style);document.body.append(root);
+  const previousTitle=document.title;if(title)document.title=title;
+  const done=()=>{document.title=previousTitle;window.removeEventListener('afterprint',done);};
+  window.addEventListener('afterprint',done);
+  const pending=[...root.querySelectorAll('img')].filter(img=>!img.complete);
+  const run=()=>setTimeout(()=>window.print(),60);
+  if(!pending.length){run();return;}
+  let left=pending.length;const one=()=>{if(--left<=0)run();};
+  for(const img of pending){img.addEventListener('load',one,{once:true});img.addEventListener('error',one,{once:true});}
+  setTimeout(()=>{if(left>0){left=0;run();}},2500);
+}

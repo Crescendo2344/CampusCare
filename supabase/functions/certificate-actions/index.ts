@@ -96,7 +96,7 @@ Deno.serve(async(req)=>{
       const certificateId=Number(body.certificate_id||0);
       const purpose=clean(body.purpose,255);
       const details=clean(body.request_details,1000);
-      const documentContent=clean(body.document_content,90000);
+      const documentContent=clean(body.document_content,400000);
       const findings=clean(body.examination_findings,5000)||extractCertificateField(documentContent,"findings");
       const remarks=clean(body.remarks,5000)||extractCertificateField(documentContent,"remarks");
       const treatmentId=Number(body.treatment_id||0);
@@ -158,7 +158,7 @@ Deno.serve(async(req)=>{
 
     if(action==="sign"){
       const certificateId=Number(body.certificate_id||0);
-      const documentContent=clean(body.document_content,90000);
+      const documentContent=clean(body.document_content,400000);
       const findings=clean(body.examination_findings,5000)||extractCertificateField(documentContent,"findings");
       const remarks=clean(body.remarks,5000)||extractCertificateField(documentContent,"remarks");
       // The printed certificate is signed by hand (wet signature) after printing, so no e-signature is needed.

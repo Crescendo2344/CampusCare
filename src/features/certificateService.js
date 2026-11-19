@@ -11,7 +11,7 @@ import {showConfirmDialog,toast,toastWithUndo} from './theme.js';
 import {persistDB} from './persistence.js';
 import {getPatientById,getUserById} from './documentScanner.js';
 import {viewPatient} from './patientForm.js';
-import {PERMANENT_TEETH,PRIMARY_TEETH,dentalChartTableHtml} from '../shared/dental-chart.js';
+import {PERMANENT_TEETH,PRIMARY_TEETH,dentalChartTableHtml,inlineSvgsAsImages} from '../shared/dental-chart.js';
 import {openAddTreatmentModalPt} from './treatmentForm.js';
 import {loadJsPDF} from './settingsAndCertificates.js';
 import {paginate,pagerHtml} from '../ui/pager.js';
@@ -19,7 +19,7 @@ import {openSignaturePad,signatureFor} from './eSignature.js';
 import {bindAction,certificateData,createCertificateService} from '../dependencies.js';
 import * as purposeData from '../domain/certificate-purpose.js';
 import {accomplishmentText,dentalHistorySummary} from '../domain/dental-certificate.js';
-import {CTU_FOOTER_SRC,ctuHeaderHtml} from '../shared/ctu-letterhead.js';
+import {CTU_FOOTER_SRC,ctuHeaderHtml,printInPage} from '../shared/ctu-letterhead.js';
 import {certificateKindFor,certificateLabel} from '../domain/clinic-scope.js';
 export {certificateKindFor,certificateLabel};
 // A saved certificate keeps the format it was written in; older ones without the dental layout are medical.
@@ -110,8 +110,23 @@ export function normalizeCertificateDocumentMetadata(r,html=''){
     dateEl.textContent=fmtDate(sourceDate);
   }
 
+  // The e-signature is stored with the certificate (signature_url), not inside its document.
+  const sigEl=shell.querySelector('#cert-signature-img');
+  if(sigEl&&r?.signatureData&&!String(sigEl.getAttribute('src')||'').startsWith('data:')){sigEl.setAttribute('src',r.signatureData);sigEl.style.display='';}
+
   return shell.innerHTML;
 }
+
+// What is saved as the certificate's document: the signature image is left out (it is saved on its own and
+// put back when the document is shown), so a large drawn signature never cuts the saved document short.
+export function certificateDocumentForStorage(html){
+  const box=document.createElement('div');box.innerHTML=sanitizeCertHtml(html);
+  const sig=box.querySelector('#cert-signature-img');
+  if(sig&&String(sig.getAttribute('src')||'').startsWith('data:'))sig.setAttribute('src','');
+  return ensureCertificateLogo(box.innerHTML);
+}
+// A saved document that is missing its end (saved before the signature was kept apart) is rebuilt.
+const documentIsComplete=html=>{const v=String(html||'');return !(v.includes('dc-doc')&&!v.includes('dc-foot'))&&v.length<90000;};
 
 // Layout follows the clinic's Dental_Certificate template (FDI numbering, permanent and primary dentition).
 // Each tooth shows its latest mark (check or code) beside its number and its marked sides on the picture.
@@ -198,7 +213,7 @@ export function buildMedicalCertificateDocument(r,doctorId,findings,remarks,sign
 // The document of a certificate saved without one (written outside the editor): rebuilt from its
 // findings, remarks, purpose, signature and the visit it came from, in its doctor's clinic format.
 export function certificateDocumentFor(r){
-  if(r?.documentHtml)return r.documentHtml;
+  if(r?.documentHtml&&documentIsComplete(r.documentHtml))return r.documentHtml;
   const doctor=getUserById(r.doctorId);
   const kind=doctor?certificateKindFor(doctor):recordKind(r);
   const visit=treatmentRecords().find(t=>t.id===r.treatmentId)||null;
@@ -445,7 +460,7 @@ async function persistCertificateDraft(){
   const editor=document.getElementById('cert-editor');
   const findings=readCertificateDocumentField('findings');
   const recommendations=readCertificateDocumentField('remarks');
-  const documentHtml=ensureCertificateLogo(sanitizeCertHtml(editor.innerHTML));
+  const documentHtml=certificateDocumentForStorage(editor.innerHTML);
   const pt=getPatientById(editing.patientId),visit=treatmentRecords().find(t=>t.id===editing.treatmentId)||null;
   if(appState.auth.currentUser._realSupabase){
     const result=await certificateAction({
@@ -607,7 +622,7 @@ export async function signCert(){
     const certNo=certificateNumberFor(r),issuedAt=new Date().toISOString();
     const noEl=document.getElementById('cert-number-display');if(noEl)noEl.textContent=certNo;
     const dateEl=document.getElementById('cert-date-display');if(dateEl)dateEl.textContent=fmtDate(issuedAt);
-    const finalHtml=ensureCertificateLogo(sanitizeCertHtml(document.getElementById('cert-editor').innerHTML));
+    const finalHtml=certificateDocumentForStorage(document.getElementById('cert-editor').innerHTML);
     const recommendations=readCertificateDocumentField('remarks');
     let issuedNo=certNo;
     if(r._realSupabase){
@@ -636,18 +651,9 @@ export function loadHtml2Canvas(){return new Promise((resolve,reject)=>{if(windo
 export function printCertificate(id){
   const r=certificateRecords().find(x=>x.id===Number(id));
   if(!r||r.status!=='Issued'){toast('Only issued certificates can be printed.','error');return;}
-  const frame=document.createElement('iframe');
-  frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
-  frame.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-  document.body.append(frame);
-  const styles=[...document.querySelectorAll('link[rel="stylesheet"],style')].map(node=>node.outerHTML).join('');
-  const doc=frame.contentDocument;
-  doc.open();
-  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(r.certNo||certificateLabel(recordKind(r)))}</title>${styles}<style>@page{size:A4;margin:0}body{margin:0;background:#fff}.cert-paper{box-shadow:none!important;margin:0 auto!important}</style></head><body><div class="cert-paper">${normalizeCertificateDocumentMetadata(r,certificateDocumentFor(r))}</div></body></html>`);
-  doc.close();
-  const run=()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),1000);};
-  const images=[...doc.images].filter(img=>!img.complete);
-  if(images.length)Promise.all(images.map(img=>new Promise(res=>{img.onload=img.onerror=res;}))).then(run);else setTimeout(run,150);
+  printInPage({title:r.certNo||certificateLabel(recordKind(r)),
+    html:`<div class="cert-paper">${normalizeCertificateDocumentMetadata(r,certificateDocumentFor(r))}</div>`,
+    css:'#cc-print-root .cert-paper{box-shadow:none!important;margin:0 auto!important;width:794px!important;min-width:0!important;max-width:none!important}'});
 }
 
 export async function downloadCertPdf(id){
@@ -684,7 +690,8 @@ export async function downloadCertPdf(id){
       )
     );
 
-    const paper=stage.firstElementChild;
+    const paper=inlineSvgsAsImages(stage.firstElementChild);
+    await Promise.all([...paper.querySelectorAll('img')].map(img=>img.complete?Promise.resolve():new Promise(res=>{img.onload=img.onerror=res;})));
     const canvas=await html2canvas(paper,{
       scale:2,
       backgroundColor:'#ffffff',

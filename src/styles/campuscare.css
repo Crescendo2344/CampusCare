@@ -1293,7 +1293,7 @@ tbody tr:hover td{background:var(--overlay)}
 .cert-paper .dc-bottom{display:grid;grid-template-columns:1fr 1.15fr;gap:24px;margin-top:6px;font-size:10px;line-height:1.15}.cert-paper .dc-label{font-size:10px}.cert-paper .dc-reco{font-weight:700;font-size:10px;margin-top:14px}
 .cert-paper .dc-gapline{margin:8px 0 8px}.cert-paper .dc-circles{line-height:1.2}.cert-paper .dc-circles .dc-check{font-size:20px;line-height:.8;font-weight:700}.cert-paper .dc-circle-item{margin-right:18px;white-space:nowrap}.cert-paper .dc-others{display:flex;gap:6px;margin-top:8px}.cert-paper .dc-others .dc-fill{flex:1}
 .cert-paper .dc-status{margin-top:12px;padding-left:26px}.cert-paper .dc-check-line{line-height:1.8}.cert-paper .dc-check-line .dc-check{font-size:13px}.cert-paper .dc-check{cursor:pointer;user-select:none}
-.cert-paper .dc-ruled{font-size:10px;line-height:14px;min-height:28px;background:repeating-linear-gradient(transparent 0 13px,#111 13px 14px)}.cert-paper .dc-ruled [data-cert-field]{display:block;min-width:0;width:100%}.cert-paper .dc-reco+.dc-ruled{min-height:42px;margin-top:6px;position:relative}.cert-paper .dc-reco+.dc-ruled::after{content:"";position:absolute;right:0;bottom:0;width:36%;height:2px;background:#fff}
+.cert-paper .dc-ruled{font-size:10px;line-height:14px;min-height:28px;background:linear-gradient(transparent 13px,#111 13px) 0 0/100% 14px repeat}.cert-paper .dc-ruled [data-cert-field]{display:block;min-width:0;width:100%}.cert-paper .dc-reco+.dc-ruled{min-height:42px;margin-top:6px;position:relative}.cert-paper .dc-reco+.dc-ruled::after{content:"";position:absolute;right:0;bottom:0;width:36%;height:2px;background:#fff}
 .cert-paper .dc-doc .cert-signature-area{margin-top:44px;font-size:10px}.cert-paper .dc-foot{margin:auto 0 0;padding-top:8px}.cert-paper .dc-foot img{display:block;width:100%}
 #cert-editor [data-cert-field="findings"]:empty::before{content:"Click here to enter findings / diagnosis";color:#999;font-style:italic}
 #cert-editor [data-cert-field="remarks"]:empty::before{content:"Click here to enter remarks / recommendations";color:#999;font-style:italic}
@@ -2561,7 +2561,7 @@ tbody tr:hover td{background:var(--overlay)}
 .cert-paper .mc-doc p{margin:0 0 10px}.cert-paper .mc-indent{text-indent:36px;text-align:justify}
 .cert-paper .mc-doc .mc-salute{margin-top:8px}
 .cert-paper .mc-doc .dc-label{font-size:12px;font-weight:700;margin-top:6px}
-.cert-paper .mc-doc .dc-ruled{font-size:12px;line-height:20px;min-height:40px;margin:2px 0 12px;background:repeating-linear-gradient(transparent 0 19px,#111 19px 20px)}
+.cert-paper .mc-doc .dc-ruled{font-size:12px;line-height:20px;min-height:40px;margin:2px 0 12px;background:linear-gradient(transparent 19px,#111 19px) 0 0/100% 20px repeat!important}
 .cert-paper .mc-doc .cert-signature-area{margin-top:34px;font-size:12px}
 .cert-paper .mc-note{font-size:11px;font-style:italic;margin-top:18px}
 /* Fresh signature on certificates. */
