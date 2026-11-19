@@ -92,12 +92,67 @@ export function detectUnit(rawText='',units=[]){
   return found.sort((a,b)=>b[1].length-a[1].length)[0]?.[0]||'';
 }
 
+// OCR often gets one letter of a name wrong (JOPHET → JOPHFT), so a word of 4+ letters may differ
+// by one letter; shorter words must match exactly.
+function closeEnough(a,b){
+  if(a===b)return true;
+  if(a.length<4||Math.abs(a.length-b.length)>1)return false;
+  let i=0,j=0,edits=0;
+  while(i<a.length&&j<b.length){
+    if(a[i]===b[j]){i++;j++;continue;}
+    if(++edits>1)return false;
+    if(a.length>b.length)i++;else if(b.length>a.length)j++;else{i++;j++;}
+  }
+  return edits+(a.length-i)+(b.length-j)<=1;
+}
+const textHasWord=(text,tokens,word)=>text.includes(word)||tokens.some(token=>closeEnough(token,word));
+
 /** Does the ID text contain the name and ID number the applicant typed? */
 export function scanMatches(rawText='',{first='',last='',idNo=''}={}){
-  const text=normalizeForMatch(rawText),compact=text.replace(/\s/g,'');
+  const text=normalizeForMatch(rawText),compact=text.replace(/\s/g,''),tokens=text.split(' ');
   const lastWords=normalizeForMatch(last).split(' ').filter(w=>w.length>1);
   const firstWord=normalizeForMatch(first).split(' ').filter(w=>w.length>1)[0]||'';
-  const nameMatch=Boolean(lastWords.length&&firstWord&&lastWords.every(w=>text.includes(w))&&text.includes(firstWord));
-  const idMatch=Boolean(idNo&&compact.includes(String(idNo)));
+  const nameMatch=Boolean(lastWords.length&&firstWord&&lastWords.every(w=>textHasWord(text,tokens,w))&&textHasWord(text,tokens,firstWord));
+  // The typed number is on the ID, allowing one misread digit (3 for 5, 8 for 0) in a 7-digit number.
+  const typedId=String(idNo||'');
+  const numbers=normalizeForMatch(rawText).match(/\d+/g)||[];
+  const idMatch=Boolean(typedId&&(compact.includes(typedId)||(typedId.length>=7&&numbers.some(n=>n.length===typedId.length&&[...n].filter((d,i)=>d!==typedId[i]).length<=1))));
   return {name_match:nameMatch,id_match:idMatch};
+}
+
+/**
+ * Several readings of one ID (different crops and clean-ups) vote: the name and ID number read most
+ * often win, so one garbled reading cannot fill the form. Readings are ordered best first, which
+ * breaks ties.
+ */
+export function voteReadings(texts=[],personType='Student',digitTexts=[]){
+  const tally=(values)=>{
+    const counts=new Map();
+    values.forEach((value,index)=>{if(!value)return;const key=value.key||value;const entry=counts.get(key)||{value,count:0,first:index};entry.count++;counts.set(key,entry);});
+    return [...counts.values()].sort((a,b)=>b.count-a.count||a.first-b.first)[0]||null;
+  };
+  const names=texts.map(text=>extractIdName(text)).filter(Boolean);
+  const ids=texts.map(text=>extractIdNumber(text,personType));
+  // First and last names vote separately: "JOPHET V SANCHEZ" and "Tv SANCHEZ" still agree on the
+  // surname. A one- or two-letter first name is a misread, not a name.
+  const first=tally(names.map(n=>n.first).filter(f=>f.replace(/[^A-Za-zÀ-ÿ]/g,'').length>=3));
+  const last=tally(names.map(n=>n.last));
+  const name=first&&last?{value:{first:first.value,last:last.value},count:Math.min(first.count,last.count)}:null;
+  let id=tally(ids);
+  // When no ID number was read the same way twice, every number of the right length (from every
+  // reading and the digits-only pass) votes digit by digit.
+  if(!id||id.count<2){
+    const expected=personType==='Student'?7:5;
+    const candidates=[...ids,...digitTexts.flatMap(text=>String(text).match(new RegExp(`(?<!\\d)\\d{${expected}}(?!\\d)`,'g'))||[])]
+      .filter(value=>value&&value.length===expected&&!/^(\d)\1+$/.test(value));
+    if(candidates.length>=2){
+      const digits=Array.from({length:expected},(_,i)=>{
+        const counts={};for(const value of candidates)counts[value[i]]=(counts[value[i]]||0)+1;
+        return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0];
+      }).join('');
+      const support=candidates.filter(value=>value===digits).length;
+      id={value:digits,count:Math.max(support,1)};
+    }
+  }
+  return {name:name?{first:name.value.first,last:name.value.last}:null,nameVotes:name?.count||0,idNumber:id?.value||'',idVotes:id?.count||0,readings:texts.length};
 }

@@ -48,3 +48,24 @@ test('the scan summary goes with the registration and new patients are verified 
   for(const action of ['set_auto_verify','confirm_auto','suspend_auto'])assert.ok(fn.includes(`"${action}"`),action);
   assert.match(fn,/view==="auto"/);
 });
+
+test('readings vote on the name and ID number, and matching tolerates one misread letter or digit',async()=>{
+  const {voteReadings,scanMatches}=await import('../src/domain/id-scan.js');
+  const texts=['junk\nJOPHET V SANCHEZ\nID No 1350098','JOPHET v SANCHEZ\n10 No 1330088','JOPHFT V SANCHEZ\nID No 1350098'];
+  const vote=voteReadings(texts,'Student');
+  assert.deepEqual(vote.name,{first:'Jophet',last:'Sanchez'});
+  assert.equal(vote.idNumber,'1350098');
+  assert.equal(voteReadings(['ID No 1350098','ID No 1330098'],'Student',['1350098','1350088']).idNumber,'1350098');
+  const m=scanMatches('JOPHFT v SANCHEZ ID No 1350088',{first:'Jophet',last:'Sanchez',idNo:'1350098'});
+  assert.equal(m.name_match,true);assert.equal(m.id_match,true);
+  assert.equal(scanMatches('MARIA CRUZ 2210456',{first:'Jophet',last:'Sanchez',idNo:'1350098'}).name_match,false);
+  assert.equal(scanMatches('ID 2210456',{idNo:'1350098'}).id_match,false);
+});
+
+test('the ID camera guide is an upright card and only the guide area is read',async()=>{
+  const fs=await import('node:fs');
+  assert.match(fs.readFileSync('src/styles/selfie-verification.css','utf8'),/\.id-guide-rectangle\{[^}]*aspect-ratio:54\/86/);
+  const {idCropRegions}=await import('../src/features/documentScanner.js').catch(()=>({}));
+  const src=fs.readFileSync('src/features/documentScanner.js','utf8');
+  assert.match(src,/export function idCropRegions/);assert.match(src,/export function adaptiveThreshold/);assert.match(src,/tessedit_pageseg_mode:'11'/);
+});

@@ -464,7 +464,7 @@ try{
     assert(await page.locator('#camera-capture-button').isEnabled(),'Main ID capture must allow distant or blurry frames');
     assert.equal(await page.locator('#selfie-manual-button').count(),0,'ID capture must not need a separate review action');
     await page.evaluate(()=>window.__fixtureIdPose='missing');
-    await page.getByText('Place the ID inside the rectangle, with all four corners visible',{exact:true}).waitFor();
+    await page.getByText('Hold the ID upright inside the frame, with all four corners visible',{exact:true}).waitFor();
     assert(await page.locator('#camera-capture-button').isDisabled(),'An empty scene must not count as an ID');
     // Framing advice must not reduce capture to a one-frame opportunity on a soft mobile camera.
     for(const pose of ['close','center','good']){

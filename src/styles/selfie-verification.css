@@ -40,7 +40,7 @@
 .registration-id-preview img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 .id-file-input{width:1px;height:1px;opacity:0;position:absolute}
 .id-upload-review{display:block;width:100%;max-height:50vh;object-fit:contain}
-.id-guide-rectangle{position:absolute;width:80%;height:66%;top:50%;left:50%;transform:translate(-50%,-50%);border:3px dashed #8bd9f9;border-radius:12px;pointer-events:none;box-shadow:0 0 0 999px rgba(4,18,29,.18)}
+.id-guide-rectangle{position:absolute;height:80%;width:auto;aspect-ratio:54/86;max-width:90%;top:44%;left:50%;transform:translate(-50%,-50%);border:3px dashed #8bd9f9;border-radius:12px;pointer-events:none;box-shadow:0 0 0 999px rgba(4,18,29,.18)}
 .selfie-stage[data-guidance="ready"] .id-guide-rectangle{border-color:#77efbd;border-style:solid}
 
 /* Keep both ID sides adjacent on wide clinic review screens. */
@@ -75,7 +75,8 @@
 .selfie-id-guide{position:absolute;left:5%;top:30%;width:24%;height:38%;border:2px dashed #8bd9f9;border-radius:10px;pointer-events:none}
 .selfie-id-guide span{position:absolute;top:-1.5em;left:0;color:#fff;font-size:.7rem;background:#102b3c;padding:2px 6px;border-radius:4px}
 .selfie-stage[data-guidance="ready"] .selfie-id-guide{border-color:#77efbd}
-.id-guide-rectangle{width:76%;height:74%;transition:border-color .3s}
+.id-guide-rectangle{height:80%;width:auto;aspect-ratio:54/86;transition:border-color .3s}
+.selfie-stage[data-camera="id"] .selfie-document-guide{bottom:2%}
 /* Keep the shutter accessible when browser chrome or the software keyboard reduces usable space. */
 .selfie-modal .selfie-stage{width:min(100%,calc(49dvh * var(--camera-aspect,1.333)));max-height:none;margin-inline:auto}
 .selfie-modal .modal-footer{position:sticky;bottom:0;background:var(--glass-surface-strong);z-index:3}
