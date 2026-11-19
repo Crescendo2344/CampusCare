@@ -3,7 +3,29 @@ import {queuePasswordEmail,RESET_SUBJECT,SETUP_SUBJECT} from './password-email.j
 import {CONFIRM_SUBJECT,queueConfirmationEmail} from './confirm-email.js';
 // Both public email flows verify the application profile and Auth record on the server.
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'POST, OPTIONS'};
-const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
+const json=(body,status=200,extra={})=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json',...extra}});
+
+// Hosted Supabase sets CF-Connecting-IP at ingress; a client cannot choose it. Counters store a keyed
+// hash, never the address itself.
+function requestIp(req){
+  const ip=String(req.headers.get('cf-connecting-ip')||'').trim().toLowerCase();
+  return ip.length<=64&&/^[0-9a-f:.]+$/.test(ip)?ip:'unknown';
+}
+async function keyedHash(value,secret){
+  const encoder=new TextEncoder();
+  const key=await crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+  return Array.from(new Uint8Array(await crypto.subtle.sign('HMAC',key,encoder.encode(value))),b=>b.toString(16).padStart(2,'0')).join('');
+}
+// Returns a response when the caller must wait; a broken counter store blocks rather than lets a flood through.
+async function emailLimit(admin,scope,value,secret){
+  try{
+    const {data,error}=await admin.rpc('consume_registration_limit',{p_scope:scope,p_subject_hash:await keyedHash(scope+':'+value,secret)});
+    if(error||typeof data?.allowed!=='boolean')throw new Error('Rate store unavailable');
+    if(data.allowed)return null;
+    const retry=Math.max(1,Math.ceil(Number(data.retry_after)||60));
+    return json({error:`Too many email requests. Please wait ${Math.ceil(retry/60)} minute(s) and try again.`,retry_after:retry},429,{'Retry-After':String(retry)});
+  }catch{return json({error:'Unable to send emails right now. Please try again shortly.'},503);}
+}
 
 export function createAccountEmailHandler({createClient,env,action,fetcher=fetch}){
   // Optional configuration must never turn a missing variable into a failed email request.
@@ -18,6 +40,9 @@ export function createAccountEmailHandler({createClient,env,action,fetcher=fetch
     try{
       const options={auth:{persistSession:false,autoRefreshToken:false}};
       const admin=createClient(env('SUPABASE_URL'),env('SUPABASE_SERVICE_ROLE_KEY'),options);
+      // Each network may ask for only a few account emails before any account lookup happens.
+      const secret=String(safeEnv('SUPABASE_SERVICE_ROLE_KEY')||'campuscare');
+      const limited=await emailLimit(admin,'mail_ip',requestIp(req),secret);if(limited)return limited;
       // Escape LIKE metacharacters so an underscore or percent never matches a different account.
       const literal=identifier.replace(/[\\%_]/g,'\\$&');
       const {data:account,error:lookupError}=await admin.from('users')
@@ -31,6 +56,8 @@ export function createAccountEmailHandler({createClient,env,action,fetcher=fetch
       // Do not send to an address that no longer belongs to the linked authentication account.
       if(String(data.user.email||'').toLowerCase()!==account.email.toLowerCase())return json({error:'Your account email needs review. Please contact the clinic.'},409);
       if(action==='resend'&&data.user.email_confirmed_at)return json({error:'Your email is already verified. Please log in or use Forgot password.'},409);
+      // And each inbox receives only a few account emails an hour, whichever network asks.
+      const inboxLimited=await emailLimit(admin,'mail_to',account.email.toLowerCase(),secret);if(inboxLimited)return inboxLimited;
       if(action==='reset'){
         if(account.status!=='Active')return json({error:'Your registration is still pending clinic approval.'},403);
         // A forgotten password can always be reset: the emailed link proves who is asking. That includes

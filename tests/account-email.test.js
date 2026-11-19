@@ -14,12 +14,12 @@ function fixture(action,overrides={}){
       then(resolve){return Promise.resolve({count:overrides.recent||0,error:null}).then(resolve);}};
     return q;
   };
-  const client={from:table,auth:{admin:{getUserById:async()=>({data:{user:overrides.noAuth?null:user}}),
+  const limits=[];const client={from:table,rpc:async(name,args)=>{limits.push(args.p_scope);return overrides.rpcError?{data:null,error:overrides.rpcError}:{data:{allowed:!(overrides.limited||[]).includes(args.p_scope),retry_after:600},error:null};},auth:{admin:{getUserById:async()=>({data:{user:overrides.noAuth?null:user}}),
     generateLink:async args=>{sent.push(args);return overrides.linkError?{data:null,error:overrides.linkError}:{data:{properties:{hashed_token:'fixture-hash'}},error:null};}},
     resend:async args=>{sent.push(args);return {error:overrides.sendError};}}};
   const handler=createAccountEmailHandler({createClient:()=>client,env:()=> 'fixture',action,fetcher:async(...args)=>{dispatched.push(args);return new Response('{}');}});
   const call=identifier=>handler(new Request('https://fixture.test',{method:'POST',body:JSON.stringify({identifier})}));
-  return {call,sent,lookups,queued,dispatched};
+  return {call,sent,lookups,queued,dispatched,limits};
 }
 test('unknown accounts cannot trigger either email flow; literal username wildcards are escaped',async()=>{
   for(const action of ['reset','resend']){
@@ -83,4 +83,18 @@ test('the clinic-assisted first-password email uses the CampusCare layout and it
   assert.equal(queued[0].subject,SETUP_SUBJECT);
   assert.ok(queued[0].html_body.includes('Set my password')&&queued[0].html_body.includes('token_hash=setup-hash'));
   assert.ok(!/supabase/i.test(queued[0].html_body));
+});
+
+test('account emails are limited per network and per inbox, and a broken limiter blocks',async()=>{
+  for(const action of ['reset','resend']){
+    let f=fixture(action,{account:{status:action==='reset'?'Active':'Pending'}});
+    assert.equal((await f.call('fixture@example.test')).status,200);assert.deepEqual(f.limits,['mail_ip','mail_to']);
+    f=fixture(action,{limited:['mail_ip']});
+    const r=await f.call('fixture@example.test');assert.equal(r.status,429);assert.equal(r.headers.get('Retry-After'),'600');
+    assert.equal(f.lookups.length,0,'a flooding network is stopped before any account lookup');assert.equal(f.queued.length,0);
+    f=fixture(action,{account:{status:action==='reset'?'Active':'Pending'},limited:['mail_to']});
+    assert.equal((await f.call('fixture@example.test')).status,429);assert.equal(f.queued.length,0);
+    f=fixture(action,{rpcError:new Error('down')});
+    assert.equal((await f.call('fixture@example.test')).status,503);assert.equal(f.queued.length,0);
+  }
 });
