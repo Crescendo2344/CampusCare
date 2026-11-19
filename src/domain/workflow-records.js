@@ -192,8 +192,12 @@ export function realApprovalUiUser(u){
     idFile:u.id_file_url?u.id_file_url.split('/').pop():'Verification document',
     createdAt:u.created_at,
     role:'Patient',
-    status:'Pending',
-    verified:false,
+    status:u.status||'Pending',
+    verified:u.verified===true,
+    // Automatic verification on email confirmation, and what the registration form read from the ID.
+    autoVerifiedAt:u.auto_verified_at||'',
+    autoVerifyReviewedAt:u.auto_verify_reviewed_at||'',
+    idScan:u.id_scan&&typeof u.id_scan==='object'?u.id_scan:null,
     _realSupabaseApproval:true
   };
 }

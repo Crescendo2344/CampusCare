@@ -187,6 +187,7 @@ export async function syncRegistrationPrivacyVersion(){
       appState.data.DB.settings.privacyPolicyVersion=result.privacy_policy_version||appState.data.DB.settings.privacyPolicyVersion||'1.0';
       appState.data.DB.settings.privacyPolicyUpdated=result.privacy_policy_updated||appState.data.DB.settings.privacyPolicyUpdated||appState.clinicInformation.TODAY;
       appState.data.DB.settings.privacyPolicyChanges=result.privacy_policy_changes||'';
+      appState.data.DB.settings.autoVerifyRegistrations=result.auto_verify_registrations!==false;
     }
   }catch(e){
     console.error('Public privacy version:',e);
@@ -341,6 +342,8 @@ export async function doRegister() {
     emergency_contact_name:emergencyName,
     ...(ptype==='Student'&&document.getElementById('r-year')?.value?{year_level:document.getElementById('r-year').value}:{}),
     emergency_contact_number:emergencyNumber,
+    // What the ID scan found (advisory): shown to administrators beside the evidence.
+    ...(appState.documentScanner?.scanSummary?{id_scan:{...appState.documentScanner.scanSummary,scanned_at:new Date().toISOString()}}:{}),
     privacy_consent:true,
     privacy_policy_version:appState.data.DB.settings?.privacyPolicyVersion||'1.0',
     privacy_consent_at:new Date().toISOString()
@@ -412,6 +415,13 @@ export function showPendingPanel(user){
   document.getElementById('pending-name').textContent = user?`${user.fname} ${user.lname}`:'there';
   const pendingEmail=document.getElementById('pending-email');
   if(pendingEmail)pendingEmail.textContent=user?.email?maskVerificationEmail(user.email):'your email';
+  // With automatic verification, confirming the email is the last step before logging in.
+  const auto=appState.data.DB.settings?.autoVerifyRegistrations!==false;
+  const review=document.getElementById('pending-step-review'),login=document.getElementById('pending-step-login');
+  if(review)review.hidden=auto;
+  if(login)login.innerHTML=`<span class="pending-dot" aria-hidden="true">${auto?3:4}</span><div><strong>Log in</strong><small>${auto
+    ?'Your account is verified automatically once you confirm your email. The clinic may still check your ID photos.'
+    :'You can sign in once the clinic approves your registration.'}</small></div>`;
   document.getElementById('pending-section').style.display='block';
 }
 

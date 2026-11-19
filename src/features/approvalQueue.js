@@ -57,7 +57,7 @@ export async function renderApprovals(loadRemote=true) {
   if(loadRemote){
     showDatabaseSkeleton('table');
     try{
-      await refreshRealApprovalQueue(false);
+      await Promise.all([refreshRealApprovalQueue(false),loadAutoVerified()]);
     }catch(e){
       if(!isCampusPageCurrent('approvals',pageToken))return;
       c.innerHTML=`<div class="card"><div class="card-header"><h3>Registration Approvals</h3></div>
@@ -77,7 +77,20 @@ export async function renderApprovals(loadRemote=true) {
   const oldest=queueData.sortApprovals(pending)[0];
   const flagged=pending.filter(u=>queueData.approvalFlags(u,pending).length).length;
 
-  c.innerHTML=`
+  const view=appState.approvalQueue.view==='auto'?'auto':'pending';
+  const autoRows=autoVerifiedAccounts(),autoToCheck=autoRows.filter(u=>!u.autoVerifyReviewedAt).length;
+  const header=`<div class="approval-head">
+      <div class="appt-views" role="tablist" aria-label="Registration lists">
+        <button type="button" role="tab" class="appt-view ${view==='pending'?'active':''}" aria-selected="${view==='pending'}" ${bindAction('click',()=>{appState.approvalQueue.view='pending';renderApprovals(false);})}>Waiting for review<span class="appt-view-count">${pending.length}</span></button>
+        <button type="button" role="tab" class="appt-view ${view==='auto'?'active':''} ${autoToCheck?'attention':''}" aria-selected="${view==='auto'}" ${bindAction('click',()=>{appState.approvalQueue.view='auto';renderApprovals(false);})}>Auto-verified<span class="appt-view-count">${autoToCheck||autoRows.length}</span></button>
+      </div>
+      <label class="approval-auto-switch" title="When on, a patient's account is verified as soon as they confirm their email. Every such account is listed under Auto-verified for checking.">
+        <input type="checkbox" id="ap-auto-verify" ${appState.approvalQueue.autoVerify!==false?'checked':''} ${bindAction('change',(event,element)=>setAutoVerify(element.checked,element))}>
+        <span>Verify new registrations automatically</span>
+      </label>
+    </div>`;
+  if(view==='auto'){c.innerHTML=header+autoVerifiedSectionHtml();return;}
+  c.innerHTML=header+`
     <div class="approval-summary">
       <div class="approval-stat"><span>Waiting for review</span><strong>${pending.length}</strong></div>
       <div class="approval-stat ${overdue?'warn':''}"><span>Waiting ${queueData.APPROVAL_OVERDUE_DAYS}+ days</span><strong>${overdue}</strong></div>
@@ -144,6 +157,108 @@ export function approvalDataField(label,value,wide=false){
   </div>`;
 }
 
+
+// ---- Automatic verification ---------------------------------------------------------------------
+// A patient who registered online is verified as soon as they confirm their email (if this is on).
+// Each such account is listed here for 30 days so an administrator can compare the evidence and
+// either confirm it or suspend the account.
+async function approvalsRequest(path='',options={}){
+  const {data:{session}}=await appState.supabaseClient.supabaseClient.auth.getSession();
+  if(!session)throw new Error('Your approval-review session has expired.');
+  const response=await fetch(`${appState.supabaseClient.SUPABASE_URL}/functions/v1/admin-approvals${path}`,{...options,
+    headers:{'Content-Type':'application/json',apikey:appState.supabaseClient.SUPABASE_PUBLISHABLE_KEY,Authorization:`Bearer ${session.access_token}`}});
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||'Unable to load registrations.');
+  return result;
+}
+export async function loadAutoVerified(){
+  if(appState.auth.currentUser?.role!=='Administrator'||!appState.auth.currentUser?._realSupabase){appState.approvalQueue.autoRows=[];return [];}
+  const result=await approvalsRequest('?view=auto');
+  appState.approvalQueue.autoRows=result.users||[];
+  appState.approvalQueue.autoVerify=result.auto_verify!==false;
+  return appState.approvalQueue.autoRows;
+}
+const autoVerifiedAccounts=()=>(appState.approvalQueue.autoRows||[]).map(realApprovalUiUser);
+// What the registration form read from the ID photo; advisory, since it ran in the applicant's browser.
+export function idScanChips(scan){
+  if(!scan)return '<span class="approval-flag info" title="The ID photo was not read automatically">Not scanned</span>';
+  const chip=(ok,yes,no)=>`<span class="approval-flag ${ok?'ok':'warn'}">${ok?yes:no}</span>`;
+  return chip(scan.name_match,'Name on ID matches','Name not found on ID')+chip(scan.id_match,'ID number matches','ID number not found');
+}
+function autoVerifiedSectionHtml(){
+  const rows=autoVerifiedAccounts(),on=appState.approvalQueue.autoVerify!==false;
+  const intro=`<p class="approval-auto-intro"><i class="bi bi-lightning-charge" aria-hidden="true"></i> ${on
+    ?'New patients are verified automatically when they confirm their email. Check each one below: confirm it, or suspend the account if the ID or selfie is wrong.'
+    :'Automatic verification is off: new registrations wait under <strong>Waiting for review</strong>. Accounts verified automatically before are still listed here.'} Accounts stay here for 30 days.</p>`;
+  if(!rows.length)return intro+'<div class="card"><div class="empty-state"><i class="bi bi-person-check" aria-hidden="true" style="font-size:1.6rem"></i><p>No accounts were verified automatically in the last 30 days.</p></div></div>';
+  return intro+`<div class="card"><div class="table-wrap"><table class="approval-table"><thead><tr><th scope="col">Patient</th><th scope="col">Type</th><th scope="col">ID No.</th><th scope="col">ID scan</th><th scope="col">Verified</th><th scope="col">Check</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${rows.map(u=>`<tr class="approval-row" ${bindAction('click',()=>reviewAutoVerified(u.id))}>
+      <td data-label="Patient"><div class="approval-applicant"><span class="approval-applicant-avatar">${applicantInitials(u)}</span><div><strong>${escapeHtml(u.lname)}, ${escapeHtml(u.fname)}</strong><small>${escapeHtml(u.email||'')}</small></div></div></td>
+      <td data-label="Type">${priorityBadge(u.personType||'Patient')}</td>
+      <td data-label="ID No."><strong>${escapeHtml(u.idNo||'—')}</strong></td>
+      <td data-label="ID scan"><div class="approval-flags">${idScanChips(u.idScan)}</div></td>
+      <td data-label="Verified">${u.autoVerifiedAt?escapeHtml(fmtDateTime(u.autoVerifiedAt)):'—'}</td>
+      <td data-label="Check">${u.status==='Suspended'?'<span class="badge badge-danger">Suspended</span>':u.autoVerifyReviewedAt?'<span class="badge badge-success">Confirmed</span>':'<span class="badge badge-warning">To check</span>'}</td>
+      <td data-label="Actions"><div class="td-actions" ${bindAction('click',(event)=>event.stopPropagation())}><button class="btn btn-xs ${u.autoVerifyReviewedAt?'':'btn-primary'}" ${bindAction('click',()=>reviewAutoVerified(u.id))}>${u.autoVerifyReviewedAt?'View':'Check'}</button></div></td>
+    </tr>`).join('')}</tbody></table></div></div>`;
+}
+export async function setAutoVerify(enabled,element){
+  if(element)element.disabled=true;
+  try{
+    const result=await approvalsRequest('',{method:'POST',body:JSON.stringify({action:'set_auto_verify',enabled})});
+    appState.approvalQueue.autoVerify=result.auto_verify!==false;
+    toast(enabled?'New registrations are now verified automatically after email confirmation.':'Automatic verification is off. New registrations wait for your review.','success');
+    renderApprovals(false);
+  }catch(e){toast(e?.message||'The setting could not be changed.','error');if(element){element.checked=!enabled;element.disabled=false;}}
+}
+export function reviewAutoVerified(id){
+  const u=autoVerifiedAccounts().find(x=>x.id===Number(id));if(!u)return;
+  const name=`${u.fname} ${u.lname}`,docLabel=u.verificationDocumentType||'ID';
+  const card=(title,src,file)=>`<figure class="approval-preview-card"><figcaption class="approval-preview-title">${escapeHtml(title)}</figcaption><div class="approval-preview-body">${src?`<img src="${escapeHtml(src)}" alt="${escapeHtml(title)}" ${bindAction('click',()=>showFilePreview(file,src))}>`:'<span class="text-muted">Not submitted</span>'}</div></figure>`;
+  openModal(`<div class="modal modal-xl approval-review-modal">
+    <div class="modal-header"><div><h3>Auto-verified account</h3><div class="text-muted">${escapeHtml(name)} · verified ${escapeHtml(fmtDateTime(u.autoVerifiedAt))} after confirming their email</div></div><button class="close-btn" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body">
+      <div class="approval-precheck ${u.idScan?.name_match&&u.idScan?.id_match?'ok':''}" role="note"><strong><i class="bi bi-upc-scan" aria-hidden="true"></i> ID scan at registration</strong> <span class="approval-flags">${idScanChips(u.idScan)}</span>${u.idScan?` <small class="text-muted">Read with ${escapeHtml(String(u.idScan.confidence??'—'))}% confidence in the applicant's browser; compare the photos yourself.</small>`:''}</div>
+      <div class="approval-review-grid">
+        <section class="approval-review-section"><h4>Identity evidence</h4><div class="approval-compare">
+          ${card('Selfie holding the ID',u.verificationSelfie,`${name} - Selfie`)}${card(`${docLabel} — Front`,u.idFileData,'ID Front')}${card(`${docLabel} — Back`,u.idBackData,'ID Back')}
+        </div></section>
+        <section class="approval-review-section"><h4>Compare with the ID</h4><div class="approval-data-grid approval-key-fields">
+          ${approvalDataField('Full name',name,true)}${approvalDataField(u.personType==='Student'?'Student ID No.':'Employee ID No.',u.idNo)}
+          ${approvalDataField('Person type',u.personType)}${approvalDataField(u.personType==='Non-Teaching Personnel'?'Department':'College',u.college)}
+          ${approvalDataField('Date of birth',u.dob?fmtDate(u.dob):'')}${approvalDataField('Email',u.email,true)}
+        </div></section>
+      </div>
+    </div>
+    <div class="modal-footer approval-review-footer"><div class="approval-nav"><span class="text-muted">${u.status==='Suspended'?'This account is suspended.':u.autoVerifyReviewedAt?'Confirmed '+escapeHtml(fmtDateTime(u.autoVerifyReviewedAt))+'.':'Not checked yet.'}</span></div>
+      <div class="approval-decide">${u.status==='Active'?`<button class="btn btn-danger" ${bindAction('click',()=>suspendAutoVerified(u.id))}>Suspend account…</button>`:''}${!u.autoVerifyReviewedAt&&u.status==='Active'?`<button class="btn btn-success" id="ap-confirm-auto" ${bindAction('click',()=>confirmAutoVerified(u.id))}><i class="bi bi-check2-circle" aria-hidden="true"></i> Looks correct</button>`:''}</div>
+    </div></div>`);
+}
+async function confirmAutoVerified(id){
+  const button=document.getElementById('ap-confirm-auto');if(button){button.disabled=true;button.textContent='Saving…';}
+  try{
+    await approvalsRequest('',{method:'POST',body:JSON.stringify({action:'confirm_auto',user_id:Number(id),checks:REVIEW_CHECKS.map(([key])=>key)})});
+    closeAllModals();toast('Account confirmed.','success');await loadAutoVerified();renderApprovals(false);
+  }catch(e){toast(e?.message||'Could not confirm the account.','error');if(button){button.disabled=false;button.textContent='Looks correct';}}
+}
+function suspendAutoVerified(id){
+  const u=autoVerifiedAccounts().find(x=>x.id===Number(id));if(!u)return;
+  openModal(`<div class="modal approval-reject-modal"><div class="modal-header"><h3>Suspend account</h3><button class="close-btn" ${bindAction('click',()=>closeTopModal())}>✕</button></div>
+    <div class="modal-body"><p class="approval-reject-lead">Why is <strong>${escapeHtml(u.fname)} ${escapeHtml(u.lname)}</strong>'s account being suspended? The reason is emailed to the patient.</p>
+      <fieldset class="approval-reasons" id="ap-reasons"><legend class="sr-only">Reason</legend>${[...queueData.REJECTION_REASONS,'Other reason'].map(reason=>`<label><input type="radio" name="ap-reason" value="${escapeHtml(reason)}" ${bindAction('change',()=>syncRejectForm())}> <span>${escapeHtml(reason)}</span></label>`).join('')}</fieldset>
+      <div class="form-group"><label for="reject-reason-text">Note to the patient <span class="text-muted" id="ap-note-hint">(optional)</span></label><textarea id="reject-reason-text" rows="2" maxlength="300" ${bindAction('input',()=>syncRejectForm())}></textarea></div>
+      <p class="registration-field-error" id="ap-reason-error" aria-live="polite" hidden></p>
+      <p class="form-note">The patient can no longer sign in. Reactivate the account from Users after they visit the clinic with their ID.</p></div>
+    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeTopModal())}>Back</button><button class="btn btn-danger" id="ap-reject-confirm" disabled ${bindAction('click',()=>confirmSuspendAutoVerified(id))}>Suspend account</button></div></div>`,{preserveParent:true});
+}
+async function confirmSuspendAutoVerified(id){
+  const result=rejectionReason(),error=document.getElementById('ap-reason-error');
+  if(result.error){if(error){error.textContent=result.error;error.hidden=false;}return;}
+  const button=document.getElementById('ap-reject-confirm');if(button){button.disabled=true;button.textContent='Suspending…';}
+  try{
+    const response=await approvalsRequest('',{method:'POST',body:JSON.stringify({action:'suspend_auto',user_id:Number(id),reason:result.reason.length>=10?result.reason:result.reason+' (see the clinic)'})});
+    closeAllModals();toast(`Account suspended.${response.email_queued?' The reason was emailed to the patient.':''}`,'warning');await loadAutoVerified();renderApprovals(false);
+  }catch(e){toast(e?.message||'Could not suspend the account.','error');if(button){button.disabled=false;button.textContent='Suspend account';}}
+}
 
 const REVIEW_CHECKS=[
   ['face','The face in the selfie matches the photo on the ID.'],
@@ -362,4 +477,5 @@ export async function confirmRejectUser(id){
 // Run side effects only after every feature's function exports are available.
 export function initializeFeature(){
   appState.approvalQueue.realPendingApprovals=[];
+  appState.approvalQueue.autoRows=[];
 }
