@@ -69,3 +69,15 @@ test('the ID camera guide is an upright card and only the guide area is read',as
   const src=fs.readFileSync('src/features/documentScanner.js','utf8');
   assert.match(src,/export function idCropRegions/);assert.match(src,/export function adaptiveThreshold/);assert.match(src,/tessedit_pageseg_mode:'11'/);
 });
+
+test('the scan says what the ID shows, flags differing fields and offers to use the ID details',()=>{
+  const src=fs.readFileSync('src/features/documentScanner.js','utf8');
+  assert.match(src,/export function applyScanCorrections\(\)/);
+  assert.match(src,/We could not read the name or ID number on this photo/);
+  assert.match(src,/Use the ID\\'s details/);
+  assert.match(src,/vote\.nameVotes>=2\|\|vote\.readings===1/,'one garbled reading is not shown as what the ID says');
+});
+test('one misread letter does not make a name differ',async()=>{
+  const {namesAgree}=await import('../src/domain/id-scan.js');
+  assert.equal(namesAgree('Jophet','Jophey'),true);assert.equal(namesAgree('Santos','Sanchez'),false);assert.equal(namesAgree('Dela Cruz','dela cruz'),true);
+});

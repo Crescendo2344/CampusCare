@@ -1969,5 +1969,7 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .registration-scan-note{display:flex;gap:.4rem;align-items:flex-start;margin:.45rem 0 0;padding:.5rem .7rem;border-radius:10px;font-size:.8rem;line-height:1.45;background:var(--info-bg,var(--overlay));color:var(--ink)}
 .registration-scan-note.ok{background:var(--success-bg,#e7f6ec)}
 .registration-scan-note.warn{background:var(--warning-bg,#fff4e0)}
+.registration-scan-fix{margin-top:.45rem}
+input.scan-mismatch{border-color:var(--warning,#b26b00)!important;box-shadow:0 0 0 3px rgba(178,107,0,.18)!important}
 .registration-scan-note.busy{color:var(--ink-muted)}
 input.scan-filled,select.scan-filled{box-shadow:0 0 0 2px var(--primary);transition:box-shadow .4s}
