@@ -32,8 +32,9 @@ export function installTableScrolling(root=document){
     scheduled=false;
     for(const wrap of active)if(!wrap.isConnected){managed.get(wrap)?.dispose();active.delete(wrap);}
     for(const table of root.querySelectorAll('table')){
-      // The dental certificate's tooth chart is part of a printable document, not a data table.
-      if(table.closest('.cert-paper'))continue;
+      // Certificates and the dental record are printable documents: their tables (tooth charts,
+      // accomplishment, treatment log) are paper forms, not data tables to scroll or turn into cards.
+      if(table.closest('.cert-paper,.drd,[data-print-document]'))continue;
       // Reuse established scroll containers; add one only for previously unwrapped data tables.
       let wrap=table.closest('.table-wrap,.cert-table-wrap,.data-table-scroll');
       if(!wrap){wrap=root.createElement('div');wrap.className='table-wrap';table.before(wrap);wrap.append(table);}

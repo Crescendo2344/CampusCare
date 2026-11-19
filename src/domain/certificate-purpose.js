@@ -40,3 +40,20 @@ export function certificateStatement(purpose,fields={}){
   }
   return {statement:'',summary:''};
 }
+
+// The certifying sentence rebuilt from a saved summary ("Absent 2026-09-01 to 2026-09-02", "Fit",
+// "Basketball · Fit"), for certificates saved without their document.
+export function statementFromSummary(purpose,summary=''){
+  const text=String(summary||'').trim();
+  if(purpose==='Excused Absence'){
+    const m=text.match(/^Absent (\d{4}-\d{2}-\d{2})(?: to (\d{4}-\d{2}-\d{2}))?$/);
+    return m?certificateStatement(purpose,{absentFrom:m[1],absentTo:m[2]||m[1]}).statement:'';
+  }
+  if(purpose==='OJT / Internship Requirement')
+    return FITNESS_OPTIONS.includes(text)?certificateStatement(purpose,{fitness:text}).statement:'';
+  if(purpose==='Sports / Athletics Participation'){
+    const [event,fitness]=text.split(' · ').map(s=>s.trim());
+    return event&&FITNESS_OPTIONS.includes(fitness)?certificateStatement(purpose,{event,fitness}).statement:'';
+  }
+  return '';
+}

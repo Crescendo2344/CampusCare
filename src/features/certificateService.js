@@ -125,11 +125,11 @@ const CHECK_TOGGLE={'☐':'☑','☑':'☐','○':'●','●':'○'};
 const certFill=(value,width,id='')=>`<span class="dc-fill"${id?` id="${id}"`:''} style="min-width:${width}px">${escapeHtml(value||'')}</span>`;
 // The certificate is signed by hand after printing, like other clinics' certificates: the line is
 // left for the wet signature, with the physician's licence number written beside it.
-const certSignatureArea=(name,title,signature)=>`<div class="cert-signature-area" contenteditable="false">
+const certSignatureArea=(name,title,signature,license=true)=>`<div class="cert-signature-area" contenteditable="false">
       <img id="cert-signature-img" src="${signature||''}" style="${signature?'':'display:none'}" alt="Signature">
-      <div class="cert-sign-line"><strong id="cert-doctor-name">${escapeHtml(name)}</strong><br><span>${escapeHtml(title)}</span><br><span class="cert-license">Lic. No.: ____________________</span></div>
+      <div class="cert-sign-line"><strong id="cert-doctor-name">${escapeHtml(name)}</strong><br><span>${escapeHtml(title)}</span>${license?'<br><span class="cert-license">Lic. No.: ____________________</span>':''}</div>
     </div>`;
-const letterheadTop=clinic=>ctuHeaderHtml({clinic});
+const letterheadTop=clinic=>ctuHeaderHtml({clinic,unit:false});
 const letterheadBottom=()=>`<div class="dc-foot"><img src="${CTU_FOOTER_SRC}" alt="University rankings and accreditations"></div>`;
 
 // The details the doctor confirmed in step 1. Anything not given falls back to the patient's records.
@@ -167,24 +167,26 @@ export function buildCertificateDocument(r,doctorId,findings,remarks,signature='
         <div class="dc-status">${dcCheck('All necessary dental work has been completed',f.workStatus==='Completed')}${dcCheck('Treatment is in progress',f.workStatus==='In Progress')}${dcCheck('No dental work is necessary',f.workStatus==='No Dental Work Necessary')}</div></div></div>
     <div class="dc-label dc-reco">RECOMMENDATION</div>
     <div class="dc-ruled"><div id="cert-remarks-edit" data-cert-field="remarks">${escapeHtml(f.remarks||'')}</div></div>
-    ${certSignatureArea(doctorName,'Dentist II',signature)}
+    ${certSignatureArea(doctorName,'Dentist II',signature,false)}
     ${letterheadBottom()}</div>`;
 }
 
-// Medical certificate, in the same CTU letterhead and footer as the dental certificate.
+// Medical certificate, in the same CTU form as the dental certificate: letterhead, title, the patient lines,
+// then the certification, findings and recommendation on ruled lines, the physician and the footer.
 export function buildMedicalCertificateDocument(r,doctorId,findings,remarks,signature=''){
   const doctor=getUserById(doctorId)||{};
   const f={...certificateFieldsFor(r,{}),findings,remarks};
   const certDate=r.issuedAt||appState.clinicInformation.TODAY;
   const doctorName=`Dr. ${((doctor.fname||'')+' '+(doctor.lname||'')).trim()}`;
-  const who=[f.age?`${f.age} years old`:'',f.sex,f.course,f.yearSection,f.idNo?`ID No. ${f.idNo}`:''].filter(Boolean).join(', ');
   return `<div class="dc-doc mc-doc">${letterheadTop('Medical Clinic')}
     <div class="dc-title mc-title">MEDICAL CERTIFICATE</div>
-    <div class="mc-meta"><span>Certificate No.: <strong id="cert-number-display">${escapeHtml(r.certNo||'To be assigned upon issue')}</strong></span><span>Date: <strong id="cert-date-display">${escapeHtml(fmtDate(certDate))}</strong></span></div>
+    <div class="dc-info"><div>Name: ${certFill(f.name,190)} Age: ${certFill(f.age,30)} Sex: ${certFill(f.sex,50)} Date: ${certFill(fmtDate(certDate),90,'cert-date-display')}</div><div>Course &amp; Major: ${certFill(f.course,150)} Yr. &amp; Section: ${certFill(f.yearSection,50)} Cel No.: ${certFill(f.contact,90)}</div><div>ID No.: ${certFill(f.idNo,110)} Certificate No.: <span class="dc-fill" id="cert-number-display" style="min-width:150px">${escapeHtml(r.certNo||'To be assigned upon issue')}</span></div></div>
     <p class="mc-salute"><strong>TO WHOM IT MAY CONCERN:</strong></p>
-    <p class="mc-indent">This is to certify that <strong>${escapeHtml(f.name||'')}</strong>${who?`, ${escapeHtml(who)},`:''} ${f.address?` of ${escapeHtml(f.address)},`:''} was seen and examined at the Medical Clinic of Cebu Technological University – Main Campus${f.examDate?` on <strong>${escapeHtml(fmtDate(f.examDate))}</strong>`:''}.</p>
-    <p><strong>FINDINGS / DIAGNOSIS:</strong> <span id="cert-findings-edit" data-cert-field="findings">${escapeHtml(f.findings||'')}</span></p>
-    <p><strong>REMARKS / RECOMMENDATIONS:</strong> <span id="cert-remarks-edit" data-cert-field="remarks">${escapeHtml(f.remarks||'')}</span></p>
+    <p class="mc-indent">This is to certify that <strong>${escapeHtml(f.name||'')}</strong> was seen and examined at the Medical Clinic of Cebu Technological University – Main Campus${f.examDate?` on <strong>${escapeHtml(fmtDate(f.examDate))}</strong>`:''}.</p>
+    <div class="dc-label">FINDINGS / DIAGNOSIS</div>
+    <div class="dc-ruled"><div data-cert-field="findings" id="cert-findings-edit">${escapeHtml(f.findings||'')}</div></div>
+    <div class="dc-label">REMARKS / RECOMMENDATION</div>
+    <div class="dc-ruled"><div data-cert-field="remarks" id="cert-remarks-edit">${escapeHtml(f.remarks||'')}</div></div>
     ${r.statement?`<p class="mc-indent">The above-named patient <span data-cert-field="statement">${escapeHtml(r.statement)}</span></p>`:''}
     <p class="mc-indent">This certification is issued upon the request of the above-named person for <span data-cert-field="purpose">${escapeHtml(String(r.purpose||''))}</span> purposes.</p>
     ${certSignatureArea(doctorName,'Attending Physician',signature)}
@@ -192,6 +194,19 @@ export function buildMedicalCertificateDocument(r,doctorId,findings,remarks,sign
     ${letterheadBottom()}</div>`;
 }
 
+
+// The document of a certificate saved without one (written outside the editor): rebuilt from its
+// findings, remarks, purpose, signature and the visit it came from, in its doctor's clinic format.
+export function certificateDocumentFor(r){
+  if(r?.documentHtml)return r.documentHtml;
+  const doctor=getUserById(r.doctorId);
+  const kind=doctor?certificateKindFor(doctor):recordKind(r);
+  const visit=treatmentRecords().find(t=>t.id===r.treatmentId)||null;
+  const rec={...r,statement:r.statement||purposeData.statementFromSummary(r.purpose,r.details),
+    fields:{...(visit?.date?{examDate:visit.date}:{}),...(r.fields||{})}};
+  if(kind==='dental')return buildCertificateDocument(rec,r.doctorId,r.findings,r.recommendations,r.signatureData||'',dentalHistorySummary(treatmentRecords().filter(t=>t.patientId===r.patientId)));
+  return buildMedicalCertificateDocument(rec,r.doctorId,r.findings,r.recommendations,r.signatureData||'');
+}
 
 const isDoctor=()=>appState.auth.currentUser?.role==='Doctor';
 const CERT_TABS=[['Awaiting Signature','Drafts'],['Issued','Issued'],['Cancelled','Voided'],['all','All']];
@@ -389,9 +404,10 @@ export function openCertificateEditor(id,draft=null){
   const autofill=kind==='dental'?dentalAutofill(dental,visitFill):visitFill;
   // Step 1 already confirmed the findings and remarks; a saved draft keeps its own document.
   const findings=r.fields?.findings||r.findings||autofill.findings,remarks=r.fields?r.fields.remarks:(r.recommendations||autofill.remarks);
+  const rec={...r,statement:r.statement||purposeData.statementFromSummary(r.purpose,r.details),fields:r.fields||(visit?.date?{examDate:visit.date,findings,remarks}:undefined)};
   const documentHtml=normalizeCertificateDocumentMetadata(r,r.documentHtml||(kind==='dental'
-    ?buildCertificateDocument(r,doctor.id,findings,remarks,'',dental)
-    :buildMedicalCertificateDocument(r,doctor.id,findings,remarks,'')));
+    ?buildCertificateDocument(rec,doctor.id,findings,remarks,'',dental)
+    :buildMedicalCertificateDocument(rec,doctor.id,findings,remarks,'')));
   appState.certificateService.certEditing={id:r.id,patientId:r.patientId,treatmentId:r.treatmentId||null,purpose:r.purpose,details:r.details||''};
   // The document comes from the recorded visit and is reviewed, not edited: a correction is made in
   // the visit record. The doctor's saved e-signature is placed on it; they can draw a new one, or
@@ -619,7 +635,7 @@ export function loadHtml2Canvas(){return new Promise((resolve,reject)=>{if(windo
 // Printing uses the same signed document as the PDF, in a hidden frame with the app's certificate styles.
 export function printCertificate(id){
   const r=certificateRecords().find(x=>x.id===Number(id));
-  if(!r||r.status!=='Issued'||!r.documentHtml){toast('Only issued certificates can be printed.','error');return;}
+  if(!r||r.status!=='Issued'){toast('Only issued certificates can be printed.','error');return;}
   const frame=document.createElement('iframe');
   frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
   frame.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
@@ -627,7 +643,7 @@ export function printCertificate(id){
   const styles=[...document.querySelectorAll('link[rel="stylesheet"],style')].map(node=>node.outerHTML).join('');
   const doc=frame.contentDocument;
   doc.open();
-  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(r.certNo||certificateLabel(recordKind(r)))}</title>${styles}<style>@page{size:A4;margin:0}body{margin:0;background:#fff}.cert-paper{box-shadow:none!important;margin:0 auto!important}</style></head><body><div class="cert-paper">${normalizeCertificateDocumentMetadata(r,r.documentHtml)}</div></body></html>`);
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(r.certNo||certificateLabel(recordKind(r)))}</title>${styles}<style>@page{size:A4;margin:0}body{margin:0;background:#fff}.cert-paper{box-shadow:none!important;margin:0 auto!important}</style></head><body><div class="cert-paper">${normalizeCertificateDocumentMetadata(r,certificateDocumentFor(r))}</div></body></html>`);
   doc.close();
   const run=()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),1000);};
   const images=[...doc.images].filter(img=>!img.complete);
@@ -650,12 +666,7 @@ export async function downloadCertPdf(id){
     return;
   }
 
-  if(!r.documentHtml){
-    toast('This older certificate needs to be prepared again before using the redesigned PDF.','warning');
-    return;
-  }
-
-  const certHtml=normalizeCertificateDocumentMetadata(r,r.documentHtml);
+  const certHtml=normalizeCertificateDocumentMetadata(r,certificateDocumentFor(r));
   const stage=document.createElement('div');
 
   // 794 × 1122 px is the 96-DPI A4 ratio closely enough to avoid the
