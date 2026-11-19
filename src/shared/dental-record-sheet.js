@@ -12,6 +12,10 @@ export const ORAL_FINDINGS=[['harelip','Harelip'],['defective_gums','Defective G
 export const DENTAL_RECORD_CSS=`
 .drd{width:794px;box-sizing:border-box;padding:34px 46px 26px;background:#fff;color:#111;font:12px/1.35 Arial,Helvetica,sans-serif}
 .drd *{box-sizing:border-box}
+/* The record is printed paper: black text on white whatever the app's theme, never faded. */
+.drd,.drd *{color:#111!important;opacity:1!important;text-shadow:none!important;-webkit-text-fill-color:currentColor}
+.drd .dc-check{color:#15803d!important}
+.drd .dc-mark{color:#b00020!important}
 .drd-title{text-align:center;font-weight:700;font-size:13px;letter-spacing:.04em;margin:6px 0 16px}
 .drd-info{width:100%;border-collapse:collapse;margin:0 0 16px}
 .drd-info td{padding:4px 6px 4px 0;white-space:nowrap;vertical-align:bottom;font-size:12px}

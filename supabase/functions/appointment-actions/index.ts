@@ -450,9 +450,10 @@ Deno.serve(async(req)=>{
         const {error}=await admin.from("appointments").update(clearRescheduleRequest).eq("appointment_id",id);
         if(error)throw error;
         await admin.from("audit_logs").insert({user_id:actor.user_id,action:"APPOINTMENT_RESCHEDULE_DECLINED",entity_type:"appointments",entity_id:id,details:{date,time,note:note||null}});
+        // In CampusCare and by email (appointment notifications are emailed).
         if(account)await admin.from("notifications").insert({
-          user_id:account.user_id,title:"Reschedule declined",
-          message:`Your request to move to ${prettyDate(date)} at ${prettyTime(time)} was declined${note?`: ${note.replace(/[.\s]*$/,"")}`:""}. Your appointment stays at ${visitLine(appt.clinic,appt.appointment_date,appt.appointment_time)}.`,
+          user_id:account.user_id,title:"Reschedule request declined",
+          message:`Unfortunately, your request to move your appointment to ${prettyDate(date)} at ${prettyTime(time)} was declined${note?`. Reason: ${note.replace(/[.\s]*$/,"")}`:""}. We encourage you to please try scheduling again with another date and time. Until then, your appointment stays at ${visitLine(appt.clinic,appt.appointment_date,appt.appointment_time)}.`,
           type:"Appointment",channel:"In-app",delivery_status:"Created",reference_type:"appointments",reference_id:id,action_page:"my-appointments"
         });
         return json({ok:true,decision});

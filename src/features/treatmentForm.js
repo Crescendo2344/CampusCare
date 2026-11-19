@@ -498,18 +498,19 @@ export function dentalTreatmentRows(t){
   });
 }
 
-// The official CTU Dental Clinic record of a visit, page by page: the Dental Health History Form (with the
-// patient's answers for the dentist, otherwise the blank paper form), the DENTAL RECORD, then TREATMENT/REMARKS.
+// The official CTU Dental Clinic record of a visit, page by page: the DENTAL RECORD, TREATMENT/REMARKS, then the
+// Dental Health History Form (with the patient's answers for the dentist, otherwise the blank paper form).
 export async function dentalRecordPages(t){
   const pt=getPatientById(t.patientId)||{};
   const appt=t.appointmentId?appointmentRecords().find(a=>a.id===t.appointmentId):null;
   const answered=await healthHistoryForAppointment(appt?.dbAppointmentId);
   const history=answered?healthHistoryPrintPages(answered.patient,answered.history)
     :blankHealthHistoryPages([pt.fname,pt.lname].filter(Boolean).join(' '));
+  // The Dental Record comes first and the Dental Health History Form last, as the clinic files them.
   return [
-    ...history.pages.map(page=>dentalPageHtml(page,history.css)),
     dentalRecordSheetHtml(dentalRecordSheetData(t)),
-    treatmentRemarksSheetHtml(dentalTreatmentRows(t))
+    treatmentRemarksSheetHtml(dentalTreatmentRows(t)),
+    ...history.pages.map(page=>dentalPageHtml(page,history.css))
   ];
 }
 export function dentalRecordDocumentHtml(t){
@@ -541,20 +542,22 @@ export async function downloadDentalRecordPDF(id){
   let stage=null;
   try{
     const [jsPDF,html2canvas,pages]=await Promise.all([loadJsPDF(),loadHtml2Canvas(),dentalRecordPages(t)]);
-    stage=document.createElement('div');
-    stage.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1';
-    stage.innerHTML=`<style>${DENTAL_RECORD_CSS}</style>${pages.join('')}`;
-    document.body.appendChild(stage);
     const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
     const pageW=210,pageH=297;
-    const sheets=[...stage.querySelectorAll(':scope > .drd')];
-    for(const [index,sheet] of sheets.entries()){
+    // One sheet at a time in its own off-screen stage, so each PDF page is drawn from exactly that sheet.
+    for(const [index,page] of pages.entries()){
+      stage=document.createElement('div');
+      stage.style.cssText='position:absolute;left:-10000px;top:0;width:794px;background:#fff';
+      stage.innerHTML=`<style>${DENTAL_RECORD_CSS}</style>${page}`;
+      document.body.appendChild(stage);
+      const sheet=stage.querySelector('.drd');
       await waitForDocumentImages(sheet);
-      const canvas=await html2canvas(sheet,{scale:2,backgroundColor:'#fff',useCORS:true,logging:false});
+      const canvas=await html2canvas(sheet,{scale:2,backgroundColor:'#fff',useCORS:true,logging:false,windowWidth:794,scrollX:0,scrollY:0});
+      stage.remove();stage=null;
       // Each sheet fits one A4 page, like the paper record.
       const ratio=canvas.height/canvas.width,w=Math.min(pageW,pageH/ratio),h=w*ratio;
       if(index)pdf.addPage();
-      pdf.addImage(canvas.toDataURL('image/jpeg',.95),'JPEG',(pageW-w)/2,0,w,h,'FAST');
+      pdf.addImage(canvas.toDataURL('image/jpeg',.95),'JPEG',(pageW-w)/2,0,w,h,undefined,'FAST');
     }
     pdf.save(dentalRecordFileName(t,'pdf'));
     toast('Dental record downloaded as PDF.','success');
@@ -660,7 +663,7 @@ export async function downloadTreatmentPDF(id){
     await waitForDocumentImages(doc);
     const canvas=await html2canvas(doc,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false});
     const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'}),imgData=canvas.toDataURL('image/jpeg',.96),pageW=210,pageH=297,imgH=canvas.height*pageW/canvas.width;
-    let remaining=imgH,pos=0;pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH;while(remaining>0){pos=remaining-imgH;pdf.addPage();pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');remaining-=pageH;}
+    let remaining=imgH,pos=0;pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,undefined,'FAST');remaining-=pageH;while(remaining>0){pos=remaining-imgH;pdf.addPage();pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,undefined,'FAST');remaining-=pageH;}
     const pt=getPatientById(t.patientId)||{};pdf.save(`CampusCare_Treatment_${(pt.lname||'Patient').replace(/\s+/g,'_')}_${treatmentDisplayId(t)}.pdf`);
     auditLog('TREATMENT_PDF_EXPORTED',`Treatment #${treatmentDisplayId(t)} downloaded as PDF.`,'Treatment',t.id);toast('Treatment record downloaded as PDF.','success');
   }catch(e){console.error(e);toast('Could not generate the PDF. Please try Print instead.','error');}

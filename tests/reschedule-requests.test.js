@@ -35,7 +35,10 @@ test('only the appointment doctor decides, and approval re-checks the slot',()=>
   assert.match(decision,/doctor_schedule_rules/,'Approval reads the schedule in force on the new date');
   assert.match(decision,/rule\?\.max_patients\|\|doctor\.max_patients/,'Approval uses the doctor daily limit');
   assert.match(decision,/title:"Reschedule approved"/);
-  assert.match(decision,/title:"Reschedule declined"/);
+  assert.match(decision,/title:"Reschedule request declined"/);
+  // A decline tells the patient to try again; the email template uses that message for "declined" titles.
+  assert.match(decision,/We encourage you to please try scheduling again/);
+  assert.match(fs.readFileSync('supabase/migrations/20261118215401_reschedule_declined_email.sql','utf8'),/when n\.title ilike '%declined%' then n\.message/);
 });
 
 test('the doctor sees and counts pending requests; the patient can withdraw',()=>{
