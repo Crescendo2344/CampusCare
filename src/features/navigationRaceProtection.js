@@ -64,6 +64,8 @@ function rememberPage(id){try{if(pageKey())sessionStorage.setItem(pageKey(),id);
 const RETIRED_PAGES=new Set(['messages','my-certificates','certificates']);
 export function navTo(id,{historyMode='push'}={}){
   if(!appState.auth.currentUser)return;
+  // The Clinic Calendar & Queue moved into the Appointments page; old links open it there.
+  if(id==='clinic-calendar'){(appState.appointments??={}).mode='calendar';id='appointments';}
   if(RETIRED_PAGES.has(id))id='dashboard';
   // Each role opens only the pages in its own menu (admin: accounts; staff: front desk; doctor: clinical).
   const hiddenPages=pagesHiddenFor(appState.auth.currentUser);

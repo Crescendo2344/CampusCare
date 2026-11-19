@@ -94,12 +94,33 @@ export function changeBackupRetention(){
   });
 }
 
+// The nightly archive of patients with no visit, booking or sign-in for 5 years runs after the daily
+// backup and is listed in the same history. Its count of archived records is kept in file_size.
+export const INACTIVE_ARCHIVE_TYPE='Inactive Patient Archive';
+function inactiveArchiveRowHtml(b){
+  const n=Number(b.fileSize)||0,failed=b.status==='Failed';
+  const when=b.completedAt||b.startedAt?new Date(b.completedAt||b.startedAt).toLocaleString('en-PH'):'—';
+  return `<div class="backup-row backup-row-archive">
+    <div style="min-width:0">
+      <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap">
+        <i class="bi bi-archive" aria-hidden="true"></i><strong style="font-size:.82rem">Inactive patient archive</strong>
+        <span class="badge ${failed?'badge-danger':n?'badge-warning':'badge-success'}">${failed?'Failed':n?`${n} archived`:'None due'}</span>
+      </div>
+      <div class="text-muted">${failed?'The archive did not run.':n?`${n} patient record${n===1?' was':'s were'} archived: no visit, booking or sign-in for 5 years.`:'No patient has been inactive for 5 years.'} · ${escapeHtml(when)}</div>
+      <div class="text-muted">Runs after the daily backup, so that backup keeps the records as they were. Archived records stay in Patient Records (Archived) and can be restored.</div>
+      ${b.errorMessage?`<div class="text-danger" style="font-size:.72rem">${escapeHtml(b.errorMessage)}</div>`:''}
+    </div>
+  </div>`;
+}
+
 export function renderBackupListHtml(){
   if(appState.auth.currentUser?._realSupabase){
     const bs=appState.data.DB.realBackupLogs||[];
     if(!bs.length)return '<div class="empty-state"><p>No server backup has been created yet.</p></div>';
 
     return groupBackupDays(bs.map(b=>{
+      const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila'}).format(new Date(b.startedAt||b.completedAt));
+      if(b.type===INACTIVE_ARCHIVE_TYPE)return {day,html:inactiveArchiveRowHtml(b)};
       const completed=b.completedAt?new Date(b.completedAt).toLocaleString('en-PH'):'—';
       const started=b.startedAt?new Date(b.startedAt).toLocaleString('en-PH'):'—';
       const statusClass=b.status==='Completed'?'badge-success':b.status==='Failed'?'badge-danger':'badge-warning';
@@ -118,7 +139,7 @@ export function renderBackupListHtml(){
           ${b.status==='Completed'?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{downloadServerBackup((b.id))})}>Download JSON</button>`:''}
         </div>
       </div>`;
-      return {day:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila'}).format(new Date(b.startedAt||b.completedAt)),html};
+      return {day,html};
     }));
   }
 
@@ -153,7 +174,7 @@ export function renderBackupPanel(){
   const schedule=document.getElementById('backup-schedule-text');
   if(schedule){
     schedule.textContent=appState.auth.currentUser?._realSupabase
-      ? 'Automatic database snapshot: every day at 2:00 AM (Asia/Manila)'
+      ? 'Automatic database snapshot: every day at 2:00 AM (Asia/Manila). Patients inactive for 5 years are archived at 2:40 AM, after the snapshot.'
       : 'Local demo backup';
   }
 

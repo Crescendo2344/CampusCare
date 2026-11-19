@@ -375,8 +375,7 @@ export function toggleSidebar(force){
 export function initializeFeature(){
   appState.topbarAndNavigation.TOP_SEARCH_ALIASES={
   dashboard:['home','overview'],
-  appointments:['appointment','book','booking','schedule patient'],
-  'clinic-calendar':['calendar','clinic calendar','queue','today queue','now serving','month view'],
+  appointments:['appointment','book','booking','schedule patient','calendar','clinic calendar','queue','today queue','now serving','month view'],
   'my-appointments':['appointment','book','booking'],
   patients:['patient','records','add patient','FHIR','clinical copilot'],
   'my-patients':['patient','records','FHIR','clinical copilot'],
@@ -446,7 +445,6 @@ export function initializeFeature(){
     {id:'schedule',label:'My Schedule'},
     {id:'my-patients',label:'My Patients'},
     {id:'appointments',label:'Appointments'},
-    {id:'clinic-calendar',label:'Clinic Calendar &amp; Queue'},
     {id:'treatments',label:'Treatments'},
     {id:'fitness',label:'Fitness Assessments'},
     {id:'cert-requests',label:'Medical Certificates'},
@@ -460,7 +458,6 @@ export function initializeFeature(){
     {section:'Front Desk'},
     {id:'dashboard',label:'Dashboard'},
     {id:'appointments',label:'Appointments'},
-    {id:'clinic-calendar',label:'Clinic Calendar &amp; Queue'},
     {id:'patients',label:'Patient Records'},
     {id:'inventory',label:'Inventory'},
     {section:'Release'},

@@ -1,6 +1,7 @@
 // Return for reappointment: when a visit cannot push through, the doctor or the front desk apologizes and
-// proposes a new open time (slots inside the patients' booking lead time are usable here). The patient
-// then accepts it or picks another time. The clinic does not cancel appointments.
+// places the patient in an open time of the doctor's schedule over the next weeks (slots inside the
+// patients' booking lead time are usable here). The patient accepts it or picks another time by a
+// deadline, as after a doctor emergency. The clinic does not cancel appointments.
 import {staffClinicOf,userClinic} from '../domain/clinic-scope.js';
 import {state as appState} from '../app/state.js';
 import {escapeHtml} from './issueReports.js';
@@ -9,7 +10,8 @@ import {fmtDate,fmtTime} from './inputValidation.js';
 import {getDoctors,getPatientById,getUserById} from './documentScanner.js';
 import {appointmentAction,appointmentRecords,syncRealAppointments} from './appointmentService.js';
 import {addBookingDays} from '../domain/booking-availability.js';
-import {EMERGENCY_MAX_DAYS_AHEAD,EMERGENCY_REASONS,emergencyReappointMessage,prettyDeadline} from '../domain/emergency-reappointment.js';
+import {EMERGENCY_MAX_DAYS_AHEAD,EMERGENCY_REASONS,confirmationDeadline,emergencyReappointMessage,prettyDeadline} from '../domain/emergency-reappointment.js';
+import {initModernCalendar} from './calendar.js';
 import {appointmentHasStarted} from '../domain/appointment-list.js';
 import {fetchDoctorAvailability} from './bookingForm.js';
 import {toast} from './theme.js';
@@ -30,12 +32,16 @@ export function queueLabel(a,rows){
   return `${hour%12||12} ${hour<12?'AM':'PM'} · No. ${queueNumber(a,rows)}`;
 }
 
+// How far ahead the doctor can place the patient, and how soon: the patient needs time to answer.
+export const REAPPOINT_SEARCH_DAYS=56;
+export const REAPPOINT_MIN_NOTICE_HOURS=3;
+
 export function openReappointModal(id){
   const a=appointmentRecords().find(x=>x.id===Number(id));if(!a)return;
   const pt=getPatientById(a.patientId),doc=getUserById(a.doctorId);
   const st=appState.reappointment={id:a.id,days:[],date:'',time:''};
   openModal(`<div class="modal reappoint-modal" role="dialog" aria-labelledby="ra-title">
-    <div class="modal-header"><div><h3 id="ra-title">Visit cannot push through</h3><div class="text-muted">Propose a new time for ${escapeHtml(pt?`${pt.fname} ${pt.lname}`:'the patient')}</div></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-header"><div><h3 id="ra-title">Reschedule: visit cannot push through</h3><div class="text-muted">Choose a new time in ${doc?`Dr. ${escapeHtml(doc.lname)}’s`:'the doctor’s'} schedule for ${escapeHtml(pt?`${pt.fname} ${pt.lname}`:'the patient')}. The patient accepts it or picks another time.</div></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
     <div class="modal-body">
       <div id="ra-msg"></div>
       <div class="ra-current"><i class="bi bi-calendar-x" aria-hidden="true"></i><div><strong>${escapeHtml(a.clinic)} · ${escapeHtml(a.service||'')}</strong><span>${fmtDate(a.date)}, ${fmtTime(a.time)}${doc?` · Dr. ${escapeHtml(doc.lname)}`:''}</span></div></div>
@@ -43,7 +49,9 @@ export function openReappointModal(id){
         <select id="ra-reason" ${bindAction('change',()=>syncReappointReason())}><option value="">Choose a reason</option>${REASONS.map(r=>`<option>${escapeHtml(r)}</option>`).join('')}<option value="other">Other reason</option></select>
         <input id="ra-reason-other" maxlength="200" placeholder="Type the reason" hidden>
       </div>
-      <div class="form-group"><label for="ra-date">New date <span class="required">*</span></label><select id="ra-date" disabled ${bindAction('change',(event,element)=>pickReappointDate(element.value))}><option>Loading open dates…</option></select></div>
+      <div class="form-group"><div class="ra-date-head"><label>New date <span class="required">*</span></label><button type="button" class="btn btn-xs" id="ra-earliest" disabled ${bindAction('click',()=>pickEarliestReappointTime())}><i class="bi bi-lightning-charge" aria-hidden="true"></i> Earliest open time</button></div>
+        <p class="text-muted ra-hint" id="ra-date-note">Loading open dates in the next ${REAPPOINT_SEARCH_DAYS/7} weeks…</p>
+        <div id="ra-calendar"></div></div>
       <div class="form-group"><label>New time <span class="required">*</span></label><div id="ra-slots" class="slot-grid"><span class="text-muted">Choose a date first.</span></div></div>
       <div class="ra-preview" aria-live="polite" id="ra-preview"><strong>The patient will read:</strong> “We apologize that your appointment will not push through.” They can accept the new time or pick another.</div>
     </div>
@@ -52,26 +60,43 @@ export function openReappointModal(id){
   void loadReappointDates(a,doc);
 }
 
+// Open slots with this doctor from a few hours from now up to eight weeks ahead. Slots inside the
+// patients' booking lead time are usable: they are kept for exactly this.
 async function loadReappointDates(a,doc){
-  const select=document.getElementById('ra-date');if(!select)return;
+  const note=document.getElementById('ra-date-note');if(!note)return;
+  const st=appState.reappointment;
   try{
-    const from=clinicToday(),to=addBookingDays(from,30);
-    const days=(await fetchDoctorAvailability(doc,from,to,a,a.service||"")).filter(d=>d.openSlots>0);
-    appState.reappointment.days=days;
-    select.innerHTML=days.length?`<option value="">Choose a date</option>${days.map(d=>`<option value="${d.date}">${fmtDate(d.date)} · ${d.openSlots} open</option>`).join('')}`:'<option value="">No open times in the next 30 days</option>';
-    select.disabled=!days.length;
+    const from=clinicToday(),to=addBookingDays(from,REAPPOINT_SEARCH_DAYS);
+    const earliest=Date.now()+REAPPOINT_MIN_NOTICE_HOURS*3600*1000;
+    const days=(await fetchDoctorAvailability(doc,from,to,a,a.service||'')).map(d=>{
+      const slots=(d.slots||[]).map(s=>s.available&&Date.parse(`${d.date}T${s.time}:00+08:00`)<earliest?{...s,available:false}:s);
+      return {...d,slots,openSlots:Math.min(d.openSlots,slots.filter(s=>s.available).length)};
+    }).filter(d=>d.openSlots>0&&!(d.date===a.date&&d.slots.every(s=>!s.available||s.time===String(a.time).slice(0,5))));
+    if(appState.reappointment!==st)return;
+    st.days=days;
+    note.textContent=days.length?`${days.length} day${days.length===1?'':'s'} with open times in the next ${REAPPOINT_SEARCH_DAYS/7} weeks. Choose a date, then a time.`:`No open times in the next ${REAPPOINT_SEARCH_DAYS/7} weeks. Open more times in Manage time slots, or ask the front desk.`;
+    document.getElementById('ra-earliest').disabled=!days.length;
+    initModernCalendar('ra-calendar','',from,'pickReappointDate',{allowEmptySelection:true,maxDate:to,availableDates:days.map(d=>d.date),viewMonth:(days[0]?.date||from).slice(0,7),showAppointmentHints:false,showTodayButton:false});
   }catch(error){
-    select.innerHTML='<option value="">Open dates could not be loaded</option>';
+    note.textContent='Open dates could not be loaded.';
     document.getElementById('ra-msg').innerHTML=`<div class="alert alert-danger show">${escapeHtml(error?.message||'Open dates could not be loaded.')}</div>`;
   }
 }
 
-function pickReappointDate(date){
+export function pickReappointDate(date){
   const st=appState.reappointment;st.date=date;st.time='';
+  const a=appointmentRecords().find(x=>x.id===st.id);
   const day=st.days.find(d=>d.date===date);
-  const grid=document.getElementById('ra-slots');
-  grid.innerHTML=day?day.slots.filter(s=>s.available).map(s=>`<button type="button" class="slot available" data-time="${s.time}" aria-pressed="false" ${bindAction('click',(event,element)=>pickReappointTime(s.time,element))}>${fmtTime(s.time)}</button>`).join(''):'<span class="text-muted">Choose a date first.</span>';
+  const grid=document.getElementById('ra-slots');if(!grid)return;
+  const open=day?day.slots.filter(s=>s.available&&!(date===a?.date&&s.time===String(a?.time).slice(0,5))):[];
+  grid.innerHTML=open.length?open.map(s=>`<button type="button" class="slot available" data-time="${s.time}" aria-pressed="false" ${bindAction('click',(event,element)=>pickReappointTime(s.time,element))}>${fmtTime(s.time)}</button>`).join(''):'<span class="text-muted">Choose a date first.</span>';
   syncReappointReason();
+}
+function pickEarliestReappointTime(){
+  const st=appState.reappointment,day=st.days[0];if(!day)return;
+  initModernCalendar('ra-calendar',day.date,clinicToday(),'pickReappointDate',{maxDate:addBookingDays(clinicToday(),REAPPOINT_SEARCH_DAYS),availableDates:st.days.map(d=>d.date),viewMonth:day.date.slice(0,7),showAppointmentHints:false,showTodayButton:false});
+  pickReappointDate(day.date);
+  document.querySelector('#ra-slots .slot')?.click();
 }
 function pickReappointTime(time,button){
   appState.reappointment.time=time;
@@ -89,7 +114,10 @@ function syncReappointReason(){
   const send=document.getElementById('ra-send');
   if(send)send.disabled=!(reappointReason().length>=3&&st.date&&st.time);
   const preview=document.getElementById('ra-preview');
-  if(preview&&st.date&&st.time)preview.innerHTML=`<strong>The patient will read:</strong> “We apologize that your appointment will not push through. ${escapeHtml(reappointReason()||'…')}. The clinic proposes ${escapeHtml(fmtDate(st.date))}, ${escapeHtml(fmtTime(st.time))} instead.” They can accept it or pick another time.`;
+  if(preview&&st.date&&st.time){
+    const deadline=prettyDeadline(confirmationDeadline(Date.now(),st.date,st.time));
+    preview.innerHTML=`<strong>The patient will read:</strong> “We apologize that your appointment will not push through. ${escapeHtml(reappointReason()||'…')}. The clinic proposes ${escapeHtml(fmtDate(st.date))}, ${escapeHtml(fmtTime(st.time))} instead. Please confirm by ${escapeHtml(deadline)}.” They can accept it or pick another time; if they do not answer by then, the time is released.`;
+  }
 }
 
 async function sendReappointment(){

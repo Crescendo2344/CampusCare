@@ -19,6 +19,15 @@ test('missing details lower the level and say who completes them',()=>{
   assert.equal(r.level.label,'Almost there');
 });
 test('personnel are not asked for course or class session',()=>{
-  const r=profileCompleteness({...user,personType:'Teaching Personnel'},{...full,personType:'Teaching Personnel',course:'',classSession:''});
+  const r=profileCompleteness({...user,personType:'Teaching Personnel'},{...full,personType:'Teaching Personnel',course:'',classSession:'',college:'CCICT'});
   assert(!r.steps.some(s=>['program','session'].includes(s.id)));assert.equal(r.percent,100);
+});
+test('teaching and non-teaching personnel each have their own work-place step',()=>{
+  const teaching=profileCompleteness({...user,personType:'Teaching Personnel'},{...full,personType:'Teaching Personnel',college:''});
+  assert.equal(teaching.steps.find(s=>s.id==='unit').label,'College where you teach');
+  assert.deepEqual(teaching.missing.map(s=>s.id),['unit']);
+  const staff=profileCompleteness({...user,personType:'Non-Teaching Personnel'},{...full,personType:'Non-Teaching Personnel',college:'Registrar'});
+  assert.equal(staff.steps.find(s=>s.id==='unit').label,'Office or department');
+  assert.equal(staff.percent,100);
+  assert(!profileCompleteness(user,full).steps.some(s=>s.id==='unit'),'students are asked for their course instead');
 });

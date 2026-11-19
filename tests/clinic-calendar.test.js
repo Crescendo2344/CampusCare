@@ -60,11 +60,15 @@ test('the day queue is in time order with numbers per doctor and hour; cancelled
   assert.equal(nowServing(live,{date:'2026-11-20',today:'2026-11-19',now:'09:40'}),null,'Only today has a now-serving patient');
 });
 
-test('the page is in the staff and doctor menus only',()=>{
+test('the calendar and queue live on the Appointments page, not in the sidebar',()=>{
   const nav=fs.readFileSync('src/features/topbarAndNavigation.js','utf8');
-  const section=role=>nav.slice(nav.indexOf(`  ${role}:[`),nav.indexOf('],',nav.indexOf(`  ${role}:[`)));
-  assert(section('Staff').includes("'clinic-calendar'"));
-  assert(section('Doctor').includes("'clinic-calendar'"));
-  assert(!section('Patient').includes("'clinic-calendar'"));
-  assert(!section('Administrator').includes("'clinic-calendar'"));
+  for(const role of ['Patient','Doctor','Staff','Administrator']){
+    const section=nav.slice(nav.indexOf(`  ${role}:[`),nav.indexOf('],',nav.indexOf(`  ${role}:[`)));
+    assert(!section.includes("'clinic-calendar'"),role);
+  }
+  const page=fs.readFileSync('src/features/appointments.js','utf8');
+  assert.match(page,/calendarClinicFor\(appState\.auth\.currentUser\)/,'only clinic staff and doctors get the calendar view');
+  assert.match(page,/renderClinicCalendar\(\{host:document\.getElementById\('appt-calendar'\)\}\)/);
+  const nav2=fs.readFileSync('src/features/navigationRaceProtection.js','utf8');
+  assert.match(nav2,/if\(id==='clinic-calendar'\)\{\(appState\.appointments\?\?=\{\}\)\.mode='calendar';id='appointments';\}/,'old links open the calendar view');
 });

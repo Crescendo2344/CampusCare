@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {CLINIC_SERVICES,clinicForSpecialization,defaultStartTimeForSpecialty,doctorRendersService} from "../_shared/clinic-services.js";
 import {LONG_SERVICES,buildDoctorAvailability,daySlotStarts,serviceMinutes,slotFitProblem} from "../_shared/booking-availability.js";
 import {cleanTriageVitals,triageVitalErrors} from "../_shared/triage-vitals.js";
-import {EMERGENCY_MAX_DAYS_AHEAD,EMERGENCY_REASONS,emergencyBlockedTimes,emergencyReappointMessage,emergencySearchEnd,planEmergencyReappointments,prettyDeadline} from "../_shared/emergency-reappointment.js";
+import {EMERGENCY_MAX_DAYS_AHEAD,EMERGENCY_REASONS,confirmationDeadline,emergencyBlockedTimes,emergencyReappointMessage,emergencySearchEnd,planEmergencyReappointments,prettyDeadline} from "../_shared/emergency-reappointment.js";
 
 const cors={
   "Access-Control-Allow-Origin":"*",
@@ -32,6 +32,8 @@ const semesterLabel=(day:string,s:any)=>{
 };
 const PERSONNEL=["Teaching Personnel","Non-Teaching Personnel"];
 const RESCHEDULE_CUTOFF_HOURS=24;
+// A time proposed when a visit cannot push through is at least this far ahead (src/features/reappointment.js).
+const REAPPOINT_MIN_NOTICE_HOURS=3;
 const clearRescheduleRequest={reschedule_request_date:null,reschedule_request_time:null,reschedule_requested_at:null};
 // An emergency reappointment must be confirmed by its deadline; after that the patient books anew.
 const deadlinePassed=(appt:any)=>appt?.patient_response==="Awaiting"&&!!appt?.reappoint_deadline&&Date.parse(appt.reappoint_deadline)<=Date.now();
@@ -138,6 +140,11 @@ Deno.serve(async(req)=>{
       if(reason.length<3)return json({error:"Describe the complaint or reason for the visit.",field_errors:{reason:"Describe the complaint or reason for the visit."}},400);
       if(reappoint&&apology.length<3)return json({error:"Tell the patient briefly why the visit cannot push through."},400);
       if(reappoint&&date===existing.appointment_date&&time5(existing.appointment_time)===time)return json({error:"Choose a different date or time."},400);
+      // The patient confirms a proposed time by a deadline (as after a doctor emergency), so it must leave
+      // them a few hours to answer; an unanswered time is released by the scheduled job.
+      const reappointDeadline=reappoint?confirmationDeadline(Date.now(),date,time):null;
+      if(reappoint&&Date.parse(`${date}T${time}:00+08:00`)<Date.now()+REAPPOINT_MIN_NOTICE_HOURS*3600*1000)
+        return json({error:`Choose a time at least ${REAPPOINT_MIN_NOTICE_HOURS} hours from now so the patient can confirm it.`},400);
 
       const today=new Date(Date.now()+8*60*60*1000).toISOString().slice(0,10);
       if(date<today)return json({error:"Appointments cannot be booked in the past."},400);
@@ -151,8 +158,9 @@ Deno.serve(async(req)=>{
       const {data:clinicSettings}=await admin.from("system_settings")
         .select("booking_lead_hours,dental_visit_limit_per_semester,semester_start,semester_end,semester2_start,semester2_end")
         .order("settings_id",{ascending:true}).limit(1).maybeSingle();
-      // Patients book ahead by the clinic's lead time; slots inside it stay open for reappointments.
-      if(actor.role==="Patient"){
+      // Every booking or move is made at least the clinic's lead time ahead, whoever makes it; slots inside
+      // it stay open for the reappointments the clinic places.
+      if(!reappoint){
         const leadHours=Math.max(0,Number(clinicSettings?.booking_lead_hours??24));
         const slotStart=new Date(`${date}T${time}:00+08:00`).getTime();
         if(slotStart<Date.now()+leadHours*3600*1000)
@@ -308,7 +316,7 @@ Deno.serve(async(req)=>{
           reappoint_from_date:existing.patient_response==="Awaiting"&&existing.reappoint_from_date?existing.reappoint_from_date:existing.appointment_date,
           reappoint_from_time:existing.patient_response==="Awaiting"&&existing.reappoint_from_time?existing.reappoint_from_time:existing.appointment_time,
           reappoint_reason:apology,reappointed_by:actor.user_id,reappointed_at:new Date().toISOString(),
-          reappoint_deadline:null
+          reappoint_deadline:reappointDeadline
         }:{patient_response:existing?.patient_response?null:undefined,reappoint_deadline:existing?.reappoint_deadline?null:undefined}),
         // Any direct move settles a reschedule request that was still waiting.
         ...(existing?.reschedule_request_date?{reschedule_request_date:null,reschedule_request_time:null,reschedule_requested_at:null}:{})
@@ -335,7 +343,7 @@ Deno.serve(async(req)=>{
         user_id:account.user_id,
         title:action==="create"?"Appointment Confirmed":reappoint?"Appointment Will Not Push Through":"Appointment Rescheduled",
         message:reappoint
-          ?`We apologize that your appointment on ${prettyDate(existing.appointment_date)}, ${prettyTime(existing.appointment_time)} will not push through. ${apology.replace(/[.\s]*$/,"")}. The clinic proposes ${visitLine(clinic,date,time)} instead. Please accept the new time or pick another time in CampusCare.`
+          ?`We apologize that your appointment on ${prettyDate(existing.appointment_date)}, ${prettyTime(existing.appointment_time)} will not push through. ${apology.replace(/[.\s]*$/,"")}. The clinic proposes ${visitLine(clinic,date,time)} instead. Please accept the new time or pick another time in CampusCare by ${prettyDeadline(reappointDeadline)}. If we do not hear from you by then, this time will be released and you will need to book a new appointment.`
           :`${visitLine(clinic,date,time)}. ${await bringLine(account.person_type,date)}`,
         type:"Appointment",
         channel:"In-app",

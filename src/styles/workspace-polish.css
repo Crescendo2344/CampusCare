@@ -354,6 +354,10 @@
 /* Appointments: list tabs with counts, agenda day headings, compact row actions. */
 .appt-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap;margin-bottom:.75rem}
 .appt-views{display:flex;gap:.35rem;flex-wrap:wrap}
+.appt-mode{display:inline-flex;gap:0;border:1px solid var(--line);border-radius:999px;padding:2px;background:var(--glass-surface-soft)}
+.appt-mode .btn{border:0;border-radius:999px;box-shadow:none}
+.appt-mode .btn.active{background:var(--primary);color:var(--on-primary)}
+#appt-calendar .cq-head{margin-top:0}
 .appt-view{display:inline-flex;align-items:center;gap:.45rem;padding:.45rem .85rem;border-radius:999px;border:1px solid var(--line);background:var(--glass-surface-soft);color:var(--ink-muted);font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}
 .appt-view:hover{color:var(--ink)}
 .appt-view.active{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
@@ -1940,3 +1944,17 @@ input[type=password]::-ms-reveal,input[type=password]::-ms-clear{display:none}
 .dental-record-pages{display:flex;flex-direction:column;align-items:center;gap:1rem;overflow-x:auto;padding:.5rem 0}
 .dental-record-page{flex:none;box-shadow:0 2px 14px rgba(0,0,0,.18);background:#fff}
 .dr-work{margin-top:.7rem;align-items:flex-start}
+.reappoint-modal .ra-date-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.reappoint-modal .ra-hint{font-size:.8rem;margin:.15rem 0 .45rem}
+.reappoint-modal #ra-calendar .modern-calendar-day.available{background:var(--info-bg);border:1px solid var(--primary);color:var(--primary-text);font-weight:700}
+.reappoint-modal #ra-calendar .modern-calendar-day.available.selected{background:var(--primary);color:var(--on-primary)}
+/* Patients: a dental visit summary instead of the official dental record. */
+.dental-visit-summary .dvs-row{padding:.45rem 0;border-bottom:1px solid var(--line-soft,var(--line))}
+.dental-visit-summary .dvs-row span{display:block;font-size:.72rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-muted)}
+.dental-visit-summary .dvs-row p{margin:.15rem 0 0}
+.dental-visit-summary .dvs-recent-title{margin:1rem 0 .4rem;font-size:.9rem}
+.dental-visit-summary .dvs-recent{list-style:none;margin:0;padding:0;display:grid;gap:.3rem}
+.dental-visit-summary .dvs-recent li{display:flex;gap:.6rem;font-size:.86rem}
+.dental-visit-summary .dvs-recent li[aria-current] strong{color:var(--primary)}
+.dental-visit-summary .dvs-note{margin-top:1rem;display:flex;gap:.45rem;align-items:flex-start}
+.reappoint-modal #ra-slots .slot.selected{background:var(--primary);border-color:var(--primary);color:var(--on-primary,#fff)}
