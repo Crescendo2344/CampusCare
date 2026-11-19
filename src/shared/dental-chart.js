@@ -75,7 +75,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 // mark boxes below, with LEFT and RIGHT under it. Inline styles so it prints the same everywhere.
 export function dentalChartTableHtml([upper,lower],odontogram={},{width=672,cell=24,className='dc-chart'}={}){
   const box='border:1px solid #111;height:22px;padding:0;text-align:center;vertical-align:middle';
-  const mark=n=>{const value=toothMark(odontogram,n);return `<td class="dc-code" data-tooth="${n}" style="${box};font:700 11px Arial,sans-serif;color:${value===TOOTH_CHECK?'#15803d':'#b00020'}">${esc(value)}</td>`;};
+  const mark=n=>{const value=toothMark(odontogram,n);return `<td class="dc-code ${value===TOOTH_CHECK?'dc-check':'dc-mark'}" data-tooth="${n}" style="${box};font:700 11px Arial,sans-serif;color:${value===TOOTH_CHECK?'#15803d':'#b00020'}">${esc(value)}</td>`;};
   const num=n=>`<td class="dc-num" style="${box};font:10px Arial,sans-serif">${n}</td>`;
   const pic=(n,i,list)=>`<td class="dc-icon" style="padding:1px 0;text-align:center;${i===0?'border-left:1px solid #111;':''}${i===list.length-1?'border-right:1px solid #111;':''}">${toothIconSvg(toothSides(odontogram,n),cell)}</td>`;
   const half=upper.length/2;

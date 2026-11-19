@@ -691,19 +691,19 @@ export async function downloadCertPdf(id){
     // tolerance for browser/html2canvas rounding instead of treating a
     // fraction of a millimeter as a second page.
     if(imgH<=pageH+3){
-      pdf.addImage(imgData,'JPEG',0,0,pageW,pageH,'FAST');
+      pdf.addImage(imgData,'JPEG',0,0,pageW,pageH,undefined,'FAST');
     }else{
       let remaining=imgH;
       let pos=0;
 
-      pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');
+      pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,undefined,'FAST');
       remaining-=pageH;
 
       // Only add another page when meaningful content actually remains.
       while(remaining>3){
         pos=remaining-imgH;
         pdf.addPage();
-        pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,'FAST');
+        pdf.addImage(imgData,'JPEG',0,pos,pageW,imgH,undefined,'FAST');
         remaining-=pageH;
       }
     }

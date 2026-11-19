@@ -309,7 +309,7 @@ function rescheduleRequestsHtml(requests){
 function openDeclineReschedule(id){
   openModal(`<div class="modal modal-sm" role="dialog" aria-labelledby="resched-decline-title">
     <div class="modal-header"><h3 id="resched-decline-title">Decline reschedule request</h3><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
-    <div class="modal-body"><p>The patient keeps their current appointment and is told why.</p>
+    <div class="modal-body"><p>The patient is notified in CampusCare and by email that the request was declined and is encouraged to schedule again. Their current appointment stays until then.</p>
       <div class="form-group"><label for="resched-decline-note">Reason for the patient (optional)</label>
       <textarea id="resched-decline-note" rows="3" maxlength="300" placeholder="e.g. I'm fully booked that day. Please choose another time."></textarea></div></div>
     <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Cancel</button>
@@ -325,6 +325,6 @@ async function decideReschedule(id,decision,note=''){
     closeAllModals();
     await renderDoctorSchedule();
     void refreshTaskBadges(true);
-    toast(decision==='approve'?`Approved. The appointment moved to ${fmtDate(appt.rescheduleRequest.date)} at ${fmtTime(appt.rescheduleRequest.time)}.`:'Declined. The patient keeps the current time.','success');
+    toast(decision==='approve'?`Approved. The appointment moved to ${fmtDate(appt.rescheduleRequest.date)} at ${fmtTime(appt.rescheduleRequest.time)}.`:'Declined. The patient was notified by email and asked to choose another time.','success');
   }catch(e){toast(e?.message||'The request could not be updated.','error',7000);}
 }
