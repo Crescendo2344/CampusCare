@@ -4,6 +4,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.117.3";
 import {emailValidationError,normalizePhilippineMobile} from '../_shared/contact-validation.js';
 import {createMailDomainValidator} from '../_shared/mail-domain.js';
 import {authRedirect} from '../_shared/app-url.js';
+import {queueConfirmationEmail} from '../_shared/confirm-email.js';
 import {registrationDetailErrors,registrationHealthErrors} from '../_shared/registration-validation.js';
 import {existingRegistrationFor} from '../_shared/registration-duplicates.js';
 const checkMailDomain=createMailDomainValidator();
@@ -276,10 +277,10 @@ Deno.serve(async(req:Request)=>{
       if(consentError)throw new Error("Privacy consent could not be saved. Please try again.");
     }
 
-    // The standard resend API sends a confirmation even with public signups disabled.
-    // It retains provider throttling and expiring, single-use verification tokens.
-    const {error:confirmationError}=await publicClient.auth.resend({type:"signup",email,options:{emailRedirectTo:APP_CONFIRM_URL}});
-    if(confirmationError)throw new Error("Verification email could not be sent. Please try registering again shortly.");
+    // CampusCare's own mailer sends the confirmation (Supabase's built-in mailer allows only a few
+    // emails an hour). The link carries a single-use, expiring token.
+    const confirmationQueued=await queueConfirmationEmail(adminClient,{email,userId:profileRow.user_id,firstName:String(metadata.first_name||""),env:(name:string)=>Deno.env.get(name)||""});
+    if(!confirmationQueued)throw new Error("Verification email could not be sent. Please try registering again shortly.");
     cleanupId=null;
     return json({ok:true,user_id:uid,email_confirmation_required:REQUIRE_EMAIL_CONFIRMATION});
   }catch(e){

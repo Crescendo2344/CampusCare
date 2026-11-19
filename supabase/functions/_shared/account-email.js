@@ -1,5 +1,6 @@
 import {authRedirect} from './app-url.js';
 import {queuePasswordEmail,RESET_SUBJECT,SETUP_SUBJECT} from './password-email.js';
+import {CONFIRM_SUBJECT,queueConfirmationEmail} from './confirm-email.js';
 // Both public email flows verify the application profile and Auth record on the server.
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'POST, OPTIONS'};
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
@@ -42,13 +43,13 @@ export function createAccountEmailHandler({createClient,env,action,fetcher=fetch
         if(!queued)return json({error:'The email could not be sent. Please try again later.'},502);
         return json({ok:true});
       }
-      // Keep credentials server-side and preserve Supabase's email rate limits.
-      const client=createClient(env('SUPABASE_URL'),env('SUPABASE_ANON_KEY'),options);
-      const {error}=await client.auth.resend({type:'signup',email:account.email,options:{emailRedirectTo:authRedirect('confirmed',safeEnv)}});
-      if(error){
-        const limited=error.status===429||/rate|too many|seconds/i.test(error.message||'');
-        return json({error:limited?'Please wait before requesting another email.':'The email could not be sent. Please try again later.'},limited?429:502);
-      }
+      // The clinic mailer sends the new confirmation link; one per minute per address.
+      const since=new Date(Date.now()-60000).toISOString();
+      const {count:recent}=await admin.from('email_outbox').select('email_id',{count:'exact',head:true})
+        .eq('recipient_email',account.email).eq('subject',CONFIRM_SUBJECT).gte('created_at',since);
+      if(recent)return json({error:'Please wait before requesting another email.'},429);
+      const queued=await queueConfirmationEmail(admin,{email:account.email,userId:account.user_id,firstName:account.first_name,env:safeEnv,fetcher});
+      if(!queued)return json({error:'The email could not be sent. Please try again later.'},502);
       return json({ok:true});
     }catch(error){
       console.error('Account email request failed:',error?.message||'Unknown error');
