@@ -41,9 +41,9 @@ test('profile changes require active administrator authorization and explicit co
   for(const body of [{status:'Suspended'},{role:'Administrator'}])assert.equal((await f.call(body)).status,409);
 });
 test('confirmed edits save validated fields, read them back and audit without changing status',async()=>{
-  const f=await fixture({status:'Suspended'});const response=await f.call({first_name:' Updated ',email:'changed@example.test',contact_number:'+639987654321'});
+  const f=await fixture({status:'Suspended'});const response=await f.call({first_name:' Updated ',email:'changed@example.test',contact_number:'+639985274163'});
   assert.equal(response.status,200);const result=await response.json();assert.equal(result.user.first_name,'Updated');assert.equal(result.user.status,'Suspended');
-  assert.equal(result.user.contact_number,'09987654321');assert.equal(f.target.email,'changed@example.test');assert.equal(f.authUpdates.length,1);assert.equal(f.audits[0].action,'USER_UPDATED');assert(!('status' in f.writes[0]));
+  assert.equal(result.user.contact_number,'09985274163');assert.equal(f.target.email,'changed@example.test');assert.equal(f.authUpdates.length,1);assert.equal(f.audits[0].action,'USER_UPDATED');assert(!('status' in f.writes[0]));
   // The audit keeps before/after values and the reason; the user is told what changed.
   assert.equal(f.audits[0].details.previous_first_name,'Original');assert.equal(f.audits[0].details.new_first_name,'Updated');
   assert.equal(f.audits[0].details.reason,'Corrected per registrar records');

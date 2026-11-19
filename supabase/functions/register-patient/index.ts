@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2.117.3";
 
-import {emailValidationError,normalizePhilippineMobile} from '../_shared/contact-validation.js';
+import {emailValidationError,mobileValidationError,normalizePhilippineMobile} from '../_shared/contact-validation.js';
 import {createMailDomainValidator} from '../_shared/mail-domain.js';
 import {authRedirect} from '../_shared/app-url.js';
 import {queueConfirmationEmail} from '../_shared/confirm-email.js';
@@ -171,7 +171,8 @@ Deno.serve(async(req:Request)=>{
     if(!/^\d{5}(?:\d{2})?$/.test(schoolId))return json({error:"Enter a valid email and Student or Employee ID number."},400);
     const emailError=emailValidationError(email);if(emailError)return json({error:emailError,field_errors:{email:emailError}},400);
     const contactRaw=String(metadata.contact_number||'').trim();
-    if(contactRaw&&!normalizePhilippineMobile(contactRaw))return json({error:'Use a Philippine mobile number starting with 09 or +639.',field_errors:{contact_number:'Use a Philippine mobile number starting with 09 or +639.'}},400);
+    const contactError=contactRaw?mobileValidationError(contactRaw):'';
+    if(contactError)return json({error:contactError,field_errors:{contact_number:contactError}},400);
     // The same field rules as the browser form; never trust client-side checks alone.
     for(const key of ["first_name","last_name","username","college","sex"])metadata[key]=String(metadata[key]??"").trim();
     const manilaToday=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});

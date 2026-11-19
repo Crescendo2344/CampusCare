@@ -31,7 +31,9 @@ export function openCampusDatePicker(inputId,title,minDate='',maxDate='',onChang
   const layered=Boolean(appState.clinicInformation.activeModal?.isConnected);
   const dismiss=()=>{appState.datePicker.campusDatePickerTarget=null;if(layered)closeTopModal();else closeAllModals();};
   appState.datePicker.campusDatePickerTarget={inputId,onChange,layered};
-  const selected=input.value||((minDate&&minDate>appState.clinicInformation.TODAY)?minDate:appState.clinicInformation.TODAY);
+  const today=appState.clinicInformation.TODAY;
+  // Opens on a date that can be chosen: never before minDate or after maxDate (a birth-date calendar ends years ago).
+  const selected=input.value||((minDate&&minDate>today)?minDate:(maxDate&&maxDate<today)?maxDate:today);
   openModal(`<div class="modal"><div class="modal-header"><div><h3>${escapeHtml(title||'Select Date')}</h3></div><button class="close-btn" ${bindAction('click',()=>dismiss())}>✕</button></div>
     <div class="modal-body"><div id="campus-single-date-calendar"></div></div>
     <div class="modal-footer"><button class="btn" ${bindAction('click',()=>dismiss())}>Cancel</button></div></div>`,{preserveParent:layered});

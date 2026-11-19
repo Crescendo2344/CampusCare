@@ -103,7 +103,7 @@ try{
     else{
       if(!mobile){assert(request.postDataBuffer().toString().includes('fixture-captcha-'),'The CAPTCHA token must reach the API');if(!page.__fixtureLimited){page.__fixtureLimited=true;return route.fulfill({status:429,contentType:'application/json',headers:{'Retry-After':'120'},body:JSON.stringify({error:'Too many registration attempts. Please wait 2 minutes before trying again.',retry_after:120})});}}
       const sent=request.postDataBuffer().toString();
-      for(const part of ['"blood_type":"O+"','"height_cm":168','"weight_kg":61.5','"allergies":"None"','"emergency_contact_name":"Maria Student"','"emergency_contact_number":"09181234567"'])assert(sent.includes(part),`Registration must send ${part}`);
+      for(const part of ['"blood_type":"O+"','"height_cm":168','"weight_kg":61.5','"allergies":"None"','"emergency_contact_name":"Maria Student"','"emergency_contact_number":"09185823461"'])assert(sent.includes(part),`Registration must send ${part}`);
       response={ok:true,email_confirmation_required:false};
     }
    }
@@ -291,8 +291,8 @@ try{
     assert(await page.locator('#r-contact-help').isHidden());
     assert.equal(await page.locator('#r-contact').getAttribute('placeholder'),'09XXXXXXXXX');
     await page.locator('#r-contact').focus();assert(await page.locator('#r-contact-help').isVisible());
-    await page.locator('#r-contact').fill('+639171234567');await page.locator('#r-contact').blur();assert(await page.locator('#r-contact-error').isHidden());
-    assert.equal(await page.locator('#r-contact').inputValue(),'09171234567','A pasted +63 number becomes 11 digits');
+    await page.locator('#r-contact').fill('+639175823461');await page.locator('#r-contact').blur();assert(await page.locator('#r-contact-error').isHidden());
+    assert.equal(await page.locator('#r-contact').inputValue(),'09175823461','A pasted +63 number becomes 11 digits');
     assert(await page.locator('#r-contact-help').isHidden(),'Contact guidance hides after blur');
     await page.locator('#r-contact').fill('08171234567');await page.locator('#r-contact').blur();await page.locator('#r-contact-error').waitFor({state:'visible'});
     await page.locator('#r-contact').fill('');await page.locator('#r-contact').blur();
@@ -332,7 +332,7 @@ try{
     await page.locator('#r-ptype').selectOption('Student');
     await page.waitForFunction(()=>document.getElementById('r-verification-label').textContent.includes('Student ID — Front and Back'));
     // Populate a valid registration and an OCR name mismatch at the requested 25% boundary.
-    const fields={'r-fname':'Fixture','r-lname':'Student','r-user':'fixture.student','r-email':'fixture@example.test','r-pass':'Clinic-only-Pass1!','r-pass2':'Clinic-only-Pass1!','r-idno':'1234567','r-height':'168','r-weight':'61.5','r-allergies':'None','r-ename':'Maria Student','r-econtact':'09181234567'};
+    const fields={'r-fname':'Fixture','r-lname':'Student','r-user':'fixture.student','r-email':'fixture@example.test','r-pass':'Clinic-only-Pass1!','r-pass2':'Clinic-only-Pass1!','r-idno':'1234567','r-height':'168','r-weight':'61.5','r-allergies':'None','r-ename':'Maria Student','r-econtact':'09185823461'};
     for(const [id,value]of Object.entries(fields))await page.locator('#'+id).fill(value);
     await page.locator('#r-college').selectOption({index:0});await page.locator('#r-sex').selectOption('Male');await page.locator('#r-blood').selectOption('O+');
     await page.evaluate(()=>{
@@ -916,7 +916,7 @@ try{
     assert.equal(await page.locator('#au-email').inputValue(),'mclara@gmail.com');
     await page.locator('#au-contact').fill('12345');await page.locator('#au-contact').blur();
     assert(await page.locator('#au-contact-error').isVisible());
-    await page.locator('#au-contact').fill('+639171234567');
+    await page.locator('#au-contact').fill('+639175823461');
     assert(await page.locator('#au-contact-error').isHidden());
     // The password is generated and emailed by the server; it is never shown or typed here.
     assert.equal(await page.locator('#au-generated, #au-pass').count(),0);
@@ -926,7 +926,7 @@ try{
     await page.getByRole('button',{name:'Create account'}).click();
     await page.locator('.au-done').waitFor();
     const created=requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='create').at(-1);
-    assert.equal(created.body.role,'Staff');assert.equal(created.body.contact_number,'09171234567');
+    assert.equal(created.body.role,'Staff');assert.equal(created.body.contact_number,'09175823461');
     assert.equal(created.body.id_number,'14982');assert.equal(created.body.specialty,null);
     assert.equal(created.body.clinic,'Dental Clinic','The staff member is assigned to the chosen clinic');
     assert.equal(created.body.password,undefined,'No password leaves the browser');
@@ -1543,7 +1543,7 @@ try{
     await pending.locator('td').first().click();await page.getByRole('heading',{name:/^(User Information|Pending Applicant)$/}).first().waitFor();await page.getByRole('heading',{name:'Pending Applicant',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Edit User',exact:true}).count(),0);await page.locator('#active-modal .close-btn').click();
     const updatesBefore=requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').length;
     await active().getByRole('button',{name:'Edit',exact:true}).click();assert.equal(await page.locator('#eu-status').count(),0);
-    await page.locator('#eu-fname').fill('Updated');await page.locator('#eu-contact').fill('+639987654321');
+    await page.locator('#eu-fname').fill('Updated');await page.locator('#eu-contact').fill('+639985274163');
     // Step 1 marks what changed; step 2 reviews it, asks for a reason and the username before saving.
     assert.equal(await page.locator('.eu-field.changed').count(),2);
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('#active-modal .modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/user-edit-${mobile?'mobile':'desktop'}.png`});
@@ -1559,7 +1559,7 @@ try{
     await save.click();
     const updated=()=>page.locator('#user-table tbody tr').filter({hasText:'Doctor, Updated'});await updated().waitFor();
     assert.equal(requests.filter(r=>r.path.endsWith('/admin-users')&&r.body?.action==='update').at(-1)?.body.reason,'Corrected per registrar records');
-    assert.equal(managedUsers[1].first_name,'Updated');assert.equal(managedUsers[1].contact_number,'09987654321');assert.equal(managedUsers[1].status,'Active');
+    assert.equal(managedUsers[1].first_name,'Updated');assert.equal(managedUsers[1].contact_number,'09985274163');assert.equal(managedUsers[1].status,'Active');
     // Suspending asks for a reason and details, which are emailed to the person.
     await updated().getByRole('button',{name:'Suspend',exact:true}).click();
     await page.getByRole('button',{name:'Suspend and email'}).click();

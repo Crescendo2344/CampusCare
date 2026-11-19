@@ -38,7 +38,7 @@ test('printed tooth pictures shade the marked sides and never draw a check',()=>
 
 test('the dental record sheet follows the paper form',()=>{
   globalThis.location??={href:'https://campuscare.test/'};
-  const html=dentalRecordSheetHtml({name:'Ana <Reyes>',age:21,date:'Nov 14, 2026',courseMajor:'BSIT',yearSection:'3-A',cellNo:'09171234567',idNo:'1350098',messenger:'ana.r',
+  const html=dentalRecordSheetHtml({name:'Ana <Reyes>',age:21,date:'Nov 14, 2026',courseMajor:'BSIT',yearSection:'3-A',cellNo:'09175823461',idNo:'1350098',messenger:'ana.r',
     odontogram:{36:TOOTH_CHECK},oral:{fair:true,harelip:true,others:'Calculus'},operations:[{tooth_no:'36',nature:'Tooth extraction'}],workStatus:'In Progress',
     recommendation:'Return in 2 weeks',dentistName:'Dr. Jane Cruz'});
   for(const text of ['REPUBLIC OF THE PHILIPPINES','CEBU TECHNOLOGICAL UNIVERSITY','MAIN CAMPUS','ctudentalclinic20@gmail.com','DENTAL CLINIC','DENTAL RECORD','Course &amp; Major','Yr. &amp; Section','Messenger Account','ORAL HEALTH RECORD','ACCOMPLISHMENT','RECOMMENDATION','Dr. Jane Cruz'])

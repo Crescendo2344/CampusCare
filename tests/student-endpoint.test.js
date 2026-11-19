@@ -73,7 +73,7 @@ test('clinic-assisted registration validates fields, needs selfie and both ID si
       admin:{createUser:async body=>{created.push(body);return {data:{user:{id:'new-auth'}}};},deleteUser:async()=>({})}},
     storage:{from:()=>({upload:async(path,bytes,options)=>{uploads.push({path,type:options.contentType});return {error:null};}})}};
   const handler=await endpoint('supabase/functions/patient-actions/index.ts',client);
-  const valid={action:'create_assisted',first_name:'Ana',last_name:'Reyes',email:'ana.reyes@gmail.com',username:'ana.reyes',id_number:'1350098',person_type:'Student',college:'CCICT',class_session:'Morning',birth_date:'2004-05-06',sex:'Female',contact_number:'+639171234567',privacy_acknowledged:true,selfie_data_url:pixel,id_front_data_url:pixel,id_back_data_url:other};
+  const valid={action:'create_assisted',first_name:'Ana',last_name:'Reyes',email:'ana.reyes@gmail.com',username:'ana.reyes',id_number:'1350098',person_type:'Student',college:'CCICT',class_session:'Morning',birth_date:'2004-05-06',sex:'Female',contact_number:'+639175823461',privacy_acknowledged:true,selfie_data_url:pixel,id_front_data_url:pixel,id_back_data_url:other};
   const bad=await handler(request({...valid,first_name:'4na',id_number:'135',class_session:'Mixed'}));
   assert.equal(bad.status,400);assert.deepEqual(Object.keys((await bad.json()).field_errors).sort(),['class_session','first_name','id_number']);
   assert.equal((await handler(request({...valid,id_back_data_url:''}))).status,400,'Both ID sides are required');
@@ -82,7 +82,7 @@ test('clinic-assisted registration validates fields, needs selfie and both ID si
   assert.equal(ok.status,200);assert.equal((await ok.json()).verification_email_sent,true);
   assert.equal(created[0].email_confirm,false,'Assisted accounts must verify their email like public sign-ups');
   assert.equal(created[0].user_metadata.registration_context,'public');
-  assert.equal(created[0].user_metadata.contact_number,'09171234567');
+  assert.equal(created[0].user_metadata.contact_number,'09175823461');
   assert.deepEqual(uploads.map(u=>u.path),['new-auth/selfie-verification.png','new-auth/id-front.png','new-auth/id-back.png']);
   assert.equal(userUpdates[0].id_back_file_url,'new-auth/id-back.png');assert.equal(userUpdates[0].profile_image_url,null);
   // CampusCare's own "set your password" email, not Supabase's built-in one.

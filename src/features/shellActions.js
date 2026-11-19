@@ -1,4 +1,5 @@
 // shellActions: imported feature APIs; state belongs to explicit application namespaces.
+import {latestBirthDate} from '../../supabase/functions/_shared/registration-validation.js';
 import {state as appState} from '../app/state.js';
 import {authTab,landingNavTo,showAuthPage,showLandingPage} from './authentication.js';
 import {toggleTheme} from './theme.js';
@@ -57,7 +58,7 @@ export function initializeFeature(){
   registerNamedAction('shell-25',(event,element)=>{sanitizeInput(element,'phone');validateRegistrationContact(element,false)});
   registerNamedAction('shell-26',(event,element)=>{updateRegistrationIdentityFields();validateRegistrationField('r-idno',false)});
   registerNamedAction('shell-27',(event,element)=>{sanitizeRegistrationId(element);validateRegistrationField(element.id,false)});
-  registerNamedAction('shell-28',(event,element)=>{openCampusDatePicker('r-dob','Select Date of Birth','',appState.clinicInformation.TODAY,'')});
+  registerNamedAction('shell-28',(event,element)=>{openCampusDatePicker('r-dob','Select Date of Birth','',latestBirthDate(appState.clinicInformation.TODAY),'')});
   // Each side has its own accepted file and guided camera capture.
   for(const side of ['front','back']){
     registerNamedAction('id-'+side+'-upload',(event,input)=>{setVerificationScope('r');handleRegistrationIdUpload(input,side,'r');});
