@@ -27,7 +27,8 @@ export function appointmentActions(a,{role,userId,today,now}){
     cancel:false,
     reappoint:open&&(manage||ownDoctor),
     noShow:open&&(manage||ownDoctor)&&started,
-    // Reminders are the front desk's job: staff send them, doctors do not.
+    // Manual reminder for a scheduled patient (on top of the automatic one), sent by the front desk
+    // before the visit starts and not while the patient decides on a new time.
     remind:open&&manage&&!started&&a.patientResponse!=='Awaiting',
     // Triage: the front desk takes the vital signs on the day of the visit and may correct them until
     // the visit is completed. The doctor reads them; they are copied into the visit record.

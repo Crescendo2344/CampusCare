@@ -43,3 +43,10 @@ test('the inactive-patient archive is listed in the backup history',()=>{
   const ui=read('src/features/serverBackups.js');
   assert.match(ui,/if\(b\.type===INACTIVE_ARCHIVE_TYPE\)return \{day,html:inactiveArchiveRowHtml\(b\)\};/);
 });
+
+test('the manual reminder is a visible button on scheduled appointments, not hidden in the menu',()=>{
+  const page=read('src/features/appointments.js');
+  assert.match(page,/const remind=allowed\.remind\?`<button class="btn \$\{size\} appt-remind"/);
+  assert.match(page,/return \{primary:primary\+remind,more\};/);
+  assert.ok(!page.includes('> Send reminder</button>`,'),'no longer only in the row menu');
+});

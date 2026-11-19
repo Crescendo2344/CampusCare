@@ -132,13 +132,14 @@ export function apptActionButtons(a,allowed,{compact=true}={}){
     :allowed.vitals
       ?`<button class="btn ${size} ${hasTriageVitals(a.triageVitals)?'':'btn-primary'}" ${bindAction('click',()=>openTriageVitalsModal(a.id))}><i class="bi bi-heart-pulse" aria-hidden="true"></i> ${hasTriageVitals(a.triageVitals)?'Edit vitals':'Take vitals'}</button>`
       :`<button class="btn ${size}" ${bindAction('click',()=>viewAppt(a.id))}>View</button>`;
+  // The manual reminder is shown on the row, not tucked in the menu.
+  const remind=allowed.remind?`<button class="btn ${size} appt-remind" title="Send the patient a reminder in CampusCare and by email" ${bindAction('click',()=>sendApptNotif(a.id))}><i class="bi bi-bell" aria-hidden="true"></i> Remind</button>`:'';
   const more=[
     allowed.reschedule&&`<button type="button" role="menuitem" ${bindAction('click',()=>{closeAllModals();openRescheduleModal(a.id)})}><i class="bi bi-calendar2-week" aria-hidden="true"></i> Reschedule</button>`,
-    allowed.remind&&`<button type="button" role="menuitem" ${bindAction('click',()=>sendApptNotif(a.id))}><i class="bi bi-bell" aria-hidden="true"></i> Send reminder</button>`,
     allowed.noShow&&`<button type="button" role="menuitem" ${bindAction('click',()=>noShowAppt(a.id))}><i class="bi bi-person-x" aria-hidden="true"></i> Mark no-show</button>`,
     allowed.reappoint&&`<button type="button" role="menuitem" ${bindAction('click',()=>{closeAllModals();openReappointModal(a.id)})}><i class="bi bi-calendar2-x" aria-hidden="true"></i> ${listData.appointmentHasStarted(a,{today:clinicToday(),now:clinicNow()})?'Return for reappointment':'Can’t push through · reschedule'}</button>`
   ].filter(Boolean);
-  return {primary,more};
+  return {primary:primary+remind,more};
 }
 export function apptMenuHtml(more,label){
   if(!more.length)return '';

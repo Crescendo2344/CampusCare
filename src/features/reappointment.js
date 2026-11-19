@@ -13,6 +13,7 @@ import {addBookingDays} from '../domain/booking-availability.js';
 import {EMERGENCY_MAX_DAYS_AHEAD,EMERGENCY_REASONS,confirmationDeadline,emergencyReappointMessage,prettyDeadline} from '../domain/emergency-reappointment.js';
 import {initModernCalendar} from './calendar.js';
 import {appointmentHasStarted} from '../domain/appointment-list.js';
+import {queueNumberIn} from '../domain/clinic-calendar.js';
 import {fetchDoctorAvailability} from './bookingForm.js';
 import {toast} from './theme.js';
 import {bindAction} from '../dependencies.js';
@@ -20,12 +21,9 @@ import {bindAction} from '../dependencies.js';
 const REASONS=['The doctor is unavailable at that time','The clinic has an emergency','The clinic is closed that day','The visit needs more time than the slot allows'];
 const clinicToday=()=>appState.clinicInformation.TODAY;
 
-// Queue number within the hour: the first booking from 9:00 to 9:59 with a doctor is No. 1, the next No. 2.
+// Queue number for the day, per doctor (the same numbering as the calendar's queue).
 export function queueNumber(a,rows=appointmentRecords()){
-  const hour=String(a.time||'').slice(0,2);
-  const same=rows.filter(x=>x.doctorId===a.doctorId&&x.date===a.date&&String(x.time||'').slice(0,2)===hour&&x.status!=='Cancelled')
-    .sort((x,y)=>String(x.time).localeCompare(String(y.time))||String(x.createdAt||'').localeCompare(String(y.createdAt||''))||x.id-y.id);
-  return Math.max(1,same.findIndex(x=>x.id===a.id)+1);
+  return queueNumberIn(rows,a);
 }
 export function queueLabel(a,rows){
   const hour=Number(String(a.time||'00').slice(0,2));
