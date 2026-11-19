@@ -1,5 +1,6 @@
 // appointments: imported feature APIs; state belongs to explicit application namespaces.
 import {staffClinicOf,userClinic} from '../domain/clinic-scope.js';
+import {calendarClinicFor} from '../domain/clinic-calendar.js';
 import {state as appState} from '../app/state.js';
 import {captureCampusPageToken,isCampusPageCurrent} from './navigationRaceProtection.js';
 import {showDatabaseSkeleton} from './loadingSkeletons.js';
@@ -51,11 +52,22 @@ export async function renderAppointments(){
   ui.view=ui.view||'upcoming';ui.page=1;
   const ownClinic=staffClinicOf(appState.auth.currentUser);
   const doctors=role==='Doctor'?[]:(appState.data.DB.users||[]).filter(u=>u.role==='Doctor'&&(!appState.auth.currentUser._realSupabase||u._realSupabase)&&(!ownClinic||userClinic(u)===ownClinic));
-  c.innerHTML=`
-    <div class="appt-head"><div class="appt-views" role="tablist" aria-label="Appointment lists" id="appt-views"></div>
-      <div class="appt-head-actions">${canManageSlots()?`<button class="btn btn-sm" id="appt-manage-slots" ${bindAction('click',()=>openSlotManager())}><i class="bi bi-sliders" aria-hidden="true"></i> Manage time slots</button>`:''}
+  // Clinic staff and doctors switch between the list and their clinic's calendar and queue.
+  const calendarOn=Boolean(calendarClinicFor(appState.auth.currentUser));
+  if(!calendarOn||!['list','calendar'].includes(ui.mode))ui.mode='list';
+  const modeSwitch=calendarOn?`<div class="appt-mode" role="group" aria-label="Appointments view">${[['list','bi-list-ul','List'],['calendar','bi-calendar-week','Calendar &amp; queue']].map(([id,icon,label])=>
+    `<button type="button" class="btn btn-sm${ui.mode===id?' active':''}" aria-pressed="${ui.mode===id}" data-appt-mode="${id}" ${bindAction('click',()=>{if(ui.mode===id)return;ui.mode=id;renderAppointments();})}><i class="bi ${icon}" aria-hidden="true"></i> ${label}</button>`).join('')}</div>`:'';
+  const headActions=`<div class="appt-head-actions">${canManageSlots()?`<button class="btn btn-sm" id="appt-manage-slots" ${bindAction('click',()=>openSlotManager())}><i class="bi bi-sliders" aria-hidden="true"></i> Manage time slots</button>`:''}
       ${role==='Staff'&&canDeclareEmergency()?`<button class="btn btn-sm btn-danger" id="appt-emergency" title="A doctor cannot see patients: return a day's remaining appointments for reappointment" ${bindAction('click',()=>openEmergencyModal())}><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> Doctor emergency</button>`:''}
-      ${role!=='Doctor'?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>{openBookApptModal()})}>+ Book Appointment</button>`:''}</div></div>
+      ${role!=='Doctor'?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>{openBookApptModal()})}>+ Book Appointment</button>`:''}</div>`;
+  if(ui.mode==='calendar'){
+    c.innerHTML=`<div class="appt-head">${modeSwitch}${headActions}</div><div id="appt-calendar"></div>`;
+    const {renderClinicCalendar}=await import('./clinicCalendar.js');
+    return renderClinicCalendar({host:document.getElementById('appt-calendar')});
+  }
+  c.innerHTML=`
+    <div class="appt-head">${modeSwitch}<div class="appt-views" role="tablist" aria-label="Appointment lists" id="appt-views"></div>
+      ${headActions}</div>
     <div class="toolbar appt-toolbar">
       <input type="search" placeholder="Search patient, ID, appointment #${appState.auth.currentUser.role==='Doctor'?'':', doctor'} or service" aria-label="Search appointments" id="appt-search" ${bindAction('input',()=>{ui.page=1;renderApptTable()})}>
       <select id="appt-status" aria-label="Status" ${bindAction('change',()=>{ui.page=1;renderApptTable()})}>
@@ -120,13 +132,14 @@ export function apptActionButtons(a,allowed,{compact=true}={}){
     :allowed.vitals
       ?`<button class="btn ${size} ${hasTriageVitals(a.triageVitals)?'':'btn-primary'}" ${bindAction('click',()=>openTriageVitalsModal(a.id))}><i class="bi bi-heart-pulse" aria-hidden="true"></i> ${hasTriageVitals(a.triageVitals)?'Edit vitals':'Take vitals'}</button>`
       :`<button class="btn ${size}" ${bindAction('click',()=>viewAppt(a.id))}>View</button>`;
+  // The manual reminder is shown on the row, not tucked in the menu.
+  const remind=allowed.remind?`<button class="btn ${size} appt-remind" title="Send the patient a reminder in CampusCare and by email" ${bindAction('click',()=>sendApptNotif(a.id))}><i class="bi bi-bell" aria-hidden="true"></i> Remind</button>`:'';
   const more=[
     allowed.reschedule&&`<button type="button" role="menuitem" ${bindAction('click',()=>{closeAllModals();openRescheduleModal(a.id)})}><i class="bi bi-calendar2-week" aria-hidden="true"></i> Reschedule</button>`,
-    allowed.remind&&`<button type="button" role="menuitem" ${bindAction('click',()=>sendApptNotif(a.id))}><i class="bi bi-bell" aria-hidden="true"></i> Send reminder</button>`,
     allowed.noShow&&`<button type="button" role="menuitem" ${bindAction('click',()=>noShowAppt(a.id))}><i class="bi bi-person-x" aria-hidden="true"></i> Mark no-show</button>`,
-    allowed.reappoint&&`<button type="button" role="menuitem" ${bindAction('click',()=>{closeAllModals();openReappointModal(a.id)})}><i class="bi bi-calendar2-x" aria-hidden="true"></i> ${listData.appointmentHasStarted(a,{today:clinicToday(),now:clinicNow()})?'Return for reappointment':'Can’t push through · propose new time'}</button>`
+    allowed.reappoint&&`<button type="button" role="menuitem" ${bindAction('click',()=>{closeAllModals();openReappointModal(a.id)})}><i class="bi bi-calendar2-x" aria-hidden="true"></i> ${listData.appointmentHasStarted(a,{today:clinicToday(),now:clinicNow()})?'Return for reappointment':'Can’t push through · reschedule'}</button>`
   ].filter(Boolean);
-  return {primary,more};
+  return {primary:primary+remind,more};
 }
 export function apptMenuHtml(more,label){
   if(!more.length)return '';
@@ -184,13 +197,9 @@ export function renderApptTable(){
 }
 
 
-// After an appointment changes, refresh the page the person is on: the Clinic Calendar & Queue keeps
-// its selected day; everywhere else the Appointments page is shown again, as before.
+// After an appointment changes, show the Appointments page again in the view the person was using
+// (the calendar keeps its selected day).
 export async function refreshAppointmentViews(){
-  if(appState.navigationRaceProtection.campusActivePageId==='clinic-calendar'){
-    const {renderClinicCalendar}=await import('./clinicCalendar.js');
-    return renderClinicCalendar();
-  }
   return renderAppointments();
 }
 

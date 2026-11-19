@@ -24,7 +24,7 @@ test('actions follow role, ownership, status and timing',()=>{
   assert.equal(appointmentActions(later,{role:'Administrator',userId:1,today,now}).reappoint,false,'Administrators do not handle bookings');
   assert.equal(appointmentActions({...later,patientResponse:'Awaiting'},staff).remind,false,'No reminder while the patient decides on a new time');
   assert.equal(appointmentActions(past,doctor).document,true);
-  assert.equal(appointmentActions({...later,doctorId:7},doctor).remind,false,'Doctors do not send reminders');
+  assert.equal(appointmentActions({...later,doctorId:7},doctor).remind,false,'Reminders are sent by the front desk');
   assert.equal(appointmentActions(later,{...doctor,userId:8}).document,false);
   assert(Object.values(appointmentActions(done,staff)).every(v=>!v));
   // Triage vitals: the front desk takes them on the visit day and may correct them until it is completed.

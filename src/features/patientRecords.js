@@ -6,7 +6,7 @@ import {syncTreatmentContext,treatmentDisplayId,treatmentRecords} from './treatm
 import {escapeHtml} from './issueReports.js';
 import {collegeBadge,fmtDate} from './inputValidation.js';
 import {getUserById} from './documentScanner.js';
-import {downloadTreatmentPDF,viewTreatment} from './treatmentForm.js';
+import {downloadTreatmentPDF,isDentalTreatment,viewTreatment} from './treatmentForm.js';
 import {docName} from './displayNames.js';
 import {paginate,pagerHtml} from '../ui/pager.js';
 import {bindAction} from '../dependencies.js';
@@ -140,13 +140,15 @@ function renderMyTreatmentHistory(){
           return `<tr style="cursor:pointer" ${bindAction('click',(event,element)=>{viewTreatment((t.id))})} title="Open visit record">
             <td>#${treatmentDisplayId(t)}</td>
             <td>${fmtDate(t.date)}</td>
-            <td>${escapeHtml(t.diagnosis)}${t.dentalRecord?'<br><span class="badge badge-info">Dental Record</span>':''}</td>
+            <td>${escapeHtml(t.diagnosis)}${isDentalTreatment(t)?'<br><span class="badge badge-info">Dental visit</span>':''}</td>
             <td style="max-width:180px">${escapeHtml(t.prescription||'—')}</td>
             <td>${doc?escapeHtml(docName(doc)):'Doctor'}</td>
             <td>${t.followupDate?fmtDate(t.followupDate):'—'}</td>
             <td><div class="td-actions" ${bindAction('click',(event,element)=>{event.stopPropagation()})}>
-              <button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewTreatment((t.id))})}>View</button>
-              <button class="btn btn-xs btn-primary" ${bindAction('click',(event,element)=>{downloadTreatmentPDF((t.id))})}>Download PDF</button>
+              ${isDentalTreatment(t)
+                ?`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewTreatment((t.id))})}>Summary</button>`
+                :`<button class="btn btn-xs" ${bindAction('click',(event,element)=>{viewTreatment((t.id))})}>View</button>
+              <button class="btn btn-xs btn-primary" ${bindAction('click',(event,element)=>{downloadTreatmentPDF((t.id))})}>Download PDF</button>`}
             </div></td>
           </tr>`;
         }).join('')}</tbody>

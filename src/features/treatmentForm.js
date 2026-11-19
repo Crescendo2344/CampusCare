@@ -523,6 +523,7 @@ export function viewDentalRecord(id){viewTreatment(id);}
 // Prints every page of the record from a hidden frame once its images have loaded.
 export async function printDentalRecord(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  if(patientDentalBlocked(t))return;
   const pages=await dentalRecordPages(t);
   const frame=document.createElement('iframe');
   frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
@@ -539,6 +540,7 @@ export async function printDentalRecord(id){
 // An A4 PDF with one page per sheet of the record.
 export async function downloadDentalRecordPDF(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  if(patientDentalBlocked(t))return;
   let stage=null;
   try{
     const [jsPDF,html2canvas,pages]=await Promise.all([loadJsPDF(),loadHtml2Canvas(),dentalRecordPages(t)]);
@@ -570,6 +572,7 @@ export async function downloadDentalRecordPDF(id){
 // The same form as an editable Word document.
 export async function downloadDentalRecordWord(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  if(patientDentalBlocked(t))return;
   try{
     const [{loadDocxLib,downloadBlob},{dentalRecordDocx}]=await Promise.all([import('./reportCharts.js'),import('../reports/dental-record-word.js')]);
     const blob=await dentalRecordDocx(await loadDocxLib(),dentalRecordSheetData(t),dentalTreatmentRows(t));
@@ -581,8 +584,40 @@ export async function downloadDentalRecordWord(id){
   }
 }
 
+// The official dental record (chart, oral health record, treatment log and health history) stays with
+// the Dental Clinic: patients see a summary of their dental visits instead, without print or download.
+const isPatientViewer=()=>appState.auth.currentUser?.role==='Patient';
+function patientDentalBlocked(t){
+  if(!isPatientViewer()||!isDentalTreatment(t))return false;
+  toast('The dental record is kept by the CTU Dental Clinic. Ask the clinic if you need a copy.','info');
+  return true;
+}
+export function viewDentalVisitSummary(id){
+  const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  const doc=getUserById(t.doctorId);
+  const appt=t.appointmentId?appointmentRecords().find(a=>a.id===t.appointmentId):null;
+  const recent=treatmentRecords().filter(x=>x.patientId===t.patientId&&isDentalTreatment(x)&&!x.archived)
+    .sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,5);
+  const row=(label,value)=>value?`<div class="dvs-row"><span>${label}</span><p>${escapeHtml(value)}</p></div>`:'';
+  openModal(`<div class="modal dental-visit-summary" role="dialog" aria-labelledby="dvs-title">
+    <div class="modal-header"><div><h3 id="dvs-title">Dental visit summary</h3><div class="text-muted">${escapeHtml(fmtDate(t.date))}${doc?` · Dr. ${escapeHtml(`${doc.fname||''} ${doc.lname||''}`.trim())}`:''}</div></div><button class="close-btn" aria-label="Close" ${bindAction('click',()=>closeAllModals())}>✕</button></div>
+    <div class="modal-body">
+      ${row('Service',appt?.service||'')}
+      ${row('What the dentist found',t.findings)}
+      ${row('Diagnosis',t.diagnosis)}
+      ${row('Treatment done or prescribed',t.prescription)}
+      ${row('Advice',t.notes)}
+      ${row('Next visit',t.followupDate?fmtDate(t.followupDate):'')}
+      ${recent.length>1?`<h4 class="dvs-recent-title">Your recent dental visits</h4><ul class="dvs-recent">${recent.map(x=>`<li${x.id===t.id?' aria-current="true"':''}><strong>${escapeHtml(fmtDate(x.date))}</strong> <span>${escapeHtml(x.diagnosis||x.prescription||'Dental visit')}</span></li>`).join('')}</ul>`:''}
+      <p class="form-note dvs-note"><i class="bi bi-shield-lock" aria-hidden="true"></i> Your official dental record (tooth chart, treatment log and health history form) is kept by the CTU Dental Clinic. Ask the clinic if you need a copy.</p>
+    </div>
+    <div class="modal-footer"><button class="btn" ${bindAction('click',()=>closeAllModals())}>Close</button></div>
+  </div>`);
+}
+
 export function viewTreatment(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  if(isPatientViewer()&&isDentalTreatment(t))return viewDentalVisitSummary(id);
   // Dental records belong to the Dental Clinic: a Medical Clinic doctor does not open them.
   const viewer=appState.auth.currentUser;
   const dental=isDentalTreatment(t)&&!(viewer.role==='Doctor'&&clinicForSpecialization(viewer.specialty)!=='Dental Clinic');
@@ -640,6 +675,7 @@ async function saveClarification(id){
 
 export function printTreatmentRecord(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  if(patientDentalBlocked(t))return;
   const w=window.open('','_blank','width=900,height=900');if(!w){toast('Please allow pop-ups to print the treatment record.','warning');return;}
   w.document.write(`<!doctype html><html><head><title>Treatment Record #${id}</title><style>body{font-family:Arial,sans-serif;background:#fff;margin:0;padding:24px}.treatment-record-doc{max-width:760px;margin:auto;color:#1f2933}.treatment-doc-head{text-align:center;border-bottom:2px solid #0a7ea8;padding-bottom:14px;margin-bottom:18px}.treatment-doc-head h2{font-size:20px;margin:0;color:#12314a}.treatment-doc-head p{font-size:11px;color:#5f6d76}.treatment-doc-title{text-align:center;font-size:15px;font-weight:800;letter-spacing:1px;margin:16px 0;color:#0a5f80}.treatment-doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}.treatment-doc-field{font-size:12px;border-bottom:1px solid #e7ecef;padding:5px 0}.treatment-doc-field span,.treatment-vital-box span{display:block;font-size:10px;text-transform:uppercase;color:#76848d;font-weight:700}.treatment-doc-vitals{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 17px}.treatment-vital-box{border:1px solid #dfe7ec;border-radius:8px;padding:8px;text-align:center}.treatment-doc-section{margin:14px 0}.treatment-doc-section h4{font-size:11px;text-transform:uppercase;color:#0a6f96;border-bottom:1px solid #cfe0e8;padding-bottom:4px}.treatment-doc-section p{font-size:12px;line-height:1.55}.treatment-doc-sign{display:flex;justify-content:flex-end;margin-top:34px}.treatment-doc-sign>div{width:240px;text-align:center;font-size:11px}.treatment-doc-sign .line{border-top:1px solid #333;margin-top:38px;padding-top:5px}</style></head><body>${treatmentDocumentHtml(t)}</body></html>`);
   w.document.close();w.focus();setTimeout(()=>w.print(),250);
@@ -655,6 +691,7 @@ export async function waitForDocumentImages(root){
 
 export async function downloadTreatmentPDF(id){
   const t=treatmentRecords().find(x=>x.id===Number(id));if(!t)return;
+  if(patientDentalBlocked(t))return;
   let stage=null;
   try{
     const [jsPDF,html2canvas]=await Promise.all([loadJsPDF(),loadHtml2Canvas()]);

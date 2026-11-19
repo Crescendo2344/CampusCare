@@ -52,11 +52,10 @@ export function dayCounts(rows){
   return counts;
 }
 
-// Queue number within the hour, as on the Appointments page: the first booking from 9:00 to 9:59
-// with a doctor is No. 1, the next No. 2. Cancelled bookings do not take a number.
+// Queue number for the day, per doctor: the doctor's first booking of the day is No. 1, the next No. 2,
+// in time order (then by when it was booked). Cancelled bookings do not take a number.
 export function queueNumberIn(rows,a){
-  const hour=String(a.time||'').slice(0,2);
-  const same=rows.filter(x=>x.doctorId===a.doctorId&&x.date===a.date&&String(x.time||'').slice(0,2)===hour&&x.status!=='Cancelled')
+  const same=rows.filter(x=>x.doctorId===a.doctorId&&x.date===a.date&&x.status!=='Cancelled')
     .sort((x,y)=>String(x.time).localeCompare(String(y.time))||String(x.createdAt||'').localeCompare(String(y.createdAt||''))||x.id-y.id);
   return Math.max(1,same.findIndex(x=>x.id===a.id)+1);
 }

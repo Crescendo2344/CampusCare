@@ -69,7 +69,7 @@ export function viewAppt(id){
       ${history.length?`<h4 class="appt-detail-section">History</h4><ul class="appt-history">${history.map(item=>`<li>${item}</li>`).join('')}</ul>`:''}
     </div>
     <div class="modal-footer appt-detail-actions">
-      ${allowed.reappoint?`<button class="btn btn-warning" ${bindAction('click',()=>{closeAllModals();openReappointModal(a.id)})}><i class="bi bi-calendar2-x" aria-hidden="true"></i> ${overdue?'Return for reappointment':'Can’t push through'}</button>`:''}
+      ${allowed.reappoint?`<button class="btn btn-warning" ${bindAction('click',()=>{closeAllModals();openReappointModal(a.id)})}><i class="bi bi-calendar2-x" aria-hidden="true"></i> ${overdue?'Return for reappointment':'Can’t push through · reschedule'}</button>`:''}
       ${allowed.noShow?`<button class="btn" ${bindAction('click',()=>noShowAppt(a.id))}>Mark no-show</button>`:''}
       ${allowed.remind?`<button class="btn" ${bindAction('click',()=>sendApptNotif(a.id))}><i class="bi bi-bell" aria-hidden="true"></i> Send reminder</button>`:''}
       ${allowed.reschedule?`<button class="btn btn-warning" ${bindAction('click',()=>{closeAllModals();openRescheduleModal(a.id)})}>Reschedule</button>`:''}

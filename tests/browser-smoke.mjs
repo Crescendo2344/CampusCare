@@ -1008,10 +1008,12 @@ try{
     await page.locator('.reappoint-modal').waitFor();
     assert(await page.locator('#ra-send').isDisabled(),'A reason, date and time are required');
     await page.locator('#ra-reason').selectOption('The doctor is unavailable at that time');
-    await page.waitForFunction(()=>document.querySelectorAll('#ra-date option').length>1);
-    await page.locator('#ra-date').selectOption({index:1});
+    // The doctor's open times over the next weeks are shown on a calendar.
+    await page.locator('#ra-calendar .modern-calendar-day.available').first().waitFor();
+    await page.locator('#ra-calendar .modern-calendar-day.available').first().click();
     await page.locator('#ra-slots .slot').first().click();
-    assert.match(await page.locator('#ra-preview').innerText(),/We apologize that your appointment will not push through/);
+    assert.match(await page.locator('#ra-preview').innerText(),/We apologize that your appointment will not push through[\s\S]*Please confirm by/);
+    assert(!(await page.locator('#ra-send').isDisabled()),'Send is ready once a reason, date and time are chosen');
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.locator('.reappoint-modal').screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/reappoint-${mobile?'mobile':'desktop'}.png`});
     await page.locator('#ra-send').click();
     await page.waitForFunction(()=>!document.querySelector('.reappoint-modal'));
@@ -1259,14 +1261,17 @@ try{
   await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
   assert.equal(await page.locator('#msgr-shell').count(),0);
   // Clinic Calendar & Queue: staff and doctors only, each limited to their own clinic's bookings.
-  assert.equal(navIds.includes('nav-clinic-calendar'),['Staff','Doctor'].includes(role),`${role}: Clinic Calendar & Queue menu entry`);
+  // It is a view of the Appointments page now, not a sidebar entry.
+  assert(!navIds.includes('nav-clinic-calendar'),`${role}: no Clinic Calendar & Queue menu entry`);
   if(!['Staff','Doctor'].includes(role)){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('clinic-calendar'));
-    await page.waitForFunction(()=>window.__fixtureApp.state.navigationRaceProtection.campusActivePageId==='dashboard');
+    await page.waitForFunction(()=>['dashboard','appointments'].includes(window.__fixtureApp.state.navigationRaceProtection.campusActivePageId));
+    await page.waitForTimeout(300);
     assert.equal(await page.locator('#cq-root').count(),0,`${role} cannot open the clinic calendar`);
   }
   if(role==='Staff'){
-    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('clinic-calendar'));
+    await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('appointments'));
+    await page.locator('[data-appt-mode="calendar"]').click();
     await page.locator('#cq-root').waitFor();
     assert.match(await page.locator('.cq-clinic').innerText(),/Medical Clinic/);
     await page.evaluate(()=>{const {state,features}=window.__fixtureApp,today=state.clinicInformation.TODAY;
@@ -1280,6 +1285,9 @@ try{
     assert.doesNotMatch(await page.locator('#cq-queue').innerText(),/Dental Checkup/);
     assert.match(await page.locator('#cq-month .cq-cell.today').getAttribute('aria-label'),/1 booking/);
     if(process.env.CAMPUSCARE_VISUAL_DIR)await page.screenshot({path:`${process.env.CAMPUSCARE_VISUAL_DIR}/clinic-calendar-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+    // The view is remembered; switch back to the list for the steps below.
+    await page.locator('[data-appt-mode="list"]').click();
+    await page.locator('#appt-views').waitFor();
   }
   if(role==='Staff'){
     await page.evaluate(()=>window.__fixtureApp.features.navigationRaceProtection.navTo('patients'));

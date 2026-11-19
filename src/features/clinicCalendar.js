@@ -1,4 +1,4 @@
-// Clinic Calendar & Queue (Staff and Doctors).
+// Clinic Calendar & Queue (Staff and Doctors), shown on the Appointments page.
 // A month of the person's own clinic's bookings, and the selected day's queue in the order patients are
 // seen. Medical Clinic people see only Medical bookings and Dental Clinic people only Dental ones; the
 // database enforces the same rule (staff read their clinic's appointments, doctors their own).
@@ -23,8 +23,9 @@ import {bindAction} from '../dependencies.js';
 const st=()=>appState.clinicCalendar;
 const WEEKDAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-export async function renderClinicCalendar(){
-  const c=document.getElementById('app-content');
+// `host`: the element inside the Appointments page that shows the calendar (its data is already loaded).
+export async function renderClinicCalendar({host=null}={}){
+  const c=host||document.getElementById('app-content');
   const account=appState.auth.currentUser;
   const clinic=calendarClinicFor(account);
   if(!clinic){
@@ -34,7 +35,7 @@ export async function renderClinicCalendar(){
     return;
   }
   const pageToken=captureCampusPageToken();
-  if(account._realSupabase){
+  if(account._realSupabase&&!host){
     if(!document.getElementById('cq-root'))showDatabaseSkeleton('table');
     try{await syncAppointmentContext();}
     catch(e){
@@ -54,7 +55,7 @@ export async function renderClinicCalendar(){
         <p class="text-muted cq-scope">${account.role==='Doctor'?'Your own bookings only.':`Bookings of the ${escapeHtml(clinic)} only.`}</p></div>
       <div class="cq-head-actions">
         <button class="btn btn-sm" ${bindAction('click',()=>{s.date=today;s.month=today.slice(0,7);paint();})}><i class="bi bi-calendar-event" aria-hidden="true"></i> Today</button>
-        ${account.role==='Staff'?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>openBookApptModal())}>+ Book Appointment</button>`:''}
+        ${account.role==='Staff'&&!host?`<button class="btn btn-primary btn-sm" ${bindAction('click',()=>openBookApptModal())}>+ Book Appointment</button>`:''}
       </div>
     </div>
     <div class="cq-layout">

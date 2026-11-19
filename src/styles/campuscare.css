@@ -2551,15 +2551,22 @@ tbody tr:hover td{background:var(--overlay)}
 /* Explain snapshot versus dated activity so similarly sized cards do not imply identical measures. */
 
 /* Medical certificate: same CTU letterhead page as the dental certificate. */
-.cert-paper .mc-doc{font-family:"Times New Roman",Times,serif;font-size:14px;line-height:1.7}
-.cert-paper .mc-doc .mc-title{font-size:18px;letter-spacing:.06em;margin:10px 0 14px}
-.cert-paper .mc-meta{display:flex;justify-content:space-between;font-size:13px;margin-bottom:16px}
-.cert-paper .mc-doc p{margin:0 0 12px}.cert-paper .mc-indent{text-indent:36px;text-align:justify}
-.cert-paper .mc-doc .cert-signature-area{margin-top:40px;font-size:13px}
-.cert-paper .mc-note{font-size:12px;font-style:italic;margin-top:28px}
+/* Certificates are printed paper: black text on white in every app theme, never faded. */
+.cert-paper,.cert-paper *{color:#111!important;opacity:1!important;-webkit-text-fill-color:currentColor}
+.cert-paper td.dc-check{color:#15803d!important}.cert-paper td.dc-mark{color:#b00020!important}
+.cert-paper table,.cert-paper th,.cert-paper td{background:transparent!important}
+.cert-paper .mc-doc{font-size:12.5px;line-height:1.5}
+.cert-paper .mc-doc .mc-title{margin:4px 0 6px}
+.cert-paper .mc-doc .dc-info{font-size:12px;line-height:1.5}
+.cert-paper .mc-doc p{margin:0 0 10px}.cert-paper .mc-indent{text-indent:36px;text-align:justify}
+.cert-paper .mc-doc .mc-salute{margin-top:8px}
+.cert-paper .mc-doc .dc-label{font-size:12px;font-weight:700;margin-top:6px}
+.cert-paper .mc-doc .dc-ruled{font-size:12px;line-height:20px;min-height:40px;margin:2px 0 12px;background:repeating-linear-gradient(transparent 0 19px,#111 19px 20px)}
+.cert-paper .mc-doc .cert-signature-area{margin-top:34px;font-size:12px}
+.cert-paper .mc-note{font-size:11px;font-style:italic;margin-top:18px}
 /* Fresh signature on certificates. */
 .cert-sign-card{padding:.85rem}.cert-sign-card .cert-sign-actions{margin-top:.45rem}
-.cert-paper .mc-doc [data-cert-field]{display:inline;min-width:0;padding:0}
+.cert-paper .mc-doc p [data-cert-field]{display:inline;min-width:0;padding:0}
 /* The CTU letterhead is a layout table; app table styles must not draw borders, stripes or full width on it. */
 table.ctu-lh-head{width:auto!important;border:0!important;background:none!important;margin-left:auto!important;margin-right:auto!important}
 table.ctu-lh-head tr,table.ctu-lh-head td{border:0!important;background:none!important;box-shadow:none!important}

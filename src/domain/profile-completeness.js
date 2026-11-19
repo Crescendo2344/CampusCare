@@ -18,7 +18,8 @@ export const PROFILE_LEVELS=[
  * @returns {{percent:number,level:{label:string,tone:string},steps:{id:string,label:string,done:boolean,by:'patient'|'clinic'|'system',section:string}[],missing:object[]}}
  */
 export function profileCompleteness(user={},pt={}){
-  const student=(pt.personType||user.personType)==='Student';
+  const type=pt.personType||user.personType;
+  const student=type==='Student';
   const steps=[
     {id:'identity',label:'ID verified by the clinic',done:user.status==='Active'&&user.verified!==false,by:'system',section:'Registration'},
     {id:'contact',label:'Mobile number',done:filled(user.contact),by:'patient',section:'Finish verification'},
@@ -27,6 +28,13 @@ export function profileCompleteness(user={},pt={}){
     ...(student?[
       {id:'program',label:'Course',done:filled(pt.course),by:'patient',section:'Finish verification'},
       {id:'session',label:'Class session (morning or evening)',done:filled(pt.classSession),by:'patient',section:'Finish verification'}
+    ]:[]),
+    // Teaching and non-teaching personnel have no course or class session; the clinic needs to know
+    // where they work instead (chosen at registration; the clinic corrects it if it is wrong).
+    ...(type==='Teaching Personnel'?[
+      {id:'unit',label:'College where you teach',done:filled(pt.college||user.college),by:'clinic',section:'Registration'}
+    ]:type==='Non-Teaching Personnel'?[
+      {id:'unit',label:'Office or department',done:filled(pt.college||user.college),by:'clinic',section:'Registration'}
     ]:[]),
     {id:'address',label:'Home address',done:filled(pt.address),by:'patient',section:'Finish verification'},
     {id:'blood',label:'Blood type',done:known(pt.blood),by:'patient',section:'Finish verification'},

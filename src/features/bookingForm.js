@@ -37,10 +37,11 @@ export async function fetchDoctorAvailability(doctor,from,to,editing=null,servic
   return buildDoctorAvailability({doctor,from,to,today:from,nowMinutes,service,appointments:appointmentRecords().filter(a=>a.doctorId===doctor.id&&a.id!==editing?.id),leaves:(appState.data.DB.doctorLeaves||[]).filter(l=>l.doctorId===doctor.id),overrides:(appState.data.DB.settings.slotOverrides||[]).filter(o=>o.doctorId===doctor.id).flatMap(o=>[...(o.blockedTimes||[]).map(time=>({date:o.date,time,available:false})),...(o.availableTimes||[]).map(time=>({date:o.date,time,available:true}))]),settings:{lunchStart:appState.data.DB.settings.lunchBreakStart,lunchEnd:appState.data.DB.settings.lunchBreakEnd}});
 }
 
-// For patients, slots inside the clinic's booking lead time are kept for reappointments the clinic places.
-export function applyBookingLead(days,role=appState.auth.currentUser?.role,now=Date.now()){
+// Every booking is made at least the clinic's lead time ahead (24 hours by default), whoever books it;
+// nearer slots are kept for the reappointments the clinic places.
+export function applyBookingLead(days,now=Date.now()){
   const lead=Number(appState.data.DB.settings?.bookingLeadHours??24);
-  if(role!=='Patient'||!(lead>0))return days;
+  if(!(lead>0))return days;
   const cutoff=now+lead*3600*1000;
   return days.map(day=>{
     let changed=false;
@@ -276,8 +277,8 @@ export function slotAvailabilityState(doc,date,time){
   if(blocked.includes(time))return {blocked:true,label:'Unavailable',kind:'blocked'};
   if(isDefaultLunchSlot(time,doc)&&!available.includes(time))return {blocked:true,label:'Lunch break',kind:'lunch'};
   if(date===clinicToday()){const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date()),nowMin=timeToMinutes(parts);if(timeToMinutes(time)<=nowMin)return {blocked:true,label:'Past time',kind:'past'};}
-  // Patients book ahead by the clinic's lead time; nearer slots stay open for clinic reappointments.
-  if(appState.auth.currentUser?.role==='Patient'){
+  // Bookings are made at least the clinic's lead time ahead; nearer slots stay open for clinic reappointments.
+  {
     const lead=Number(appState.data.DB.settings?.bookingLeadHours??24);
     if(lead>0&&new Date(`${date}T${time}:00+08:00`).getTime()<Date.now()+lead*3600*1000)return {blocked:true,label:'Reappointments only',kind:'reserved'};
   }

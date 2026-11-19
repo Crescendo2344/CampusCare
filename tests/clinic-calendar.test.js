@@ -45,7 +45,7 @@ test('month grid has six weeks from Sunday and day counts split by outcome',()=>
   assert.deepEqual(c['2026-11-20'],{total:1,waiting:0,completed:0,noShow:1,cancelled:0});
 });
 
-test('the day queue is in time order with numbers per doctor and hour; cancelled come last unnumbered',()=>{
+test('the day queue is in time order, numbered through the day per doctor; cancelled come last unnumbered',()=>{
   const day=[
     appt(10,'Medical Clinic',130,'2026-11-19','10:00'),
     appt(11,'Medical Clinic',130,'2026-11-19','09:00'),
@@ -53,18 +53,22 @@ test('the day queue is in time order with numbers per doctor and hour; cancelled
     appt(13,'Medical Clinic',130,'2026-11-19','09:10','Cancelled')
   ];
   const {live,cancelled}=dayQueue(day,'2026-11-19');
-  assert.deepEqual(live.map(a=>[a.id,a.queueNo]),[[11,1],[12,2],[10,1]]);
+  assert.deepEqual(live.map(a=>[a.id,a.queueNo]),[[11,1],[12,2],[10,3]],'No. 1, 2, 3 through the day, not restarting each hour');
   assert.deepEqual(cancelled.map(a=>[a.id,a.queueNo]),[[13,null]]);
   assert.equal(nowServing(live,{date:'2026-11-19',today:'2026-11-19',now:'09:40'}).id,11);
   assert.equal(nowServing(live.map(a=>a.id===11?{...a,status:'Completed'}:a),{date:'2026-11-19',today:'2026-11-19',now:'09:40'}).id,12);
   assert.equal(nowServing(live,{date:'2026-11-20',today:'2026-11-19',now:'09:40'}),null,'Only today has a now-serving patient');
 });
 
-test('the page is in the staff and doctor menus only',()=>{
+test('the calendar and queue live on the Appointments page, not in the sidebar',()=>{
   const nav=fs.readFileSync('src/features/topbarAndNavigation.js','utf8');
-  const section=role=>nav.slice(nav.indexOf(`  ${role}:[`),nav.indexOf('],',nav.indexOf(`  ${role}:[`)));
-  assert(section('Staff').includes("'clinic-calendar'"));
-  assert(section('Doctor').includes("'clinic-calendar'"));
-  assert(!section('Patient').includes("'clinic-calendar'"));
-  assert(!section('Administrator').includes("'clinic-calendar'"));
+  for(const role of ['Patient','Doctor','Staff','Administrator']){
+    const section=nav.slice(nav.indexOf(`  ${role}:[`),nav.indexOf('],',nav.indexOf(`  ${role}:[`)));
+    assert(!section.includes("'clinic-calendar'"),role);
+  }
+  const page=fs.readFileSync('src/features/appointments.js','utf8');
+  assert.match(page,/calendarClinicFor\(appState\.auth\.currentUser\)/,'only clinic staff and doctors get the calendar view');
+  assert.match(page,/renderClinicCalendar\(\{host:document\.getElementById\('appt-calendar'\)\}\)/);
+  const nav2=fs.readFileSync('src/features/navigationRaceProtection.js','utf8');
+  assert.match(nav2,/if\(id==='clinic-calendar'\)\{\(appState\.appointments\?\?=\{\}\)\.mode='calendar';id='appointments';\}/,'old links open the calendar view');
 });
